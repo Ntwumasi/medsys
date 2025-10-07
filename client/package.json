@@ -11,10 +11,14 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.14",
+    "@vercel/postgres": "^0.10.0",
     "axios": "^1.12.2",
+    "bcrypt": "^6.0.0",
     "date-fns": "^4.1.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "jsonwebtoken": "^9.0.2",
+    "next": "^15.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.3"
   },
   "devDependencies": {
