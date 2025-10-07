@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Appointment } from '../types';
+import type { Appointment } from '../types';
 
 export const appointmentsAPI = {
   getAppointments: async (params?: {

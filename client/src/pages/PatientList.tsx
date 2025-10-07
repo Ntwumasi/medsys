@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
-import { Patient } from '../types';
+import type { Patient } from '../types';
 import { format } from 'date-fns';
 
 const PatientList: React.FC = () => {

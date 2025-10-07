@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
-import { PatientSummary } from '../types';
+import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
 
 const PatientDetails: React.FC = () => {

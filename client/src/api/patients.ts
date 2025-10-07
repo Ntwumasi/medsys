@@ -1,5 +1,5 @@
 import apiClient from './client';
-import { Patient, PatientSummary } from '../types';
+import type { Patient, PatientSummary } from '../types';
 
 export const patientsAPI = {
   getPatients: async (params?: { search?: string; limit?: number; offset?: number }) => {

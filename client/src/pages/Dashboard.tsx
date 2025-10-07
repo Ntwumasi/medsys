@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
-import { Appointment } from '../types';
+import type { Appointment } from '../types';
 import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
