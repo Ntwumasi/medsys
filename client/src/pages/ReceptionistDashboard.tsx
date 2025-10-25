@@ -159,9 +159,13 @@ const ReceptionistDashboard: React.FC = () => {
       setTimeout(() => {
         alert(`✓ ${patientName} checked in successfully!\n\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error checking in patient:', error);
-      alert('Failed to check in patient');
+
+      // Extract error message from API response
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient';
+
+      alert(`❌ Check-In Failed\n\n${errorMessage}`);
     }
   };
 
@@ -210,9 +214,13 @@ const ReceptionistDashboard: React.FC = () => {
       setTimeout(() => {
         alert(`✓ Patient registered successfully!\n\nPatient #: ${newPatientData.patient_number}\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
       }, 100);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating new patient:', error);
-      alert('Failed to register new patient');
+
+      // Extract error message from API response
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to register new patient';
+
+      alert(`❌ Registration Failed\n\n${errorMessage}`);
     }
   };
 

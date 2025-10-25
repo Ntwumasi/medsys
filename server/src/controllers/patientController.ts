@@ -81,10 +81,40 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       message: 'Patient created successfully',
       patient: result.rows[0],
     });
-  } catch (error) {
+  } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('Create patient error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+
+    // Handle specific database errors
+    if (error.code === '23505') {
+      // Unique constraint violation
+      if (error.constraint === 'users_email_key') {
+        res.status(409).json({
+          error: 'Email already registered',
+          message: 'A patient with this email address already exists in the system. Please use a different email or search for the existing patient to check them in.'
+        });
+        return;
+      }
+      res.status(409).json({
+        error: 'Duplicate entry',
+        message: 'This patient record already exists in the system.'
+      });
+      return;
+    }
+
+    if (error.code === '23502') {
+      // Not null constraint violation
+      res.status(400).json({
+        error: 'Missing required field',
+        message: 'Please fill in all required fields.'
+      });
+      return;
+    }
+
+    res.status(500).json({
+      error: 'Failed to register patient',
+      message: 'An unexpected error occurred. Please try again or contact support if the problem persists.'
+    });
   } finally {
     client.release();
   }
