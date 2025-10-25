@@ -1,0 +1,13 @@
+{
+  "name": "medsys-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "install-all": "npm install --workspaces",
+    "build": "npm run build --workspace=client"
+  }
+}
