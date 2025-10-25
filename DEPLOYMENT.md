@@ -1,14 +1,92 @@
-# Deployment Guide
+# Deployment Guide - Updated for Workflow System
 
-This guide will help you deploy the MedSys EMR application to production.
+This guide will help you deploy the complete MedSys EMR application with the new workflow system to production.
 
 ## Architecture
 
 - **Frontend (Client)**: Deploy to Vercel
-- **Backend (Server)**: Deploy to Railway, Render, or Heroku
-- **Database**: PostgreSQL on Railway, Render, or Supabase
+- **Backend (Server)**: Deploy to Render (using render.yaml blueprint)
+- **Database**: PostgreSQL on Render (auto-configured)
 
-## Option 1: Deploy Frontend to Vercel + Backend to Railway (Recommended)
+---
+
+## ⚡ FASTEST DEPLOYMENT (Recommended for Demo)
+
+### Step 1: Deploy to Render (Backend + Database)
+
+```bash
+# 1. Commit all changes
+git add .
+git commit -m "Ready for production deployment"
+git push origin main
+```
+
+1. Go to https://render.com and sign in with GitHub
+2. Click "New" → "Blueprint"
+3. Connect your GitHub repo: `medsys`
+4. Render will detect `render.yaml` and automatically create:
+   - ✅ PostgreSQL database (medsys-db)
+   - ✅ Backend API (medsys-api)
+5. Click "Apply" and wait 5-10 minutes
+
+### Step 2: Run Database Migrations
+
+Once deployed, click on your backend service → "Shell":
+```bash
+npm run db:setup
+npx ts-node src/database/migration_workflow.ts
+npx ts-node src/database/create_test_users.ts
+npx ts-node src/database/create_test_patients.ts
+```
+
+**Save your backend URL** (e.g., `https://medsys-api-xxxx.onrender.com`)
+
+### Step 3: Deploy Frontend to Vercel
+
+Update the API URL:
+```bash
+# Edit client/.env.production
+VITE_API_URL=https://medsys-api-xxxx.onrender.com/api
+```
+
+Deploy:
+```bash
+# Commit the change
+git add client/.env.production
+git commit -m "Update production API URL"
+git push origin main
+
+# Deploy to Vercel
+npx vercel --prod
+```
+
+Or use Vercel Dashboard:
+1. Go to https://vercel.com/new
+2. Import your GitHub repo
+3. Vercel auto-detects settings from `vercel.json`
+4. Add Environment Variable: `VITE_API_URL` = `https://medsys-api-xxxx.onrender.com/api`
+5. Deploy!
+
+### Step 4: Update CORS
+
+Go to Render → Your Service → Environment → Add Variable:
+- **Key**: `FRONTEND_URL`
+- **Value**: `https://your-app.vercel.app` (your Vercel URL)
+
+Save and it will auto-redeploy.
+
+### Step 5: Test! 🎉
+
+Go to your Vercel URL and login:
+```
+receptionist@clinic.com / demo123
+nurse@clinic.com / demo123
+doctor@clinic.com / demo123
+```
+
+---
+
+## Option 1: Deploy Frontend to Vercel + Backend to Railway (Alternative)
 
 ### Step 1: Push to GitHub
 

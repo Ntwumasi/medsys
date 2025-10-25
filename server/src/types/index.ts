@@ -35,6 +35,10 @@ export interface Encounter {
   id: number;
   patient_id: number;
   provider_id: number;
+  encounter_number?: string;
+  room_id?: number;
+  nurse_id?: number;
+  receptionist_id?: number;
   encounter_date: Date;
   encounter_type?: string;
   chief_complaint?: string;
@@ -43,6 +47,12 @@ export interface Encounter {
   physical_examination?: string;
   assessment?: string;
   plan?: string;
+  triage_time?: Date;
+  triage_priority?: 'green' | 'yellow' | 'red';
+  checked_in_at?: Date;
+  nurse_started_at?: Date;
+  doctor_started_at?: Date;
+  completed_at?: Date;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   created_at: Date;
   updated_at: Date;
@@ -90,6 +100,100 @@ export interface Appointment {
   reason?: string;
   notes?: string;
   created_by?: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Room {
+  id: number;
+  room_number: string;
+  room_name?: string;
+  is_available: boolean;
+  room_type: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ClinicalNote {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  note_type: 'receptionist' | 'nurse_hmp' | 'nurse_general' | 'doctor_general' | 'doctor_orders';
+  content: string;
+  created_by: number;
+  is_signed: boolean;
+  signed_at?: Date;
+  signed_by?: number;
+  is_locked: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PharmacyOrder {
+  id: number;
+  patient_id: number;
+  encounter_id?: number;
+  ordering_provider?: number;
+  medication_name: string;
+  dosage?: string;
+  frequency?: string;
+  route?: string;
+  quantity?: string;
+  refills: number;
+  priority: 'routine' | 'urgent' | 'stat';
+  status: 'ordered' | 'approved' | 'dispensed' | 'completed' | 'cancelled';
+  ordered_date: Date;
+  dispensed_date?: Date;
+  notes?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Alert {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  from_user_id?: number;
+  to_user_id?: number;
+  alert_type: 'patient_ready' | 'vitals_critical' | 'urgent' | 'general';
+  message?: string;
+  is_read: boolean;
+  read_at?: Date;
+  created_at: Date;
+}
+
+export interface LabOrder {
+  id: number;
+  patient_id: number;
+  encounter_id?: number;
+  ordering_provider?: number;
+  test_name: string;
+  test_code?: string;
+  priority: 'routine' | 'urgent' | 'stat';
+  status: 'ordered' | 'collected' | 'in-progress' | 'completed' | 'cancelled';
+  ordered_date: Date;
+  collected_date?: Date;
+  result_date?: Date;
+  result?: string;
+  notes?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ImagingOrder {
+  id: number;
+  patient_id: number;
+  encounter_id?: number;
+  ordering_provider?: number;
+  imaging_type: string;
+  body_part?: string;
+  priority: 'routine' | 'urgent' | 'stat';
+  status: 'ordered' | 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+  ordered_date: Date;
+  scheduled_date?: Date;
+  completed_date?: Date;
+  findings?: string;
+  notes?: string;
   created_at: Date;
   updated_at: Date;
 }

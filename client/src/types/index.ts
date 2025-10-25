@@ -53,6 +53,10 @@ export interface Encounter {
   provider_id: number;
   provider_name?: string;
   patient_number?: string;
+  encounter_number?: string;
+  room_id?: number;
+  nurse_id?: number;
+  receptionist_id?: number;
   encounter_date: string;
   encounter_type?: string;
   chief_complaint?: string;
@@ -61,6 +65,12 @@ export interface Encounter {
   physical_examination?: string;
   assessment?: string;
   plan?: string;
+  triage_time?: string;
+  triage_priority?: 'green' | 'yellow' | 'red';
+  checked_in_at?: string;
+  nurse_started_at?: string;
+  doctor_started_at?: string;
+  completed_at?: string;
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
