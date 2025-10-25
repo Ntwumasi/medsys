@@ -2,7 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import { format } from 'date-fns';
+import { format, isValid, parseISO } from 'date-fns';
+
+// Safe date formatting helper
+const safeFormatDate = (dateValue: any, formatString: string, fallback: string = 'N/A'): string => {
+  if (!dateValue) return fallback;
+
+  try {
+    const date = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue);
+    if (isValid(date)) {
+      return format(date, formatString);
+    }
+    return fallback;
+  } catch (error) {
+    console.error('Date formatting error:', error, 'Value:', dateValue);
+    return fallback;
+  }
+};
 
 interface Patient {
   id: number;
@@ -490,8 +506,8 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
 
                         <div className="mt-2 flex gap-4 text-sm text-gray-700">
-                          <span>DOB: {format(new Date(item.date_of_birth), 'MM/dd/yyyy')}</span>
-                          <span>Checked in: {format(new Date(item.check_in_time), 'h:mm a')}</span>
+                          <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')}</span>
+                          <span>Checked in: {safeFormatDate(item.check_in_time, 'h:mm a')}</span>
                           {item.billing_amount && (
                             <span className="font-semibold text-green-700">
                               Billing: ${item.billing_amount}
@@ -602,7 +618,7 @@ const ReceptionistDashboard: React.FC = () => {
                             {patient.first_name} {patient.last_name}
                           </div>
                           <div className="text-sm text-gray-600 mt-1">
-                            Patient #: {patient.patient_number} | DOB: {format(new Date(patient.date_of_birth), 'MM/dd/yyyy')}
+                            Patient #: {patient.patient_number} | DOB: {safeFormatDate(patient.date_of_birth, 'MM/dd/yyyy')}
                           </div>
                         </div>
                       ))}
@@ -621,7 +637,7 @@ const ReceptionistDashboard: React.FC = () => {
                     <div className="text-sm space-y-1">
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
-                      <p><span className="font-medium">DOB:</span> {format(new Date(selectedPatient.date_of_birth), 'MM/dd/yyyy')}</p>
+                      <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')}</p>
                       {selectedPatient.phone && (
                         <p><span className="font-medium">Phone:</span> {selectedPatient.phone}</p>
                       )}
@@ -686,7 +702,7 @@ const ReceptionistDashboard: React.FC = () => {
                             Encounter #: {encounter.encounter_number}
                           </span>
                           <p className="text-sm text-gray-600">
-                            {format(new Date(encounter.encounter_date), 'MMM dd, yyyy')}
+                            {safeFormatDate(encounter.encounter_date, 'MMM dd, yyyy')}
                           </p>
                         </div>
                         <span className="text-sm font-semibold text-green-700">
