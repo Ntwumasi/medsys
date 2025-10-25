@@ -9,12 +9,11 @@ interface Patient {
   first_name?: string;
   last_name?: string;
   date_of_birth: string;
-  phone_number?: string;
+  phone?: string;
   email?: string;
   address?: string;
   city?: string;
   state?: string;
-  zip_code?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
 }
@@ -81,12 +80,11 @@ const ReceptionistDashboard: React.FC = () => {
     last_name: '',
     date_of_birth: '',
     gender: '',
-    phone_number: '',
+    phone: '',
     email: '',
     address: '',
     city: '',
     state: '',
-    zip_code: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
   });
@@ -180,12 +178,11 @@ const ReceptionistDashboard: React.FC = () => {
         last_name: '',
         date_of_birth: '',
         gender: '',
-        phone_number: '',
+        phone: '',
         email: '',
         address: '',
         city: '',
         state: '',
-        zip_code: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
       });
@@ -543,8 +540,8 @@ const ReceptionistDashboard: React.FC = () => {
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
                       <p><span className="font-medium">DOB:</span> {format(new Date(selectedPatient.date_of_birth), 'MM/dd/yyyy')}</p>
-                      {selectedPatient.phone_number && (
-                        <p><span className="font-medium">Phone:</span> {selectedPatient.phone_number}</p>
+                      {selectedPatient.phone && (
+                        <p><span className="font-medium">Phone:</span> {selectedPatient.phone}</p>
                       )}
                     </div>
                   </div>
@@ -716,8 +713,8 @@ const ReceptionistDashboard: React.FC = () => {
                   </label>
                   <input
                     type="tel"
-                    value={newPatient.phone_number}
-                    onChange={(e) => setNewPatient({ ...newPatient, phone_number: e.target.value })}
+                    value={newPatient.phone}
+                    onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     required
                   />
@@ -748,7 +745,7 @@ const ReceptionistDashboard: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     City
@@ -769,18 +766,6 @@ const ReceptionistDashboard: React.FC = () => {
                     type="text"
                     value={newPatient.state}
                     onChange={(e) => setNewPatient({ ...newPatient, state: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ZIP Code
-                  </label>
-                  <input
-                    type="text"
-                    value={newPatient.zip_code}
-                    onChange={(e) => setNewPatient({ ...newPatient, zip_code: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
