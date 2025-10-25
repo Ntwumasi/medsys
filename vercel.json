@@ -2,7 +2,7 @@
   "framework": null,
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install --prefix server && npm install --prefix client",
+  "installCommand": "npm install --workspace=server",
   "functions": {
     "api/**/*.ts": {
       "runtime": "@vercel/node@3.2.23"
@@ -12,15 +12,10 @@
     {
       "source": "/api/:path*",
       "destination": "/api/:path*"
-    }
-  ],
-  "routes": [
-    {
-      "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

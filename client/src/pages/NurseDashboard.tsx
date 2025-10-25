@@ -63,14 +63,7 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
-  const handleStartEncounter = async (encounterId: number) => {
-    try {
-      await axios.post('/api/workflow/nurse/start', { encounter_id: encounterId });
-      loadAssignedPatients();
-    } catch (error) {
-      console.error('Error starting encounter:', error);
-    }
-  };
+  // Removed unused handleStartEncounter function
 
   const handleSubmitVitals = async (e: React.FormEvent) => {
     e.preventDefault();
