@@ -32,21 +32,20 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     const patientCount = parseInt(countResult.rows[0].count) + 1;
     const patient_number = `P${String(patientCount).padStart(6, '0')}`;
 
-    // Create user account for patient if email is provided
-    let user_id = null;
-    if (email) {
-      const defaultPassword = 'ChangeMe123!'; // Patient should change this on first login
-      const bcrypt = require('bcrypt');
-      const password_hash = await bcrypt.hash(defaultPassword, 10);
+    // Create user account for patient (always - even if no email provided)
+    // If no email provided, generate a dummy email to satisfy unique constraint
+    const patientEmail = email || `${patient_number}@noemail.medsys.local`;
+    const defaultPassword = 'ChangeMe123!'; // Patient should change this on first login
+    const bcrypt = require('bcrypt');
+    const password_hash = await bcrypt.hash(defaultPassword, 10);
 
-      const userResult = await client.query(
-        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
-         VALUES ($1, $2, 'patient', $3, $4, $5)
-         RETURNING id`,
-        [email, password_hash, first_name, last_name, phone]
-      );
-      user_id = userResult.rows[0].id;
-    }
+    const userResult = await client.query(
+      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
+       VALUES ($1, $2, 'patient', $3, $4, $5)
+       RETURNING id`,
+      [patientEmail, password_hash, first_name, last_name, phone]
+    );
+    const user_id = userResult.rows[0].id;
 
     // Create patient record
     const result = await client.query(
