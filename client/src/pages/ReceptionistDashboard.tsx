@@ -68,6 +68,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [nurses, setNurses] = useState<Nurse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +100,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const loadData = async () => {
     try {
+      setError(null);
       const [patientsRes, queueRes, roomsRes, nursesRes] = await Promise.all([
         apiClient.get('/patients'),
         apiClient.get('/workflow/queue'),
@@ -110,8 +112,15 @@ const ReceptionistDashboard: React.FC = () => {
       setQueue(queueRes.data.queue || []);
       setRooms(roomsRes.data.rooms || []);
       setNurses(nursesRes.data.nurses || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading data:', error);
+      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Failed to load dashboard data';
+      setError(errorMsg);
+      // Set empty arrays so the dashboard still renders
+      setPatients([]);
+      setQueue([]);
+      setRooms([]);
+      setNurses([]);
     } finally {
       setLoading(false);
     }
@@ -333,6 +342,23 @@ const ReceptionistDashboard: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
+            <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+            </svg>
+            <div>
+              <p className="font-semibold">Error Loading Dashboard</p>
+              <p className="text-sm">{error}</p>
+              <button
+                onClick={loadData}
+                className="mt-2 text-sm underline hover:no-underline"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        )}
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <button
