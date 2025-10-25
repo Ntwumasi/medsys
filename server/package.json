@@ -7,7 +7,8 @@
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:setup": "ts-node src/database/setup.ts"
+    "db:setup": "ts-node src/database/setup.ts",
+    "db:seed": "ts-node src/scripts/seedDatabase.ts"
   },
   "engines": {
     "node": ">=18.0.0"

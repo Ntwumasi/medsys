@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format } from 'date-fns';
 
@@ -59,7 +60,8 @@ interface Encounter {
 }
 
 const ReceptionistDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'history'>('queue');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -305,12 +307,28 @@ const ReceptionistDashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Receptionist Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">
-            Welcome, {user?.first_name} {user?.last_name}
-          </p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Receptionist Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-gray-600">
+                Welcome, {user?.first_name} {user?.last_name}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
