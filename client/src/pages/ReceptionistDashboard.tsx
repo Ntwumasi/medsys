@@ -139,13 +139,26 @@ const ReceptionistDashboard: React.FC = () => {
         billing_amount: billingAmount,
       });
 
-      alert(`Patient checked in successfully! Billing: $${billingAmount}`);
+      // Store patient name for success message
+      const patientName = `${selectedPatient.first_name} ${selectedPatient.last_name}`;
+
+      // Reset form
       setSelectedPatient(null);
       setChiefComplaint('');
       setSearchTerm('');
       setPatientHistory([]);
+      setEncounterType('walk-in');
+
+      // Reload data first to get the updated queue
+      await loadData();
+
+      // Then switch to queue view
       setActiveView('queue');
-      loadData();
+
+      // Show success message after state is updated
+      setTimeout(() => {
+        alert(`✓ ${patientName} checked in successfully!\n\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
+      }, 100);
     } catch (error) {
       console.error('Error checking in patient:', error);
       alert('Failed to check in patient');
@@ -170,8 +183,6 @@ const ReceptionistDashboard: React.FC = () => {
         billing_amount: billingAmount,
       });
 
-      alert(`New patient registered and checked in!\nPatient #: ${newPatientData.patient_number}\nBilling: $${billingAmount}`);
-
       // Reset form
       setNewPatient({
         first_name: '',
@@ -187,8 +198,18 @@ const ReceptionistDashboard: React.FC = () => {
         emergency_contact_phone: '',
       });
       setChiefComplaint('');
+      setEncounterType('walk-in');
+
+      // Reload data first to get the new patient in the queue
+      await loadData();
+
+      // Then switch to queue view to show the patient
       setActiveView('queue');
-      loadData();
+
+      // Show success message after state is updated
+      setTimeout(() => {
+        alert(`✓ Patient registered successfully!\n\nPatient #: ${newPatientData.patient_number}\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
+      }, 100);
     } catch (error) {
       console.error('Error creating new patient:', error);
       alert('Failed to register new patient');
