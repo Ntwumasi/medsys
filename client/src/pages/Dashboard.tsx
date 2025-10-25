@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
 import type { Appointment } from '../types';
 import { format } from 'date-fns';
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,10 +45,24 @@ const Dashboard: React.FC = () => {
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Welcome, {user?.first_name} {user?.last_name}
-            </h1>
-            <span className="text-sm text-gray-600 capitalize">{user?.role}</span>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Welcome, {user?.first_name} {user?.last_name}
+              </h1>
+              <span className="text-sm text-gray-600 capitalize">{user?.role}</span>
+            </div>
+            <button
+              onClick={() => {
+                logout();
+                navigate('/login');
+              }}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Logout
+            </button>
           </div>
         </div>
       </header>
