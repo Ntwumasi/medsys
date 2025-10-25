@@ -34,7 +34,12 @@ const RoleDashboard: React.FC = () => {
     return <Navigate to="/login" />;
   }
 
-  switch (user.role) {
+  console.log('User role:', user.role); // Debug log
+
+  // Make role comparison case-insensitive
+  const userRole = user.role?.toLowerCase();
+
+  switch (userRole) {
     case 'receptionist':
       return <ReceptionistDashboard />;
     case 'nurse':
@@ -44,6 +49,7 @@ const RoleDashboard: React.FC = () => {
     case 'admin':
       return <Dashboard />;
     default:
+      console.warn('Unknown role:', user.role, 'Showing default dashboard');
       return <Dashboard />;
   }
 };
