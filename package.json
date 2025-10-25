@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "install-all": "npm install --workspaces",
-    "build": "npm run build --workspace=client"
+    "build": "npm run build --workspace=client",
+    "vercel-build": "cd client && npm install && npm run build"
   }
 }
