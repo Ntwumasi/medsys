@@ -1,8 +1,7 @@
 {
   "framework": null,
-  "buildCommand": "cd client && npm install && npm run build",
-  "outputDirectory": "client/dist",
-  "installCommand": "npm install --workspace=server",
+  "buildCommand": "cd client && npm install && npm run build && cd .. && mkdir -p dist && cp -r client/dist/* dist/",
+  "outputDirectory": "dist",
   "functions": {
     "api/**/*.ts": {
       "runtime": "@vercel/node@3.2.23"
