@@ -83,8 +83,13 @@ const Login: React.FC = () => {
         </form>
 
         <div className="mt-6 text-sm text-gray-600 text-center">
-          <p>Demo credentials:</p>
-          <p className="mt-1">Email: admin@medsys.com / admin123</p>
+          <p className="font-semibold mb-2">Demo credentials:</p>
+          <div className="space-y-1">
+            <p>Receptionist: receptionist@medsys.com / demo123</p>
+            <p>Nurse: nurse@medsys.com / demo123</p>
+            <p>Doctor: doctor@medsys.com / demo123</p>
+            <p>Admin: admin@medsys.com / demo123</p>
+          </div>
         </div>
       </div>
     </div>
