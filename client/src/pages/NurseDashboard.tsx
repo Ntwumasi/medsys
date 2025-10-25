@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import apiClient from '../api/client';
 
 interface AssignedPatient {
   id: number;
@@ -54,7 +54,7 @@ const NurseDashboard: React.FC = () => {
 
   const loadAssignedPatients = async () => {
     try {
-      const res = await axios.get('/api/workflow/nurse/patients');
+      const res = await apiClient.get('/workflow/nurse/patients');
       setAssignedPatients(res.data.patients || []);
     } catch (error) {
       console.error('Error loading assigned patients:', error);
@@ -70,7 +70,7 @@ const NurseDashboard: React.FC = () => {
     if (!selectedPatient) return;
 
     try {
-      await axios.post('/api/workflow/nurse/vitals', {
+      await apiClient.post('/workflow/nurse/vitals', {
         encounter_id: selectedPatient.id,
         vital_signs: vitals,
       });
@@ -93,7 +93,7 @@ const NurseDashboard: React.FC = () => {
     if (!selectedPatient || !noteContent) return;
 
     try {
-      await axios.post('/api/clinical-notes', {
+      await apiClient.post('/clinical-notes', {
         encounter_id: selectedPatient.id,
         patient_id: selectedPatient.patient_id,
         note_type: noteType,
@@ -112,7 +112,7 @@ const NurseDashboard: React.FC = () => {
     if (!selectedPatient) return;
 
     try {
-      await axios.post('/api/workflow/nurse/alert-doctor', {
+      await apiClient.post('/workflow/nurse/alert-doctor', {
         encounter_id: selectedPatient.id,
         message: 'Patient is ready for doctor evaluation',
       });

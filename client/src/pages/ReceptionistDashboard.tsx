@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import apiClient from '../api/client';
 import { format } from 'date-fns';
 
 interface Patient {
@@ -100,10 +100,10 @@ const ReceptionistDashboard: React.FC = () => {
   const loadData = async () => {
     try {
       const [patientsRes, queueRes, roomsRes, nursesRes] = await Promise.all([
-        axios.get('/api/patients'),
-        axios.get('/api/workflow/queue'),
-        axios.get('/api/workflow/rooms'),
-        axios.get('/api/workflow/nurses'),
+        apiClient.get('/patients'),
+        apiClient.get('/workflow/queue'),
+        apiClient.get('/workflow/rooms'),
+        apiClient.get('/workflow/nurses'),
       ]);
 
       setPatients(patientsRes.data.patients || []);
@@ -119,7 +119,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const loadPatientHistory = async (patientId: number) => {
     try {
-      const response = await axios.get(`/api/patients/${patientId}/encounters`);
+      const response = await apiClient.get(`/patients/${patientId}/encounters`);
       setPatientHistory(response.data.encounters || []);
     } catch (error) {
       console.error('Error loading patient history:', error);
@@ -134,7 +134,7 @@ const ReceptionistDashboard: React.FC = () => {
     try {
       const billingAmount = 50; // $50 for returning patients
 
-      await axios.post('/api/workflow/check-in', {
+      await apiClient.post('/workflow/check-in', {
         patient_id: selectedPatient.id,
         chief_complaint: chiefComplaint,
         encounter_type: encounterType,
@@ -159,13 +159,13 @@ const ReceptionistDashboard: React.FC = () => {
 
     try {
       // Create new patient
-      const patientResponse = await axios.post('/api/patients', newPatient);
+      const patientResponse = await apiClient.post('/patients', newPatient);
       const newPatientData = patientResponse.data.patient;
 
       // Immediately check in the new patient
       const billingAmount = 75; // $75 for new patients
 
-      await axios.post('/api/workflow/check-in', {
+      await apiClient.post('/workflow/check-in', {
         patient_id: newPatientData.id,
         chief_complaint: chiefComplaint,
         encounter_type: encounterType,
@@ -200,7 +200,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const handleAssignRoom = async (encounterId: number, roomId: number) => {
     try {
-      await axios.post('/api/workflow/assign-room', {
+      await apiClient.post('/workflow/assign-room', {
         encounter_id: encounterId,
         room_id: roomId,
       });
@@ -213,7 +213,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   const handleAssignNurse = async (encounterId: number, nurseId: number) => {
     try {
-      await axios.post('/api/workflow/assign-nurse', {
+      await apiClient.post('/workflow/assign-nurse', {
         encounter_id: encounterId,
         nurse_id: nurseId,
       });

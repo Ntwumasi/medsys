@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api/client';
 
 interface RoomEncounter {
   id: number;
@@ -67,7 +67,7 @@ const DoctorDashboard: React.FC = () => {
 
   const loadRoomEncounters = async () => {
     try {
-      const res = await axios.get('/api/workflow/doctor/rooms');
+      const res = await apiClient.get('/workflow/doctor/rooms');
       setRoomEncounters(res.data.encounters || []);
     } catch (error) {
       console.error('Error loading room encounters:', error);
@@ -78,7 +78,7 @@ const DoctorDashboard: React.FC = () => {
 
   const loadEncounterNotes = async (encounterId: number) => {
     try {
-      const res = await axios.get(`/api/clinical-notes/encounter/${encounterId}`);
+      const res = await apiClient.get(`/api/clinical-notes/encounter/${encounterId}`);
       setNotes(res.data.notes || []);
     } catch (error) {
       console.error('Error loading notes:', error);
@@ -90,7 +90,7 @@ const DoctorDashboard: React.FC = () => {
     if (!selectedEncounter || !noteContent) return;
 
     try {
-      await axios.post('/api/clinical-notes', {
+      await apiClient.post('/clinical-notes', {
         encounter_id: selectedEncounter.id,
         patient_id: selectedEncounter.patient_id,
         note_type: 'doctor_general',
@@ -112,7 +112,7 @@ const DoctorDashboard: React.FC = () => {
     }
 
     try {
-      await axios.post(`/api/clinical-notes/${noteId}/sign`);
+      await apiClient.post(`/api/clinical-notes/${noteId}/sign`);
       alert('Note signed and chart updated');
       if (selectedEncounter) {
         loadEncounterNotes(selectedEncounter.id);
@@ -135,11 +135,11 @@ const DoctorDashboard: React.FC = () => {
 
       if (orderType === 'lab') {
         orderData = { ...orderData, test_name: labTestName, priority: labPriority };
-        await axios.post('/api/orders/lab', orderData);
+        await apiClient.post('/orders/lab', orderData);
         setLabTestName('');
       } else if (orderType === 'imaging') {
         orderData = { ...orderData, imaging_type: imagingType, body_part: bodyPart, priority: labPriority };
-        await axios.post('/api/orders/imaging', orderData);
+        await apiClient.post('/orders/imaging', orderData);
         setImagingType('');
         setBodyPart('');
       } else if (orderType === 'pharmacy') {
@@ -152,7 +152,7 @@ const DoctorDashboard: React.FC = () => {
           quantity,
           priority: labPriority,
         };
-        await axios.post('/api/orders/pharmacy', orderData);
+        await apiClient.post('/orders/pharmacy', orderData);
         setMedicationName('');
         setDosage('');
         setFrequency('');
@@ -175,7 +175,7 @@ const DoctorDashboard: React.FC = () => {
     }
 
     try {
-      await axios.post('/api/workflow/release-room', {
+      await apiClient.post('/workflow/release-room', {
         encounter_id: selectedEncounter.id,
       });
       alert('Encounter completed and room released');
