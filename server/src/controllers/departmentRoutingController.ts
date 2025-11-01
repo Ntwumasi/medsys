@@ -60,11 +60,13 @@ export const getDepartmentQueue = async (req: Request, res: Response): Promise<v
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         e.encounter_number,
         e.chief_complaint,
+        r.room_number,
         u_routed.first_name || ' ' || u_routed.last_name as routed_by_name
       FROM department_routing dr
       LEFT JOIN patients p ON dr.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN encounters e ON dr.encounter_id = e.id
+      LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN users u_routed ON dr.routed_by = u_routed.id
       WHERE dr.department = $1
     `;

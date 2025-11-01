@@ -6,11 +6,10 @@ interface RoutingRequest {
   id: number;
   encounter_id: number;
   patient_id: number;
-  from_department: string;
-  to_department: string;
-  routing_status: string;
+  department: string;
+  status: string;
   notes: string;
-  created_at: string;
+  routed_at: string;
   patient_name: string;
   patient_number: string;
   encounter_number: string;
@@ -43,7 +42,7 @@ const ImagingDashboard: React.FC = () => {
   const updateStatus = async (routingId: number, status: string) => {
     try {
       await apiClient.put(`/department-routing/${routingId}/status`, {
-        routing_status: status,
+        status: status,
       });
       fetchRoutingRequests();
     } catch (error) {
@@ -101,19 +100,19 @@ const ImagingDashboard: React.FC = () => {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Pending Studies</div>
             <div className="text-3xl font-bold text-yellow-600 mt-2">
-              {routingRequests.filter(r => r.routing_status === 'pending').length}
+              {routingRequests.filter(r => r.status === 'pending').length}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">In Progress</div>
             <div className="text-3xl font-bold text-blue-600 mt-2">
-              {routingRequests.filter(r => r.routing_status === 'in_progress').length}
+              {routingRequests.filter(r => r.status === 'in-progress').length}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Completed Today</div>
             <div className="text-3xl font-bold text-green-600 mt-2">
-              {routingRequests.filter(r => r.routing_status === 'completed').length}
+              {routingRequests.filter(r => r.status === 'completed').length}
             </div>
           </div>
         </div>
@@ -137,8 +136,8 @@ const ImagingDashboard: React.FC = () => {
                         <h3 className="text-lg font-semibold text-gray-900">
                           {request.patient_name}
                         </h3>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(request.routing_status)}`}>
-                          {request.routing_status.replace('_', ' ').toUpperCase()}
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(request.status)}`}>
+                          {request.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
@@ -157,7 +156,7 @@ const ImagingDashboard: React.FC = () => {
                         <div>
                           <span className="text-gray-500">Requested:</span>
                           <span className="ml-2 text-gray-900 font-medium">
-                            {new Date(request.created_at).toLocaleString()}
+                            {new Date(request.routed_at).toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -169,15 +168,15 @@ const ImagingDashboard: React.FC = () => {
                       )}
                     </div>
                     <div className="ml-4 flex gap-2">
-                      {request.routing_status === 'pending' && (
+                      {request.status === 'pending' && (
                         <button
-                          onClick={() => updateStatus(request.id, 'in_progress')}
+                          onClick={() => updateStatus(request.id, 'in-progress')}
                           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                         >
                           Start
                         </button>
                       )}
-                      {request.routing_status === 'in_progress' && (
+                      {request.status === 'in-progress' && (
                         <button
                           onClick={() => updateStatus(request.id, 'completed')}
                           className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
