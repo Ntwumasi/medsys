@@ -63,6 +63,24 @@ import {
   updatePharmacyOrder,
   getAllEncounterOrders,
 } from '../controllers/ordersController';
+import {
+  getCorporateClients,
+  createCorporateClient,
+  updateCorporateClient,
+  deleteCorporateClient,
+  getInsuranceProviders,
+  createInsuranceProvider,
+  updateInsuranceProvider,
+  deleteInsuranceProvider,
+  getPatientPayerSources,
+} from '../controllers/payerSourcesController';
+import {
+  getInvoiceById,
+  getInvoicesByPatient,
+  getInvoiceByEncounter,
+  createOrGetInvoice,
+  updateInvoice,
+} from '../controllers/invoiceController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -144,5 +162,27 @@ router.put('/orders/pharmacy/:id', authenticateToken, updatePharmacyOrder);
 
 // Get all orders for an encounter
 router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);
+
+// Payer sources routes - Corporate Clients
+router.get('/payer-sources/corporate-clients', authenticateToken, getCorporateClients);
+router.post('/payer-sources/corporate-clients', authenticateToken, authorizeRoles('admin'), createCorporateClient);
+router.put('/payer-sources/corporate-clients/:id', authenticateToken, authorizeRoles('admin'), updateCorporateClient);
+router.delete('/payer-sources/corporate-clients/:id', authenticateToken, authorizeRoles('admin'), deleteCorporateClient);
+
+// Payer sources routes - Insurance Providers
+router.get('/payer-sources/insurance-providers', authenticateToken, getInsuranceProviders);
+router.post('/payer-sources/insurance-providers', authenticateToken, authorizeRoles('admin'), createInsuranceProvider);
+router.put('/payer-sources/insurance-providers/:id', authenticateToken, authorizeRoles('admin'), updateInsuranceProvider);
+router.delete('/payer-sources/insurance-providers/:id', authenticateToken, authorizeRoles('admin'), deleteInsuranceProvider);
+
+// Get patient payer sources
+router.get('/payer-sources/patient/:patient_id', authenticateToken, getPatientPayerSources);
+
+// Invoice routes
+router.get('/invoices/:id', authenticateToken, getInvoiceById);
+router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPatient);
+router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
+router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
+router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 
 export default router;

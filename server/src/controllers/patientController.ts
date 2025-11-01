@@ -23,6 +23,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       insurance_number,
       marital_status,
       occupation,
+      payer_sources, // New field: array of payer sources
     } = req.body;
 
     await client.query('BEGIN');
@@ -73,6 +74,29 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         occupation,
       ]
     );
+
+    const patient_id = result.rows[0].id;
+
+    // Insert payer sources if provided
+    if (payer_sources && Array.isArray(payer_sources) && payer_sources.length > 0) {
+      for (let i = 0; i < payer_sources.length; i++) {
+        const payer = payer_sources[i];
+        const is_primary = i === 0; // First payer source is primary
+
+        await client.query(
+          `INSERT INTO patient_payer_sources (
+            patient_id, payer_type, corporate_client_id, insurance_provider_id, is_primary
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            patient_id,
+            payer.payer_type,
+            payer.corporate_client_id || null,
+            payer.insurance_provider_id || null,
+            is_primary,
+          ]
+        );
+      }
+    }
 
     await client.query('COMMIT');
 

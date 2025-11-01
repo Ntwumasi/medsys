@@ -3,13 +3,17 @@ import pool from '../database/db';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
   try {
     const authReq = req as any;
     const receptionist_id = authReq.user?.id;
 
-    const { patient_id, chief_complaint, encounter_type } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount } = req.body;
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    const result = await client.query(
       `INSERT INTO encounters (
         patient_id, receptionist_id, encounter_date, encounter_type,
         chief_complaint, status, checked_in_at, triage_time, triage_priority
@@ -24,25 +28,55 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       ]
     );
 
-    // Create initial billing record
     const encounter = result.rows[0];
-    const invoiceNumber = `INV${new Date().getFullYear()}${String(Date.now()).slice(-6)}`;
 
-    await pool.query(
+    // Check if this is a new or returning patient
+    const encounterCountResult = await client.query(
+      `SELECT COUNT(*) FROM encounters WHERE patient_id = $1`,
+      [patient_id]
+    );
+    const isNewPatient = parseInt(encounterCountResult.rows[0].count) === 1;
+
+    // Create invoice with proper billing
+    const countResult = await client.query('SELECT COUNT(*) FROM invoices');
+    const invoiceCount = parseInt(countResult.rows[0].count) + 1;
+    const invoiceNumber = `INV${String(invoiceCount).padStart(6, '0')}`;
+
+    const consultationFee = billing_amount || (isNewPatient ? 75 : 50);
+
+    const invoiceResult = await client.query(
       `INSERT INTO invoices (
         patient_id, encounter_id, invoice_number, invoice_date,
-        subtotal, total, status
-      ) VALUES ($1, $2, $3, CURRENT_DATE, 0, 0, 'draft')`,
-      [patient_id, encounter.id, invoiceNumber]
+        subtotal, tax, total, status
+      ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
+      RETURNING *`,
+      [patient_id, encounter.id, invoiceNumber, consultationFee]
     );
+
+    // Create invoice item for consultation
+    await client.query(
+      `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
+       VALUES ($1, $2, 1, $3, $3)`,
+      [
+        invoiceResult.rows[0].id,
+        isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation',
+        consultationFee,
+      ]
+    );
+
+    await client.query('COMMIT');
 
     res.status(201).json({
       message: 'Patient checked in successfully',
-      encounter: result.rows[0],
+      encounter: encounter,
+      invoice: invoiceResult.rows[0],
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Check-in error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 

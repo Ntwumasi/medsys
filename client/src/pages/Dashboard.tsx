@@ -4,16 +4,63 @@ import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
 import type { Appointment } from '../types';
 import { format } from 'date-fns';
+import apiClient from '../api/client';
+import PrintableInvoice from '../components/PrintableInvoice';
+
+interface CorporateClient {
+  id: number;
+  name: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+}
+
+interface InsuranceProvider {
+  id: number;
+  name: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+}
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices'>('appointments');
+
+  // Invoice state
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [patients, setPatients] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
+
+  // Corporate clients state
+  const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
+  const [showCorporateForm, setShowCorporateForm] = useState(false);
+  const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+
+  // Insurance providers state
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+  const [showInsuranceForm, setShowInsuranceForm] = useState(false);
+  const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
 
   useEffect(() => {
     loadTodayAppointments();
+    loadCorporateClients();
+    loadInsuranceProviders();
+    loadPatients();
   }, []);
+
+  useEffect(() => {
+    if (selectedPatientId) {
+      loadInvoicesByPatient(selectedPatientId);
+    }
+  }, [selectedPatientId]);
 
   const loadTodayAppointments = async () => {
     try {
@@ -23,6 +70,106 @@ const Dashboard: React.FC = () => {
       console.error('Error loading appointments:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCorporateClients = async () => {
+    try {
+      const response = await apiClient.get('/payer-sources/corporate-clients');
+      setCorporateClients(response.data.corporate_clients || []);
+    } catch (error) {
+      console.error('Error loading corporate clients:', error);
+    }
+  };
+
+  const loadInsuranceProviders = async () => {
+    try {
+      const response = await apiClient.get('/payer-sources/insurance-providers');
+      setInsuranceProviders(response.data.insurance_providers || []);
+    } catch (error) {
+      console.error('Error loading insurance providers:', error);
+    }
+  };
+
+  const handleCreateCorporateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.post('/payer-sources/corporate-clients', corporateForm);
+      setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+      setShowCorporateForm(false);
+      loadCorporateClients();
+      alert('Corporate client added successfully!');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add corporate client';
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
+  const handleCreateInsuranceProvider = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.post('/payer-sources/insurance-providers', insuranceForm);
+      setInsuranceForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+      setShowInsuranceForm(false);
+      loadInsuranceProviders();
+      alert('Insurance provider added successfully!');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add insurance provider';
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
+  const handleDeleteCorporateClient = async (id: number) => {
+    if (!confirm('Are you sure you want to deactivate this corporate client?')) return;
+    try {
+      await apiClient.delete(`/payer-sources/corporate-clients/${id}`);
+      loadCorporateClients();
+      alert('Corporate client deactivated successfully!');
+    } catch (error) {
+      alert('Failed to deactivate corporate client');
+    }
+  };
+
+  const handleDeleteInsuranceProvider = async (id: number) => {
+    if (!confirm('Are you sure you want to deactivate this insurance provider?')) return;
+    try {
+      await apiClient.delete(`/payer-sources/insurance-providers/${id}`);
+      loadInsuranceProviders();
+      alert('Insurance provider deactivated successfully!');
+    } catch (error) {
+      alert('Failed to deactivate insurance provider');
+    }
+  };
+
+  const loadPatients = async () => {
+    try {
+      const response = await apiClient.get('/patients');
+      setPatients(response.data.patients || []);
+    } catch (error) {
+      console.error('Error loading patients:', error);
+    }
+  };
+
+  const loadInvoicesByPatient = async (patientId: number) => {
+    try {
+      const response = await apiClient.get(`/invoices/patient/${patientId}`);
+      setInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error('Error loading invoices:', error);
+      setInvoices([]);
+    }
+  };
+
+  const handleViewInvoice = async (invoiceId: number) => {
+    try {
+      const response = await apiClient.get(`/invoices/${invoiceId}`);
+      setInvoiceData(response.data.invoice);
+      setInvoiceItems(response.data.items || []);
+      setInvoicePayerSources(response.data.payer_sources || []);
+      setShowInvoice(true);
+    } catch (error) {
+      console.error('Error loading invoice:', error);
+      alert('Failed to load invoice');
     }
   };
 
@@ -167,14 +314,61 @@ const Dashboard: React.FC = () => {
           </Link>
         </div>
 
-        {/* Today's Appointments */}
-        <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Today's Appointments</h2>
-            <span className="text-sm text-gray-600">
-              {format(new Date(), 'EEEE, MMMM d, yyyy')}
-            </span>
-          </div>
+        {/* Tabs */}
+        <div className="border-b border-gray-200 mb-6">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('appointments')}
+              className={`${
+                activeTab === 'appointments'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Today's Appointments
+            </button>
+            <button
+              onClick={() => setActiveTab('invoices')}
+              className={`${
+                activeTab === 'invoices'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Invoices
+            </button>
+            <button
+              onClick={() => setActiveTab('corporate')}
+              className={`${
+                activeTab === 'corporate'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Corporate Clients
+            </button>
+            <button
+              onClick={() => setActiveTab('insurance')}
+              className={`${
+                activeTab === 'insurance'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Insurance Providers
+            </button>
+          </nav>
+        </div>
+
+        {/* Today's Appointments Tab */}
+        {activeTab === 'appointments' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Today's Appointments</h2>
+              <span className="text-sm text-gray-600">
+                {format(new Date(), 'EEEE, MMMM d, yyyy')}
+              </span>
+            </div>
 
           {loading ? (
             <div className="text-center py-8">
@@ -245,8 +439,378 @@ const Dashboard: React.FC = () => {
               </table>
             </div>
           )}
-        </div>
+          </div>
+        )}
+
+        {/* Invoices Tab */}
+        {activeTab === 'invoices' && (
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Patient Invoices</h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Patient Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Patient
+                </label>
+                <select
+                  value={selectedPatientId || ''}
+                  onChange={(e) => setSelectedPatientId(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">-- Select a Patient --</option>
+                  {patients.map((patient) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name} ({patient.patient_number})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Invoices List */}
+            {selectedPatientId && (
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoices for Selected Patient</h3>
+                {invoices.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>No invoices found for this patient</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Invoice #
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Chief Complaint
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {invoices.map((invoice) => (
+                          <tr key={invoice.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {invoice.invoice_number}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {format(new Date(invoice.invoice_date), 'MMM dd, yyyy')}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              {invoice.chief_complaint || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              ${parseFloat(invoice.total).toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                  invoice.status === 'paid'
+                                    ? 'bg-green-100 text-green-800'
+                                    : invoice.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {invoice.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <button
+                                onClick={() => handleViewInvoice(invoice.id)}
+                                className="text-primary-600 hover:text-primary-900 flex items-center gap-1"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Corporate Clients Tab */}
+        {activeTab === 'corporate' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Corporate Clients</h2>
+              <button
+                onClick={() => setShowCorporateForm(!showCorporateForm)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                {showCorporateForm ? 'Cancel' : 'Add New Client'}
+              </button>
+            </div>
+
+            {showCorporateForm && (
+              <form onSubmit={handleCreateCorporateClient} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Company Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={corporateForm.name}
+                      onChange={(e) => setCorporateForm({ ...corporateForm, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Person
+                    </label>
+                    <input
+                      type="text"
+                      value={corporateForm.contact_person}
+                      onChange={(e) => setCorporateForm({ ...corporateForm, contact_person: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={corporateForm.contact_email}
+                      onChange={(e) => setCorporateForm({ ...corporateForm, contact_email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={corporateForm.contact_phone}
+                      onChange={(e) => setCorporateForm({ ...corporateForm, contact_phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Save Corporate Client
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Company Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact Person
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Phone
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {corporateClients.map((client) => (
+                    <tr key={client.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {client.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {client.contact_person || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {client.contact_email || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {client.contact_phone || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleDeleteCorporateClient(client.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Deactivate
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Insurance Providers Tab */}
+        {activeTab === 'insurance' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Insurance Providers</h2>
+              <button
+                onClick={() => setShowInsuranceForm(!showInsuranceForm)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                {showInsuranceForm ? 'Cancel' : 'Add New Provider'}
+              </button>
+            </div>
+
+            {showInsuranceForm && (
+              <form onSubmit={handleCreateInsuranceProvider} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Provider Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={insuranceForm.name}
+                      onChange={(e) => setInsuranceForm({ ...insuranceForm, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Person
+                    </label>
+                    <input
+                      type="text"
+                      value={insuranceForm.contact_person}
+                      onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_person: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={insuranceForm.contact_email}
+                      onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Contact Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={insuranceForm.contact_phone}
+                      onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Save Insurance Provider
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Provider Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact Person
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Phone
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {insuranceProviders.map((provider) => (
+                    <tr key={provider.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {provider.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {provider.contact_person || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {provider.contact_email || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {provider.contact_phone || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => handleDeleteInsuranceProvider(provider.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Deactivate
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Invoice Modal */}
+      {showInvoice && invoiceData && (
+        <PrintableInvoice
+          invoice={invoiceData}
+          items={invoiceItems}
+          payerSources={invoicePayerSources}
+          onClose={() => setShowInvoice(false)}
+        />
+      )}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, isValid, parseISO } from 'date-fns';
+import PrintableInvoice from '../components/PrintableInvoice';
 
 // Safe date formatting helper
 const safeFormatDate = (dateValue: any, formatString: string, fallback: string = 'N/A'): string => {
@@ -75,6 +76,22 @@ interface Encounter {
   billing_amount: number;
 }
 
+interface CorporateClient {
+  id: number;
+  name: string;
+}
+
+interface InsuranceProvider {
+  id: number;
+  name: string;
+}
+
+interface PayerSource {
+  payer_type: 'self_pay' | 'corporate' | 'insurance';
+  corporate_client_id?: number;
+  insurance_provider_id?: number;
+}
+
 const ReceptionistDashboard: React.FC = () => {
   console.log('ReceptionistDashboard: Component rendering');
   const { user, logout } = useAuth();
@@ -85,6 +102,8 @@ const ReceptionistDashboard: React.FC = () => {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [nurses, setNurses] = useState<Nurse[]>([]);
+  const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
+  const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,6 +129,17 @@ const ReceptionistDashboard: React.FC = () => {
     emergency_contact_phone: '',
   });
 
+  // Payer source state
+  const [selectedPayerTypes, setSelectedPayerTypes] = useState<string[]>([]);
+  const [selectedCorporateClient, setSelectedCorporateClient] = useState<number | null>(null);
+  const [selectedInsuranceProvider, setSelectedInsuranceProvider] = useState<number | null>(null);
+
+  // Invoice state
+  const [showInvoice, setShowInvoice] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<any>(null);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
@@ -121,18 +151,22 @@ const ReceptionistDashboard: React.FC = () => {
     try {
       setError(null);
       console.log('ReceptionistDashboard: Making API calls');
-      const [patientsRes, queueRes, roomsRes, nursesRes] = await Promise.all([
+      const [patientsRes, queueRes, roomsRes, nursesRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
         apiClient.get('/patients'),
         apiClient.get('/workflow/queue'),
         apiClient.get('/workflow/rooms'),
         apiClient.get('/workflow/nurses'),
+        apiClient.get('/payer-sources/corporate-clients'),
+        apiClient.get('/payer-sources/insurance-providers'),
       ]);
-      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, roomsRes, nursesRes });
+      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, roomsRes, nursesRes, corporateClientsRes, insuranceProvidersRes });
 
       setPatients(patientsRes.data.patients || []);
       setQueue(queueRes.data.queue || []);
       setRooms(roomsRes.data.rooms || []);
       setNurses(nursesRes.data.nurses || []);
+      setCorporateClients(corporateClientsRes.data.corporate_clients || []);
+      setInsuranceProviders(insuranceProvidersRes.data.insurance_providers || []);
     } catch (error: any) {
       console.error('Error loading data:', error);
       const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Failed to load dashboard data';
@@ -142,6 +176,8 @@ const ReceptionistDashboard: React.FC = () => {
       setQueue([]);
       setRooms([]);
       setNurses([]);
+      setCorporateClients([]);
+      setInsuranceProviders([]);
     } finally {
       setLoading(false);
     }
@@ -205,8 +241,32 @@ const ReceptionistDashboard: React.FC = () => {
     e.preventDefault();
 
     try {
+      // Build payer sources array
+      const payer_sources: PayerSource[] = [];
+
+      if (selectedPayerTypes.includes('self_pay')) {
+        payer_sources.push({ payer_type: 'self_pay' });
+      }
+
+      if (selectedPayerTypes.includes('corporate') && selectedCorporateClient) {
+        payer_sources.push({
+          payer_type: 'corporate',
+          corporate_client_id: selectedCorporateClient,
+        });
+      }
+
+      if (selectedPayerTypes.includes('insurance') && selectedInsuranceProvider) {
+        payer_sources.push({
+          payer_type: 'insurance',
+          insurance_provider_id: selectedInsuranceProvider,
+        });
+      }
+
       // Create new patient
-      const patientResponse = await apiClient.post('/patients', newPatient);
+      const patientResponse = await apiClient.post('/patients', {
+        ...newPatient,
+        payer_sources,
+      });
       const newPatientData = patientResponse.data.patient;
 
       // Immediately check in the new patient
@@ -235,6 +295,9 @@ const ReceptionistDashboard: React.FC = () => {
       });
       setChiefComplaint('');
       setEncounterType('walk-in');
+      setSelectedPayerTypes([]);
+      setSelectedCorporateClient(null);
+      setSelectedInsuranceProvider(null);
 
       // Reload data first to get the new patient in the queue
       await loadData();
@@ -279,6 +342,19 @@ const ReceptionistDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error assigning nurse:', error);
       alert('Failed to assign nurse');
+    }
+  };
+
+  const handleViewInvoice = async (encounterId: number) => {
+    try {
+      const response = await apiClient.get(`/invoices/encounter/${encounterId}`);
+      setInvoiceData(response.data.invoice);
+      setInvoiceItems(response.data.items || []);
+      setInvoicePayerSources(response.data.payer_sources || []);
+      setShowInvoice(true);
+    } catch (error) {
+      console.error('Error loading invoice:', error);
+      alert('Failed to load invoice');
     }
   };
 
@@ -573,6 +649,16 @@ const ReceptionistDashboard: React.FC = () => {
                           ))}
                         </select>
                       )}
+
+                      <button
+                        onClick={() => handleViewInvoice(item.id)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Print Invoice
+                      </button>
                     </div>
                   </div>
                 );
@@ -895,6 +981,113 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
 
+              <div className="border-t border-gray-200 pt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Payer Source(s) *
+                </label>
+                <div className="space-y-4">
+                  {/* Self Pay */}
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      id="payer-self-pay"
+                      checked={selectedPayerTypes.includes('self_pay')}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPayerTypes([...selectedPayerTypes, 'self_pay']);
+                        } else {
+                          setSelectedPayerTypes(selectedPayerTypes.filter(t => t !== 'self_pay'));
+                        }
+                      }}
+                      className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="payer-self-pay" className="ml-3 text-sm text-gray-700 font-medium">
+                      Self Pay
+                    </label>
+                  </div>
+
+                  {/* Corporate */}
+                  <div>
+                    <div className="flex items-start mb-2">
+                      <input
+                        type="checkbox"
+                        id="payer-corporate"
+                        checked={selectedPayerTypes.includes('corporate')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPayerTypes([...selectedPayerTypes, 'corporate']);
+                          } else {
+                            setSelectedPayerTypes(selectedPayerTypes.filter(t => t !== 'corporate'));
+                            setSelectedCorporateClient(null);
+                          }
+                        }}
+                        className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="payer-corporate" className="ml-3 text-sm text-gray-700 font-medium">
+                        Corporate
+                      </label>
+                    </div>
+                    {selectedPayerTypes.includes('corporate') && (
+                      <div className="ml-7">
+                        <select
+                          value={selectedCorporateClient || ''}
+                          onChange={(e) => setSelectedCorporateClient(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          required={selectedPayerTypes.includes('corporate')}
+                        >
+                          <option value="">Select Corporate Client</option>
+                          {corporateClients.map((client) => (
+                            <option key={client.id} value={client.id}>
+                              {client.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Insurance */}
+                  <div>
+                    <div className="flex items-start mb-2">
+                      <input
+                        type="checkbox"
+                        id="payer-insurance"
+                        checked={selectedPayerTypes.includes('insurance')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedPayerTypes([...selectedPayerTypes, 'insurance']);
+                          } else {
+                            setSelectedPayerTypes(selectedPayerTypes.filter(t => t !== 'insurance'));
+                            setSelectedInsuranceProvider(null);
+                          }
+                        }}
+                        className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="payer-insurance" className="ml-3 text-sm text-gray-700 font-medium">
+                        Insurance
+                      </label>
+                    </div>
+                    {selectedPayerTypes.includes('insurance') && (
+                      <div className="ml-7">
+                        <select
+                          value={selectedInsuranceProvider || ''}
+                          onChange={(e) => setSelectedInsuranceProvider(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          required={selectedPayerTypes.includes('insurance')}
+                        >
+                          <option value="">Select Insurance Provider</option>
+                          {insuranceProviders.map((provider) => (
+                            <option key={provider.id} value={provider.id}>
+                              {provider.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Chief Complaint *
@@ -962,6 +1155,16 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Invoice Modal */}
+      {showInvoice && invoiceData && (
+        <PrintableInvoice
+          invoice={invoiceData}
+          items={invoiceItems}
+          payerSources={invoicePayerSources}
+          onClose={() => setShowInvoice(false)}
+        />
+      )}
     </div>
   );
 };
