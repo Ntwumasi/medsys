@@ -21,7 +21,7 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     await pool.query(
       `UPDATE invoices
        SET subtotal = subtotal + 75.00,
-           total = total + 75.00
+           total_amount = total_amount + 75.00
        WHERE encounter_id = $1`,
       [encounter_id]
     );
@@ -136,7 +136,7 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
     await pool.query(
       `UPDATE invoices
        SET subtotal = subtotal + 150.00,
-           total = total + 150.00
+           total_amount = total_amount + 150.00
        WHERE encounter_id = $1`,
       [encounter_id]
     );
@@ -275,7 +275,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     await pool.query(
       `UPDATE invoices
        SET subtotal = subtotal + 25.00,
-           total = total + 25.00
+           total_amount = total_amount + 25.00
        WHERE encounter_id = $1`,
       [encounter_id]
     );
