@@ -79,7 +79,28 @@ async function seedDatabase() {
         ['doctor2@medsys.com', password]
       );
 
-      console.log('✅ Created 6 demo users (admin, receptionist, 2 nurses, 2 doctors)');
+      // Create lab user
+      await client.query(
+        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
+         VALUES ($1, $2, 'lab', 'Lab', 'Technician', '555-0007')`,
+        ['lab@medsys.com', password]
+      );
+
+      // Create pharmacy user
+      await client.query(
+        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
+         VALUES ($1, $2, 'pharmacy', 'Pharmacy', 'Technician', '555-0008')`,
+        ['pharmacy@medsys.com', password]
+      );
+
+      // Create imaging user
+      await client.query(
+        `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
+         VALUES ($1, $2, 'imaging', 'Imaging', 'Technician', '555-0009')`,
+        ['imaging@medsys.com', password]
+      );
+
+      console.log('✅ Created 9 demo users (admin, receptionist, 2 nurses, 2 doctors, lab, pharmacy, imaging)');
       console.log('   Password for all users: demo123');
     } else {
       console.log(`✓ Users already seeded (${userCount} staff users found)`);
@@ -94,6 +115,9 @@ async function seedDatabase() {
     console.log('  Receptionist: receptionist@medsys.com / demo123');
     console.log('  Nurse: nurse@medsys.com / demo123');
     console.log('  Doctor: doctor@medsys.com / demo123');
+    console.log('  Lab: lab@medsys.com / demo123');
+    console.log('  Pharmacy: pharmacy@medsys.com / demo123');
+    console.log('  Imaging: imaging@medsys.com / demo123');
 
   } catch (error) {
     await client.query('ROLLBACK');

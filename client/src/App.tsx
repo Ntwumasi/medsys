@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard';
 import ReceptionistDashboard from './pages/ReceptionistDashboard';
 import NurseDashboard from './pages/NurseDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
+import LabDashboard from './pages/LabDashboard';
+import PharmacyDashboard from './pages/PharmacyDashboard';
+import ImagingDashboard from './pages/ImagingDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
@@ -48,6 +51,12 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><NurseDashboard /></ErrorBoundary>;
       case 'doctor':
         return <ErrorBoundary><DoctorDashboard /></ErrorBoundary>;
+      case 'lab':
+        return <ErrorBoundary><LabDashboard /></ErrorBoundary>;
+      case 'pharmacy':
+        return <ErrorBoundary><PharmacyDashboard /></ErrorBoundary>;
+      case 'imaging':
+        return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
       case 'admin':
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
       default:
