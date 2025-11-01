@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { validateVitalSign } from '../utils/vitalSignsValidation';
+import HPAccordion from '../components/HPAccordion';
 
 interface AssignedPatient {
   id: number;
@@ -109,7 +110,7 @@ const NurseDashboard: React.FC = () => {
   const [noteType, setNoteType] = useState<'nurse_hmp' | 'nurse_general'>('nurse_hmp');
 
   // Tab state for better UI organization
-  const [activeTab, setActiveTab] = useState<'vitals' | 'orders' | 'procedures' | 'notes' | 'routing'>('vitals');
+  const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing'>('hp');
 
   useEffect(() => {
     loadAssignedPatients();
@@ -548,10 +549,20 @@ const NurseDashboard: React.FC = () => {
                 {/* Tabs Navigation */}
                 <div className="bg-white rounded-lg shadow-sm">
                   <div className="border-b border-gray-200">
-                    <nav className="flex -mb-px">
+                    <nav className="flex -mb-px overflow-x-auto">
+                      <button
+                        onClick={() => setActiveTab('hp')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                          activeTab === 'hp'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        H&P
+                      </button>
                       <button
                         onClick={() => setActiveTab('vitals')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           activeTab === 'vitals'
                             ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -614,6 +625,17 @@ const NurseDashboard: React.FC = () => {
 
                   {/* Tab Content */}
                   <div className="p-6">
+                    {/* H&P Tab */}
+                    {activeTab === 'hp' && selectedPatient && (
+                      <div className="-m-6">
+                        <HPAccordion
+                          encounterId={selectedPatient.id}
+                          patientId={selectedPatient.patient_id}
+                          userRole="nurse"
+                        />
+                      </div>
+                    )}
+
                     {/* Vital Signs Tab */}
                     {activeTab === 'vitals' && (
                       <form onSubmit={handleSubmitVitals} className="space-y-6">

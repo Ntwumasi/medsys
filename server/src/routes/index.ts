@@ -110,6 +110,11 @@ import {
   getAvailableNurseProcedures,
   cancelNurseProcedure,
 } from '../controllers/nurseProceduresController';
+import {
+  getHP,
+  saveHPSection,
+  getHPStatus,
+} from '../controllers/hpController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -244,5 +249,10 @@ router.get('/nurse-procedures/available', authenticateToken, authorizeRoles('doc
 router.post('/nurse-procedures/:id/start', authenticateToken, authorizeRoles('nurse'), startNurseProcedure);
 router.post('/nurse-procedures/:id/complete', authenticateToken, authorizeRoles('nurse'), completeNurseProcedure);
 router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('doctor', 'nurse'), cancelNurseProcedure);
+
+// H&P (History & Physical) routes
+router.get('/hp/:encounter_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getHP);
+router.post('/hp/save', authenticateToken, authorizeRoles('nurse', 'doctor'), saveHPSection);
+router.get('/hp/:encounter_id/status', authenticateToken, authorizeRoles('nurse', 'doctor'), getHPStatus);
 
 export default router;

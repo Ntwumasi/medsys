@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
-import HPForm from '../components/HPForm';
+import HPAccordion from '../components/HPAccordion';
 
 interface RoomEncounter {
   id: number;
@@ -215,35 +215,6 @@ const DoctorDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error releasing room:', error);
       alert('Failed to release room');
-    }
-  };
-
-  const handleSaveHP = async (hpData: any) => {
-    if (!selectedEncounter) return;
-
-    try {
-      if (existingHP) {
-        // Update existing H&P
-        await apiClient.put(`/api/clinical-notes/${existingHP.id}`, {
-          content: JSON.stringify(hpData),
-        });
-        alert('H&P updated successfully');
-      } else {
-        // Create new H&P
-        await apiClient.post('/clinical-notes', {
-          encounter_id: selectedEncounter.id,
-          patient_id: selectedEncounter.patient_id,
-          note_type: 'doctor_hp',
-          content: JSON.stringify(hpData),
-        });
-        alert('H&P saved successfully');
-      }
-
-      setShowHPForm(false);
-      loadEncounterNotes(selectedEncounter.id);
-    } catch (error) {
-      console.error('Error saving H&P:', error);
-      alert('Failed to save H&P');
     }
   };
 
@@ -686,12 +657,32 @@ const DoctorDashboard: React.FC = () => {
 
       {/* H&P Form Modal */}
       {showHPForm && selectedEncounter && (
-        <HPForm
-          encounter={selectedEncounter}
-          existingData={existingHP}
-          onSave={handleSaveHP}
-          onClose={() => setShowHPForm(false)}
-        />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full my-8">
+            {/* Header */}
+            <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center rounded-t-lg">
+              <h2 className="text-xl font-bold text-gray-900">History & Physical - {selectedEncounter.patient_name}</h2>
+              <button
+                onClick={() => setShowHPForm(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* H&P Accordion Content */}
+            <div className="p-6">
+              <HPAccordion
+                encounterId={selectedEncounter.id}
+                patientId={selectedEncounter.patient_id}
+                userRole="doctor"
+                onSave={() => loadEncounterNotes(selectedEncounter.id)}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
