@@ -6,7 +6,7 @@ interface InvoiceItem {
   description: string;
   quantity: number;
   unit_price: number;
-  total: number;
+  total_price: number;
 }
 
 interface PayerSource {
@@ -30,7 +30,7 @@ interface Invoice {
   patient_state?: string;
   subtotal: number;
   tax: number;
-  total: number;
+  total_amount: number;
   amount_paid: number;
   status: string;
   chief_complaint?: string;
@@ -67,7 +67,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     return payer.payer_type;
   };
 
-  const balance = (invoice.total - (invoice.amount_paid || 0)).toFixed(2);
+  const balance = (invoice.total_amount - (invoice.amount_paid || 0)).toFixed(2);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -201,7 +201,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                       ${parseFloat(item.unit_price.toString()).toFixed(2)}
                     </td>
                     <td className="py-3 px-4 text-right text-gray-700 font-medium">
-                      ${parseFloat(item.total.toString()).toFixed(2)}
+                      ${parseFloat(item.total_price.toString()).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -222,7 +222,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
               </div>
               <div className="flex justify-between py-3 text-lg font-bold text-gray-900 border-t-2 border-gray-300">
                 <span>Total:</span>
-                <span>${parseFloat(invoice.total.toString()).toFixed(2)}</span>
+                <span>${parseFloat(invoice.total_amount.toString()).toFixed(2)}</span>
               </div>
               {invoice.amount_paid > 0 && (
                 <>
