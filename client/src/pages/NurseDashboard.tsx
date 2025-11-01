@@ -108,6 +108,9 @@ const NurseDashboard: React.FC = () => {
   const [noteContent, setNoteContent] = useState('');
   const [noteType, setNoteType] = useState<'nurse_hmp' | 'nurse_general'>('nurse_hmp');
 
+  // Tab state for better UI organization
+  const [activeTab, setActiveTab] = useState<'vitals' | 'orders' | 'procedures' | 'notes' | 'routing'>('vitals');
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
@@ -489,430 +492,638 @@ const NurseDashboard: React.FC = () => {
           {/* Patient Details & Actions */}
           <div className="lg:col-span-2">
             {selectedPatient ? (
-              <div className="space-y-6">
-                {/* Patient Info */}
+              <div className="space-y-4">
+                {/* Patient Info Header */}
                 <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Patient Information</h2>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-start justify-between mb-4">
                     <div>
-                      <div className="text-sm text-gray-600">Name</div>
-                      <div className="font-semibold">{selectedPatient.patient_name}</div>
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedPatient.patient_name}</h2>
+                      <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                        <span className="font-medium">Patient #: {selectedPatient.patient_number}</span>
+                        <span className="font-medium">Encounter #: {selectedPatient.encounter_number}</span>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Patient Number</div>
-                      <div className="font-semibold">{selectedPatient.patient_number}</div>
+                    <div className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                      selectedPatient.current_priority === 'red' ? 'bg-red-100 text-red-800' :
+                      selectedPatient.current_priority === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-green-100 text-green-800'
+                    }`}>
+                      PRIORITY: {selectedPatient.current_priority.toUpperCase()}
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
                     <div>
-                      <div className="text-sm text-gray-600">Encounter Number</div>
-                      <div className="font-semibold">{selectedPatient.encounter_number}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Room</div>
+                      <div className="text-xs text-gray-500 uppercase mb-1">Room Assignment</div>
                       {selectedPatient.room_number ? (
-                        <div className="font-semibold">
-                          {selectedPatient.room_number} {selectedPatient.room_name}
+                        <div className="font-semibold text-lg">
+                          Room {selectedPatient.room_number} {selectedPatient.room_name}
                         </div>
                       ) : (
-                        <select
-                          onChange={(e) => handleAssignRoom(selectedPatient.id, Number(e.target.value))}
-                          className="input"
-                          defaultValue=""
-                        >
-                          <option value="">Assign Room</option>
-                          {rooms
-                            .filter((r) => r.is_available)
-                            .map((room) => (
-                              <option key={room.id} value={room.id}>
-                                Room {room.room_number}
-                              </option>
-                            ))}
-                        </select>
+                        <div>
+                          <select
+                            onChange={(e) => handleAssignRoom(selectedPatient.id, Number(e.target.value))}
+                            className="w-full px-3 py-2 border-2 border-orange-300 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent font-semibold text-orange-900"
+                            defaultValue=""
+                          >
+                            <option value="">⚠️ ASSIGN ROOM FIRST</option>
+                            {rooms
+                              .filter((r) => r.is_available)
+                              .map((room) => (
+                                <option key={room.id} value={room.id}>
+                                  Room {room.room_number}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
                       )}
                     </div>
-                    <div className="col-span-2">
-                      <div className="text-sm text-gray-600">Chief Complaint</div>
+                    <div>
+                      <div className="text-xs text-gray-500 uppercase mb-1">Chief Complaint</div>
                       <div className="font-semibold">{selectedPatient.chief_complaint}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Doctor's Orders */}
-                {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
-                  <div className="card">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Doctor's Orders</h2>
-
-                    {/* Lab Orders */}
-                    {labOrders.length > 0 && (
-                      <div className="mb-4">
-                        <h3 className="text-lg font-semibold text-purple-700 mb-2">Laboratory</h3>
-                        <div className="space-y-2">
-                          {labOrders.map((order) => (
-                            <div key={order.id} className="border border-purple-200 rounded-lg p-3 bg-purple-50">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-900">{order.test_name}</h4>
-                                  {order.test_code && (
-                                    <p className="text-sm text-gray-600">Code: {order.test_code}</p>
-                                  )}
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Ordered by: {order.ordering_provider_name}
-                                  </p>
-                                </div>
-                                <div className="ml-4 text-right">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-green-100 text-green-800'
-                                  }`}>
-                                    {order.priority.toUpperCase()}
-                                  </span>
-                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Imaging Orders */}
-                    {imagingOrders.length > 0 && (
-                      <div className="mb-4">
-                        <h3 className="text-lg font-semibold text-indigo-700 mb-2">Imaging</h3>
-                        <div className="space-y-2">
-                          {imagingOrders.map((order) => (
-                            <div key={order.id} className="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-900">{order.imaging_type}</h4>
-                                  <p className="text-sm text-gray-600">Body Part: {order.body_part}</p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Ordered by: {order.ordering_provider_name}
-                                  </p>
-                                </div>
-                                <div className="ml-4 text-right">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-green-100 text-green-800'
-                                  }`}>
-                                    {order.priority.toUpperCase()}
-                                  </span>
-                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Pharmacy Orders */}
-                    {pharmacyOrders.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-pink-700 mb-2">Pharmacy</h3>
-                        <div className="space-y-2">
-                          {pharmacyOrders.map((order) => (
-                            <div key={order.id} className="border border-pink-200 rounded-lg p-3 bg-pink-50">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
-                                  <p className="text-sm text-gray-600">
-                                    {order.dosage} | {order.frequency} | {order.route}
-                                  </p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    Ordered by: {order.ordering_provider_name}
-                                  </p>
-                                </div>
-                                <div className="ml-4 text-right">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-green-100 text-green-800'
-                                  }`}>
-                                    {order.priority.toUpperCase()}
-                                  </span>
-                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Nurse Procedures */}
-                {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
-                  <div className="card">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Pending Procedures</h2>
-                    <div className="space-y-3">
-                      {nurseProcedures
-                        .filter(p => p.encounter_id === selectedPatient.id)
-                        .map((procedure) => (
-                          <div
-                            key={procedure.id}
-                            className="border border-gray-200 rounded-lg p-4 bg-gray-50"
-                          >
-                            <div className="flex justify-between items-start">
-                              <div className="flex-1">
-                                <h3 className="font-semibold text-gray-900">{procedure.procedure_name}</h3>
-                                {procedure.notes && (
-                                  <p className="text-sm text-gray-600 mt-1">{procedure.notes}</p>
-                                )}
-                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                                  <span>Ordered by: {procedure.ordered_by_name}</span>
-                                  <span>Price: ${procedure.price.toFixed(2)}</span>
-                                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                    procedure.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                    procedure.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-green-100 text-green-800'
-                                  }`}>
-                                    {procedure.status.replace('_', ' ').toUpperCase()}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="ml-4 flex gap-2">
-                                {procedure.status === 'pending' && (
-                                  <button
-                                    onClick={() => handleStartProcedure(procedure.id)}
-                                    className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
-                                  >
-                                    Start
-                                  </button>
-                                )}
-                                {procedure.status === 'in_progress' && (
-                                  <button
-                                    onClick={() => handleCompleteProcedure(procedure.id)}
-                                    className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
-                                  >
-                                    Complete & Bill
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Vital Signs Form */}
-                <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Vital Signs</h2>
-                  <form onSubmit={handleSubmitVitals} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="label">Temperature</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={vitals.temperature || ''}
-                            onChange={(e) =>
-                              setVitals({ ...vitals, temperature: Number(e.target.value) })
-                            }
-                            className={`input flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
-                            placeholder="98.6"
-                          />
-                          <select
-                            value={vitals.temperature_unit}
-                            onChange={(e) =>
-                              setVitals({
-                                ...vitals,
-                                temperature_unit: e.target.value as 'C' | 'F',
-                              })
-                            }
-                            className="input w-16"
-                          >
-                            <option value="F">°F</option>
-                            <option value="C">°C</option>
-                          </select>
-                        </div>
-                        {vitalErrors.temperature && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.temperature}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="label">Heart Rate (bpm)</label>
-                        <input
-                          type="number"
-                          value={vitals.heart_rate || ''}
-                          onChange={(e) =>
-                            setVitals({ ...vitals, heart_rate: Number(e.target.value) })
-                          }
-                          className={`input ${vitalErrors.heart_rate ? 'border-red-500' : ''}`}
-                          placeholder="72"
-                        />
-                        {vitalErrors.heart_rate && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.heart_rate}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="label">BP Systolic</label>
-                        <input
-                          type="number"
-                          value={vitals.blood_pressure_systolic || ''}
-                          onChange={(e) =>
-                            setVitals({
-                              ...vitals,
-                              blood_pressure_systolic: Number(e.target.value),
-                            })
-                          }
-                          className={`input ${vitalErrors.blood_pressure_systolic ? 'border-red-500' : ''}`}
-                          placeholder="120"
-                        />
-                        {vitalErrors.blood_pressure_systolic && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.blood_pressure_systolic}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="label">BP Diastolic</label>
-                        <input
-                          type="number"
-                          value={vitals.blood_pressure_diastolic || ''}
-                          onChange={(e) =>
-                            setVitals({
-                              ...vitals,
-                              blood_pressure_diastolic: Number(e.target.value),
-                            })
-                          }
-                          className={`input ${vitalErrors.blood_pressure_diastolic ? 'border-red-500' : ''}`}
-                          placeholder="80"
-                        />
-                        {vitalErrors.blood_pressure_diastolic && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.blood_pressure_diastolic}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="label">Respiratory Rate</label>
-                        <input
-                          type="number"
-                          value={vitals.respiratory_rate || ''}
-                          onChange={(e) =>
-                            setVitals({ ...vitals, respiratory_rate: Number(e.target.value) })
-                          }
-                          className={`input ${vitalErrors.respiratory_rate ? 'border-red-500' : ''}`}
-                          placeholder="16"
-                        />
-                        {vitalErrors.respiratory_rate && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.respiratory_rate}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="label">O2 Saturation (%)</label>
-                        <input
-                          type="number"
-                          value={vitals.oxygen_saturation || ''}
-                          onChange={(e) =>
-                            setVitals({ ...vitals, oxygen_saturation: Number(e.target.value) })
-                          }
-                          className={`input ${vitalErrors.oxygen_saturation ? 'border-red-500' : ''}`}
-                          placeholder="98"
-                        />
-                        {vitalErrors.oxygen_saturation && (
-                          <p className="text-red-600 text-xs mt-1">{vitalErrors.oxygen_saturation}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <button type="submit" className="btn-primary">
-                      Save Vital Signs
-                    </button>
-                  </form>
-                </div>
-
-                {/* Clinical Notes */}
-                <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Clinical Notes</h2>
-                  <form onSubmit={handleAddNote} className="space-y-4">
-                    <div>
-                      <label className="label">Note Type</label>
-                      <select
-                        value={noteType}
-                        onChange={(e) =>
-                          setNoteType(e.target.value as 'nurse_hmp' | 'nurse_general')
-                        }
-                        className="input"
+                {/* Tabs Navigation */}
+                <div className="bg-white rounded-lg shadow-sm">
+                  <div className="border-b border-gray-200">
+                    <nav className="flex -mb-px">
+                      <button
+                        onClick={() => setActiveTab('vitals')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'vitals'
+                            ? 'border-blue-500 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                       >
-                        <option value="nurse_hmp">History & Physical (H&P)</option>
-                        <option value="nurse_general">General Note</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="label">Note Content</label>
-                      <textarea
-                        value={noteContent}
-                        onChange={(e) => setNoteContent(e.target.value)}
-                        className="input"
-                        rows={6}
-                        placeholder="Enter clinical notes..."
-                        required
-                      />
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button type="submit" className="btn-primary">
-                        Add Note
+                        Vital Signs
                       </button>
                       <button
-                        type="button"
-                        onClick={handleAlertDoctor}
-                        className="btn-secondary"
+                        onClick={() => setActiveTab('orders')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors relative ${
+                          activeTab === 'orders'
+                            ? 'border-purple-500 text-purple-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
                       >
-                        Alert Doctor - Patient Ready
+                        Doctor's Orders
+                        {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">
+                            {labOrders.length + imagingOrders.length + pharmacyOrders.length}
+                          </span>
+                        )}
                       </button>
-                    </div>
-                  </form>
-                </div>
-
-                {/* Patient Routing Options */}
-                <div className="card bg-blue-50 border border-blue-200">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Patient Routing</h2>
-                  <p className="text-sm text-gray-600 mb-4">
-                    After doctor completes encounter, route patient to appropriate department or discharge:
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => handleRouteToDepartment('lab')}
-                      className="bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
-                    >
-                      Send to Lab
-                    </button>
-                    <button
-                      onClick={() => handleRouteToDepartment('pharmacy')}
-                      className="bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
-                    >
-                      Send to Pharmacy
-                    </button>
-                    <button
-                      onClick={() => handleRouteToDepartment('imaging')}
-                      className="bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-                    >
-                      Send to Imaging
-                    </button>
-                    <button
-                      onClick={() => handleRouteToDepartment('receptionist')}
-                      className="bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
-                    >
-                      Send to Receptionist
-                    </button>
+                      <button
+                        onClick={() => setActiveTab('procedures')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'procedures'
+                            ? 'border-green-500 text-green-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Nurse Procedures
+                        {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                            {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('notes')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'notes'
+                            ? 'border-indigo-500 text-indigo-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Clinical Notes
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('routing')}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'routing'
+                            ? 'border-teal-500 text-teal-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Patient Routing
+                      </button>
+                    </nav>
                   </div>
-                  <div className="mt-4 pt-4 border-t border-blue-300">
-                    <button
-                      onClick={handleReleaseRoom}
-                      className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
-                    >
-                      Release Room & Complete Encounter
-                      <span className="block text-xs mt-1 font-normal">Final step after all routing is done</span>
-                    </button>
+
+                  {/* Tab Content */}
+                  <div className="p-6">
+                    {/* Vital Signs Tab */}
+                    {activeTab === 'vitals' && (
+                      <form onSubmit={handleSubmitVitals} className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="label">Temperature</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={vitals.temperature || ''}
+                                onChange={(e) => {
+                                  const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setVitals({ ...vitals, temperature: value });
+                                  if (value) {
+                                    const tempType = vitals.temperature_unit === 'C' ? 'temperature_C' : 'temperature_F';
+                                    const result = validateVitalSign(value, tempType);
+                                    if (!result.isValid || result.isCritical) {
+                                      setVitalErrors({ ...vitalErrors, temperature: result.message || 'Invalid value' });
+                                    } else {
+                                      const { temperature, ...rest } = vitalErrors;
+                                      setVitalErrors(rest);
+                                    }
+                                  }
+                                }}
+                                className={`input flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
+                                placeholder="98.6"
+                              />
+                              <select
+                                value={vitals.temperature_unit}
+                                onChange={(e) =>
+                                  setVitals({
+                                    ...vitals,
+                                    temperature_unit: e.target.value as 'C' | 'F',
+                                  })
+                                }
+                                className="input w-20"
+                              >
+                                <option value="F">°F</option>
+                                <option value="C">°C</option>
+                              </select>
+                            </div>
+                            {vitalErrors.temperature && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.temperature}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">Heart Rate (bpm)</label>
+                            <input
+                              type="number"
+                              value={vitals.heart_rate || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                                setVitals({ ...vitals, heart_rate: value });
+                                if (value) {
+                                  const result = validateVitalSign(value, 'heart_rate');
+                                  if (!result.isValid || result.isCritical) {
+                                    setVitalErrors({ ...vitalErrors, heart_rate: result.message || 'Invalid value' });
+                                  } else {
+                                    const { heart_rate, ...rest } = vitalErrors;
+                                    setVitalErrors(rest);
+                                  }
+                                }
+                              }}
+                              className={`input ${vitalErrors.heart_rate ? 'border-red-500' : ''}`}
+                              placeholder="72"
+                            />
+                            {vitalErrors.heart_rate && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.heart_rate}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">BP Systolic</label>
+                            <input
+                              type="number"
+                              value={vitals.blood_pressure_systolic || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                                setVitals({ ...vitals, blood_pressure_systolic: value });
+                                if (value) {
+                                  const result = validateVitalSign(value, 'blood_pressure_systolic');
+                                  if (!result.isValid || result.isCritical) {
+                                    setVitalErrors({ ...vitalErrors, blood_pressure_systolic: result.message || 'Invalid value' });
+                                  } else {
+                                    const { blood_pressure_systolic, ...rest } = vitalErrors;
+                                    setVitalErrors(rest);
+                                  }
+                                }
+                              }}
+                              className={`input ${vitalErrors.blood_pressure_systolic ? 'border-red-500' : ''}`}
+                              placeholder="120"
+                            />
+                            {vitalErrors.blood_pressure_systolic && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.blood_pressure_systolic}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">BP Diastolic</label>
+                            <input
+                              type="number"
+                              value={vitals.blood_pressure_diastolic || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                                setVitals({ ...vitals, blood_pressure_diastolic: value });
+                                if (value) {
+                                  const result = validateVitalSign(value, 'blood_pressure_diastolic');
+                                  if (!result.isValid || result.isCritical) {
+                                    setVitalErrors({ ...vitalErrors, blood_pressure_diastolic: result.message || 'Invalid value' });
+                                  } else {
+                                    const { blood_pressure_diastolic, ...rest } = vitalErrors;
+                                    setVitalErrors(rest);
+                                  }
+                                }
+                              }}
+                              className={`input ${vitalErrors.blood_pressure_diastolic ? 'border-red-500' : ''}`}
+                              placeholder="80"
+                            />
+                            {vitalErrors.blood_pressure_diastolic && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.blood_pressure_diastolic}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">Respiratory Rate</label>
+                            <input
+                              type="number"
+                              value={vitals.respiratory_rate || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                                setVitals({ ...vitals, respiratory_rate: value });
+                                if (value) {
+                                  const result = validateVitalSign(value, 'respiratory_rate');
+                                  if (!result.isValid || result.isCritical) {
+                                    setVitalErrors({ ...vitalErrors, respiratory_rate: result.message || 'Invalid value' });
+                                  } else {
+                                    const { respiratory_rate, ...rest } = vitalErrors;
+                                    setVitalErrors(rest);
+                                  }
+                                }
+                              }}
+                              className={`input ${vitalErrors.respiratory_rate ? 'border-red-500' : ''}`}
+                              placeholder="16"
+                            />
+                            {vitalErrors.respiratory_rate && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.respiratory_rate}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">O2 Saturation (%)</label>
+                            <input
+                              type="number"
+                              value={vitals.oxygen_saturation || ''}
+                              onChange={(e) => {
+                                const value = e.target.value ? parseInt(e.target.value) : undefined;
+                                setVitals({ ...vitals, oxygen_saturation: value });
+                                if (value) {
+                                  const result = validateVitalSign(value, 'oxygen_saturation');
+                                  if (!result.isValid || result.isCritical) {
+                                    setVitalErrors({ ...vitalErrors, oxygen_saturation: result.message || 'Invalid value' });
+                                  } else {
+                                    const { oxygen_saturation, ...rest } = vitalErrors;
+                                    setVitalErrors(rest);
+                                  }
+                                }
+                              }}
+                              className={`input ${vitalErrors.oxygen_saturation ? 'border-red-500' : ''}`}
+                              placeholder="98"
+                            />
+                            {vitalErrors.oxygen_saturation && (
+                              <p className="text-xs text-red-600 mt-1">{vitalErrors.oxygen_saturation}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="label">Weight</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={vitals.weight || ''}
+                                onChange={(e) =>
+                                  setVitals({
+                                    ...vitals,
+                                    weight: e.target.value ? parseFloat(e.target.value) : undefined,
+                                  })
+                                }
+                                className="input flex-1"
+                                placeholder="150"
+                              />
+                              <select
+                                value={vitals.weight_unit}
+                                onChange={(e) =>
+                                  setVitals({
+                                    ...vitals,
+                                    weight_unit: e.target.value as 'kg' | 'lbs',
+                                  })
+                                }
+                                className="input w-20"
+                              >
+                                <option value="lbs">lbs</option>
+                                <option value="kg">kg</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="label">Height</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={vitals.height || ''}
+                                onChange={(e) =>
+                                  setVitals({
+                                    ...vitals,
+                                    height: e.target.value ? parseFloat(e.target.value) : undefined,
+                                  })
+                                }
+                                className="input flex-1"
+                                placeholder="68"
+                              />
+                              <select
+                                value={vitals.height_unit}
+                                onChange={(e) =>
+                                  setVitals({
+                                    ...vitals,
+                                    height_unit: e.target.value as 'cm' | 'in',
+                                  })
+                                }
+                                className="input w-20"
+                              >
+                                <option value="in">in</option>
+                                <option value="cm">cm</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button type="submit" className="btn-primary w-full">
+                          Save Vital Signs
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Doctor's Orders Tab */}
+                    {activeTab === 'orders' && (
+                      <div className="space-y-4">
+                        {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) ? (
+                          <div>
+                            {/* Lab Orders */}
+                            {labOrders.length > 0 && (
+                              <div className="mb-4">
+                                <h3 className="text-lg font-semibold text-purple-700 mb-2">Laboratory Orders</h3>
+                                <div className="space-y-2">
+                                  {labOrders.map((order) => (
+                                    <div key={order.id} className="border border-purple-200 rounded-lg p-3 bg-purple-50">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                          <h4 className="font-semibold text-gray-900">{order.test_name}</h4>
+                                          {order.test_code && (
+                                            <p className="text-sm text-gray-600">Code: {order.test_code}</p>
+                                          )}
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            Ordered by: {order.ordering_provider_name}
+                                          </p>
+                                        </div>
+                                        <div className="ml-4 text-right">
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                            order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                            'bg-green-100 text-green-800'
+                                          }`}>
+                                            {order.priority.toUpperCase()}
+                                          </span>
+                                          <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Imaging Orders */}
+                            {imagingOrders.length > 0 && (
+                              <div className="mb-4">
+                                <h3 className="text-lg font-semibold text-indigo-700 mb-2">Imaging Orders</h3>
+                                <div className="space-y-2">
+                                  {imagingOrders.map((order) => (
+                                    <div key={order.id} className="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                          <h4 className="font-semibold text-gray-900">{order.imaging_type}</h4>
+                                          <p className="text-sm text-gray-600">Body Part: {order.body_part}</p>
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            Ordered by: {order.ordering_provider_name}
+                                          </p>
+                                        </div>
+                                        <div className="ml-4 text-right">
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                            order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                            'bg-green-100 text-green-800'
+                                          }`}>
+                                            {order.priority.toUpperCase()}
+                                          </span>
+                                          <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Pharmacy Orders */}
+                            {pharmacyOrders.length > 0 && (
+                              <div>
+                                <h3 className="text-lg font-semibold text-pink-700 mb-2">Pharmacy Orders</h3>
+                                <div className="space-y-2">
+                                  {pharmacyOrders.map((order) => (
+                                    <div key={order.id} className="border border-pink-200 rounded-lg p-3 bg-pink-50">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                          <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
+                                          <p className="text-sm text-gray-600">
+                                            {order.dosage} | {order.frequency} | {order.route}
+                                          </p>
+                                          <p className="text-xs text-gray-500 mt-1">
+                                            Ordered by: {order.ordering_provider_name}
+                                          </p>
+                                        </div>
+                                        <div className="ml-4 text-right">
+                                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                            order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                            'bg-green-100 text-green-800'
+                                          }`}>
+                                            {order.priority.toUpperCase()}
+                                          </span>
+                                          <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No doctor's orders for this patient
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Nurse Procedures Tab */}
+                    {activeTab === 'procedures' && (
+                      <div className="space-y-4">
+                        {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 ? (
+                          <div className="space-y-3">
+                            {nurseProcedures
+                              .filter(p => p.encounter_id === selectedPatient.id)
+                              .map((procedure) => (
+                                <div
+                                  key={procedure.id}
+                                  className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <h3 className="font-semibold text-gray-900">{procedure.procedure_name}</h3>
+                                      {procedure.notes && (
+                                        <p className="text-sm text-gray-600 mt-1">{procedure.notes}</p>
+                                      )}
+                                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                        <span>Ordered by: {procedure.ordered_by_name}</span>
+                                        <span>Price: ${procedure.price.toFixed(2)}</span>
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                          procedure.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                          procedure.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                          'bg-green-100 text-green-800'
+                                        }`}>
+                                          {procedure.status.replace('_', ' ').toUpperCase()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="ml-4 flex gap-2">
+                                      {procedure.status === 'pending' && (
+                                        <button
+                                          onClick={() => handleStartProcedure(procedure.id)}
+                                          className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                                        >
+                                          Start
+                                        </button>
+                                      )}
+                                      {procedure.status === 'in_progress' && (
+                                        <button
+                                          onClick={() => handleCompleteProcedure(procedure.id)}
+                                          className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                                        >
+                                          Complete & Bill
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No nurse procedures for this patient
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Clinical Notes Tab */}
+                    {activeTab === 'notes' && (
+                      <form onSubmit={handleAddNote} className="space-y-4">
+                        <div>
+                          <label className="label">Note Type</label>
+                          <select
+                            value={noteType}
+                            onChange={(e) =>
+                              setNoteType(e.target.value as 'nurse_hmp' | 'nurse_general')
+                            }
+                            className="input"
+                          >
+                            <option value="nurse_hmp">History & Physical (H&P)</option>
+                            <option value="nurse_general">General Note</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="label">Note Content</label>
+                          <textarea
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
+                            className="input"
+                            rows={6}
+                            placeholder="Enter clinical notes..."
+                            required
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button type="submit" className="btn-primary">
+                            Add Note
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAlertDoctor}
+                            className="btn-secondary"
+                          >
+                            Alert Doctor - Patient Ready
+                          </button>
+                        </div>
+                      </form>
+                    )}
+
+                    {/* Patient Routing Tab */}
+                    {activeTab === 'routing' && (
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                          <p className="text-sm text-gray-600 mb-4">
+                            After doctor completes encounter, route patient to appropriate department or discharge:
+                          </p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              onClick={() => handleRouteToDepartment('lab')}
+                              className="bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                            >
+                              Send to Lab
+                            </button>
+                            <button
+                              onClick={() => handleRouteToDepartment('pharmacy')}
+                              className="bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
+                            >
+                              Send to Pharmacy
+                            </button>
+                            <button
+                              onClick={() => handleRouteToDepartment('imaging')}
+                              className="bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                            >
+                              Send to Imaging
+                            </button>
+                            <button
+                              onClick={() => handleRouteToDepartment('receptionist')}
+                              className="bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
+                            >
+                              Send to Receptionist
+                            </button>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-blue-300">
+                            <button
+                              onClick={handleReleaseRoom}
+                              className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                            >
+                              Release Room & Complete Encounter
+                              <span className="block text-xs mt-1 font-normal">Final step after all routing is done</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
