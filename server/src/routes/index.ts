@@ -82,6 +82,14 @@ import {
   createOrGetInvoice,
   updateInvoice,
 } from '../controllers/invoiceController';
+import {
+  getAllCharges,
+  addChargeToInvoice,
+  getInvoiceItems,
+  removeInvoiceItem,
+  createCharge,
+  updateCharge,
+} from '../controllers/chargeMasterController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -186,5 +194,15 @@ router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPati
 router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
+
+// Charge Master routes
+router.get('/charge-master', authenticateToken, getAllCharges);
+router.post('/charge-master', authenticateToken, authorizeRoles('admin'), createCharge);
+router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin'), updateCharge);
+
+// Invoice Items routes
+router.get('/invoice-items/:invoice_id', authenticateToken, getInvoiceItems);
+router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), addChargeToInvoice);
+router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
 
 export default router;

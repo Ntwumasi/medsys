@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
+import { validateVitalSign } from '../utils/vitalSignsValidation';
 
 interface AssignedPatient {
   id: number;
@@ -44,6 +45,9 @@ const NurseDashboard: React.FC = () => {
     height_unit: 'in',
   });
 
+  // Validation errors
+  const [vitalErrors, setVitalErrors] = useState<Record<string, string>>({});
+
   // Notes state
   const [noteContent, setNoteContent] = useState('');
   const [noteType, setNoteType] = useState<'nurse_hmp' | 'nurse_general'>('nurse_hmp');
@@ -71,22 +75,109 @@ const NurseDashboard: React.FC = () => {
     e.preventDefault();
     if (!selectedPatient) return;
 
+    // Clear previous errors
+    setVitalErrors({});
+
+    // Validate each vital sign
+    const errors: Record<string, string> = {};
+    const warnings: string[] = [];
+
+    if (vitals.temperature) {
+      const tempType = vitals.temperature_unit === 'C' ? 'temperature_C' : 'temperature_F';
+      const result = validateVitalSign(vitals.temperature, tempType);
+      if (!result.isValid) {
+        errors.temperature = result.message || 'Invalid temperature';
+      } else if (result.isCritical) {
+        warnings.push(`Temperature: ${result.message}`);
+      }
+    }
+
+    if (vitals.heart_rate) {
+      const result = validateVitalSign(vitals.heart_rate, 'heart_rate');
+      if (!result.isValid) {
+        errors.heart_rate = result.message || 'Invalid heart rate';
+      } else if (result.isCritical) {
+        warnings.push(`Heart Rate: ${result.message}`);
+      }
+    }
+
+    if (vitals.blood_pressure_systolic) {
+      const result = validateVitalSign(vitals.blood_pressure_systolic, 'blood_pressure_systolic');
+      if (!result.isValid) {
+        errors.blood_pressure_systolic = result.message || 'Invalid systolic BP';
+      } else if (result.isCritical) {
+        warnings.push(`Systolic BP: ${result.message}`);
+      }
+    }
+
+    if (vitals.blood_pressure_diastolic) {
+      const result = validateVitalSign(vitals.blood_pressure_diastolic, 'blood_pressure_diastolic');
+      if (!result.isValid) {
+        errors.blood_pressure_diastolic = result.message || 'Invalid diastolic BP';
+      } else if (result.isCritical) {
+        warnings.push(`Diastolic BP: ${result.message}`);
+      }
+    }
+
+    if (vitals.respiratory_rate) {
+      const result = validateVitalSign(vitals.respiratory_rate, 'respiratory_rate');
+      if (!result.isValid) {
+        errors.respiratory_rate = result.message || 'Invalid respiratory rate';
+      } else if (result.isCritical) {
+        warnings.push(`Respiratory Rate: ${result.message}`);
+      }
+    }
+
+    if (vitals.oxygen_saturation) {
+      const result = validateVitalSign(vitals.oxygen_saturation, 'oxygen_saturation');
+      if (!result.isValid) {
+        errors.oxygen_saturation = result.message || 'Invalid oxygen saturation';
+      } else if (result.isCritical) {
+        warnings.push(`O2 Saturation: ${result.message}`);
+      }
+    }
+
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setVitalErrors(errors);
+      alert('Please correct the invalid vital signs before submitting.');
+      return;
+    }
+
+    // If there are warnings, confirm with user
+    if (warnings.length > 0) {
+      const warningMessage = 'Critical vital signs detected:\n\n' + warnings.join('\n') + '\n\nDo you want to continue?';
+      if (!confirm(warningMessage)) {
+        return;
+      }
+    }
+
     try {
-      await apiClient.post('/workflow/nurse/vitals', {
+      const response = await apiClient.post('/workflow/nurse/vitals', {
         encounter_id: selectedPatient.id,
         vital_signs: vitals,
       });
 
-      alert('Vital signs saved successfully');
+      if (response.data.criticalValues && response.data.criticalValues.length > 0) {
+        alert('Vital signs saved successfully.\n\nCritical values detected: ' + response.data.criticalValues.join(', ') + '\nDoctor has been alerted.');
+      } else {
+        alert('Vital signs saved successfully');
+      }
+
       setVitals({
         temperature_unit: 'F',
         weight_unit: 'lbs',
         height_unit: 'in',
       });
       loadAssignedPatients();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting vitals:', error);
-      alert('Failed to save vital signs');
+      if (error.response?.data?.errors) {
+        setVitalErrors(error.response.data.errors);
+        alert('Invalid vital signs. Please check the values and try again.');
+      } else {
+        alert('Failed to save vital signs');
+      }
     }
   };
 
@@ -274,7 +365,7 @@ const NurseDashboard: React.FC = () => {
                             onChange={(e) =>
                               setVitals({ ...vitals, temperature: Number(e.target.value) })
                             }
-                            className="input flex-1"
+                            className={`input flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
                             placeholder="98.6"
                           />
                           <select
@@ -291,6 +382,9 @@ const NurseDashboard: React.FC = () => {
                             <option value="C">°C</option>
                           </select>
                         </div>
+                        {vitalErrors.temperature && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.temperature}</p>
+                        )}
                       </div>
 
                       <div>
@@ -301,9 +395,12 @@ const NurseDashboard: React.FC = () => {
                           onChange={(e) =>
                             setVitals({ ...vitals, heart_rate: Number(e.target.value) })
                           }
-                          className="input"
+                          className={`input ${vitalErrors.heart_rate ? 'border-red-500' : ''}`}
                           placeholder="72"
                         />
+                        {vitalErrors.heart_rate && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.heart_rate}</p>
+                        )}
                       </div>
 
                       <div>
@@ -317,9 +414,12 @@ const NurseDashboard: React.FC = () => {
                               blood_pressure_systolic: Number(e.target.value),
                             })
                           }
-                          className="input"
+                          className={`input ${vitalErrors.blood_pressure_systolic ? 'border-red-500' : ''}`}
                           placeholder="120"
                         />
+                        {vitalErrors.blood_pressure_systolic && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.blood_pressure_systolic}</p>
+                        )}
                       </div>
 
                       <div>
@@ -333,9 +433,12 @@ const NurseDashboard: React.FC = () => {
                               blood_pressure_diastolic: Number(e.target.value),
                             })
                           }
-                          className="input"
+                          className={`input ${vitalErrors.blood_pressure_diastolic ? 'border-red-500' : ''}`}
                           placeholder="80"
                         />
+                        {vitalErrors.blood_pressure_diastolic && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.blood_pressure_diastolic}</p>
+                        )}
                       </div>
 
                       <div>
@@ -346,9 +449,12 @@ const NurseDashboard: React.FC = () => {
                           onChange={(e) =>
                             setVitals({ ...vitals, respiratory_rate: Number(e.target.value) })
                           }
-                          className="input"
+                          className={`input ${vitalErrors.respiratory_rate ? 'border-red-500' : ''}`}
                           placeholder="16"
                         />
+                        {vitalErrors.respiratory_rate && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.respiratory_rate}</p>
+                        )}
                       </div>
 
                       <div>
@@ -359,9 +465,12 @@ const NurseDashboard: React.FC = () => {
                           onChange={(e) =>
                             setVitals({ ...vitals, oxygen_saturation: Number(e.target.value) })
                           }
-                          className="input"
+                          className={`input ${vitalErrors.oxygen_saturation ? 'border-red-500' : ''}`}
                           placeholder="98"
                         />
+                        {vitalErrors.oxygen_saturation && (
+                          <p className="text-red-600 text-xs mt-1">{vitalErrors.oxygen_saturation}</p>
+                        )}
                       </div>
                     </div>
 

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { validateAllVitals } from '../../shared/vitalSignsValidation';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -58,24 +59,39 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const invoiceCount = parseInt(countResult.rows[0].count) + 1;
     const invoiceNumber = `INV${String(invoiceCount).padStart(6, '0')}`;
 
-    const consultationFee = billing_amount || (isNewPatient ? 75 : 50);
+    // Get consultation charge from charge master
+    const consultationCode = isNewPatient ? 'CONS-NEW' : 'CONS-FU';
+    const chargeResult = await client.query(
+      'SELECT id, price, service_name FROM charge_master WHERE service_code = $1',
+      [consultationCode]
+    );
+
+    const consultationFee = chargeResult.rows.length > 0
+      ? parseFloat(chargeResult.rows[0].price)
+      : (billing_amount || (isNewPatient ? 50 : 30));
 
     const invoiceResult = await client.query(
       `INSERT INTO invoices (
         patient_id, encounter_id, invoice_number, invoice_date,
-        subtotal, tax, total, status
+        subtotal, tax, total_amount, status
       ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
       RETURNING *`,
       [patient_id, encounter.id, invoiceNumber, consultationFee]
     );
 
     // Create invoice item for consultation
+    const chargeMasterId = chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null;
+    const consultationDescription = chargeResult.rows.length > 0
+      ? chargeResult.rows[0].service_name
+      : (isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation');
+
     await client.query(
-      `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
-       VALUES ($1, $2, 1, $3, $3)`,
+      `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
+       VALUES ($1, $2, $3, 1, $4, $4)`,
       [
         invoiceResult.rows[0].id,
-        isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation',
+        chargeMasterId,
+        consultationDescription,
         consultationFee,
       ]
     );
@@ -198,6 +214,17 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
   try {
     const { encounter_id, vital_signs } = req.body;
 
+    // Validate vital signs
+    const validation = validateAllVitals(vital_signs);
+
+    if (!validation.isValid) {
+      res.status(400).json({
+        error: 'Invalid vital signs',
+        errors: validation.errors,
+      });
+      return;
+    }
+
     const result = await pool.query(
       `UPDATE encounters SET vital_signs = $1, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2
@@ -211,25 +238,24 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
     }
 
     // Check for critical vitals and create alert if needed
-    const isCritical =
-      (vital_signs.blood_pressure_systolic && vital_signs.blood_pressure_systolic > 180) ||
-      (vital_signs.blood_pressure_diastolic && vital_signs.blood_pressure_diastolic > 120) ||
-      (vital_signs.heart_rate && (vital_signs.heart_rate > 120 || vital_signs.heart_rate < 50)) ||
-      (vital_signs.oxygen_saturation && vital_signs.oxygen_saturation < 92) ||
-      (vital_signs.temperature && vital_signs.temperature > 103);
+    const isCritical = validation.criticalValues.length > 0;
 
     if (isCritical) {
+      const criticalMessage = `Critical vital signs detected: ${validation.criticalValues.join(', ')}`;
+
       await pool.query(
         `INSERT INTO alerts (encounter_id, patient_id, to_user_id, alert_type, message)
-         SELECT $1, patient_id, provider_id, 'vitals_critical', 'Critical vital signs detected'
+         SELECT $1, patient_id, provider_id, 'vitals_critical', $2
          FROM encounters WHERE id = $1`,
-        [encounter_id]
+        [encounter_id, criticalMessage]
       );
     }
 
     res.json({
       message: 'Vital signs added successfully',
       encounter: result.rows[0],
+      warnings: validation.warnings,
+      criticalValues: validation.criticalValues,
     });
   } catch (error) {
     console.error('Add vital signs error:', error);
