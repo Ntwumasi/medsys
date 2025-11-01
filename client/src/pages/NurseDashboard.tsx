@@ -43,6 +43,45 @@ interface VitalSigns {
   height_unit?: 'cm' | 'in';
 }
 
+interface Room {
+  id: number;
+  room_number: string;
+  room_name?: string;
+  is_available: boolean;
+}
+
+interface LabOrder {
+  id: number;
+  test_name: string;
+  test_code?: string;
+  priority: 'stat' | 'urgent' | 'routine';
+  status: string;
+  ordered_date: string;
+  ordering_provider_name: string;
+}
+
+interface ImagingOrder {
+  id: number;
+  imaging_type: string;
+  body_part: string;
+  priority: 'stat' | 'urgent' | 'routine';
+  status: string;
+  ordered_date: string;
+  ordering_provider_name: string;
+}
+
+interface PharmacyOrder {
+  id: number;
+  medication_name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  priority: 'stat' | 'urgent' | 'routine';
+  status: string;
+  ordered_date: string;
+  ordering_provider_name: string;
+}
+
 const NurseDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +89,10 @@ const NurseDashboard: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
+  const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
+  const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
 
   // Vitals form state
   const [vitals, setVitals] = useState<VitalSigns>({
@@ -68,12 +111,20 @@ const NurseDashboard: React.FC = () => {
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
+    loadRooms();
+    if (selectedPatient) {
+      loadOrders();
+    }
     const interval = setInterval(() => {
       loadAssignedPatients();
       loadNurseProcedures();
+      loadRooms();
+      if (selectedPatient) {
+        loadOrders();
+      }
     }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedPatient]);
 
   const loadAssignedPatients = async () => {
     try {
@@ -92,6 +143,42 @@ const NurseDashboard: React.FC = () => {
       setNurseProcedures(res.data.procedures || []);
     } catch (error) {
       console.error('Error loading nurse procedures:', error);
+    }
+  };
+
+  const loadRooms = async () => {
+    try {
+      const res = await apiClient.get('/workflow/rooms');
+      setRooms(res.data.rooms || []);
+    } catch (error) {
+      console.error('Error loading rooms:', error);
+    }
+  };
+
+  const loadOrders = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      const res = await apiClient.get(`/orders/encounter/${selectedPatient.id}`);
+      setLabOrders(res.data.lab_orders || []);
+      setImagingOrders(res.data.imaging_orders || []);
+      setPharmacyOrders(res.data.pharmacy_orders || []);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    }
+  };
+
+  const handleAssignRoom = async (encounterId: number, roomId: number) => {
+    try {
+      await apiClient.post('/workflow/assign-room', {
+        encounter_id: encounterId,
+        room_id: roomId,
+      });
+      loadAssignedPatients();
+      loadRooms();
+    } catch (error) {
+      console.error('Error assigning room:', error);
+      alert('Failed to assign room');
     }
   };
 
@@ -421,9 +508,26 @@ const NurseDashboard: React.FC = () => {
                     </div>
                     <div>
                       <div className="text-sm text-gray-600">Room</div>
-                      <div className="font-semibold">
-                        {selectedPatient.room_number} {selectedPatient.room_name}
-                      </div>
+                      {selectedPatient.room_number ? (
+                        <div className="font-semibold">
+                          {selectedPatient.room_number} {selectedPatient.room_name}
+                        </div>
+                      ) : (
+                        <select
+                          onChange={(e) => handleAssignRoom(selectedPatient.id, Number(e.target.value))}
+                          className="input"
+                          defaultValue=""
+                        >
+                          <option value="">Assign Room</option>
+                          {rooms
+                            .filter((r) => r.is_available)
+                            .map((room) => (
+                              <option key={room.id} value={room.id}>
+                                Room {room.room_number}
+                              </option>
+                            ))}
+                        </select>
+                      )}
                     </div>
                     <div className="col-span-2">
                       <div className="text-sm text-gray-600">Chief Complaint</div>
@@ -431,6 +535,113 @@ const NurseDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Doctor's Orders */}
+                {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
+                  <div className="card">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Doctor's Orders</h2>
+
+                    {/* Lab Orders */}
+                    {labOrders.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-lg font-semibold text-purple-700 mb-2">Laboratory</h3>
+                        <div className="space-y-2">
+                          {labOrders.map((order) => (
+                            <div key={order.id} className="border border-purple-200 rounded-lg p-3 bg-purple-50">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-900">{order.test_name}</h4>
+                                  {order.test_code && (
+                                    <p className="text-sm text-gray-600">Code: {order.test_code}</p>
+                                  )}
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Ordered by: {order.ordering_provider_name}
+                                  </p>
+                                </div>
+                                <div className="ml-4 text-right">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {order.priority.toUpperCase()}
+                                  </span>
+                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Imaging Orders */}
+                    {imagingOrders.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-lg font-semibold text-indigo-700 mb-2">Imaging</h3>
+                        <div className="space-y-2">
+                          {imagingOrders.map((order) => (
+                            <div key={order.id} className="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-900">{order.imaging_type}</h4>
+                                  <p className="text-sm text-gray-600">Body Part: {order.body_part}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Ordered by: {order.ordering_provider_name}
+                                  </p>
+                                </div>
+                                <div className="ml-4 text-right">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {order.priority.toUpperCase()}
+                                  </span>
+                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pharmacy Orders */}
+                    {pharmacyOrders.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-pink-700 mb-2">Pharmacy</h3>
+                        <div className="space-y-2">
+                          {pharmacyOrders.map((order) => (
+                            <div key={order.id} className="border border-pink-200 rounded-lg p-3 bg-pink-50">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
+                                  <p className="text-sm text-gray-600">
+                                    {order.dosage} | {order.frequency} | {order.route}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Ordered by: {order.ordering_provider_name}
+                                  </p>
+                                </div>
+                                <div className="ml-4 text-right">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                    order.priority === 'stat' ? 'bg-red-100 text-red-800' :
+                                    order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {order.priority.toUpperCase()}
+                                  </span>
+                                  <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Nurse Procedures */}
                 {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
@@ -712,6 +923,28 @@ const NurseDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Room Status - Always Visible */}
+        <div className="bg-white rounded-lg shadow-sm p-6 mt-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Room Status</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            {rooms.map((room) => (
+              <div
+                key={room.id}
+                className={`p-4 rounded-lg text-center border-2 ${
+                  room.is_available
+                    ? 'bg-green-50 border-green-400 text-green-800'
+                    : 'bg-red-50 border-red-400 text-red-800'
+                }`}
+              >
+                <div className="font-bold text-lg">Room {room.room_number}</div>
+                <div className="text-sm mt-1 font-medium">
+                  {room.is_available ? 'Available' : 'Occupied'}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>

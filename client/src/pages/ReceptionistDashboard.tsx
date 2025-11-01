@@ -54,13 +54,6 @@ interface QueueItem {
   billing_amount?: number;
 }
 
-interface Room {
-  id: number;
-  room_number: string;
-  room_name?: string;
-  is_available: boolean;
-}
-
 interface Nurse {
   id: number;
   first_name: string;
@@ -101,7 +94,6 @@ const ReceptionistDashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'history'>('queue');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
   const [nurses, setNurses] = useState<Nurse[]>([]);
   const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
@@ -152,19 +144,17 @@ const ReceptionistDashboard: React.FC = () => {
     try {
       setError(null);
       console.log('ReceptionistDashboard: Making API calls');
-      const [patientsRes, queueRes, roomsRes, nursesRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
+      const [patientsRes, queueRes, nursesRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
         apiClient.get('/patients'),
         apiClient.get('/workflow/queue'),
-        apiClient.get('/workflow/rooms'),
         apiClient.get('/workflow/nurses'),
         apiClient.get('/payer-sources/corporate-clients'),
         apiClient.get('/payer-sources/insurance-providers'),
       ]);
-      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, roomsRes, nursesRes, corporateClientsRes, insuranceProvidersRes });
+      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, nursesRes, corporateClientsRes, insuranceProvidersRes });
 
       setPatients(patientsRes.data.patients || []);
       setQueue(queueRes.data.queue || []);
-      setRooms(roomsRes.data.rooms || []);
       setNurses(nursesRes.data.nurses || []);
       setCorporateClients(corporateClientsRes.data.corporate_clients || []);
       setInsuranceProviders(insuranceProvidersRes.data.insurance_providers || []);
@@ -175,7 +165,6 @@ const ReceptionistDashboard: React.FC = () => {
       // Set empty arrays so the dashboard still renders
       setPatients([]);
       setQueue([]);
-      setRooms([]);
       setNurses([]);
       setCorporateClients([]);
       setInsuranceProviders([]);
@@ -320,19 +309,6 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const handleAssignRoom = async (encounterId: number, roomId: number) => {
-    try {
-      await apiClient.post('/workflow/assign-room', {
-        encounter_id: encounterId,
-        room_id: roomId,
-      });
-      loadData();
-    } catch (error) {
-      console.error('Error assigning room:', error);
-      alert('Failed to assign room');
-    }
-  };
-
   const handleAssignNurse = async (encounterId: number, nurseId: number) => {
     try {
       await apiClient.post('/workflow/assign-nurse', {
@@ -473,7 +449,7 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         )}
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           <button
             onClick={() => setActiveView('queue')}
             className={`bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 ${
@@ -531,21 +507,6 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
           </button>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-purple-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h2 className="text-lg font-semibold text-gray-900">Available Rooms</h2>
-                <p className="text-2xl font-bold text-purple-600">
-                  {rooms.filter(r => r.is_available).length}/{rooms.length}
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Main Content Area */}
@@ -630,23 +591,6 @@ const ReceptionistDashboard: React.FC = () => {
                     </div>
 
                     <div className="mt-4 flex gap-3">
-                      {!item.room_number && (
-                        <select
-                          onChange={(e) => handleAssignRoom(item.id, Number(e.target.value))}
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          defaultValue=""
-                        >
-                          <option value="">Assign Room</option>
-                          {rooms
-                            .filter((r) => r.is_available)
-                            .map((room) => (
-                              <option key={room.id} value={room.id}>
-                                Room {room.room_number}
-                              </option>
-                            ))}
-                        </select>
-                      )}
-
                       {!item.nurse_name && (
                         <select
                           onChange={(e) => handleAssignNurse(item.id, Number(e.target.value))}
@@ -1145,27 +1089,6 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Rooms Status */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mt-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Room Status</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            {rooms.map((room) => (
-              <div
-                key={room.id}
-                className={`p-4 rounded-lg text-center border-2 ${
-                  room.is_available
-                    ? 'bg-green-50 border-green-400 text-green-800'
-                    : 'bg-red-50 border-red-400 text-red-800'
-                }`}
-              >
-                <div className="font-bold text-lg">Room {room.room_number}</div>
-                <div className="text-sm mt-1 font-medium">
-                  {room.is_available ? 'Available' : 'Occupied'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </main>
 
       {/* Invoice Modal */}
