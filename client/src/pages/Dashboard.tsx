@@ -13,6 +13,8 @@ interface CorporateClient {
   contact_person?: string;
   contact_email?: string;
   contact_phone?: string;
+  assigned_doctor_id?: number;
+  assigned_doctor_name?: string;
 }
 
 interface InsuranceProvider {
@@ -42,7 +44,10 @@ const Dashboard: React.FC = () => {
   // Corporate clients state
   const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
   const [showCorporateForm, setShowCorporateForm] = useState(false);
-  const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+  const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
+
+  // Doctors state
+  const [doctors, setDoctors] = useState<any[]>([]);
 
   // Insurance providers state
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
@@ -54,6 +59,7 @@ const Dashboard: React.FC = () => {
     loadCorporateClients();
     loadInsuranceProviders();
     loadPatients();
+    loadDoctors();
   }, []);
 
   useEffect(() => {
@@ -91,11 +97,33 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const loadDoctors = async () => {
+    try {
+      // For now, use hardcoded doctors from seeded data
+      // In production, this should fetch from /users?role=doctor endpoint
+      setDoctors([
+        { id: 5, first_name: 'John', last_name: 'Williams' }, // doctor@medsys.com
+        { id: 6, first_name: 'Emily', last_name: 'Davis' }, // doctor2@medsys.com
+      ]);
+    } catch (error) {
+      console.error('Error loading doctors:', error);
+      // Fallback to known doctors
+      setDoctors([
+        { id: 5, first_name: 'John', last_name: 'Williams' },
+        { id: 6, first_name: 'Emily', last_name: 'Davis' },
+      ]);
+    }
+  };
+
   const handleCreateCorporateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiClient.post('/payer-sources/corporate-clients', corporateForm);
-      setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+      const payload = {
+        ...corporateForm,
+        assigned_doctor_id: corporateForm.assigned_doctor_id ? Number(corporateForm.assigned_doctor_id) : null,
+      };
+      await apiClient.post('/payer-sources/corporate-clients', payload);
+      setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
       setShowCorporateForm(false);
       loadCorporateClients();
       alert('Corporate client added successfully!');
@@ -612,6 +640,24 @@ const Dashboard: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Assigned Doctor *
+                    </label>
+                    <select
+                      value={corporateForm.assigned_doctor_id}
+                      onChange={(e) => setCorporateForm({ ...corporateForm, assigned_doctor_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      required
+                    >
+                      <option value="">Select Doctor</option>
+                      {doctors.map((doctor) => (
+                        <option key={doctor.id} value={doctor.id}>
+                          Dr. {doctor.first_name} {doctor.last_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="mt-4">
                   <button
@@ -641,6 +687,9 @@ const Dashboard: React.FC = () => {
                       Phone
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Assigned Doctor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -659,6 +708,15 @@ const Dashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {client.contact_phone || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {client.assigned_doctor_name ? (
+                          <span className="font-medium text-primary-600">
+                            Dr. {client.assigned_doctor_name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">Not Assigned</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button

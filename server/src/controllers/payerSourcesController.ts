@@ -5,7 +5,13 @@ import pool from '../database/db';
 export const getCorporateClients = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
-      `SELECT * FROM corporate_clients WHERE is_active = true ORDER BY name ASC`
+      `SELECT
+        cc.*,
+        u.first_name || ' ' || u.last_name as assigned_doctor_name
+       FROM corporate_clients cc
+       LEFT JOIN users u ON cc.assigned_doctor_id = u.id
+       WHERE cc.is_active = true
+       ORDER BY cc.name ASC`
     );
 
     res.json({
@@ -20,7 +26,7 @@ export const getCorporateClients = async (req: Request, res: Response): Promise<
 
 export const createCorporateClient = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, contact_person, contact_email, contact_phone, address } = req.body;
+    const { name, contact_person, contact_email, contact_phone, address, assigned_doctor_id } = req.body;
 
     if (!name) {
       res.status(400).json({ error: 'Corporate client name is required' });
@@ -28,10 +34,10 @@ export const createCorporateClient = async (req: Request, res: Response): Promis
     }
 
     const result = await pool.query(
-      `INSERT INTO corporate_clients (name, contact_person, contact_email, contact_phone, address)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO corporate_clients (name, contact_person, contact_email, contact_phone, address, assigned_doctor_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name, contact_person, contact_email, contact_phone, address]
+      [name, contact_person, contact_email, contact_phone, address, assigned_doctor_id || null]
     );
 
     res.status(201).json({
@@ -56,7 +62,7 @@ export const createCorporateClient = async (req: Request, res: Response): Promis
 export const updateCorporateClient = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, contact_person, contact_email, contact_phone, address, is_active } = req.body;
+    const { name, contact_person, contact_email, contact_phone, address, is_active, assigned_doctor_id } = req.body;
 
     const result = await pool.query(
       `UPDATE corporate_clients
@@ -66,10 +72,11 @@ export const updateCorporateClient = async (req: Request, res: Response): Promis
            contact_phone = COALESCE($4, contact_phone),
            address = COALESCE($5, address),
            is_active = COALESCE($6, is_active),
+           assigned_doctor_id = COALESCE($7, assigned_doctor_id),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
+       WHERE id = $8
        RETURNING *`,
-      [name, contact_person, contact_email, contact_phone, address, is_active, id]
+      [name, contact_person, contact_email, contact_phone, address, is_active, assigned_doctor_id, id]
     );
 
     if (result.rows.length === 0) {

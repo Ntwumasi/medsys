@@ -13,14 +13,30 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
+    // Check if patient has a corporate payer source and get assigned doctor
+    const payerSourceResult = await client.query(
+      `SELECT pps.payer_type, cc.assigned_doctor_id
+       FROM patient_payer_sources pps
+       LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+       WHERE pps.patient_id = $1 AND pps.payer_type = 'corporate' AND pps.is_primary = true
+       LIMIT 1`,
+      [patient_id]
+    );
+
+    let assigned_provider_id = null;
+    if (payerSourceResult.rows.length > 0 && payerSourceResult.rows[0].assigned_doctor_id) {
+      assigned_provider_id = payerSourceResult.rows[0].assigned_doctor_id;
+    }
+
     const result = await client.query(
       `INSERT INTO encounters (
-        patient_id, receptionist_id, encounter_date, encounter_type,
+        patient_id, provider_id, receptionist_id, encounter_date, encounter_type,
         chief_complaint, status, checked_in_at, triage_time, triage_priority
-      ) VALUES ($1, $2, $3, $4, $5, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green')
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green')
       RETURNING *`,
       [
         patient_id,
+        assigned_provider_id,
         receptionist_id,
         new Date(),
         encounter_type || 'walk-in',
