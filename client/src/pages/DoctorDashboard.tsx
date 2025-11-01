@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
+import HPForm from '../components/HPForm';
 
 interface RoomEncounter {
   id: number;
@@ -53,6 +54,9 @@ const DoctorDashboard: React.FC = () => {
   const [frequency, setFrequency] = useState('');
   const [route, setRoute] = useState('');
   const [quantity, setQuantity] = useState('');
+
+  // H&P Form state
+  const [showHPForm, setShowHPForm] = useState(false);
 
   useEffect(() => {
     loadRoomEncounters();
@@ -205,6 +209,26 @@ const DoctorDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error releasing room:', error);
       alert('Failed to release room');
+    }
+  };
+
+  const handleSaveHP = async (hpData: any) => {
+    if (!selectedEncounter) return;
+
+    try {
+      await apiClient.post('/clinical-notes', {
+        encounter_id: selectedEncounter.id,
+        patient_id: selectedEncounter.patient_id,
+        note_type: 'doctor_hp',
+        content: JSON.stringify(hpData),
+      });
+
+      alert('H&P saved successfully');
+      setShowHPForm(false);
+      loadEncounterNotes(selectedEncounter.id);
+    } catch (error) {
+      console.error('Error saving H&P:', error);
+      alert('Failed to save H&P');
     }
   };
 
@@ -534,6 +558,13 @@ const DoctorDashboard: React.FC = () => {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Encounter Actions</h3>
                   <div className="space-y-3">
                     <button
+                      onClick={() => setShowHPForm(true)}
+                      className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                      Fill H&P
+                      <span className="block text-xs mt-1 font-normal">History & Physical Examination</span>
+                    </button>
+                    <button
                       onClick={handleCompleteEncounter}
                       className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
                     >
@@ -560,6 +591,15 @@ const DoctorDashboard: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* H&P Form Modal */}
+      {showHPForm && selectedEncounter && (
+        <HPForm
+          encounter={selectedEncounter}
+          onSave={handleSaveHP}
+          onClose={() => setShowHPForm(false)}
+        />
+      )}
     </div>
   );
 };
