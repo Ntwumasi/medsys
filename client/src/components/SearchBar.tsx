@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
 
 interface SearchResult {
@@ -35,20 +35,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const delaySearch = setTimeout(() => {
-      if (searchTerm.trim().length >= 2) {
-        performSearch();
-      } else {
-        setResults(null);
-        setShowResults(false);
-      }
-    }, 300);
+  const performSearch = useCallback(async () => {
+    if (searchTerm.trim().length < 2) return;
 
-    return () => clearTimeout(delaySearch);
-  }, [searchTerm]);
-
-  const performSearch = async () => {
     setIsSearching(true);
     try {
       const response = await apiClient.get('/search/quick', {
@@ -58,10 +47,25 @@ const SearchBar: React.FC<SearchBarProps> = ({
       setShowResults(true);
     } catch (error) {
       console.error('Search error:', error);
+      // Don't show error to user, just log it
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (searchTerm.trim().length < 2) {
+      setResults(null);
+      setShowResults(false);
+      return;
+    }
+
+    const delaySearch = setTimeout(() => {
+      performSearch();
+    }, 300);
+
+    return () => clearTimeout(delaySearch);
+  }, [searchTerm, performSearch]);
 
   const handlePatientClick = (patient: any) => {
     if (onPatientSelect) {

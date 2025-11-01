@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -39,18 +40,23 @@ const RoleDashboard: React.FC = () => {
   // Make role comparison case-insensitive
   const userRole = user.role?.toLowerCase();
 
-  switch (userRole) {
-    case 'receptionist':
-      return <ReceptionistDashboard />;
-    case 'nurse':
-      return <NurseDashboard />;
-    case 'doctor':
-      return <DoctorDashboard />;
-    case 'admin':
-      return <Dashboard />;
-    default:
-      console.warn('Unknown role:', user.role, 'Showing default dashboard');
-      return <Dashboard />;
+  try {
+    switch (userRole) {
+      case 'receptionist':
+        return <ErrorBoundary><ReceptionistDashboard /></ErrorBoundary>;
+      case 'nurse':
+        return <ErrorBoundary><NurseDashboard /></ErrorBoundary>;
+      case 'doctor':
+        return <ErrorBoundary><DoctorDashboard /></ErrorBoundary>;
+      case 'admin':
+        return <ErrorBoundary><Dashboard /></ErrorBoundary>;
+      default:
+        console.warn('Unknown role:', user.role, 'Showing default dashboard');
+        return <ErrorBoundary><Dashboard /></ErrorBoundary>;
+    }
+  } catch (error) {
+    console.error('Dashboard render error:', error);
+    return <ErrorBoundary><div>Error loading dashboard</div></ErrorBoundary>;
   }
 };
 
