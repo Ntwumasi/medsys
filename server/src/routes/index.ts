@@ -102,6 +102,14 @@ import {
   searchEncounters,
   quickSearch,
 } from '../controllers/searchController';
+import {
+  orderNurseProcedure,
+  getNurseProcedures,
+  startNurseProcedure,
+  completeNurseProcedure,
+  getAvailableNurseProcedures,
+  cancelNurseProcedure,
+} from '../controllers/nurseProceduresController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -228,5 +236,13 @@ router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles(
 router.get('/search/patients', authenticateToken, searchPatients);
 router.get('/search/encounters', authenticateToken, searchEncounters);
 router.get('/search/quick', authenticateToken, quickSearch);
+
+// Nurse Procedures routes
+router.post('/nurse-procedures', authenticateToken, authorizeRoles('doctor'), orderNurseProcedure);
+router.get('/nurse-procedures', authenticateToken, authorizeRoles('nurse', 'doctor'), getNurseProcedures);
+router.get('/nurse-procedures/available', authenticateToken, authorizeRoles('doctor', 'nurse'), getAvailableNurseProcedures);
+router.post('/nurse-procedures/:id/start', authenticateToken, authorizeRoles('nurse'), startNurseProcedure);
+router.post('/nurse-procedures/:id/complete', authenticateToken, authorizeRoles('nurse'), completeNurseProcedure);
+router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('doctor', 'nurse'), cancelNurseProcedure);
 
 export default router;

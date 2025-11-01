@@ -17,6 +17,18 @@ interface AssignedPatient {
   vital_signs?: any;
 }
 
+interface NurseProcedure {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  procedure_name: string;
+  status: string;
+  notes: string;
+  ordered_at: string;
+  ordered_by_name: string;
+  price: number;
+}
+
 interface VitalSigns {
   temperature?: number;
   temperature_unit?: 'C' | 'F';
@@ -37,6 +49,7 @@ const NurseDashboard: React.FC = () => {
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
 
   // Vitals form state
   const [vitals, setVitals] = useState<VitalSigns>({
@@ -54,7 +67,11 @@ const NurseDashboard: React.FC = () => {
 
   useEffect(() => {
     loadAssignedPatients();
-    const interval = setInterval(loadAssignedPatients, 30000);
+    loadNurseProcedures();
+    const interval = setInterval(() => {
+      loadAssignedPatients();
+      loadNurseProcedures();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -66,6 +83,41 @@ const NurseDashboard: React.FC = () => {
       console.error('Error loading assigned patients:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadNurseProcedures = async () => {
+    try {
+      const res = await apiClient.get('/nurse-procedures');
+      setNurseProcedures(res.data.procedures || []);
+    } catch (error) {
+      console.error('Error loading nurse procedures:', error);
+    }
+  };
+
+  const handleStartProcedure = async (procedureId: number) => {
+    try {
+      await apiClient.post(`/nurse-procedures/${procedureId}/start`);
+      alert('Procedure started');
+      loadNurseProcedures();
+    } catch (error) {
+      console.error('Error starting procedure:', error);
+      alert('Failed to start procedure');
+    }
+  };
+
+  const handleCompleteProcedure = async (procedureId: number) => {
+    if (!confirm('Complete this procedure? This will automatically add charges to the invoice.')) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/nurse-procedures/${procedureId}/complete`, {});
+      alert('Procedure completed and billed successfully');
+      loadNurseProcedures();
+    } catch (error) {
+      console.error('Error completing procedure:', error);
+      alert('Failed to complete procedure');
     }
   };
 
@@ -379,6 +431,61 @@ const NurseDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* Nurse Procedures */}
+                {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
+                  <div className="card">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Pending Procedures</h2>
+                    <div className="space-y-3">
+                      {nurseProcedures
+                        .filter(p => p.encounter_id === selectedPatient.id)
+                        .map((procedure) => (
+                          <div
+                            key={procedure.id}
+                            className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-gray-900">{procedure.procedure_name}</h3>
+                                {procedure.notes && (
+                                  <p className="text-sm text-gray-600 mt-1">{procedure.notes}</p>
+                                )}
+                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                  <span>Ordered by: {procedure.ordered_by_name}</span>
+                                  <span>Price: ${procedure.price.toFixed(2)}</span>
+                                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                    procedure.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                    procedure.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {procedure.status.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="ml-4 flex gap-2">
+                                {procedure.status === 'pending' && (
+                                  <button
+                                    onClick={() => handleStartProcedure(procedure.id)}
+                                    className="px-3 py-1 text-sm font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                                  >
+                                    Start
+                                  </button>
+                                )}
+                                {procedure.status === 'in_progress' && (
+                                  <button
+                                    onClick={() => handleCompleteProcedure(procedure.id)}
+                                    className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                                  >
+                                    Complete & Bill
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Vital Signs Form */}
                 <div className="card">
