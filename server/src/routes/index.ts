@@ -90,6 +90,18 @@ import {
   createCharge,
   updateCharge,
 } from '../controllers/chargeMasterController';
+import {
+  routePatientToDepartment,
+  getDepartmentQueue,
+  updateRoutingStatus,
+  getPatientRoutingHistory,
+  cancelRouting,
+} from '../controllers/departmentRoutingController';
+import {
+  searchPatients,
+  searchEncounters,
+  quickSearch,
+} from '../controllers/searchController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -204,5 +216,17 @@ router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin'), upd
 router.get('/invoice-items/:invoice_id', authenticateToken, getInvoiceItems);
 router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), addChargeToInvoice);
 router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
+
+// Department Routing routes
+router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor'), routePatientToDepartment);
+router.get('/department-routing/:department/queue', authenticateToken, getDepartmentQueue);
+router.put('/department-routing/:id/status', authenticateToken, updateRoutingStatus);
+router.get('/department-routing/encounter/:encounter_id', authenticateToken, getPatientRoutingHistory);
+router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles('nurse', 'doctor'), cancelRouting);
+
+// Search routes
+router.get('/search/patients', authenticateToken, searchPatients);
+router.get('/search/encounters', authenticateToken, searchEncounters);
+router.get('/search/quick', authenticateToken, quickSearch);
 
 export default router;

@@ -217,6 +217,36 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  const handleRouteToDepartment = async (department: string) => {
+    if (!selectedPatient) return;
+
+    const departmentNames: Record<string, string> = {
+      lab: 'Laboratory',
+      pharmacy: 'Pharmacy',
+      imaging: 'Imaging',
+      receptionist: 'Receptionist',
+    };
+
+    if (!confirm(`Send patient to ${departmentNames[department]}?`)) {
+      return;
+    }
+
+    try {
+      await apiClient.post('/department-routing', {
+        encounter_id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        department,
+        priority: 'routine',
+      });
+
+      alert(`Patient routed to ${departmentNames[department]} successfully`);
+      loadAssignedPatients();
+    } catch (error) {
+      console.error('Error routing patient:', error);
+      alert('Failed to route patient');
+    }
+  };
+
   const handleReleaseRoom = async () => {
     if (!selectedPatient) return;
 
@@ -533,25 +563,25 @@ const NurseDashboard: React.FC = () => {
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => alert('Lab routing functionality - Coming soon')}
+                      onClick={() => handleRouteToDepartment('lab')}
                       className="bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
                     >
                       Send to Lab
                     </button>
                     <button
-                      onClick={() => alert('Pharmacy routing functionality - Coming soon')}
+                      onClick={() => handleRouteToDepartment('pharmacy')}
                       className="bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
                     >
                       Send to Pharmacy
                     </button>
                     <button
-                      onClick={() => alert('Imaging routing functionality - Coming soon')}
+                      onClick={() => handleRouteToDepartment('imaging')}
                       className="bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
                     >
                       Send to Imaging
                     </button>
                     <button
-                      onClick={() => alert('Receptionist routing functionality - Coming soon')}
+                      onClick={() => handleRouteToDepartment('receptionist')}
                       className="bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
                     >
                       Send to Receptionist

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, isValid, parseISO } from 'date-fns';
 import PrintableInvoice from '../components/PrintableInvoice';
+import SearchBar from '../components/SearchBar';
 
 // Safe date formatting helper
 const safeFormatDate = (dateValue: any, formatString: string, fallback: string = 'N/A'): string => {
@@ -417,7 +418,7 @@ const ReceptionistDashboard: React.FC = () => {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
                 Receptionist Dashboard
@@ -425,6 +426,17 @@ const ReceptionistDashboard: React.FC = () => {
               <p className="mt-1 text-sm text-gray-600">
                 Welcome, {user?.first_name} {user?.last_name}
               </p>
+            </div>
+            <div className="flex-1 max-w-md">
+              <SearchBar
+                onPatientSelect={(patient) => {
+                  // Switch to check-in view and select the patient
+                  setActiveView('checkin');
+                  setSelectedPatient(patient);
+                  alert(`Patient ${patient.full_name} selected for check-in.`);
+                }}
+                placeholder="Search patients..."
+              />
             </div>
             <button
               onClick={() => {
