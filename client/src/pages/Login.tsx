@@ -89,6 +89,9 @@ const Login: React.FC = () => {
             <p>Nurse: nurse@medsys.com / demo123</p>
             <p>Doctor: doctor@medsys.com / demo123</p>
             <p>Admin: admin@medsys.com / demo123</p>
+            <p>Lab: lab@medsys.com / demo123</p>
+            <p>Pharmacy: pharmacy@medsys.com / demo123</p>
+            <p>Imaging: imaging@medsys.com / demo123</p>
           </div>
         </div>
       </div>
