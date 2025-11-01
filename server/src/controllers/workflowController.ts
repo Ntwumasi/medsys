@@ -326,6 +326,8 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
         r.room_number,
         r.room_name,
         p.patient_number,
+        p.date_of_birth,
+        p.gender,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
         u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name
@@ -426,6 +428,8 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
         r.room_number,
         r.room_name,
         p.patient_number,
+        p.date_of_birth,
+        p.gender,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         CASE
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 15 THEN 'green'

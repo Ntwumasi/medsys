@@ -2,17 +2,21 @@ import React, { useState } from 'react';
 
 interface HPFormProps {
   encounter: any;
+  existingData?: any;
   onSave: (hpData: any) => Promise<void>;
   onClose: () => void;
 }
 
-const HPForm: React.FC<HPFormProps> = ({ encounter, onSave, onClose }) => {
+const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClose }) => {
   // Auto-populated fields
   const patientAge = encounter.date_of_birth
     ? new Date().getFullYear() - new Date(encounter.date_of_birth).getFullYear()
     : '';
 
-  const [formData, setFormData] = useState({
+  // Parse existing H&P data if it exists
+  const existingHPData = existingData?.content ? JSON.parse(existingData.content) : null;
+
+  const [formData, setFormData] = useState(existingHPData || {
     // HPI
     hpiTime: '',
     hpiOnset: '',

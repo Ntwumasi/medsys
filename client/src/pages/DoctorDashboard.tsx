@@ -57,6 +57,7 @@ const DoctorDashboard: React.FC = () => {
 
   // H&P Form state
   const [showHPForm, setShowHPForm] = useState(false);
+  const [existingHP, setExistingHP] = useState<ClinicalNote | null>(null);
 
   useEffect(() => {
     loadRoomEncounters();
@@ -84,7 +85,12 @@ const DoctorDashboard: React.FC = () => {
   const loadEncounterNotes = async (encounterId: number) => {
     try {
       const res = await apiClient.get(`/api/clinical-notes/encounter/${encounterId}`);
-      setNotes(res.data.notes || []);
+      const allNotes = res.data.notes || [];
+      setNotes(allNotes);
+
+      // Check if H&P note exists
+      const hpNote = allNotes.find((note: ClinicalNote) => note.note_type === 'doctor_hp');
+      setExistingHP(hpNote || null);
     } catch (error) {
       console.error('Error loading notes:', error);
     }
@@ -216,14 +222,23 @@ const DoctorDashboard: React.FC = () => {
     if (!selectedEncounter) return;
 
     try {
-      await apiClient.post('/clinical-notes', {
-        encounter_id: selectedEncounter.id,
-        patient_id: selectedEncounter.patient_id,
-        note_type: 'doctor_hp',
-        content: JSON.stringify(hpData),
-      });
+      if (existingHP) {
+        // Update existing H&P
+        await apiClient.put(`/api/clinical-notes/${existingHP.id}`, {
+          content: JSON.stringify(hpData),
+        });
+        alert('H&P updated successfully');
+      } else {
+        // Create new H&P
+        await apiClient.post('/clinical-notes', {
+          encounter_id: selectedEncounter.id,
+          patient_id: selectedEncounter.patient_id,
+          note_type: 'doctor_hp',
+          content: JSON.stringify(hpData),
+        });
+        alert('H&P saved successfully');
+      }
 
-      alert('H&P saved successfully');
       setShowHPForm(false);
       loadEncounterNotes(selectedEncounter.id);
     } catch (error) {
@@ -554,29 +569,46 @@ const DoctorDashboard: React.FC = () => {
                 </div>
 
                 {/* Complete Encounter & Release Room */}
-                <div className="card bg-gray-50">
+                <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Encounter Actions</h3>
                   <div className="space-y-3">
                     <button
                       onClick={() => setShowHPForm(true)}
-                      className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                      className={`w-full ${existingHP ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white py-3 px-4 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2`}
                     >
-                      Fill H&P
-                      <span className="block text-xs mt-1 font-normal">History & Physical Examination</span>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <div className="text-left">
+                        <div>{existingHP ? 'View/Edit H&P' : 'Fill H&P'}</div>
+                        <span className="block text-xs font-normal opacity-90">
+                          {existingHP ? 'View or update H&P' : 'History & Physical Examination'}
+                        </span>
+                      </div>
                     </button>
                     <button
                       onClick={handleCompleteEncounter}
-                      className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                      className="w-full bg-gradient-to-r from-emerald-600 to-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-emerald-700 hover:to-green-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                     >
-                      Complete Encounter
-                      <span className="block text-xs mt-1 font-normal">Send patient back to nurse</span>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="text-left">
+                        <div>Complete Encounter</div>
+                        <span className="block text-xs font-normal opacity-90">Send patient back to nurse</span>
+                      </div>
                     </button>
                     <button
                       onClick={handleReleaseRoom}
-                      className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                      className="w-full bg-gradient-to-r from-slate-600 to-gray-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-slate-700 hover:to-gray-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                     >
-                      Release Room
-                      <span className="block text-xs mt-1 font-normal">Mark encounter as completed</span>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                      </svg>
+                      <div className="text-left">
+                        <div>Release Room</div>
+                        <span className="block text-xs font-normal opacity-90">Mark encounter as completed</span>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -596,6 +628,7 @@ const DoctorDashboard: React.FC = () => {
       {showHPForm && selectedEncounter && (
         <HPForm
           encounter={selectedEncounter}
+          existingData={existingHP}
           onSave={handleSaveHP}
           onClose={() => setShowHPForm(false)}
         />
