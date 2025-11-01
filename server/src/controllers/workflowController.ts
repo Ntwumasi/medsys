@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
-import { validateAllVitals } from '../../shared/vitalSignsValidation';
+import { validateAllVitals } from '../utils/vitalSignsValidation';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
