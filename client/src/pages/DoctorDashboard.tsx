@@ -84,7 +84,7 @@ const DoctorDashboard: React.FC = () => {
 
   const loadEncounterNotes = async (encounterId: number) => {
     try {
-      const res = await apiClient.get(`/api/clinical-notes/encounter/${encounterId}`);
+      const res = await apiClient.get(`/clinical-notes/encounter/${encounterId}`);
       const allNotes = res.data.notes || [];
       setNotes(allNotes);
 
@@ -510,7 +510,65 @@ const DoctorDashboard: React.FC = () => {
                 <div className="card">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4">Clinical Notes</h2>
 
-                  {/* Add New Note */}
+                  {/* H&P Note Display - Special Prominence */}
+                  {existingHP && (
+                    <div className="mb-6 p-4 rounded-lg bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-300">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          History & Physical (H&P)
+                        </h3>
+                        <button
+                          onClick={() => setShowHPForm(true)}
+                          className="text-sm bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700"
+                        >
+                          View/Edit
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        {existingHP.created_by_name} - {new Date(existingHP.created_at).toLocaleString()}
+                      </div>
+                      <div className="text-sm text-gray-800 max-h-40 overflow-y-auto bg-white p-3 rounded border border-indigo-200">
+                        {existingHP.content.substring(0, 300)}...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nurse Notes Section */}
+                  {notes.filter(n => n.created_by_role === 'nurse').length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Nurse Notes
+                      </h3>
+                      <div className="space-y-2">
+                        {notes
+                          .filter(n => n.created_by_role === 'nurse')
+                          .map((note) => (
+                            <div
+                              key={note.id}
+                              className="p-3 rounded-lg bg-blue-50 border border-blue-200"
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <div className="text-xs text-blue-700 font-medium">
+                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                </div>
+                                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                                  {note.note_type.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-800">{note.content}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add New Doctor Note */}
                   <form onSubmit={handleAddDoctorNote} className="mb-6">
                     <div>
                       <label className="label">Add Doctor's Note</label>
@@ -528,44 +586,46 @@ const DoctorDashboard: React.FC = () => {
                     </button>
                   </form>
 
-                  {/* Existing Notes */}
-                  <div className="space-y-3">
-                    <h3 className="font-semibold text-gray-700">All Notes</h3>
-                    {notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className={`p-4 rounded-lg ${
-                          note.is_signed ? 'bg-green-50 border-green-300' : 'bg-gray-50'
-                        } border`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="text-sm text-gray-600">
-                              {note.created_by_name} ({note.created_by_role}) -{' '}
-                              {new Date(note.created_at).toLocaleString()}
-                            </div>
-                            <div className="text-sm font-semibold text-gray-700 mt-1">
-                              {note.note_type.replace('_', ' ').toUpperCase()}
-                            </div>
-                          </div>
-                          {!note.is_signed && note.created_by_role === 'doctor' && (
-                            <button
-                              onClick={() => handleSignNote(note.id)}
-                              className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                  {/* Doctor's Notes */}
+                  {notes.filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp').length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-700 mb-3">Doctor's Notes</h3>
+                      <div className="space-y-2">
+                        {notes
+                          .filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp')
+                          .map((note) => (
+                            <div
+                              key={note.id}
+                              className={`p-3 rounded-lg ${
+                                note.is_signed ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-300'
+                              } border`}
                             >
-                              Sign Note
-                            </button>
-                          )}
-                          {note.is_signed && (
-                            <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                              SIGNED - {note.signed_by_name}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-2 text-sm">{note.content}</div>
+                              <div className="flex justify-between items-start">
+                                <div className="text-xs text-gray-600">
+                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                </div>
+                                <div className="flex gap-2">
+                                  {!note.is_signed && (
+                                    <button
+                                      onClick={() => handleSignNote(note.id)}
+                                      className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
+                                    >
+                                      Sign
+                                    </button>
+                                  )}
+                                  {note.is_signed && (
+                                    <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
+                                      SIGNED
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 text-sm text-gray-800">{note.content}</div>
+                            </div>
+                          ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Complete Encounter & Release Room */}
