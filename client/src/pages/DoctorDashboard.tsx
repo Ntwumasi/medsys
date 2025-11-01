@@ -171,7 +171,27 @@ const DoctorDashboard: React.FC = () => {
   const handleCompleteEncounter = async () => {
     if (!selectedEncounter) return;
 
-    if (!confirm('Are you sure you want to complete this encounter and release the room?')) {
+    if (!confirm('Are you sure you want to complete this encounter? Patient will be sent back to the nurse.')) {
+      return;
+    }
+
+    try {
+      await apiClient.post('/workflow/doctor/complete-encounter', {
+        encounter_id: selectedEncounter.id,
+      });
+      alert('Encounter completed. Patient sent back to nurse.');
+      setSelectedEncounter(null);
+      loadRoomEncounters();
+    } catch (error) {
+      console.error('Error completing encounter:', error);
+      alert('Failed to complete encounter');
+    }
+  };
+
+  const handleReleaseRoom = async () => {
+    if (!selectedEncounter) return;
+
+    if (!confirm('Are you sure you want to release the room? This will mark the encounter as completed.')) {
       return;
     }
 
@@ -179,12 +199,12 @@ const DoctorDashboard: React.FC = () => {
       await apiClient.post('/workflow/release-room', {
         encounter_id: selectedEncounter.id,
       });
-      alert('Encounter completed and room released');
+      alert('Room released and encounter completed');
       setSelectedEncounter(null);
       loadRoomEncounters();
     } catch (error) {
-      console.error('Error completing encounter:', error);
-      alert('Failed to complete encounter');
+      console.error('Error releasing room:', error);
+      alert('Failed to release room');
     }
   };
 
@@ -509,14 +529,25 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Complete Encounter */}
+                {/* Complete Encounter & Release Room */}
                 <div className="card bg-gray-50">
-                  <button
-                    onClick={handleCompleteEncounter}
-                    className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700"
-                  >
-                    Complete Encounter & Release Room
-                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Encounter Actions</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleCompleteEncounter}
+                      className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                    >
+                      Complete Encounter
+                      <span className="block text-xs mt-1 font-normal">Send patient back to nurse</span>
+                    </button>
+                    <button
+                      onClick={handleReleaseRoom}
+                      className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                    >
+                      Release Room
+                      <span className="block text-xs mt-1 font-normal">Mark encounter as completed</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (

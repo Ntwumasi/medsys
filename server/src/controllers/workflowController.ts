@@ -450,7 +450,31 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
   }
 };
 
-// Release room when encounter is done
+// Doctor: Complete encounter and send back to nurse
+export const doctorCompleteEncounter = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounter_id } = req.body;
+
+    // Update encounter status to 'with_nurse' - patient goes back to nurse
+    await pool.query(
+      `UPDATE encounters
+       SET status = 'with_nurse',
+           doctor_completed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [encounter_id]
+    );
+
+    res.json({
+      message: 'Encounter completed. Patient sent back to nurse.',
+    });
+  } catch (error) {
+    console.error('Doctor complete encounter error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Nurse: Release room when patient workflow is complete
 export const releaseRoom = async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounter_id } = req.body;
@@ -481,7 +505,7 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
     );
 
     res.json({
-      message: 'Room released successfully',
+      message: 'Room released and encounter completed successfully',
     });
   } catch (error) {
     console.error('Release room error:', error);

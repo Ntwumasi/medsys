@@ -126,6 +126,27 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  const handleReleaseRoom = async () => {
+    if (!selectedPatient) return;
+
+    if (!confirm('Are you sure you want to release the room? This will complete the encounter.')) {
+      return;
+    }
+
+    try {
+      await apiClient.post('/workflow/release-room', {
+        encounter_id: selectedPatient.id,
+      });
+
+      alert('Room released and encounter completed');
+      setSelectedPatient(null);
+      loadAssignedPatients();
+    } catch (error) {
+      console.error('Error releasing room:', error);
+      alert('Failed to release room');
+    }
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'green':
@@ -393,6 +414,49 @@ const NurseDashboard: React.FC = () => {
                       </button>
                     </div>
                   </form>
+                </div>
+
+                {/* Patient Routing Options */}
+                <div className="card bg-blue-50 border border-blue-200">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Patient Routing</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    After doctor completes encounter, route patient to appropriate department or discharge:
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => alert('Lab routing functionality - Coming soon')}
+                      className="bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                    >
+                      Send to Lab
+                    </button>
+                    <button
+                      onClick={() => alert('Pharmacy routing functionality - Coming soon')}
+                      className="bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
+                    >
+                      Send to Pharmacy
+                    </button>
+                    <button
+                      onClick={() => alert('Imaging routing functionality - Coming soon')}
+                      className="bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                    >
+                      Send to Imaging
+                    </button>
+                    <button
+                      onClick={() => alert('Receptionist routing functionality - Coming soon')}
+                      className="bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
+                    >
+                      Send to Receptionist
+                    </button>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-blue-300">
+                    <button
+                      onClick={handleReleaseRoom}
+                      className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                    >
+                      Release Room & Complete Encounter
+                      <span className="block text-xs mt-1 font-normal">Final step after all routing is done</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
