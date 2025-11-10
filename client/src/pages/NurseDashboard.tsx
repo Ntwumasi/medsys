@@ -230,11 +230,11 @@ const NurseDashboard: React.FC = () => {
 
     try {
       await apiClient.post(`/nurse-procedures/${procedureId}/complete`, {});
-      alert('Procedure completed and billed successfully');
+      showToast('Procedure completed and billed successfully', 'success');
       loadNurseProcedures();
     } catch (error) {
       console.error('Error completing procedure:', error);
-      alert('Failed to complete procedure');
+      showToast('Failed to complete procedure', 'error');
     }
   };
 
@@ -343,9 +343,9 @@ const NurseDashboard: React.FC = () => {
       console.error('Error submitting vitals:', error);
       if (error.response?.data?.errors) {
         setVitalErrors(error.response.data.errors);
-        alert('Invalid vital signs. Please check the values and try again.');
+        showToast('Invalid vital signs. Please check the values and try again.', 'error');
       } else {
-        alert('Failed to save vital signs');
+        showToast('Failed to save vital signs', 'error');
       }
     }
   };
@@ -362,11 +362,12 @@ const NurseDashboard: React.FC = () => {
         content: noteContent,
       });
 
-      alert('Note added successfully');
+      showToast('Note added successfully', 'success');
       setNoteContent('');
+      loadClinicalNotes();
     } catch (error) {
       console.error('Error adding note:', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     }
   };
 
@@ -379,10 +380,10 @@ const NurseDashboard: React.FC = () => {
         message: 'Patient is ready for doctor evaluation',
       });
 
-      alert('Doctor has been alerted');
+      showToast('Doctor has been alerted', 'success');
     } catch (error) {
       console.error('Error alerting doctor:', error);
-      alert('Failed to alert doctor');
+      showToast('Failed to alert doctor', 'error');
     }
   };
 
@@ -408,11 +409,11 @@ const NurseDashboard: React.FC = () => {
         priority: 'routine',
       });
 
-      alert(`Patient routed to ${departmentNames[department]} successfully`);
+      showToast(`Patient routed to ${departmentNames[department]} successfully`, 'success');
       loadAssignedPatients();
     } catch (error) {
       console.error('Error routing patient:', error);
-      alert('Failed to route patient');
+      showToast('Failed to route patient', 'error');
     }
   };
 
@@ -428,12 +429,12 @@ const NurseDashboard: React.FC = () => {
         encounter_id: selectedPatient.id,
       });
 
-      alert('Room released and encounter completed');
+      showToast('Room released and encounter completed', 'success');
       setSelectedPatient(null);
       loadAssignedPatients();
     } catch (error) {
       console.error('Error releasing room:', error);
-      alert('Failed to release room');
+      showToast('Failed to release room', 'error');
     }
   };
 

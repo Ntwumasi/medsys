@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import HPAccordion from '../components/HPAccordion';
+import { useNotification } from '../context/NotificationContext';
+import NotificationCenter from '../components/NotificationCenter';
 
 interface RoomEncounter {
   id: number;
@@ -31,6 +33,7 @@ interface ClinicalNote {
 const DoctorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useNotification();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
   const [selectedEncounter, setSelectedEncounter] = useState<RoomEncounter | null>(null);
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
@@ -104,12 +107,12 @@ const DoctorDashboard: React.FC = () => {
         content: noteContent,
       });
 
-      alert('Note added successfully');
+      showToast('Note added successfully', 'success');
       setNoteContent('');
       loadEncounterNotes(selectedEncounter.id);
     } catch (error) {
       console.error('Error adding note:', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     }
   };
 
@@ -125,12 +128,12 @@ const DoctorDashboard: React.FC = () => {
         content: nurseNoteContent,
       });
 
-      alert('Nurse note added successfully');
+      showToast('Nurse note added successfully', 'success');
       setNurseNoteContent('');
       loadEncounterNotes(selectedEncounter.id);
     } catch (error) {
       console.error('Error adding nurse note:', error);
-      alert('Failed to add nurse note');
+      showToast('Failed to add nurse note', 'error');
     }
   };
 
@@ -146,12 +149,12 @@ const DoctorDashboard: React.FC = () => {
         content: proceduralNoteContent,
       });
 
-      alert('Procedural note added successfully');
+      showToast('Procedural note added successfully', 'success');
       setProceduralNoteContent('');
       loadEncounterNotes(selectedEncounter.id);
     } catch (error) {
       console.error('Error adding procedural note:', error);
-      alert('Failed to add procedural note');
+      showToast('Failed to add procedural note', 'error');
     }
   };
 
@@ -162,20 +165,20 @@ const DoctorDashboard: React.FC = () => {
 
     try {
       await apiClient.post(`/api/clinical-notes/${noteId}/sign`);
-      alert('Note signed and chart updated');
+      showToast('Note signed and chart updated', 'success');
       if (selectedEncounter) {
         loadEncounterNotes(selectedEncounter.id);
       }
     } catch (error) {
       console.error('Error signing note:', error);
-      alert('Failed to sign note');
+      showToast('Failed to sign note', 'error');
     }
   };
 
   // Add orders to pending arrays
   const handleAddLabOrder = () => {
     if (!currentLabOrder.test_name) {
-      alert('Please enter a test name');
+      showToast('Please enter a test name', 'warning');
       return;
     }
     setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
@@ -184,7 +187,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleAddImagingOrder = () => {
     if (!currentImagingOrder.imaging_type) {
-      alert('Please enter imaging type');
+      showToast('Please enter imaging type', 'warning');
       return;
     }
     setPendingImagingOrders([...pendingImagingOrders, currentImagingOrder]);
@@ -193,7 +196,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleAddPharmacyOrder = () => {
     if (!currentPharmacyOrder.medication_name) {
-      alert('Please enter medication name');
+      showToast('Please enter medication name', 'warning');
       return;
     }
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
@@ -220,7 +223,7 @@ const DoctorDashboard: React.FC = () => {
     const totalOrders = pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length;
 
     if (totalOrders === 0) {
-      alert('Please add at least one order before submitting');
+      showToast('Please add at least one order before submitting', 'warning');
       return;
     }
 
@@ -249,7 +252,7 @@ const DoctorDashboard: React.FC = () => {
         await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
       }
 
-      alert(`Successfully submitted ${totalOrders} order(s)!`);
+      showToast(`Successfully submitted ${totalOrders} order(s)!`, 'success');
 
       // Clear all pending orders
       setPendingLabOrders([]);
@@ -257,7 +260,7 @@ const DoctorDashboard: React.FC = () => {
       setPendingPharmacyOrders([]);
     } catch (error) {
       console.error('Error submitting orders:', error);
-      alert('Failed to submit some orders. Please try again.');
+      showToast('Failed to submit some orders. Please try again.', 'error');
     }
   };
 
@@ -272,12 +275,12 @@ const DoctorDashboard: React.FC = () => {
       await apiClient.post('/workflow/doctor/complete-encounter', {
         encounter_id: selectedEncounter.id,
       });
-      alert('Encounter completed. Patient sent back to nurse.');
+      showToast('Encounter completed. Patient sent back to nurse.', 'success');
       setSelectedEncounter(null);
       loadRoomEncounters();
     } catch (error) {
       console.error('Error completing encounter:', error);
-      alert('Failed to complete encounter');
+      showToast('Failed to complete encounter', 'error');
     }
   };
 
@@ -292,12 +295,12 @@ const DoctorDashboard: React.FC = () => {
       await apiClient.post('/workflow/release-room', {
         encounter_id: selectedEncounter.id,
       });
-      alert('Room released and encounter completed');
+      showToast('Room released and encounter completed', 'success');
       setSelectedEncounter(null);
       loadRoomEncounters();
     } catch (error) {
       console.error('Error releasing room:', error);
-      alert('Failed to release room');
+      showToast('Failed to release room', 'error');
     }
   };
 
@@ -330,18 +333,21 @@ const DoctorDashboard: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <NotificationCenter />
+              <button
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
