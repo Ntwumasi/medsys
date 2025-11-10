@@ -38,6 +38,8 @@ const DoctorDashboard: React.FC = () => {
 
   // Forms state
   const [noteContent, setNoteContent] = useState('');
+  const [nurseNoteContent, setNurseNoteContent] = useState('');
+  const [proceduralNoteContent, setProceduralNoteContent] = useState('');
   const [orderType, setOrderType] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
 
   // Lab order
@@ -114,6 +116,48 @@ const DoctorDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error adding note:', error);
       alert('Failed to add note');
+    }
+  };
+
+  const handleAddNurseNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEncounter || !nurseNoteContent) return;
+
+    try {
+      await apiClient.post('/clinical-notes', {
+        encounter_id: selectedEncounter.id,
+        patient_id: selectedEncounter.patient_id,
+        note_type: 'doctor_to_nurse',
+        content: nurseNoteContent,
+      });
+
+      alert('Nurse note added successfully');
+      setNurseNoteContent('');
+      loadEncounterNotes(selectedEncounter.id);
+    } catch (error) {
+      console.error('Error adding nurse note:', error);
+      alert('Failed to add nurse note');
+    }
+  };
+
+  const handleAddProceduralNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEncounter || !proceduralNoteContent) return;
+
+    try {
+      await apiClient.post('/clinical-notes', {
+        encounter_id: selectedEncounter.id,
+        patient_id: selectedEncounter.patient_id,
+        note_type: 'doctor_procedural',
+        content: proceduralNoteContent,
+      });
+
+      alert('Procedural note added successfully');
+      setProceduralNoteContent('');
+      loadEncounterNotes(selectedEncounter.id);
+    } catch (error) {
+      console.error('Error adding procedural note:', error);
+      alert('Failed to add procedural note');
     }
   };
 
@@ -583,6 +627,52 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                     <button type="submit" className="btn-primary mt-2">
                       Add Note
+                    </button>
+                  </form>
+
+                  {/* Add Nurse Instructions/Orders */}
+                  <form onSubmit={handleAddNurseNote} className="mb-6 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 border-2 border-teal-300 rounded-lg">
+                    <div>
+                      <label className="label flex items-center gap-2">
+                        <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <span className="text-teal-900 font-semibold">Instructions for Nurse</span>
+                      </label>
+                      <textarea
+                        value={nurseNoteContent}
+                        onChange={(e) => setNurseNoteContent(e.target.value)}
+                        className="input mt-2"
+                        rows={4}
+                        placeholder="Enter instructions, orders, or tasks for the nurse..."
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition-colors mt-2">
+                      Add Nurse Instructions
+                    </button>
+                  </form>
+
+                  {/* Add Procedural Note */}
+                  <form onSubmit={handleAddProceduralNote} className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg">
+                    <div>
+                      <label className="label flex items-center gap-2">
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        <span className="text-purple-900 font-semibold">Procedural Note</span>
+                      </label>
+                      <textarea
+                        value={proceduralNoteContent}
+                        onChange={(e) => setProceduralNoteContent(e.target.value)}
+                        className="input mt-2"
+                        rows={4}
+                        placeholder="Document procedures performed, technique, findings, complications..."
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors mt-2">
+                      Add Procedural Note
                     </button>
                   </form>
 

@@ -94,6 +94,7 @@ const NurseDashboard: React.FC = () => {
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<any[]>([]);
 
   // Vitals form state
   const [vitals, setVitals] = useState<VitalSigns>({
@@ -120,6 +121,7 @@ const NurseDashboard: React.FC = () => {
     loadRooms();
     if (selectedPatient) {
       loadOrders();
+      loadClinicalNotes();
     }
     const interval = setInterval(() => {
       loadAssignedPatients();
@@ -127,6 +129,7 @@ const NurseDashboard: React.FC = () => {
       loadRooms();
       if (selectedPatient) {
         loadOrders();
+        loadClinicalNotes();
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -171,6 +174,17 @@ const NurseDashboard: React.FC = () => {
       setPharmacyOrders(res.data.pharmacy_orders || []);
     } catch (error) {
       console.error('Error loading orders:', error);
+    }
+  };
+
+  const loadClinicalNotes = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      const res = await apiClient.get(`/clinical-notes/encounter/${selectedPatient.id}`);
+      setClinicalNotes(res.data.notes || []);
+    } catch (error) {
+      console.error('Error loading clinical notes:', error);
     }
   };
 
@@ -994,6 +1008,68 @@ const NurseDashboard: React.FC = () => {
                     {/* Doctor's Orders Tab */}
                     {activeTab === 'orders' && (
                       <div className="space-y-4">
+                        {/* Doctor's Instructions for Nurse */}
+                        {clinicalNotes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-bold text-teal-700 mb-3 flex items-center gap-2">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              Doctor's Instructions for Nurse
+                            </h3>
+                            <div className="space-y-2">
+                              {clinicalNotes
+                                .filter(n => n.note_type === 'doctor_to_nurse')
+                                .map((note) => (
+                                  <div key={note.id} className="border-2 border-teal-300 rounded-lg p-4 bg-gradient-to-r from-teal-50 to-cyan-50 shadow-md">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="text-xs text-teal-700 font-semibold">
+                                        Dr. {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                      <span className="px-2 py-1 bg-teal-600 text-white text-xs font-bold rounded-full">
+                                        NURSE INSTRUCTIONS
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-900 font-medium whitespace-pre-wrap bg-white p-3 rounded border border-teal-200">
+                                      {note.content}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Doctor's Procedural Notes */}
+                        {clinicalNotes.filter(n => n.note_type === 'doctor_procedural').length > 0 && (
+                          <div className="mb-6">
+                            <h3 className="text-lg font-bold text-purple-700 mb-3 flex items-center gap-2">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                              Doctor's Procedural Notes
+                            </h3>
+                            <div className="space-y-2">
+                              {clinicalNotes
+                                .filter(n => n.note_type === 'doctor_procedural')
+                                .map((note) => (
+                                  <div key={note.id} className="border-2 border-purple-300 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-pink-50 shadow-md">
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="text-xs text-purple-700 font-semibold">
+                                        Dr. {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                      <span className="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
+                                        PROCEDURE
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-900 whitespace-pre-wrap bg-white p-3 rounded border border-purple-200">
+                                      {note.content}
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
                         {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) ? (
                           <div>
                             {/* Lab Orders */}
