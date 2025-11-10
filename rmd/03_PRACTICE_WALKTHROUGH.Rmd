@@ -1,0 +1,573 @@
+---
+title: "✅ PRACTICE PROBLEM WALKTHROUGH"
+subtitle: "Step-by-Step Solutions with Full Explanations"
+author: "Learn the Exact Process for Exam Day"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    theme: readable
+    highlight: tango
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = FALSE, warning = FALSE, message = FALSE)
+```
+
+# 🎯 OVERVIEW
+
+This document walks through a COMPLETE problem similar to your midterm.  
+Every step is explained. Every decision is justified.  
+Follow this EXACT process on exam day!
+
+---
+
+# 📋 PROBLEM SETUP
+
+**Imagine this is Problem 1 on your midterm:**
+
+> Using the `Carseats` dataset, with `Sales` as the response and other variables as predictors.
+>
+> Variables:
+> - **Sales**: Unit sales (in thousands)
+> - **CompPrice**: Competitor price
+> - **Income**: Community income
+> - **Advertising**: Advertising budget
+> - **Price**: Our price
+> - **ShelveLoc**: Quality of shelving (Bad, Good, Medium) - CATEGORICAL
+> - **Age**: Average age of population
+> - **Urban**: Urban or Rural location (Yes, No) - CATEGORICAL
+> - **US**: In US or not (Yes, No) - CATEGORICAL
+>
+> Tasks:
+> a) Create dummy variables and split data (70/30, seed=15)
+> b) Build regression model, write equation, check assumptions
+> c) Test for heteroskedasticity
+> d) Evaluate on test data
+> e) Calculate 99% confidence intervals for first 5 test observations
+
+---
+
+# 🚀 STEP 0: SETUP
+
+**First, always load libraries and data:**
+
+```{r step0-setup}
+# Load libraries
+library(ISLR2)       # For Carseats data
+library(MASS)        # For boxcox, robust regression
+library(car)         # For VIF
+library(olsrr)       # For diagnostic tests
+library(caret)       # For model evaluation
+
+# Load data
+data(Carseats, package = "ISLR2")
+
+# Look at the data
+str(Carseats)
+summary(Carseats)
+head(Carseats)
+```
+
+**📝 What to write:**
+> "The Carseats dataset contains 400 observations and 11 variables. The response variable is Sales (continuous). Predictors include 8 numeric variables and 3 categorical variables (ShelveLoc, Urban, US). There are no missing values."
+
+---
+
+# 📊 PART A: DUMMY VARIABLES & TRAIN/TEST SPLIT
+
+## Step 1: Identify Categorical Variables
+
+**From the data:**
+- `ShelveLoc`: 3 levels (Bad, Good, Medium)
+- `Urban`: 2 levels (Yes, No)
+- `US`: 2 levels (Yes, No)
+
+**Rule:** K levels → (K-1) dummies
+
+- ShelveLoc: 3 levels → **2 dummies needed**
+- Urban: 2 levels → **1 dummy needed**
+- US: 2 levels → **1 dummy needed**
+
+---
+
+## Step 2: Create Dummy Variables
+
+### Method 1: Manual Creation (Show your work!)
+
+```{r part-a-dummies}
+# ShelveLoc has 3 levels, need 2 dummies
+# Reference category will be "Medium"
+
+Carseats$ShelveLoc_Bad <- ifelse(Carseats$ShelveLoc == "Bad", 1, 0)
+Carseats$ShelveLoc_Good <- ifelse(Carseats$ShelveLoc == "Good", 1, 0)
+
+# Verify
+table(Carseats$ShelveLoc_Bad)
+table(Carseats$ShelveLoc_Good)
+
+# Urban: 1 dummy (Yes=1, No=0 is reference)
+Carseats$Urban_Yes <- ifelse(Carseats$Urban == "Yes", 1, 0)
+table(Carseats$Urban_Yes)
+
+# US: 1 dummy (Yes=1, No=0 is reference)
+Carseats$US_Yes <- ifelse(Carseats$US == "Yes", 1, 0)
+table(Carseats$US_Yes)
+```
+
+**📝 What to write:**
+> "Dummy variables created:
+> - ShelveLoc_Bad: 1 if Bad shelving, 0 otherwise (96 observations)
+> - ShelveLoc_Good: 1 if Good shelving, 0 otherwise (85 observations)
+> - Reference category: Medium shelving
+> - Urban_Yes: 1 if urban location, 0 otherwise (282 observations)
+> - US_Yes: 1 if in US, 0 otherwise (258 observations)"
+
+---
+
+## Step 3: Train/Test Split
+
+```{r part-a-split}
+# CRITICAL: Use the exact seed specified!
+set.seed(15)
+
+# Calculate sample size
+n <- nrow(Carseats)
+n  # 400 observations
+
+# Get 70% for training
+train_size <- floor(0.7 * n)
+train_indices <- sample(1:n, train_size)
+
+# Split data
+train_data <- Carseats[train_indices, ]
+test_data <- Carseats[-train_indices, ]
+
+# Verify split
+nrow(train_data)  # Should be 280 (70% of 400)
+nrow(test_data)   # Should be 120 (30% of 400)
+```
+
+**📝 What to write:**
+> "Data split with seed=15: 280 observations in training set (70%), 120 observations in test set (30%)."
+
+---
+
+# 📈 PART B: BUILD MODEL & CHECK ASSUMPTIONS
+
+## Step 1: Build the Regression Model
+
+```{r part-b-model}
+# Build model with all predictors (using dummy variables)
+model <- lm(Sales ~ CompPrice + Income + Advertising + Population + 
+              Price + Age + Education + ShelveLoc_Bad + ShelveLoc_Good + 
+              Urban_Yes + US_Yes, 
+            data = train_data)
+
+# View summary
+summary(model)
+```
+
+**Example output interpretation:**
+
+```
+Coefficients:
+                Estimate Std. Error t value Pr(>|t|)
+(Intercept)       5.6751     0.7513   7.553  < 2e-16 ***
+CompPrice         0.0925     0.0089  10.393  < 2e-16 ***
+Income            0.0158     0.0026   6.077 3.30e-09 ***
+Advertising       0.1233     0.0119  10.354  < 2e-16 ***
+Population        0.0001     0.0004   0.250    0.803
+Price            -0.0954     0.0027 -35.360  < 2e-16 ***
+Age              -0.0458     0.0032 -14.313  < 2e-16 ***
+Education        -0.0209     0.0197  -1.061    0.290
+ShelveLoc_Bad    -1.9530     0.1515 -12.891  < 2e-16 ***
+ShelveLoc_Good    4.8487     0.1531  31.671  < 2e-16 ***
+Urban_Yes         0.1402     0.1125   1.246    0.214
+US_Yes            1.2006     0.1477   8.128 7.32e-15 ***
+
+R-squared: 0.8762
+Adjusted R-squared: 0.8711
+F-statistic: 172.4 on 11 and 268 DF, p-value: < 2.2e-16
+```
+
+---
+
+## Step 2: Write the Model Equation
+
+**📝 What to write:**
+
+**Model Equation:**
+```
+Sales = 5.68 + 0.09(CompPrice) + 0.02(Income) + 0.12(Advertising) 
+        + 0.0001(Population) - 0.10(Price) - 0.05(Age) 
+        - 0.02(Education) - 1.95(ShelveLoc_Bad) + 4.85(ShelveLoc_Good)
+        + 0.14(Urban_Yes) + 1.20(US_Yes)
+
+Where:
+  ShelveLoc_Bad = 1 if Bad shelving, 0 otherwise
+  ShelveLoc_Good = 1 if Good shelving, 0 otherwise
+  Reference: Medium shelving (both dummies = 0)
+  Urban_Yes = 1 if urban, 0 if rural
+  US_Yes = 1 if in US, 0 otherwise
+```
+
+**Interpretation of key coefficients:**
+- **Price** (-0.10): A $1 increase in price leads to 0.10 thousand (100) fewer units sold
+- **ShelveLoc_Good** (4.85): Good shelving increases sales by 4.85 thousand (4,850) units compared to Medium shelving
+- **ShelveLoc_Bad** (-1.95): Bad shelving decreases sales by 1.95 thousand (1,950) units compared to Medium shelving
+- **US_Yes** (1.20): US stores sell 1.20 thousand (1,200) more units than non-US stores
+
+**Model Summary:**
+- R² = 0.8762: Model explains 87.62% of variance in Sales
+- Adjusted R² = 0.8711: Accounts for number of predictors
+- F-statistic p-value < 0.001: Model is highly significant
+
+**Significant predictors (p < 0.05):**
+CompPrice, Income, Advertising, Price, Age, ShelveLoc_Bad, ShelveLoc_Good, US_Yes
+
+**Not significant (p > 0.05):**
+Population (p=0.803), Education (p=0.290), Urban_Yes (p=0.214)
+
+---
+
+## Step 3: Diagnostic Plots
+
+```{r part-b-diagnostics}
+# Create diagnostic plots
+par(mfrow = c(2, 2))
+plot(model)
+par(mfrow = c(1, 1))
+```
+
+**📝 What to write about each plot:**
+
+**1. Residuals vs Fitted:**
+> "The residuals vs fitted plot shows random scatter around the horizontal line at 0 with no clear pattern. This indicates:
+> - Linear relationship assumption is satisfied
+> - No evidence of non-linearity
+> - Residuals appear randomly distributed"
+
+**2. Normal Q-Q Plot:**
+> "The Q-Q plot shows residuals closely following the theoretical normal line, with minor deviations at the extremes. This suggests:
+> - Residuals are approximately normally distributed
+> - No severe violations of normality assumption
+> - A few potential outliers at the tails (observations 38, 173)"
+
+**3. Scale-Location:**
+> "The scale-location plot shows a roughly horizontal red line with relatively even spread of points. This indicates:
+> - Homoskedasticity (constant variance)
+> - No clear evidence of increasing or decreasing variance
+> - Assumption of constant error variance is reasonably satisfied"
+
+**4. Residuals vs Leverage:**
+> "The leverage plot identifies no points beyond Cook's distance lines. Observation 173 has high leverage but relatively small residual. Overall:
+> - No highly influential observations identified
+> - No points requiring immediate investigation or removal"
+
+---
+
+## Step 4: Check for Multicollinearity (VIF)
+
+```{r part-b-vif}
+library(car)
+vif(model)
+```
+
+**Example output:**
+```
+   CompPrice       Income  Advertising   Population        Price 
+       1.626        1.064        1.981        1.157        1.640 
+         Age    Education ShelveLoc_Bad ShelveLoc_Good   Urban_Yes 
+       1.050        1.034        1.112        1.144        1.041 
+      US_Yes 
+       1.863 
+```
+
+**📝 What to write:**
+> "VIF Test Results:
+> All VIF values are well below 10, with the highest being US_Yes (VIF = 1.86). This indicates:
+> - No severe multicollinearity among predictors
+> - All variables can be included in the model without collinearity concerns
+> - Coefficient estimates are stable"
+
+---
+
+## Step 5: Check for Outliers/Influential Points
+
+```{r part-b-outliers}
+library(olsrr)
+ols_plot_cooksd_bar(model)
+
+# Get Cook's distance values
+cooksd <- cooks.distance(model)
+
+# Identify influential points (threshold: 4/n)
+threshold <- 4 / nrow(train_data)
+influential <- which(cooksd > threshold)
+influential
+
+# Display these observations
+train_data[influential, c("Sales", "Price", "ShelveLoc", "US")]
+```
+
+**📝 What to write:**
+> "Cook's Distance Analysis:
+> Using threshold of 4/n = 4/280 = 0.014, [X] observations identified as potentially influential: [list numbers].
+> Observation 173 has the highest Cook's distance (D = 0.042), but visual inspection shows no clear data entry errors. These points represent valid extreme cases (e.g., high sales despite unfavorable conditions) rather than errors. No observations removed."
+
+---
+
+# 🔬 PART C: TEST FOR HETEROSKEDASTICITY
+
+```{r part-c-bp-test}
+library(olsrr)
+ols_test_breusch_pagan(model)
+```
+
+**Example output:**
+```
+Breusch Pagan Test for Heteroskedasticity
+-----------------------------------------
+Ho: the variance is constant
+Ha: the variance is not constant
+
+Test Summary
+--------------------------------
+DF           = 1
+Chi2         = 0.184
+Prob > Chi2  = 0.668
+```
+
+**📝 What to write:**
+
+**Breusch-Pagan Test for Heteroskedasticity:**
+
+**Hypotheses:**
+- H₀: Error variance is constant (homoskedasticity)
+- Hₐ: Error variance is not constant (heteroskedasticity)
+
+**Test Results:**
+- Test statistic (χ²) = 0.184
+- Degrees of freedom = 1  
+- p-value = 0.668
+
+**Conclusion:**
+> "With p-value = 0.668 > 0.05, we fail to reject the null hypothesis. There is no evidence of heteroskedasticity at the 5% significance level. The assumption of constant error variance is satisfied. The model does not require variance-stabilizing transformations or weighted least squares."
+
+---
+
+# 📊 PART D: EVALUATE ON TEST DATA
+
+## Step 1: Make Predictions on Test Data
+
+```{r part-d-predictions}
+# Generate predictions
+pred_test <- predict(model, newdata = test_data)
+
+# View first few predictions
+head(pred_test)
+```
+
+---
+
+## Step 2: Calculate Performance Metrics
+
+```{r part-d-metrics}
+library(caret)
+
+# Calculate test metrics
+test_metrics <- postResample(pred = pred_test, obs = test_data$Sales)
+test_metrics
+
+# Also calculate training metrics for comparison
+pred_train <- predict(model, newdata = train_data)
+train_metrics <- postResample(pred = pred_train, obs = train_data$Sales)
+
+# Compare
+comparison <- rbind(
+  Train = train_metrics,
+  Test = test_metrics
+)
+comparison
+```
+
+**Example output:**
+```
+        RMSE  Rsquared       MAE
+Train  0.978  0.876184  0.792
+Test   1.084  0.832416  0.856
+```
+
+**📝 What to write:**
+
+**Model Performance:**
+
+**Training Data:**
+- RMSE = 0.978: On average, predictions on training data are off by 978 units
+- R² = 0.876: Model explains 87.6% of variance in training sales
+- MAE = 0.792: Average absolute error of 792 units
+
+**Test Data:**
+- RMSE = 1.084: On average, predictions on test data are off by 1,084 units
+- R² = 0.832: Model explains 83.2% of variance in test sales
+- MAE = 0.856: Average absolute error of 856 units
+
+**Model Robustness Assessment:**
+> "The model demonstrates good robustness:
+> - Test RMSE (1.084) is only 10.8% higher than training RMSE (0.978)
+> - Test R² (0.832) remains high, only 5.0% lower than training R² (0.876)
+> - The small degradation in performance indicates the model generalizes well to new data
+> - No evidence of severe overfitting
+> - The model is suitable for making predictions on new observations"
+
+---
+
+# 🎯 PART E: CONFIDENCE INTERVALS
+
+```{r part-e-intervals}
+# Calculate 99% confidence intervals for first 5 test observations
+conf_int_99 <- predict(model, 
+                       newdata = test_data[1:5, ],
+                       interval = "confidence",
+                       level = 0.99)
+
+conf_int_99
+
+# Also calculate 99% prediction intervals for comparison
+pred_int_99 <- predict(model,
+                       newdata = test_data[1:5, ],
+                       interval = "prediction",
+                       level = 0.99)
+
+pred_int_99
+```
+
+**Example output:**
+```
+Confidence intervals:
+   fit      lwr      upr
+1  9.33    8.69    9.97
+2  8.59    7.95    9.23
+3  6.11    5.47    6.75
+4 12.05   11.38   12.73
+5  6.00    5.33    6.68
+
+Prediction intervals:
+   fit      lwr       upr
+1  9.33    6.69    11.96
+2  8.59    5.95    11.23
+3  6.11    3.47     8.75
+4 12.05    9.38    14.73
+5  6.00    3.33     8.68
+```
+
+**📝 What to write:**
+
+**99% Confidence Intervals for Mean Response (First 5 Test Observations):**
+
+**Observation 1:**
+- Predicted Sales: 9.33 thousand units
+- 99% Confidence Interval: (8.69, 9.97)
+- Interpretation: We are 99% confident that the mean sales for stores with these characteristics falls between 8,690 and 9,970 units.
+
+**Observation 2:**
+- Predicted Sales: 8.59 thousand units  
+- 99% CI: (7.95, 9.23)
+- Interpretation: We are 99% confident the mean sales is between 7,950 and 9,230 units.
+
+**Observation 3:**
+- Predicted Sales: 6.11 thousand units
+- 99% CI: (5.47, 6.75)
+- Interpretation: We are 99% confident the mean sales is between 5,470 and 6,750 units.
+
+**Observation 4:**
+- Predicted Sales: 12.05 thousand units
+- 99% CI: (11.38, 12.73)
+- Interpretation: We are 99% confident the mean sales is between 11,380 and 12,730 units.
+
+**Observation 5:**
+- Predicted Sales: 6.00 thousand units
+- 99% CI: (5.33, 6.68)
+- Interpretation: We are 99% confident the mean sales is between 5,330 and 6,680 units.
+
+**Note on Confidence vs Prediction Intervals:**
+> "Confidence intervals estimate where the mean response lies for observations with given characteristics. Prediction intervals (shown for comparison) are wider because they account for both uncertainty in the mean AND individual variability. For individual store predictions, use prediction intervals."
+
+---
+
+# ✅ SUMMARY OF COMPLETE SOLUTION
+
+## What We Did:
+
+1. **✅ Created dummy variables** for 3 categorical predictors (4 dummies total)
+2. **✅ Split data** 70/30 with seed=15
+3. **✅ Built linear regression model** with all predictors
+4. **✅ Wrote model equation** with proper dummy variable notation
+5. **✅ Checked all diagnostic plots** - all assumptions satisfied
+6. **✅ Tested VIF** - no multicollinearity (all < 2)
+7. **✅ Identified potential outliers** - none requiring removal
+8. **✅ Performed Breusch-Pagan test** - no heteroskedasticity (p=0.668)
+9. **✅ Evaluated on test data** - RMSE=1.084, R²=0.832
+10. **✅ Assessed robustness** - model generalizes well
+11. **✅ Calculated 99% CIs** for first 5 test observations
+
+## Model Quality Summary:
+
+**Strengths:**
+- High R² (0.876) - explains most variance
+- All diagnostic assumptions satisfied
+- No multicollinearity concerns
+- Robust performance on test data
+- Coefficients are interpretable and make business sense
+
+**Interpretations:**
+- Price has strong negative effect (-0.10)
+- Good shelving dramatically increases sales (+4.85)
+- US stores outperform non-US (+1.20)
+- Model reliable for prediction
+
+---
+
+# 🎓 KEY LESSONS FOR EXAM DAY
+
+## Always Do These Steps:
+
+1. **Read carefully** - note seed, split ratio, what to calculate
+2. **Load and explore** - str(), summary(), check for issues
+3. **Handle categoricals** - create correct number of dummies
+4. **Use exact seed** - reproducibility is critical
+5. **Write equation properly** - include dummy definitions
+6. **Check ALL diagnostics** - plots, VIF, Breusch-Pagan
+7. **Evaluate on test** - this proves the model works
+8. **Write in words** - explain what the numbers mean
+9. **Show your work** - include code and output
+10. **Be specific** - use actual numbers, not just "good" or "bad"
+
+## Common Mistakes to Avoid:
+
+❌ Forgetting to use specified seed  
+❌ Creating wrong number of dummies  
+❌ Not explaining dummy variables in equation  
+❌ Only showing code without interpretation  
+❌ Forgetting to evaluate on test data  
+❌ Not writing what p-values mean  
+❌ Mixing up confidence vs prediction intervals  
+❌ Not checking assumptions  
+❌ Rushing through without showing work  
+
+---
+
+# 💪 YOU'RE READY!
+
+This is exactly how to approach your midterm problems:
+1. Follow the steps in order
+2. Show all your work
+3. Explain in words
+4. Check your assumptions
+5. Evaluate on test data
+6. Interpret your results
+
+**You've got this! 🎓🚀**
+
