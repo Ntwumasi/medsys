@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
+    "api",
     "client",
     "server"
   ],
   "scripts": {
     "install-all": "npm install --workspaces",
-    "build": "npm run build --workspace=client",
-    "vercel-build": "npm install --workspaces && npm run build --workspace=client"
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "vercel-build": "npm install --workspaces && npm run build --workspace=server && npm run build --workspace=client"
   }
 }

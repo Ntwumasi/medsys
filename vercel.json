@@ -1,6 +1,25 @@
 {
-  "buildCommand": "cd client && npm run build",
+  "buildCommand": "npm install --workspaces --legacy-peer-deps && cd server && npm run build && cd ../client && npm run build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install --legacy-peer-deps && cd client && npm install --legacy-peer-deps --include=dev",
-  "framework": null
+  "installCommand": "npm install --legacy-peer-deps --workspaces",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
