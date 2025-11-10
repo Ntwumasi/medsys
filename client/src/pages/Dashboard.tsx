@@ -67,6 +67,15 @@ const Dashboard: React.FC = () => {
     phone: ''
   });
 
+  // Staff filtering, sorting, and pagination state
+  const [staffSearchTerm, setStaffSearchTerm] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState<string>('all');
+  const [staffStatusFilter, setStaffStatusFilter] = useState<string>('all');
+  const [staffSortBy, setStaffSortBy] = useState<'name' | 'email' | 'role'>('name');
+  const [staffSortOrder, setStaffSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [staffPage, setStaffPage] = useState(1);
+  const staffItemsPerPage = 10;
+
   useEffect(() => {
     loadTodayAppointments();
     loadCorporateClients();
@@ -135,6 +144,78 @@ const Dashboard: React.FC = () => {
       setStaff(response.data.users || []);
     } catch (error) {
       console.error('Error loading staff:', error);
+    }
+  };
+
+  // Filter, sort, and paginate staff data
+  const getFilteredAndSortedStaff = () => {
+    let filteredStaff = [...staff];
+
+    // Apply search filter
+    if (staffSearchTerm) {
+      const searchLower = staffSearchTerm.toLowerCase();
+      filteredStaff = filteredStaff.filter(
+        (member) =>
+          member.first_name?.toLowerCase().includes(searchLower) ||
+          member.last_name?.toLowerCase().includes(searchLower) ||
+          member.email?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply role filter
+    if (staffRoleFilter !== 'all') {
+      filteredStaff = filteredStaff.filter((member) => member.role === staffRoleFilter);
+    }
+
+    // Apply status filter
+    if (staffStatusFilter !== 'all') {
+      const isActive = staffStatusFilter === 'active';
+      filteredStaff = filteredStaff.filter((member) => member.is_active === isActive);
+    }
+
+    // Apply sorting
+    filteredStaff.sort((a, b) => {
+      let compareA, compareB;
+
+      if (staffSortBy === 'name') {
+        compareA = `${a.first_name} ${a.last_name}`.toLowerCase();
+        compareB = `${b.first_name} ${b.last_name}`.toLowerCase();
+      } else if (staffSortBy === 'email') {
+        compareA = a.email?.toLowerCase() || '';
+        compareB = b.email?.toLowerCase() || '';
+      } else if (staffSortBy === 'role') {
+        compareA = a.role?.toLowerCase() || '';
+        compareB = b.role?.toLowerCase() || '';
+      }
+
+      if (compareA < compareB) return staffSortOrder === 'asc' ? -1 : 1;
+      if (compareA > compareB) return staffSortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filteredStaff;
+  };
+
+  const getPaginatedStaff = () => {
+    const filteredStaff = getFilteredAndSortedStaff();
+    const startIndex = (staffPage - 1) * staffItemsPerPage;
+    const endIndex = startIndex + staffItemsPerPage;
+    return filteredStaff.slice(startIndex, endIndex);
+  };
+
+  const getTotalStaffPages = () => {
+    const filteredStaff = getFilteredAndSortedStaff();
+    return Math.ceil(filteredStaff.length / staffItemsPerPage);
+  };
+
+  const handleStaffSort = (column: 'name' | 'email' | 'role') => {
+    if (staffSortBy === column) {
+      // Toggle sort order
+      setStaffSortOrder(staffSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New column, default to ascending
+      setStaffSortBy(column);
+      setStaffSortOrder('asc');
     }
   };
 
@@ -889,6 +970,82 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
 
+            {/* Filter and Search Controls */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={staffSearchTerm}
+                  onChange={(e) => {
+                    setStaffSearchTerm(e.target.value);
+                    setStaffPage(1); // Reset to page 1 on search
+                  }}
+                  placeholder="Name or email..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Role / Department
+                </label>
+                <select
+                  value={staffRoleFilter}
+                  onChange={(e) => {
+                    setStaffRoleFilter(e.target.value);
+                    setStaffPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Roles</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="receptionist">Receptionist</option>
+                  <option value="lab">Lab Technician</option>
+                  <option value="pharmacy">Pharmacy</option>
+                  <option value="imaging">Imaging/Radiology</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  value={staffStatusFilter}
+                  onChange={(e) => {
+                    setStaffStatusFilter(e.target.value);
+                    setStaffPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                {(staffSearchTerm || staffRoleFilter !== 'all' || staffStatusFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setStaffSearchTerm('');
+                      setStaffRoleFilter('all');
+                      setStaffStatusFilter('all');
+                      setStaffPage(1);
+                    }}
+                    className="w-full px-4 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+            </div>
+
             {showStaffForm && (
               <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-slate-50 rounded-lg border-2 border-slate-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1003,14 +1160,44 @@ const Dashboard: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
+                    <th
+                      onClick={() => handleStaffSort('name')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        Name
+                        {staffSortBy === 'name' && (
+                          <svg className={`w-4 h-4 transition-transform ${staffSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        )}
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
+                    <th
+                      onClick={() => handleStaffSort('email')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        Email
+                        {staffSortBy === 'email' && (
+                          <svg className={`w-4 h-4 transition-transform ${staffSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        )}
+                      </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Role / Department
+                    <th
+                      onClick={() => handleStaffSort('role')}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                    >
+                      <div className="flex items-center gap-2">
+                        Role / Department
+                        {staffSortBy === 'role' && (
+                          <svg className={`w-4 h-4 transition-transform ${staffSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        )}
+                      </div>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Phone
@@ -1024,7 +1211,7 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {staff.map((member) => (
+                  {getPaginatedStaff().map((member) => (
                     <tr key={member.id} className={member.is_active ? '' : 'bg-gray-50 opacity-60'}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -1076,12 +1263,89 @@ const Dashboard: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-              {staff.length === 0 && (
+              {getFilteredAndSortedStaff().length === 0 && (
                 <div className="text-center py-8 text-gray-500">
-                  No staff members found. Click "Add New Staff Member" to get started.
+                  {staff.length === 0 ? (
+                    <div>
+                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                      <p className="text-lg font-medium text-gray-900">No staff members found</p>
+                      <p className="text-sm text-gray-500 mt-1">Click "Add New Staff Member" to get started.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <p className="text-lg font-medium text-gray-900">No matching staff members</p>
+                      <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {getFilteredAndSortedStaff().length > 0 && getTotalStaffPages() > 1 && (
+              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="text-sm text-gray-700">
+                  Showing {((staffPage - 1) * staffItemsPerPage) + 1} to {Math.min(staffPage * staffItemsPerPage, getFilteredAndSortedStaff().length)} of {getFilteredAndSortedStaff().length} staff members
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStaffPage(staffPage - 1)}
+                    disabled={staffPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+
+                  {/* Page numbers */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: getTotalStaffPages() }, (_, i) => i + 1).map((pageNum) => {
+                      // Show first page, last page, current page, and pages around current
+                      const shouldShow =
+                        pageNum === 1 ||
+                        pageNum === getTotalStaffPages() ||
+                        (pageNum >= staffPage - 1 && pageNum <= staffPage + 1);
+
+                      const shouldShowEllipsis =
+                        (pageNum === staffPage - 2 && staffPage > 3) ||
+                        (pageNum === staffPage + 2 && staffPage < getTotalStaffPages() - 2);
+
+                      if (shouldShowEllipsis) {
+                        return <span key={pageNum} className="px-3 py-2 text-gray-500">...</span>;
+                      }
+
+                      if (!shouldShow) return null;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setStaffPage(pageNum)}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            pageNum === staffPage
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setStaffPage(staffPage + 1)}
+                    disabled={staffPage === getTotalStaffPages()}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
