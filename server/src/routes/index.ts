@@ -154,7 +154,7 @@ router.post('/medications/check-allergies', authenticateToken, authorizeRoles('d
 
 // Workflow routes - Receptionist
 router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist'), checkInPatient);
-router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist'), assignRoom);
+router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getPatientQueue);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
