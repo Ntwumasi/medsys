@@ -246,7 +246,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             border-l-4 transition-all duration-200 ease-in-out
             ${
               section.completed
-                ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 shadow-sm'
+                ? 'border-emerald-500 bg-emerald-50 hover:bg-emerald-100 shadow-sm'
                 : 'border-gray-200 bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 hover:border-gray-300'
             }
             ${isExpanded ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-500 shadow-md ring-2 ring-blue-100' : ''}
@@ -425,7 +425,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               </div>
 
               {currentSection.completed && currentSection.content && (
-                <div className="p-5 bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-xl shadow-sm">
+                <div className="p-5 bg-emerald-50 border-2 border-emerald-200 rounded-xl shadow-sm">
                   <div className="flex items-center gap-2 mb-3">
                     <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />

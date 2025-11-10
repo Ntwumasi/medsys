@@ -437,13 +437,13 @@ const NurseDashboard: React.FC = () => {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'green':
-        return 'bg-green-100 border-green-400';
+        return 'bg-emerald-50 border-emerald-500';
       case 'yellow':
-        return 'bg-yellow-100 border-yellow-400';
+        return 'bg-amber-50 border-amber-500';
       case 'red':
-        return 'bg-red-100 border-red-400';
+        return 'bg-red-50 border-red-500';
       default:
-        return 'bg-gray-100 border-gray-400';
+        return 'bg-slate-50 border-slate-400';
     }
   };
 
@@ -496,7 +496,7 @@ const NurseDashboard: React.FC = () => {
         {/* Room Status - At Top */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-2 rounded-lg">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg">
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
@@ -509,8 +509,8 @@ const NurseDashboard: React.FC = () => {
                 key={room.id}
                 className={`p-4 rounded-xl text-center border-2 transition-all hover:shadow-lg ${
                   room.is_available
-                    ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-400 text-emerald-800 hover:border-emerald-500'
-                    : 'bg-gradient-to-br from-red-50 to-rose-50 border-red-400 text-red-800 hover:border-red-500'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
+                    : 'bg-slate-100 border-slate-400 text-slate-900'
                 }`}
               >
                 <div className="font-bold text-lg">Room {room.room_number}</div>
@@ -553,9 +553,9 @@ const NurseDashboard: React.FC = () => {
                       Room {patient.room_number} | {patient.patient_number}
                     </div>
                     <div className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold uppercase ${
-                      patient.current_priority === 'red' ? 'bg-red-200 text-red-800' :
-                      patient.current_priority === 'yellow' ? 'bg-yellow-200 text-yellow-800' :
-                      'bg-green-200 text-green-800'
+                      patient.current_priority === 'red' ? 'bg-red-100 text-red-700' :
+                      patient.current_priority === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                      'bg-emerald-100 text-emerald-700'
                     }`}>
                       {patient.current_priority}
                     </div>
@@ -587,15 +587,15 @@ const NurseDashboard: React.FC = () => {
                         <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold">
                           Patient #: {selectedPatient.patient_number}
                         </span>
-                        <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold">
                           Encounter #: {selectedPatient.encounter_number}
                         </span>
                       </div>
                     </div>
                     <div className={`px-5 py-3 rounded-xl font-bold text-sm shadow-md ${
-                      selectedPatient.current_priority === 'red' ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800' :
-                      selectedPatient.current_priority === 'yellow' ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800' :
-                      'bg-gradient-to-r from-green-100 to-green-200 text-green-800'
+                      selectedPatient.current_priority === 'red' ? 'bg-red-100 text-red-800 border border-red-300' :
+                      selectedPatient.current_priority === 'yellow' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
+                      'bg-emerald-100 text-emerald-800 border border-emerald-300'
                     }`}>
                       PRIORITY: {selectedPatient.current_priority.toUpperCase()}
                     </div>
@@ -630,7 +630,7 @@ const NurseDashboard: React.FC = () => {
                                 setEditingRoom(false);
                               }
                             }}
-                            className="w-full px-3 py-2 border-2 border-orange-300 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent font-semibold text-orange-900"
+                            className="w-full px-3 py-2 border-2 border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent font-semibold text-amber-900"
                             defaultValue=""
                           >
                             <option value="">
@@ -675,7 +675,7 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('hp')}
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           activeTab === 'hp'
-                            ? 'border-purple-500 text-purple-600'
+                            ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -695,13 +695,13 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('orders')}
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors relative ${
                           activeTab === 'orders'
-                            ? 'border-purple-500 text-purple-600'
+                            ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
                         Doctor's Orders
                         {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
-                          <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
                             {labOrders.length + imagingOrders.length + pharmacyOrders.length}
                           </span>
                         )}
@@ -710,13 +710,13 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('procedures')}
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'procedures'
-                            ? 'border-green-500 text-green-600'
+                            ? 'border-emerald-500 text-emerald-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
                         Nurse Procedures
                         {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
-                          <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                          <span className="ml-2 px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 rounded-full">
                             {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length}
                           </span>
                         )}
@@ -725,7 +725,7 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('notes')}
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'notes'
-                            ? 'border-indigo-500 text-indigo-600'
+                            ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -735,7 +735,7 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('routing')}
                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'routing'
-                            ? 'border-teal-500 text-teal-600'
+                            ? 'border-blue-500 text-blue-600'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -1011,7 +1011,7 @@ const NurseDashboard: React.FC = () => {
                         {/* Doctor's Instructions for Nurse */}
                         {clinicalNotes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (
                           <div className="mb-6">
-                            <h3 className="text-lg font-bold text-teal-700 mb-3 flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-blue-700 mb-3 flex items-center gap-2">
                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                               </svg>
@@ -1021,16 +1021,16 @@ const NurseDashboard: React.FC = () => {
                               {clinicalNotes
                                 .filter(n => n.note_type === 'doctor_to_nurse')
                                 .map((note) => (
-                                  <div key={note.id} className="border-2 border-teal-300 rounded-lg p-4 bg-gradient-to-r from-teal-50 to-cyan-50 shadow-md">
+                                  <div key={note.id} className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50 shadow-md">
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-teal-700 font-semibold">
+                                      <div className="text-xs text-blue-700 font-semibold">
                                         Dr. {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="px-2 py-1 bg-teal-600 text-white text-xs font-bold rounded-full">
+                                      <span className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
                                         NURSE INSTRUCTIONS
                                       </span>
                                     </div>
-                                    <div className="text-sm text-gray-900 font-medium whitespace-pre-wrap bg-white p-3 rounded border border-teal-200">
+                                    <div className="text-sm text-gray-900 font-medium whitespace-pre-wrap bg-white p-3 rounded border border-blue-200">
                                       {note.content}
                                     </div>
                                   </div>
@@ -1042,7 +1042,7 @@ const NurseDashboard: React.FC = () => {
                         {/* Doctor's Procedural Notes */}
                         {clinicalNotes.filter(n => n.note_type === 'doctor_procedural').length > 0 && (
                           <div className="mb-6">
-                            <h3 className="text-lg font-bold text-purple-700 mb-3 flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-slate-700 mb-3 flex items-center gap-2">
                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                               </svg>
@@ -1052,16 +1052,16 @@ const NurseDashboard: React.FC = () => {
                               {clinicalNotes
                                 .filter(n => n.note_type === 'doctor_procedural')
                                 .map((note) => (
-                                  <div key={note.id} className="border-2 border-purple-300 rounded-lg p-4 bg-gradient-to-r from-purple-50 to-pink-50 shadow-md">
+                                  <div key={note.id} className="border-2 border-slate-300 rounded-lg p-4 bg-slate-50 shadow-md">
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-purple-700 font-semibold">
+                                      <div className="text-xs text-slate-700 font-semibold">
                                         Dr. {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="px-2 py-1 bg-purple-600 text-white text-xs font-bold rounded-full">
+                                      <span className="px-2 py-1 bg-slate-600 text-white text-xs font-bold rounded-full">
                                         PROCEDURE
                                       </span>
                                     </div>
-                                    <div className="text-sm text-gray-900 whitespace-pre-wrap bg-white p-3 rounded border border-purple-200">
+                                    <div className="text-sm text-gray-900 whitespace-pre-wrap bg-white p-3 rounded border border-slate-200">
                                       {note.content}
                                     </div>
                                   </div>
@@ -1075,10 +1075,10 @@ const NurseDashboard: React.FC = () => {
                             {/* Lab Orders */}
                             {labOrders.length > 0 && (
                               <div className="mb-4">
-                                <h3 className="text-lg font-semibold text-purple-700 mb-2">Laboratory Orders</h3>
+                                <h3 className="text-lg font-semibold text-blue-700 mb-2">Laboratory Orders</h3>
                                 <div className="space-y-2">
                                   {labOrders.map((order) => (
-                                    <div key={order.id} className="border border-purple-200 rounded-lg p-3 bg-purple-50">
+                                    <div key={order.id} className="border border-blue-200 rounded-lg p-3 bg-blue-50">
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                           <h4 className="font-semibold text-gray-900">{order.test_name}</h4>
@@ -1092,8 +1092,8 @@ const NurseDashboard: React.FC = () => {
                                         <div className="ml-4 text-right">
                                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                             order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                            'bg-green-100 text-green-800'
+                                            order.priority === 'urgent' ? 'bg-amber-100 text-amber-800' :
+                                            'bg-emerald-100 text-emerald-800'
                                           }`}>
                                             {order.priority.toUpperCase()}
                                           </span>
@@ -1109,10 +1109,10 @@ const NurseDashboard: React.FC = () => {
                             {/* Imaging Orders */}
                             {imagingOrders.length > 0 && (
                               <div className="mb-4">
-                                <h3 className="text-lg font-semibold text-indigo-700 mb-2">Imaging Orders</h3>
+                                <h3 className="text-lg font-semibold text-blue-700 mb-2">Imaging Orders</h3>
                                 <div className="space-y-2">
                                   {imagingOrders.map((order) => (
-                                    <div key={order.id} className="border border-indigo-200 rounded-lg p-3 bg-indigo-50">
+                                    <div key={order.id} className="border border-blue-200 rounded-lg p-3 bg-blue-50">
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                           <h4 className="font-semibold text-gray-900">{order.imaging_type}</h4>
@@ -1124,8 +1124,8 @@ const NurseDashboard: React.FC = () => {
                                         <div className="ml-4 text-right">
                                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                             order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                            'bg-green-100 text-green-800'
+                                            order.priority === 'urgent' ? 'bg-amber-100 text-amber-800' :
+                                            'bg-emerald-100 text-emerald-800'
                                           }`}>
                                             {order.priority.toUpperCase()}
                                           </span>
@@ -1141,10 +1141,10 @@ const NurseDashboard: React.FC = () => {
                             {/* Pharmacy Orders */}
                             {pharmacyOrders.length > 0 && (
                               <div>
-                                <h3 className="text-lg font-semibold text-pink-700 mb-2">Pharmacy Orders</h3>
+                                <h3 className="text-lg font-semibold text-blue-700 mb-2">Pharmacy Orders</h3>
                                 <div className="space-y-2">
                                   {pharmacyOrders.map((order) => (
-                                    <div key={order.id} className="border border-pink-200 rounded-lg p-3 bg-pink-50">
+                                    <div key={order.id} className="border border-blue-200 rounded-lg p-3 bg-blue-50">
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                           <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
@@ -1158,8 +1158,8 @@ const NurseDashboard: React.FC = () => {
                                         <div className="ml-4 text-right">
                                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                             order.priority === 'stat' ? 'bg-red-100 text-red-800' :
-                                            order.priority === 'urgent' ? 'bg-orange-100 text-orange-800' :
-                                            'bg-green-100 text-green-800'
+                                            order.priority === 'urgent' ? 'bg-amber-100 text-amber-800' :
+                                            'bg-emerald-100 text-emerald-800'
                                           }`}>
                                             {order.priority.toUpperCase()}
                                           </span>
@@ -1202,9 +1202,9 @@ const NurseDashboard: React.FC = () => {
                                         <span>Ordered by: {procedure.ordered_by_name}</span>
                                         <span>Price: ${procedure.price.toFixed(2)}</span>
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                          procedure.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                          procedure.status === 'pending' ? 'bg-amber-100 text-amber-800' :
                                           procedure.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                          'bg-green-100 text-green-800'
+                                          'bg-emerald-100 text-emerald-800'
                                         }`}>
                                           {procedure.status.replace('_', ' ').toUpperCase()}
                                         </span>
@@ -1222,7 +1222,7 @@ const NurseDashboard: React.FC = () => {
                                       {procedure.status === 'in_progress' && (
                                         <button
                                           onClick={() => handleCompleteProcedure(procedure.id)}
-                                          className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded hover:bg-green-700"
+                                          className="px-3 py-1 text-sm font-medium text-white bg-emerald-600 rounded hover:bg-emerald-700"
                                         >
                                           Complete & Bill
                                         </button>
@@ -1280,25 +1280,25 @@ const NurseDashboard: React.FC = () => {
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => handleRouteToDepartment('lab')}
-                              className="bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                             >
                               Send to Lab
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('pharmacy')}
-                              className="bg-pink-600 text-white py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
+                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                             >
                               Send to Pharmacy
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('imaging')}
-                              className="bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
+                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                             >
                               Send to Imaging
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('receptionist')}
-                              className="bg-teal-600 text-white py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
+                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
                             >
                               Send to Receptionist
                             </button>

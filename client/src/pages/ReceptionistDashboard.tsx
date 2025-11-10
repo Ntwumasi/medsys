@@ -336,12 +336,12 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const getWaitTimeColor = (waitTimeMinutes?: number) => {
-    if (!waitTimeMinutes) return 'bg-gray-100 border-gray-400 text-gray-800';
+    if (!waitTimeMinutes) return 'bg-slate-100 border-slate-400 text-slate-800';
 
     if (waitTimeMinutes <= 15) {
-      return 'bg-green-100 border-green-400 text-green-800';
+      return 'bg-emerald-100 border-emerald-400 text-emerald-800';
     } else if (waitTimeMinutes <= 30) {
-      return 'bg-yellow-100 border-yellow-400 text-yellow-800';
+      return 'bg-amber-100 border-amber-400 text-amber-800';
     } else {
       return 'bg-red-100 border-red-400 text-red-800';
     }
@@ -391,17 +391,24 @@ const ReceptionistDashboard: React.FC = () => {
 
   console.log('ReceptionistDashboard: Rendering main UI');
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+        <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Receptionist Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-gray-600">
-                Welcome, {user?.first_name} {user?.last_name}
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Receptionist Dashboard
+                </h1>
+                <p className="text-blue-100 text-sm">
+                  Welcome, {user?.first_name} {user?.last_name}
+                </p>
+              </div>
             </div>
             <div className="flex-1 max-w-md">
               <SearchBar
@@ -419,7 +426,7 @@ const ReceptionistDashboard: React.FC = () => {
                 logout();
                 navigate('/login');
               }}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -430,9 +437,9 @@ const ReceptionistDashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-6 py-6">
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3 shadow-md">
             <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
@@ -471,27 +478,27 @@ const ReceptionistDashboard: React.FC = () => {
 
           <button
             onClick={() => setActiveView('checkin')}
-            className={`bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 ${
-              activeView === 'checkin' ? 'border-primary-500' : 'border-transparent'
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'checkin' ? 'border-emerald-500' : 'border-transparent'
             }`}
           >
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex-shrink-0 bg-emerald-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div className="ml-4">
-                <h2 className="text-lg font-semibold text-gray-900">Check-In</h2>
-                <p className="text-sm text-gray-600">Returning Patient</p>
+                <h2 className="text-lg font-bold text-gray-900">Returning Patient</h2>
+                <p className="text-sm text-gray-600">Check-In</p>
               </div>
             </div>
           </button>
 
           <button
             onClick={() => setActiveView('new-patient')}
-            className={`bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 ${
-              activeView === 'new-patient' ? 'border-primary-500' : 'border-transparent'
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'new-patient' ? 'border-blue-500' : 'border-transparent'
             }`}
           >
             <div className="flex items-center">
@@ -501,7 +508,7 @@ const ReceptionistDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className="ml-4">
-                <h2 className="text-lg font-semibold text-gray-900">New Patient</h2>
+                <h2 className="text-lg font-bold text-gray-900">New Patient</h2>
                 <p className="text-sm text-gray-600">Register & Check-In</p>
               </div>
             </div>
@@ -511,18 +518,18 @@ const ReceptionistDashboard: React.FC = () => {
 
         {/* Main Content Area */}
         {activeView === 'queue' && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">
                 Current Patient Queue ({queue.length})
               </h2>
               <div className="flex gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-green-500 rounded"></div>
+                  <div className="w-4 h-4 bg-emerald-500 rounded"></div>
                   <span>0-15 min</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-yellow-500 rounded"></div>
+                  <div className="w-4 h-4 bg-amber-500 rounded"></div>
                   <span>15-30 min</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -575,7 +582,7 @@ const ReceptionistDashboard: React.FC = () => {
                             </span>
                           )}
                           {item.nurse_name && (
-                            <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full font-medium">
+                            <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-medium">
                               Nurse: {item.nurse_name}
                             </span>
                           )}
@@ -608,7 +615,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                       <button
                         onClick={() => handleViewInvoice(item.id)}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -634,7 +641,7 @@ const ReceptionistDashboard: React.FC = () => {
 
         {activeView === 'checkin' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Check-In Returning Patient</h2>
               <form onSubmit={handleCheckIn} className="space-y-6">
                 <div>
@@ -733,7 +740,7 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
 
             {selectedPatient && patientHistory.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Past Medical History</h2>
                 <div className="space-y-4">
                   {patientHistory.map((encounter) => (
@@ -767,7 +774,7 @@ const ReceptionistDashboard: React.FC = () => {
             )}
 
             {selectedPatient && patientHistory.length === 0 && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Past Medical History</h2>
                 <div className="text-center py-12 text-gray-500">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -781,7 +788,7 @@ const ReceptionistDashboard: React.FC = () => {
         )}
 
         {activeView === 'new-patient' && (
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Register New Patient</h2>
             <form onSubmit={handleNewPatientSubmit} className="space-y-6">
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
