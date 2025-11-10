@@ -30,7 +30,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices'>('appointments');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff'>('appointments');
 
   // Invoice state
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -54,12 +54,26 @@ const Dashboard: React.FC = () => {
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
 
+  // Staff management state
+  const [staff, setStaff] = useState<any[]>([]);
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [staffForm, setStaffForm] = useState({
+    email: '',
+    password: '',
+    role: 'doctor',
+    first_name: '',
+    last_name: '',
+    phone: ''
+  });
+
   useEffect(() => {
     loadTodayAppointments();
     loadCorporateClients();
     loadInsuranceProviders();
     loadPatients();
     loadDoctors();
+    loadStaff();
   }, []);
 
   useEffect(() => {
@@ -112,6 +126,82 @@ const Dashboard: React.FC = () => {
         { id: 5, first_name: 'John', last_name: 'Williams' },
         { id: 6, first_name: 'Emily', last_name: 'Davis' },
       ]);
+    }
+  };
+
+  const loadStaff = async () => {
+    try {
+      const response = await apiClient.get('/users');
+      setStaff(response.data.users || []);
+    } catch (error) {
+      console.error('Error loading staff:', error);
+    }
+  };
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (!editingStaff && !staffForm.password) {
+        alert('Password is required for new staff members');
+        return;
+      }
+
+      if (editingStaff) {
+        // Update existing staff
+        const updateData: any = { ...staffForm };
+        if (!staffForm.password) {
+          // Don't include password if not provided
+          const { password, ...dataWithoutPassword } = updateData;
+          await apiClient.put(`/users/${editingStaff.id}`, dataWithoutPassword);
+        } else {
+          await apiClient.put(`/users/${editingStaff.id}`, updateData);
+        }
+        alert('Staff member updated successfully!');
+      } else {
+        // Create new staff
+        await apiClient.post('/users', staffForm);
+        alert('Staff member created successfully!');
+      }
+
+      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+      setShowStaffForm(false);
+      setEditingStaff(null);
+      loadStaff();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to save staff member';
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
+  const handleEditStaff = (staffMember: any) => {
+    setEditingStaff(staffMember);
+    setStaffForm({
+      email: staffMember.email,
+      password: '', // Don't populate password for security
+      role: staffMember.role,
+      first_name: staffMember.first_name,
+      last_name: staffMember.last_name,
+      phone: staffMember.phone || ''
+    });
+    setShowStaffForm(true);
+  };
+
+  const handleToggleStaffStatus = async (id: number, currentStatus: boolean) => {
+    try {
+      if (currentStatus) {
+        // Deactivate
+        if (!confirm('Are you sure you want to deactivate this staff member?')) return;
+        await apiClient.delete(`/users/${id}`);
+        alert('Staff member deactivated successfully!');
+      } else {
+        // Activate
+        if (!confirm('Are you sure you want to activate this staff member?')) return;
+        await apiClient.post(`/users/${id}/activate`);
+        alert('Staff member activated successfully!');
+      }
+      loadStaff();
+    } catch (error) {
+      alert('Failed to update staff member status');
     }
   };
 
@@ -384,6 +474,16 @@ const Dashboard: React.FC = () => {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               Insurance Providers
+            </button>
+            <button
+              onClick={() => setActiveTab('staff')}
+              className={`${
+                activeTab === 'staff'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Staff Management
             </button>
           </nav>
         </div>
@@ -855,6 +955,221 @@ const Dashboard: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Staff Management Tab */}
+        {activeTab === 'staff' && (
+          <div className="card">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Staff Management</h2>
+              <button
+                onClick={() => {
+                  setShowStaffForm(!showStaffForm);
+                  if (showStaffForm) {
+                    setEditingStaff(null);
+                    setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                {showStaffForm ? 'Cancel' : 'Add New Staff Member'}
+              </button>
+            </div>
+
+            {showStaffForm && (
+              <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-slate-50 rounded-lg border-2 border-slate-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {editingStaff ? 'Edit Staff Member' : 'New Staff Member'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      First Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={staffForm.first_name}
+                      onChange={(e) => setStaffForm({ ...staffForm, first_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Last Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={staffForm.last_name}
+                      onChange={(e) => setStaffForm({ ...staffForm, last_name: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={staffForm.email}
+                      onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={staffForm.phone}
+                      onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role / Department *
+                    </label>
+                    <select
+                      value={staffForm.role}
+                      onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="doctor">Doctor</option>
+                      <option value="nurse">Nurse</option>
+                      <option value="receptionist">Receptionist</option>
+                      <option value="lab">Lab Technician</option>
+                      <option value="pharmacy">Pharmacy</option>
+                      <option value="imaging">Imaging/Radiology</option>
+                      <option value="admin">Administrator</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Password {editingStaff ? '(leave blank to keep current)' : '*'}
+                    </label>
+                    <input
+                      type="password"
+                      value={staffForm.password}
+                      onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      required={!editingStaff}
+                      placeholder={editingStaff ? 'Leave blank to keep current password' : ''}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold"
+                  >
+                    {editingStaff ? 'Update Staff Member' : 'Create Staff Member'}
+                  </button>
+                  {editingStaff && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingStaff(null);
+                        setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+                        setShowStaffForm(false);
+                      }}
+                      className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Email
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Role / Department
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Phone
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {staff.map((member) => (
+                    <tr key={member.id} className={member.is_active ? '' : 'bg-gray-50 opacity-60'}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {member.first_name} {member.last_name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">{member.email}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          member.role === 'doctor' ? 'bg-blue-100 text-blue-800' :
+                          member.role === 'nurse' ? 'bg-emerald-100 text-emerald-800' :
+                          member.role === 'receptionist' ? 'bg-purple-100 text-purple-800' :
+                          member.role === 'lab' ? 'bg-yellow-100 text-yellow-800' :
+                          member.role === 'pharmacy' ? 'bg-green-100 text-green-800' :
+                          member.role === 'imaging' ? 'bg-indigo-100 text-indigo-800' :
+                          member.role === 'admin' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600">{member.phone || '-'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>
+                          {member.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
+                        <button
+                          onClick={() => handleEditStaff(member)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleToggleStaffStatus(member.id, member.is_active)}
+                          className={member.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}
+                        >
+                          {member.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {staff.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No staff members found. Click "Add New Staff Member" to get started.
+                </div>
+              )}
             </div>
           </div>
         )}

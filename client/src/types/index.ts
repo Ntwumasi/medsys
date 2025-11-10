@@ -1,10 +1,11 @@
 export interface User {
   id: number;
   email: string;
-  role: 'doctor' | 'nurse' | 'admin' | 'receptionist' | 'patient';
+  role: 'doctor' | 'nurse' | 'admin' | 'receptionist' | 'patient' | 'lab' | 'pharmacy' | 'imaging';
   first_name: string;
   last_name: string;
   phone?: string;
+  is_active?: boolean;
 }
 
 export interface Patient {

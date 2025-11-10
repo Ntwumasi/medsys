@@ -1,6 +1,14 @@
 import express from 'express';
 import { register, login, getCurrentUser } from '../controllers/authController';
 import {
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+  activateUser,
+} from '../controllers/userController';
+import {
   createPatient,
   getPatients,
   getPatientById,
@@ -123,6 +131,14 @@ const router = express.Router();
 router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth/me', authenticateToken, getCurrentUser);
+
+// User Management routes (Admin only)
+router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
+router.get('/users/:id', authenticateToken, authorizeRoles('admin'), getUserById);
+router.post('/users', authenticateToken, authorizeRoles('admin'), createUser);
+router.put('/users/:id', authenticateToken, authorizeRoles('admin'), updateUser);
+router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUser);
+router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);
 
 // Patient routes
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), createPatient);
