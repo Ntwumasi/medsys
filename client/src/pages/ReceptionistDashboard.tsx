@@ -471,7 +471,8 @@ const ReceptionistDashboard: React.FC = () => {
                   // Switch to check-in view and select the patient
                   setActiveView('checkin');
                   setSelectedPatient(patient);
-                  alert(`Patient ${patient.full_name} selected for check-in.`);
+                  const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
+                  alert(`Patient ${patientName} selected for check-in.`);
                 }}
                 placeholder="Search patients..."
               />

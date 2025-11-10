@@ -125,7 +125,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
                   className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center justify-between"
                 >
                   <div>
-                    <div className="font-semibold text-gray-900">{patient.full_name}</div>
+                    <div className="font-semibold text-gray-900">
+                      {patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()}
+                    </div>
                     <div className="text-sm text-gray-600">{patient.patient_number}</div>
                     {patient.phone && (
                       <div className="text-xs text-gray-500">{patient.phone}</div>
