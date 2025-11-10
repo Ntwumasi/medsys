@@ -134,6 +134,16 @@ const ReceptionistDashboard: React.FC = () => {
   const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
   const [currentEncounterId, setCurrentEncounterId] = useState<number | null>(null);
 
+  // Past Patients / History state
+  const [pastPatients, setPastPatients] = useState<any[]>([]);
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const itemsPerPage = 10;
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
@@ -183,6 +193,44 @@ const ReceptionistDashboard: React.FC = () => {
       setPatientHistory([]);
     }
   };
+
+  const loadPastPatients = async () => {
+    try {
+      setLoadingHistory(true);
+      const params: any = {
+        page: historyPage,
+        limit: itemsPerPage,
+      };
+
+      if (historySearchTerm) {
+        params.search = historySearchTerm;
+      }
+
+      if (historyDateFrom) {
+        params.date_from = historyDateFrom;
+      }
+
+      if (historyDateTo) {
+        params.date_to = historyDateTo;
+      }
+
+      const response = await apiClient.get('/workflow/completed-encounters', { params });
+      setPastPatients(response.data.encounters || []);
+      setHistoryTotalPages(response.data.totalPages || 1);
+    } catch (error) {
+      console.error('Error loading past patients:', error);
+      setPastPatients([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Load past patients when filters change or page changes
+  useEffect(() => {
+    if (activeView === 'history') {
+      loadPastPatients();
+    }
+  }, [activeView, historyPage, historySearchTerm, historyDateFrom, historyDateTo]);
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,7 +511,7 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         )}
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <button
             onClick={() => setActiveView('queue')}
             className={`bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 ${
@@ -517,6 +565,25 @@ const ReceptionistDashboard: React.FC = () => {
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">New Patient</h2>
                 <p className="text-sm text-gray-600">Register & Check-In</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveView('history')}
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'history' ? 'border-slate-500' : 'border-transparent'
+            }`}
+          >
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-slate-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h2 className="text-lg font-bold text-gray-900">Past Patients</h2>
+                <p className="text-sm text-gray-600">View History</p>
               </div>
             </div>
           </button>
@@ -1100,6 +1167,192 @@ const ReceptionistDashboard: React.FC = () => {
                 Register & Check In Patient
               </button>
             </form>
+          </div>
+        )}
+
+        {activeView === 'history' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Past Patients</h2>
+
+            {/* Search and Filter Controls */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={historySearchTerm}
+                  onChange={(e) => {
+                    setHistorySearchTerm(e.target.value);
+                    setHistoryPage(1); // Reset to page 1 on search
+                  }}
+                  placeholder="Patient name, number, or encounter..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={historyDateFrom}
+                  onChange={(e) => {
+                    setHistoryDateFrom(e.target.value);
+                    setHistoryPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={historyDateTo}
+                  onChange={(e) => {
+                    setHistoryDateTo(e.target.value);
+                    setHistoryPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Clear Filters Button */}
+            {(historySearchTerm || historyDateFrom || historyDateTo) && (
+              <div className="mb-4">
+                <button
+                  onClick={() => {
+                    setHistorySearchTerm('');
+                    setHistoryDateFrom('');
+                    setHistoryDateTo('');
+                    setHistoryPage(1);
+                  }}
+                  className="text-sm text-slate-600 hover:text-slate-800 underline"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
+
+            {/* Loading State */}
+            {loadingHistory && (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading past patients...</p>
+              </div>
+            )}
+
+            {/* Past Patients Table */}
+            {!loadingHistory && pastPatients.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Patient
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Encounter #
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Chief Complaint
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Provider
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {pastPatients.map((encounter) => (
+                      <tr key={encounter.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {encounter.patient_name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {encounter.patient_number}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.encounter_number}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {safeFormatDate(encounter.encounter_date, 'MM/dd/yyyy')}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-900 max-w-xs truncate">
+                            {encounter.chief_complaint || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.provider_name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => handleViewInvoice(encounter.id)}
+                            className="text-slate-600 hover:text-slate-900 font-medium"
+                          >
+                            View Invoice
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loadingHistory && pastPatients.length === 0 && (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="mt-2 text-lg font-medium text-gray-900">No past patients found</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {historySearchTerm || historyDateFrom || historyDateTo
+                    ? 'Try adjusting your search or filters'
+                    : 'Completed encounters will appear here'}
+                </p>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loadingHistory && pastPatients.length > 0 && historyTotalPages > 1 && (
+              <div className="mt-6 flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Page {historyPage} of {historyTotalPages}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setHistoryPage(historyPage - 1)}
+                    disabled={historyPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setHistoryPage(historyPage + 1)}
+                    disabled={historyPage === historyTotalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

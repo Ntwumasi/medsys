@@ -51,6 +51,7 @@ import {
   getNurseAssignedPatients,
   doctorCompleteEncounter,
   releaseRoom,
+  getCompletedEncounters,
 } from '../controllers/workflowController';
 import {
   createClinicalNote,
@@ -173,6 +174,7 @@ router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionis
 router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getPatientQueue);
+router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
 router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseRoom);

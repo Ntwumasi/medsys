@@ -542,3 +542,78 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Get completed encounters with search and date filtering (for Past Patients view)
+export const getCompletedEncounters = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { search, date_from, date_to, page = 1, limit = 10 } = req.query;
+
+    const offset = (Number(page) - 1) * Number(limit);
+
+    let query = `
+      SELECT e.*,
+        p.patient_number,
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        u_provider.first_name || ' ' || u_provider.last_name as provider_name,
+        r.room_number
+      FROM encounters e
+      LEFT JOIN patients p ON e.patient_id = p.id
+      LEFT JOIN users u_patient ON p.user_id = u_patient.id
+      LEFT JOIN users u_provider ON e.provider_id = u_provider.id
+      LEFT JOIN rooms r ON e.room_id = r.id
+      WHERE e.status = 'completed'
+    `;
+
+    const params: any[] = [];
+    let paramCount = 1;
+
+    // Add search filter for patient name or patient number
+    if (search) {
+      query += ` AND (
+        LOWER(u_patient.first_name || ' ' || u_patient.last_name) LIKE LOWER($${paramCount})
+        OR LOWER(p.patient_number) LIKE LOWER($${paramCount})
+        OR LOWER(e.encounter_number) LIKE LOWER($${paramCount})
+      )`;
+      params.push(`%${search}%`);
+      paramCount++;
+    }
+
+    // Add date range filters
+    if (date_from) {
+      query += ` AND e.encounter_date >= $${paramCount}`;
+      params.push(date_from);
+      paramCount++;
+    }
+
+    if (date_to) {
+      query += ` AND e.encounter_date <= $${paramCount}`;
+      params.push(date_to);
+      paramCount++;
+    }
+
+    // Get total count for pagination
+    const countQuery = query.replace(
+      /SELECT e\.\*.*?FROM encounters e/s,
+      'SELECT COUNT(*) FROM encounters e'
+    );
+    const countResult = await pool.query(countQuery, params);
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    // Add ordering and pagination
+    query += ` ORDER BY e.encounter_date DESC, e.completed_at DESC`;
+    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
+    params.push(Number(limit), offset);
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      encounters: result.rows,
+      total: totalCount,
+      page: Number(page),
+      totalPages: Math.ceil(totalCount / Number(limit)),
+    });
+  } catch (error) {
+    console.error('Get completed encounters error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
