@@ -227,19 +227,32 @@ const DoctorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Modern Header */}
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+        <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Doctor Dashboard - Dr. {user?.first_name} {user?.last_name}
-            </h1>
+            <div className="flex items-center gap-3">
+              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Doctor Dashboard
+                </h1>
+                <p className="text-blue-100 text-sm">
+                  Dr. {user?.first_name} {user?.last_name}
+                </p>
+              </div>
+            </div>
             <button
               onClick={() => {
                 logout();
                 navigate('/login');
               }}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -250,32 +263,43 @@ const DoctorDashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Room View */}
           <div className="lg:col-span-1">
-            <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                Active Patients by Room ({roomEncounters.length})
-              </h2>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-2 rounded-lg">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Active Patients <span className="text-blue-600">({roomEncounters.length})</span>
+                </h2>
+              </div>
               <div className="space-y-3">
                 {roomEncounters.map((encounter) => (
                   <div
                     key={encounter.id}
                     onClick={() => setSelectedEncounter(encounter)}
-                    className={`p-3 border-l-4 border-primary-400 rounded cursor-pointer hover:shadow-md transition-shadow ${
+                    className={`p-4 border-l-4 border-blue-400 rounded-xl cursor-pointer transition-all hover:shadow-md bg-gradient-to-r from-blue-50 to-indigo-50 ${
                       selectedEncounter?.id === encounter.id
-                        ? 'bg-primary-50 ring-2 ring-primary-500'
-                        : 'bg-white'
+                        ? 'ring-2 ring-blue-500 shadow-lg scale-[1.02]'
+                        : ''
                     }`}
                   >
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-bold text-lg">Room {encounter.room_number}</div>
-                        <div className="font-semibold">{encounter.patient_name}</div>
-                        <div className="text-sm text-gray-600">{encounter.patient_number}</div>
+                        <div className="inline-block px-3 py-1 bg-blue-600 text-white text-sm font-bold rounded-lg mb-2">
+                          Room {encounter.room_number}
+                        </div>
+                        <div className="font-bold text-lg text-gray-900">{encounter.patient_name}</div>
+                        <div className="text-sm text-gray-600 mt-1">{encounter.patient_number}</div>
                         {encounter.nurse_name && (
-                          <div className="text-xs text-gray-500">Nurse: {encounter.nurse_name}</div>
+                          <div className="text-xs text-blue-600 mt-1 font-medium">
+                            👩‍⚕️ Nurse: {encounter.nurse_name}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -283,7 +307,12 @@ const DoctorDashboard: React.FC = () => {
                 ))}
 
                 {roomEncounters.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">No active patients</div>
+                  <div className="text-center py-12 text-gray-400">
+                    <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <p className="font-medium">No active patients</p>
+                  </div>
                 )}
               </div>
             </div>
@@ -292,35 +321,35 @@ const DoctorDashboard: React.FC = () => {
           {/* Patient Details & Actions */}
           <div className="lg:col-span-2">
             {selectedEncounter ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* Patient Info */}
-                <div className="card">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <h2 className="text-xl font-semibold text-gray-900">Patient Information</h2>
+                    <div>
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedEncounter.patient_name}</h2>
+                      <div className="flex gap-4 mt-2 text-sm">
+                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold">
+                          Patient #: {selectedEncounter.patient_number}
+                        </span>
+                        <span className="px-3 py-1 bg-purple-50 text-purple-700 rounded-lg font-semibold">
+                          Encounter #: {selectedEncounter.encounter_number}
+                        </span>
+                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-semibold">
+                          Room {selectedEncounter.room_number}
+                        </span>
+                      </div>
+                    </div>
                     <Link
                       to={`/patients/${selectedEncounter.patient_id}`}
-                      className="text-primary-600 hover:text-primary-800 text-sm"
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold flex items-center gap-2"
                     >
-                      View Full Chart →
+                      View Full Chart
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-sm text-gray-600">Name</div>
-                      <div className="font-semibold">{selectedEncounter.patient_name}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Patient Number</div>
-                      <div className="font-semibold">{selectedEncounter.patient_number}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Encounter Number</div>
-                      <div className="font-semibold">{selectedEncounter.encounter_number}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-gray-600">Room</div>
-                      <div className="font-semibold">{selectedEncounter.room_number}</div>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200">
                     <div className="col-span-2">
                       <div className="text-sm text-gray-600">Chief Complaint</div>
                       <div className="font-semibold">{selectedEncounter.chief_complaint}</div>
@@ -645,9 +674,16 @@ const DoctorDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="card">
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-lg">Select a patient from the room list to view details</p>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
+                <div className="text-center text-gray-400">
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-blue-200 rounded-full blur-3xl opacity-20"></div>
+                    <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <p className="text-2xl font-semibold text-gray-600 mb-2">Select a patient to begin</p>
+                  <p className="text-gray-400">Choose a patient from the active rooms to view their details and medical records</p>
                 </div>
               </div>
             )}
