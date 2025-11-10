@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { validateVitalSign } from '../utils/vitalSignsValidation';
 import HPAccordion from '../components/HPAccordion';
+import { useNotification } from '../context/NotificationContext';
+import NotificationCenter from '../components/NotificationCenter';
 
 interface AssignedPatient {
   id: number;
@@ -86,6 +88,7 @@ interface PharmacyOrder {
 const NurseDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { showToast } = useNotification();
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -190,7 +193,7 @@ const NurseDashboard: React.FC = () => {
 
   const handleAssignRoom = async (encounterId: number, roomId: number) => {
     if (!roomId || roomId === 0) {
-      alert('Please select a room');
+      showToast('Please select a room', 'warning');
       return;
     }
 
@@ -199,24 +202,24 @@ const NurseDashboard: React.FC = () => {
         encounter_id: encounterId,
         room_id: roomId,
       });
-      alert('Room assigned successfully');
+      showToast('Room assigned successfully', 'success');
       await loadAssignedPatients();
       await loadRooms();
     } catch (error: any) {
       console.error('Error assigning room:', error);
       const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to assign room';
-      alert(errorMessage);
+      showToast(errorMessage, 'error');
     }
   };
 
   const handleStartProcedure = async (procedureId: number) => {
     try {
       await apiClient.post(`/nurse-procedures/${procedureId}/start`);
-      alert('Procedure started');
+      showToast('Procedure started', 'success');
       loadNurseProcedures();
     } catch (error) {
       console.error('Error starting procedure:', error);
-      alert('Failed to start procedure');
+      showToast('Failed to start procedure', 'error');
     }
   };
 
@@ -306,7 +309,7 @@ const NurseDashboard: React.FC = () => {
     // If there are validation errors, show them and return
     if (Object.keys(errors).length > 0) {
       setVitalErrors(errors);
-      alert('Please correct the invalid vital signs before submitting.');
+      showToast('Please correct the invalid vital signs before submitting', 'warning');
       return;
     }
 
@@ -325,9 +328,9 @@ const NurseDashboard: React.FC = () => {
       });
 
       if (response.data.criticalValues && response.data.criticalValues.length > 0) {
-        alert('Vital signs saved successfully.\n\nCritical values detected: ' + response.data.criticalValues.join(', ') + '\nDoctor has been alerted.');
+        showToast(`Vital signs saved successfully. Critical values detected: ${response.data.criticalValues.join(', ')}. Doctor has been alerted.`, 'warning');
       } else {
-        alert('Vital signs saved successfully');
+        showToast('Vital signs saved successfully', 'success');
       }
 
       setVitals({
@@ -476,18 +479,21 @@ const NurseDashboard: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <NotificationCenter />
+              <button
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
