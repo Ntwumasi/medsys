@@ -83,9 +83,10 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       alert('Payment recorded and encounter completed successfully!');
       onClose();
       if (onPaymentComplete) onPaymentComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error completing payment:', error);
-      alert('Failed to complete payment. Please try again.');
+      const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
+      alert(`Failed to complete payment: ${errorMessage}`);
     }
   };
 
@@ -108,9 +109,10 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       alert('Invoice submitted to payer and encounter completed successfully!');
       onClose();
       if (onPaymentComplete) onPaymentComplete();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting to payer:', error);
-      alert('Failed to submit to payer. Please try again.');
+      const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
+      alert(`Failed to submit to payer: ${errorMessage}`);
     }
   };
 
