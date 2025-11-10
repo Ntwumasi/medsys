@@ -107,7 +107,6 @@ const NurseDashboard: React.FC = () => {
 
   // Notes state
   const [noteContent, setNoteContent] = useState('');
-  const [noteType, setNoteType] = useState<'nurse_hmp' | 'nurse_general'>('nurse_hmp');
 
   // Tab state for better UI organization
   const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing'>('hp');
@@ -342,7 +341,7 @@ const NurseDashboard: React.FC = () => {
       await apiClient.post('/clinical-notes', {
         encounter_id: selectedPatient.id,
         patient_id: selectedPatient.patient_id,
-        note_type: noteType,
+        note_type: 'nurse_general',
         content: noteContent,
       });
 
@@ -1169,27 +1168,13 @@ const NurseDashboard: React.FC = () => {
                     {activeTab === 'notes' && (
                       <form onSubmit={handleAddNote} className="space-y-4">
                         <div>
-                          <label className="label">Note Type</label>
-                          <select
-                            value={noteType}
-                            onChange={(e) =>
-                              setNoteType(e.target.value as 'nurse_hmp' | 'nurse_general')
-                            }
-                            className="input"
-                          >
-                            <option value="nurse_hmp">History & Physical (H&P)</option>
-                            <option value="nurse_general">General Note</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="label">Note Content</label>
+                          <label className="label">Clinical Note</label>
                           <textarea
                             value={noteContent}
                             onChange={(e) => setNoteContent(e.target.value)}
                             className="input"
-                            rows={6}
-                            placeholder="Enter clinical notes..."
+                            rows={8}
+                            placeholder="Enter clinical notes...\n\nUse the H&P tab for detailed History & Physical documentation."
                             required
                           />
                         </div>
