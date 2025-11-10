@@ -112,6 +112,9 @@ const NurseDashboard: React.FC = () => {
   // Tab state for better UI organization
   const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing'>('hp');
 
+  // Room editing state
+  const [editingRoom, setEditingRoom] = useState(false);
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
@@ -173,16 +176,23 @@ const NurseDashboard: React.FC = () => {
   };
 
   const handleAssignRoom = async (encounterId: number, roomId: number) => {
+    if (!roomId || roomId === 0) {
+      alert('Please select a room');
+      return;
+    }
+
     try {
       await apiClient.post('/workflow/assign-room', {
         encounter_id: encounterId,
         room_id: roomId,
       });
-      loadAssignedPatients();
-      loadRooms();
-    } catch (error) {
+      alert('Room assigned successfully');
+      await loadAssignedPatients();
+      await loadRooms();
+    } catch (error: any) {
       console.error('Error assigning room:', error);
-      alert('Failed to assign room');
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to assign room';
+      alert(errorMessage);
     }
   };
 
@@ -517,7 +527,10 @@ const NurseDashboard: React.FC = () => {
                 {assignedPatients.map((patient) => (
                   <div
                     key={patient.id}
-                    onClick={() => setSelectedPatient(patient)}
+                    onClick={() => {
+                      setSelectedPatient(patient);
+                      setEditingRoom(false);
+                    }}
                     className={`p-4 border-l-4 rounded-xl cursor-pointer transition-all hover:shadow-md ${getPriorityColor(
                       patient.current_priority
                     )} ${selectedPatient?.id === patient.id ? 'ring-2 ring-blue-500 shadow-lg scale-[1.02]' : ''}`}
@@ -583,18 +596,33 @@ const NurseDashboard: React.FC = () => {
                         </svg>
                         Room Assignment
                       </div>
-                      {selectedPatient.room_number ? (
-                        <div className="font-bold text-xl text-gray-900">
-                          Room {selectedPatient.room_number} {selectedPatient.room_name}
+                      {selectedPatient.room_number && !editingRoom ? (
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-xl text-gray-900">
+                            Room {selectedPatient.room_number} {selectedPatient.room_name}
+                          </div>
+                          <button
+                            onClick={() => setEditingRoom(true)}
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                          >
+                            Change
+                          </button>
                         </div>
                       ) : (
-                        <div>
+                        <div className="space-y-2">
                           <select
-                            onChange={(e) => handleAssignRoom(selectedPatient.id, Number(e.target.value))}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAssignRoom(selectedPatient.id, Number(e.target.value));
+                                setEditingRoom(false);
+                              }
+                            }}
                             className="w-full px-3 py-2 border-2 border-orange-300 bg-orange-50 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent font-semibold text-orange-900"
                             defaultValue=""
                           >
-                            <option value="">⚠️ ASSIGN ROOM FIRST</option>
+                            <option value="">
+                              {selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM FIRST'}
+                            </option>
                             {rooms
                               .filter((r) => r.is_available)
                               .map((room) => (
@@ -603,6 +631,14 @@ const NurseDashboard: React.FC = () => {
                                 </option>
                               ))}
                           </select>
+                          {editingRoom && (
+                            <button
+                              onClick={() => setEditingRoom(false)}
+                              className="w-full px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+                            >
+                              Cancel
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
