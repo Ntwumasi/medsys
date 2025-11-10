@@ -1393,32 +1393,82 @@ const NurseDashboard: React.FC = () => {
 
                     {/* Clinical Notes Tab */}
                     {activeTab === 'notes' && (
-                      <form onSubmit={handleAddNote} className="space-y-4">
-                        <div>
-                          <label className="label">Clinical Note</label>
-                          <textarea
-                            value={noteContent}
-                            onChange={(e) => setNoteContent(e.target.value)}
-                            className="input"
-                            rows={8}
-                            placeholder="Enter clinical notes...\n\nUse the H&P tab for detailed History & Physical documentation."
-                            required
-                          />
-                        </div>
+                      <div className="space-y-6">
+                        <form onSubmit={handleAddNote} className="space-y-4">
+                          <div>
+                            <label className="label">Clinical Note</label>
+                            <textarea
+                              value={noteContent}
+                              onChange={(e) => setNoteContent(e.target.value)}
+                              className="input"
+                              rows={8}
+                              placeholder="Enter clinical notes...\n\nUse the H&P tab for detailed History & Physical documentation."
+                              required
+                            />
+                          </div>
 
-                        <div className="flex gap-2">
-                          <button type="submit" className="btn-primary">
-                            Add Note
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleAlertDoctor}
-                            className="btn-secondary"
-                          >
-                            Alert Doctor - Patient Ready
-                          </button>
-                        </div>
-                      </form>
+                          <div className="flex gap-2">
+                            <button type="submit" className="btn-primary">
+                              Add Note
+                            </button>
+                          </div>
+                        </form>
+
+                        {/* Past Clinical Notes */}
+                        {clinicalNotes.length > 0 && (
+                          <div className="mt-8">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              Past Clinical Notes
+                            </h3>
+                            <div className="space-y-3">
+                              {clinicalNotes.map((note: any, index: number) => (
+                                <div
+                                  key={note.id || index}
+                                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        {note.note_type || 'Nurse Note'}
+                                      </span>
+                                      {note.created_by && (
+                                        <span className="text-sm text-gray-600">
+                                          by {note.created_by}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {note.created_at && (
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(note.created_at).toLocaleString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric',
+                                          hour: 'numeric',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-gray-800 whitespace-pre-wrap">{note.content}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {clinicalNotes.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p className="mt-2">No clinical notes yet</p>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Patient Routing Tab */}
