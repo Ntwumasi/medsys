@@ -96,9 +96,9 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     }
 
     try {
-      // Update invoice status to submitted
+      // Update invoice status to paid (invoice submitted to payer for processing)
       await apiClient.put(`/invoices/${invoice.id}`, {
-        status: 'submitted',
+        status: 'paid',
       });
 
       // Complete the encounter
