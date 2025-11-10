@@ -39,3 +39,4 @@ coverage/
 *.tmp
 *.temp
 .vercel
+api/index.ts
