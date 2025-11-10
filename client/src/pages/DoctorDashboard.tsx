@@ -40,22 +40,16 @@ const DoctorDashboard: React.FC = () => {
   const [noteContent, setNoteContent] = useState('');
   const [nurseNoteContent, setNurseNoteContent] = useState('');
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
-  const [orderType, setOrderType] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
 
-  // Lab order
-  const [labTestName, setLabTestName] = useState('');
-  const [labPriority, setLabPriority] = useState<'routine' | 'urgent' | 'stat'>('routine');
+  // Multi-order state - arrays to hold pending orders
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string}>>([]);
+  const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, priority: string}>>([]);
 
-  // Imaging order
-  const [imagingType, setImagingType] = useState('');
-  const [bodyPart, setBodyPart] = useState('');
-
-  // Pharmacy order
-  const [medicationName, setMedicationName] = useState('');
-  const [dosage, setDosage] = useState('');
-  const [frequency, setFrequency] = useState('');
-  const [route, setRoute] = useState('');
-  const [quantity, setQuantity] = useState('');
+  // Current order being added
+  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
+  const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
 
   // H&P Form state
   const [showHPForm, setShowHPForm] = useState(false);
@@ -178,47 +172,92 @@ const DoctorDashboard: React.FC = () => {
     }
   };
 
-  const handleSubmitOrder = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Add orders to pending arrays
+  const handleAddLabOrder = () => {
+    if (!currentLabOrder.test_name) {
+      alert('Please enter a test name');
+      return;
+    }
+    setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
+    setCurrentLabOrder({test_name: '', priority: 'routine'});
+  };
+
+  const handleAddImagingOrder = () => {
+    if (!currentImagingOrder.imaging_type) {
+      alert('Please enter imaging type');
+      return;
+    }
+    setPendingImagingOrders([...pendingImagingOrders, currentImagingOrder]);
+    setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine'});
+  };
+
+  const handleAddPharmacyOrder = () => {
+    if (!currentPharmacyOrder.medication_name) {
+      alert('Please enter medication name');
+      return;
+    }
+    setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
+  };
+
+  // Remove orders from pending arrays
+  const handleRemoveLabOrder = (index: number) => {
+    setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveImagingOrder = (index: number) => {
+    setPendingImagingOrders(pendingImagingOrders.filter((_, i) => i !== index));
+  };
+
+  const handleRemovePharmacyOrder = (index: number) => {
+    setPendingPharmacyOrders(pendingPharmacyOrders.filter((_, i) => i !== index));
+  };
+
+  // Submit all pending orders
+  const handleSubmitAllOrders = async () => {
     if (!selectedEncounter) return;
 
+    const totalOrders = pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length;
+
+    if (totalOrders === 0) {
+      alert('Please add at least one order before submitting');
+      return;
+    }
+
+    if (!confirm(`Submit ${totalOrders} order(s)?`)) {
+      return;
+    }
+
     try {
-      let orderData: any = {
+      const baseData = {
         patient_id: selectedEncounter.patient_id,
         encounter_id: selectedEncounter.id,
       };
 
-      if (orderType === 'lab') {
-        orderData = { ...orderData, test_name: labTestName, priority: labPriority };
-        await apiClient.post('/orders/lab', orderData);
-        setLabTestName('');
-      } else if (orderType === 'imaging') {
-        orderData = { ...orderData, imaging_type: imagingType, body_part: bodyPart, priority: labPriority };
-        await apiClient.post('/orders/imaging', orderData);
-        setImagingType('');
-        setBodyPart('');
-      } else if (orderType === 'pharmacy') {
-        orderData = {
-          ...orderData,
-          medication_name: medicationName,
-          dosage,
-          frequency,
-          route,
-          quantity,
-          priority: labPriority,
-        };
-        await apiClient.post('/orders/pharmacy', orderData);
-        setMedicationName('');
-        setDosage('');
-        setFrequency('');
-        setRoute('');
-        setQuantity('');
+      // Submit all lab orders
+      for (const order of pendingLabOrders) {
+        await apiClient.post('/orders/lab', { ...baseData, ...order });
       }
 
-      alert('Order submitted successfully');
+      // Submit all imaging orders
+      for (const order of pendingImagingOrders) {
+        await apiClient.post('/orders/imaging', { ...baseData, ...order });
+      }
+
+      // Submit all pharmacy orders
+      for (const order of pendingPharmacyOrders) {
+        await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
+      }
+
+      alert(`Successfully submitted ${totalOrders} order(s)!`);
+
+      // Clear all pending orders
+      setPendingLabOrders([]);
+      setPendingImagingOrders([]);
+      setPendingPharmacyOrders([]);
     } catch (error) {
-      console.error('Error submitting order:', error);
-      alert('Failed to submit order');
+      console.error('Error submitting orders:', error);
+      alert('Failed to submit some orders. Please try again.');
     }
   };
 
@@ -414,140 +453,270 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Orders */}
+                {/* Orders - New Multi-Order UI */}
                 <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Place Orders</h2>
-                  <form onSubmit={handleSubmitOrder} className="space-y-4">
-                    <div>
-                      <label className="label">Order Type</label>
-                      <select
-                        value={orderType}
-                        onChange={(e) => setOrderType(e.target.value as any)}
-                        className="input"
-                      >
-                        <option value="lab">Lab Test</option>
-                        <option value="imaging">Imaging / X-Ray</option>
-                        <option value="pharmacy">Pharmacy / Medication</option>
-                      </select>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Place Orders</h2>
+                    {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
+                      <span className="px-4 py-2 bg-blue-100 text-blue-800 font-bold rounded-lg">
+                        {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Lab Orders */}
+                    <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
+                      <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                        Lab Tests
+                        {pendingLabOrders.length > 0 && (
+                          <span className="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded-full text-xs">
+                            {pendingLabOrders.length}
+                          </span>
+                        )}
+                      </h3>
+
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={currentLabOrder.test_name}
+                          onChange={(e) => setCurrentLabOrder({...currentLabOrder, test_name: e.target.value})}
+                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          placeholder="CBC, CMP, Lipid Panel..."
+                        />
+                        <select
+                          value={currentLabOrder.priority}
+                          onChange={(e) => setCurrentLabOrder({...currentLabOrder, priority: e.target.value})}
+                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                        >
+                          <option value="routine">Routine</option>
+                          <option value="urgent">Urgent</option>
+                          <option value="stat">STAT</option>
+                        </select>
+                        <button
+                          onClick={handleAddLabOrder}
+                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Lab Order
+                        </button>
+
+                        {/* Pending Lab Orders */}
+                        {pendingLabOrders.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {pendingLabOrders.map((order, index) => (
+                              <div key={index} className="bg-white p-3 rounded-lg border border-blue-200 flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-gray-900">{order.test_name}</div>
+                                  <div className="text-xs text-blue-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveLabOrder(index)}
+                                  className="text-red-600 hover:text-red-800 ml-2"
+                                >
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {orderType === 'lab' && (
-                      <>
-                        <div>
-                          <label className="label">Test Name</label>
-                          <input
-                            type="text"
-                            value={labTestName}
-                            onChange={(e) => setLabTestName(e.target.value)}
-                            className="input"
-                            placeholder="CBC, CMP, Lipid Panel, etc."
-                            required
-                          />
-                        </div>
-                      </>
-                    )}
+                    {/* Imaging Orders */}
+                    <div className="border-2 border-slate-200 rounded-xl p-4 bg-slate-50">
+                      <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                        </svg>
+                        Imaging
+                        {pendingImagingOrders.length > 0 && (
+                          <span className="ml-auto px-2 py-0.5 bg-slate-600 text-white rounded-full text-xs">
+                            {pendingImagingOrders.length}
+                          </span>
+                        )}
+                      </h3>
 
-                    {orderType === 'imaging' && (
-                      <>
-                        <div>
-                          <label className="label">Imaging Type</label>
-                          <input
-                            type="text"
-                            value={imagingType}
-                            onChange={(e) => setImagingType(e.target.value)}
-                            className="input"
-                            placeholder="X-Ray, CT, MRI, Ultrasound"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="label">Body Part</label>
-                          <input
-                            type="text"
-                            value={bodyPart}
-                            onChange={(e) => setBodyPart(e.target.value)}
-                            className="input"
-                            placeholder="Chest, Abdomen, etc."
-                          />
-                        </div>
-                      </>
-                    )}
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={currentImagingOrder.imaging_type}
+                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: e.target.value})}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                          placeholder="X-Ray, CT, MRI..."
+                        />
+                        <input
+                          type="text"
+                          value={currentImagingOrder.body_part}
+                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, body_part: e.target.value})}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                          placeholder="Body part (optional)"
+                        />
+                        <select
+                          value={currentImagingOrder.priority}
+                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, priority: e.target.value})}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                        >
+                          <option value="routine">Routine</option>
+                          <option value="urgent">Urgent</option>
+                          <option value="stat">STAT</option>
+                        </select>
+                        <button
+                          onClick={handleAddImagingOrder}
+                          className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Imaging Order
+                        </button>
 
-                    {orderType === 'pharmacy' && (
-                      <>
-                        <div>
-                          <label className="label">Medication Name</label>
-                          <input
-                            type="text"
-                            value={medicationName}
-                            onChange={(e) => setMedicationName(e.target.value)}
-                            className="input"
-                            placeholder="Medication name"
-                            required
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="label">Dosage</label>
-                            <input
-                              type="text"
-                              value={dosage}
-                              onChange={(e) => setDosage(e.target.value)}
-                              className="input"
-                              placeholder="500mg"
-                            />
+                        {/* Pending Imaging Orders */}
+                        {pendingImagingOrders.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {pendingImagingOrders.map((order, index) => (
+                              <div key={index} className="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-gray-900">{order.imaging_type}</div>
+                                  {order.body_part && <div className="text-sm text-gray-600">{order.body_part}</div>}
+                                  <div className="text-xs text-slate-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveImagingOrder(index)}
+                                  className="text-red-600 hover:text-red-800 ml-2"
+                                >
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
                           </div>
-                          <div>
-                            <label className="label">Frequency</label>
-                            <input
-                              type="text"
-                              value={frequency}
-                              onChange={(e) => setFrequency(e.target.value)}
-                              className="input"
-                              placeholder="Twice daily"
-                            />
-                          </div>
-                          <div>
-                            <label className="label">Route</label>
-                            <input
-                              type="text"
-                              value={route}
-                              onChange={(e) => setRoute(e.target.value)}
-                              className="input"
-                              placeholder="Oral, IV, etc."
-                            />
-                          </div>
-                          <div>
-                            <label className="label">Quantity</label>
-                            <input
-                              type="text"
-                              value={quantity}
-                              onChange={(e) => setQuantity(e.target.value)}
-                              className="input"
-                              placeholder="30 tablets"
-                            />
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    <div>
-                      <label className="label">Priority</label>
-                      <select
-                        value={labPriority}
-                        onChange={(e) => setLabPriority(e.target.value as any)}
-                        className="input"
-                      >
-                        <option value="routine">Routine</option>
-                        <option value="urgent">Urgent</option>
-                        <option value="stat">STAT</option>
-                      </select>
+                        )}
+                      </div>
                     </div>
 
-                    <button type="submit" className="btn-primary">
-                      Submit Order
-                    </button>
-                  </form>
+                    {/* Pharmacy Orders */}
+                    <div className="border-2 border-emerald-200 rounded-xl p-4 bg-emerald-50">
+                      <h3 className="font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        Pharmacy
+                        {pendingPharmacyOrders.length > 0 && (
+                          <span className="ml-auto px-2 py-0.5 bg-emerald-600 text-white rounded-full text-xs">
+                            {pendingPharmacyOrders.length}
+                          </span>
+                        )}
+                      </h3>
+
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={currentPharmacyOrder.medication_name}
+                          onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, medication_name: e.target.value})}
+                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                          placeholder="Medication name"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.dosage}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, dosage: e.target.value})}
+                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            placeholder="Dosage"
+                          />
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.frequency}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: e.target.value})}
+                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            placeholder="Frequency"
+                          />
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.route}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: e.target.value})}
+                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            placeholder="Route"
+                          />
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.quantity}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
+                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            placeholder="Quantity"
+                          />
+                        </div>
+                        <select
+                          value={currentPharmacyOrder.priority}
+                          onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: e.target.value})}
+                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                        >
+                          <option value="routine">Routine</option>
+                          <option value="urgent">Urgent</option>
+                          <option value="stat">STAT</option>
+                        </select>
+                        <button
+                          onClick={handleAddPharmacyOrder}
+                          className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Pharmacy Order
+                        </button>
+
+                        {/* Pending Pharmacy Orders */}
+                        {pendingPharmacyOrders.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {pendingPharmacyOrders.map((order, index) => (
+                              <div key={index} className="bg-white p-3 rounded-lg border border-emerald-200 flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="font-semibold text-gray-900">{order.medication_name}</div>
+                                  <div className="text-sm text-gray-600">
+                                    {order.dosage} {order.frequency && `• ${order.frequency}`}
+                                  </div>
+                                  {order.route && <div className="text-sm text-gray-600">{order.route} • {order.quantity}</div>}
+                                  <div className="text-xs text-emerald-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                </div>
+                                <button
+                                  onClick={() => handleRemovePharmacyOrder(index)}
+                                  className="text-red-600 hover:text-red-800 ml-2"
+                                >
+                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit All Orders Button */}
+                  {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
+                    <div className="mt-6 pt-6 border-t-2 border-gray-200">
+                      <button
+                        onClick={handleSubmitAllOrders}
+                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-bold text-lg flex items-center justify-center gap-3"
+                      >
+                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Submit All {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Order(s)
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Clinical Notes */}
