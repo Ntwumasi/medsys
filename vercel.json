@@ -1,13 +1,6 @@
 {
+  "buildCommand": "cd client && rm -rf node_modules && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "installCommand": "npm install",
+  "framework": null
 }
