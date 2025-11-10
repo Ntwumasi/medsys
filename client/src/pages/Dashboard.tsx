@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
 import type { Appointment } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
+import SearchBar from '../components/SearchBar';
 
 interface CorporateClient {
   id: number;
@@ -27,10 +28,9 @@ interface InsuranceProvider {
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff'>('appointments');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff'>('staff');
 
   // Invoice state
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -305,151 +305,72 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Modern Header */}
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+        <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Welcome, {user?.first_name} {user?.last_name}
-              </h1>
-              <span className="text-sm text-gray-600 capitalize">{user?.role}</span>
+            <div className="flex items-center gap-3">
+              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Admin Dashboard
+                </h1>
+                <p className="text-blue-100 text-sm">
+                  {user?.first_name} {user?.last_name}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <SearchBar />
+              <button
+                onClick={logout}
+                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Link to="/patients/new" className="card hover:shadow-lg transition-shadow">
-            <div className="flex items-center">
-              <div className="bg-primary-100 p-3 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-primary-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">New Patient</p>
-                <p className="text-lg font-semibold text-gray-900">Register</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link to="/patients" className="card hover:shadow-lg transition-shadow">
-            <div className="flex items-center">
-              <div className="bg-green-100 p-3 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">View All</p>
-                <p className="text-lg font-semibold text-gray-900">Patients</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link to="/appointments" className="card hover:shadow-lg transition-shadow">
-            <div className="flex items-center">
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-purple-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Manage</p>
-                <p className="text-lg font-semibold text-gray-900">Appointments</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link to="/reports" className="card hover:shadow-lg transition-shadow">
-            <div className="flex items-center">
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <svg
-                  className="w-6 h-6 text-orange-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">View</p>
-                <p className="text-lg font-semibold text-gray-900">Reports</p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
+      <main className="max-w-full mx-auto px-6 py-6">
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
+        <div className="border-b border-gray-200 mb-6 bg-white rounded-t-xl shadow-lg">
+          <nav className="-mb-px flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('staff')}
+              className={`${
+                activeTab === 'staff'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Staff Management
+            </button>
             <button
               onClick={() => setActiveTab('appointments')}
               className={`${
                 activeTab === 'appointments'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
-              Today's Appointments
+              Appointments
             </button>
             <button
               onClick={() => setActiveTab('invoices')}
               className={`${
                 activeTab === 'invoices'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -459,7 +380,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('corporate')}
               className={`${
                 activeTab === 'corporate'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -469,28 +390,18 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('insurance')}
               className={`${
                 activeTab === 'insurance'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               Insurance Providers
             </button>
-            <button
-              onClick={() => setActiveTab('staff')}
-              className={`${
-                activeTab === 'staff'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Staff Management
-            </button>
           </nav>
         </div>
 
-        {/* Today's Appointments Tab */}
+        {/* Appointments Tab */}
         {activeTab === 'appointments' && (
-          <div className="card">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Today's Appointments</h2>
               <span className="text-sm text-gray-600">
@@ -572,7 +483,7 @@ const Dashboard: React.FC = () => {
 
         {/* Invoices Tab */}
         {activeTab === 'invoices' && (
-          <div className="card">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Patient Invoices</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -681,7 +592,7 @@ const Dashboard: React.FC = () => {
 
         {/* Corporate Clients Tab */}
         {activeTab === 'corporate' && (
-          <div className="card">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Corporate Clients</h2>
               <button
@@ -836,7 +747,7 @@ const Dashboard: React.FC = () => {
 
         {/* Insurance Providers Tab */}
         {activeTab === 'insurance' && (
-          <div className="card">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Insurance Providers</h2>
               <button
@@ -961,7 +872,7 @@ const Dashboard: React.FC = () => {
 
         {/* Staff Management Tab */}
         {activeTab === 'staff' && (
-          <div className="card">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Staff Management</h2>
               <button
