@@ -177,7 +177,7 @@ router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 
 router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
-router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseRoom);
+router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), releaseRoom);
 
 // Workflow routes - Nurse
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);
