@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm install --workspaces --legacy-peer-deps && cd server && npm run build && cd ../client && npm run build",
+  "buildCommand": "cd api && npm install && cd ../server && npm install --include=dev && npm run build && cd ../client && npm install --include=dev && npm run build && cd ..",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install --legacy-peer-deps --workspaces",
+  "installCommand": "npm install",
   "framework": null,
   "rewrites": [
     {
