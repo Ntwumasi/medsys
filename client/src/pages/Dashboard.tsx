@@ -7,6 +7,31 @@ import { format } from 'date-fns';
 import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
+import {
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Tabs,
+  Tab,
+  Box,
+  Chip,
+  TextField,
+  Button,
+  CircularProgress,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material';
+import {
+  Clear as ClearIcon,
+  Search as SearchIcon,
+} from '@mui/icons-material';
 
 interface CorporateClient {
   id: number;
@@ -29,8 +54,11 @@ interface InsuranceProvider {
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
+  const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
   const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff'>('staff');
+  const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -101,6 +129,31 @@ const Dashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const loadPastAppointments = async () => {
+    try {
+      setLoadingPastAppointments(true);
+      const response = await apiClient.get('/appointments', {
+        params: {
+          status: 'completed',
+          limit: 50,
+        },
+      });
+      setPastAppointments(response.data.appointments || []);
+    } catch (error) {
+      console.error('Error loading past appointments:', error);
+      setPastAppointments([]);
+    } finally {
+      setLoadingPastAppointments(false);
+    }
+  };
+
+  // Load past appointments when the subtab changes
+  useEffect(() => {
+    if (activeTab === 'appointments' && appointmentsSubTab === 'past') {
+      loadPastAppointments();
+    }
+  }, [activeTab, appointmentsSubTab]);
 
   const loadCorporateClients = async () => {
     try {
@@ -372,18 +425,6 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      scheduled: 'bg-blue-100 text-blue-800',
-      confirmed: 'bg-green-100 text-green-800',
-      'checked-in': 'bg-purple-100 text-purple-800',
-      'in-progress': 'bg-yellow-100 text-yellow-800',
-      completed: 'bg-gray-100 text-gray-800',
-      cancelled: 'bg-red-100 text-red-800',
-      'no-show': 'bg-orange-100 text-orange-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -482,84 +523,185 @@ const Dashboard: React.FC = () => {
 
         {/* Appointments Tab */}
         {activeTab === 'appointments' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Today's Appointments</h2>
-              <span className="text-sm text-gray-600">
-                {format(new Date(), 'EEEE, MMMM d, yyyy')}
-              </span>
-            </div>
+          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}>
+              <Tabs
+                value={appointmentsSubTab}
+                onChange={(_, newValue) => setAppointmentsSubTab(newValue)}
+                sx={{
+                  px: 3,
+                  '& .MuiTab-root': {
+                    textTransform: 'none',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    minHeight: 64,
+                  },
+                }}
+              >
+                <Tab label="Current Appointments" value="current" />
+                <Tab label="Past Appointments" value="past" />
+              </Tabs>
+            </Box>
 
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              <p className="mt-2 text-gray-600">Loading appointments...</p>
-            </div>
-          ) : todayAppointments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No appointments scheduled for today</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Patient
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {todayAppointments.map((appointment) => (
-                    <tr key={appointment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {format(new Date(appointment.appointment_date), 'h:mm a')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {appointment.patient_name}
-                        </div>
-                        <div className="text-sm text-gray-500">{appointment.patient_number}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {appointment.appointment_type || 'General'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
-                            appointment.status
-                          )}`}
-                        >
-                          {appointment.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Link
-                          to={`/patients/${appointment.patient_id}`}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          View Patient
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          </div>
+            <Box sx={{ p: 3 }}>
+              {appointmentsSubTab === 'current' && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" fontWeight={600}>
+                      Today's Appointments
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {format(new Date(), 'EEEE, MMMM d, yyyy')}
+                    </Typography>
+                  </Box>
+
+                  {loading ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
+                      <CircularProgress size={40} />
+                      <Typography sx={{ mt: 2 }} color="text.secondary">
+                        Loading appointments...
+                      </Typography>
+                    </Box>
+                  ) : todayAppointments.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 8 }}>
+                      <Typography color="text.secondary">No appointments scheduled for today</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                            <TableCell sx={{ fontWeight: 600 }}>Time</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {todayAppointments.map((appointment) => (
+                            <TableRow key={appointment.id} hover>
+                              <TableCell>{format(new Date(appointment.appointment_date), 'h:mm a')}</TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {appointment.patient_name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {appointment.patient_number}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={appointment.status}
+                                  size="small"
+                                  color={
+                                    appointment.status === 'completed'
+                                      ? 'success'
+                                      : appointment.status === 'scheduled'
+                                      ? 'info'
+                                      : appointment.status === 'cancelled'
+                                      ? 'error'
+                                      : 'default'
+                                  }
+                                  sx={{ fontWeight: 600 }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  component={Link}
+                                  to={`/patients/${appointment.patient_id}`}
+                                  variant="text"
+                                  size="small"
+                                >
+                                  View Patient
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+
+              {appointmentsSubTab === 'past' && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" fontWeight={600}>
+                      Past Appointments
+                    </Typography>
+                  </Box>
+
+                  {loadingPastAppointments ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
+                      <CircularProgress size={40} />
+                      <Typography sx={{ mt: 2 }} color="text.secondary">
+                        Loading past appointments...
+                      </Typography>
+                    </Box>
+                  ) : pastAppointments.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 8 }}>
+                      <Typography color="text.secondary">No past appointments found</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                            <TableCell sx={{ fontWeight: 600 }}>Date & Time</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Provider</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {pastAppointments.map((appointment) => (
+                            <TableRow key={appointment.id} hover>
+                              <TableCell>
+                                <Typography variant="body2">
+                                  {format(new Date(appointment.appointment_date), 'MMM d, yyyy')}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {format(new Date(appointment.appointment_date), 'h:mm a')}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {appointment.patient_name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {appointment.patient_number}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
+                              <TableCell>{appointment.provider_name || 'N/A'}</TableCell>
+                              <TableCell>
+                                <Chip label={appointment.status} size="small" color="default" sx={{ fontWeight: 600 }} />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  component={Link}
+                                  to={`/patients/${appointment.patient_id}`}
+                                  variant="text"
+                                  size="small"
+                                >
+                                  View Patient
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+            </Box>
+          </Paper>
         )}
 
         {/* Invoices Tab */}
@@ -971,80 +1113,78 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Filter and Search Controls */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search
-                </label>
-                <input
-                  type="text"
-                  value={staffSearchTerm}
-                  onChange={(e) => {
-                    setStaffSearchTerm(e.target.value);
-                    setStaffPage(1); // Reset to page 1 on search
-                  }}
-                  placeholder="Name or email..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+            <Box sx={{ mb: 3, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+              <TextField
+                fullWidth
+                label="Search"
+                placeholder="Name or email..."
+                value={staffSearchTerm}
+                onChange={(e) => {
+                  setStaffSearchTerm(e.target.value);
+                  setStaffPage(1);
+                }}
+                InputProps={{
+                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
+                }}
+                size="medium"
+              />
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role / Department
-                </label>
-                <select
+              <FormControl fullWidth size="medium">
+                <InputLabel>Role / Department</InputLabel>
+                <Select
                   value={staffRoleFilter}
+                  label="Role / Department"
                   onChange={(e) => {
                     setStaffRoleFilter(e.target.value);
                     setStaffPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="all">All Roles</option>
-                  <option value="doctor">Doctor</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="receptionist">Receptionist</option>
-                  <option value="lab">Lab Technician</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="imaging">Imaging/Radiology</option>
-                  <option value="admin">Administrator</option>
-                </select>
-              </div>
+                  <MenuItem value="all">All Roles</MenuItem>
+                  <MenuItem value="doctor">Doctor</MenuItem>
+                  <MenuItem value="nurse">Nurse</MenuItem>
+                  <MenuItem value="receptionist">Receptionist</MenuItem>
+                  <MenuItem value="lab">Lab Technician</MenuItem>
+                  <MenuItem value="pharmacy">Pharmacy</MenuItem>
+                  <MenuItem value="imaging">Imaging/Radiology</MenuItem>
+                  <MenuItem value="admin">Administrator</MenuItem>
+                </Select>
+              </FormControl>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
+              <FormControl fullWidth size="medium">
+                <InputLabel>Status</InputLabel>
+                <Select
                   value={staffStatusFilter}
+                  label="Status"
                   onChange={(e) => {
                     setStaffStatusFilter(e.target.value);
                     setStaffPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="inactive">Inactive</MenuItem>
+                </Select>
+              </FormControl>
 
-              <div className="flex items-end">
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {(staffSearchTerm || staffRoleFilter !== 'all' || staffStatusFilter !== 'all') && (
-                  <button
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    startIcon={<ClearIcon />}
                     onClick={() => {
                       setStaffSearchTerm('');
                       setStaffRoleFilter('all');
                       setStaffStatusFilter('all');
                       setStaffPage(1);
                     }}
-                    className="w-full px-4 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                    sx={{ height: '56px' }}
                   >
                     Clear Filters
-                  </button>
+                  </Button>
                 )}
-              </div>
-            </div>
+              </Box>
+            </Box>
 
             {showStaffForm && (
               <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-slate-50 rounded-lg border-2 border-slate-200">
