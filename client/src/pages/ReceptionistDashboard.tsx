@@ -5,6 +5,8 @@ import apiClient from '../api/client';
 import { format, isValid, parseISO } from 'date-fns';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
+import NotificationCenter from '../components/NotificationCenter';
+import { useNotification } from '../context/NotificationContext';
 
 // Safe date formatting helper
 const safeFormatDate = (dateValue: any, formatString: string, fallback: string = 'N/A'): string => {
@@ -91,6 +93,7 @@ const ReceptionistDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   console.log('ReceptionistDashboard: User', user);
   const navigate = useNavigate();
+  const { showToast } = useNotification();
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'history'>('queue');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -99,6 +102,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingNurseForEncounter, setEditingNurseForEncounter] = useState<number | null>(null);
 
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
@@ -262,17 +266,15 @@ const ReceptionistDashboard: React.FC = () => {
       // Then switch to queue view
       setActiveView('queue');
 
-      // Show success message after state is updated
-      setTimeout(() => {
-        alert(`✓ ${patientName} checked in successfully!\n\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
-      }, 100);
+      // Show success message
+      showToast(`${patientName} checked in successfully! Billing: $${billingAmount}`, 'success');
     } catch (error: any) {
       console.error('Error checking in patient:', error);
 
       // Extract error message from API response
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient';
 
-      alert(`❌ Check-In Failed\n\n${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -344,17 +346,15 @@ const ReceptionistDashboard: React.FC = () => {
       // Then switch to queue view to show the patient
       setActiveView('queue');
 
-      // Show success message after state is updated
-      setTimeout(() => {
-        alert(`✓ Patient registered successfully!\n\nPatient #: ${newPatientData.patient_number}\nBilling: $${billingAmount}\n\nPatient is now in the queue.`);
-      }, 100);
+      // Show success message
+      showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}, Billing: $${billingAmount}`, 'success');
     } catch (error: any) {
       console.error('Error creating new patient:', error);
 
       // Extract error message from API response
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to register new patient';
 
-      alert(`❌ Registration Failed\n\n${errorMessage}`);
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -364,10 +364,13 @@ const ReceptionistDashboard: React.FC = () => {
         encounter_id: encounterId,
         nurse_id: nurseId,
       });
-      loadData();
-    } catch (error) {
+      await loadData();
+      setEditingNurseForEncounter(null);
+      showToast('Nurse assigned successfully!', 'success');
+    } catch (error: any) {
       console.error('Error assigning nurse:', error);
-      alert('Failed to assign nurse');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to assign nurse';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -379,9 +382,10 @@ const ReceptionistDashboard: React.FC = () => {
       setInvoicePayerSources(response.data.payer_sources || []);
       setCurrentEncounterId(encounterId);
       setShowInvoice(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading invoice:', error);
-      alert('Failed to load invoice');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to load invoice';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -472,23 +476,26 @@ const ReceptionistDashboard: React.FC = () => {
                   setActiveView('checkin');
                   setSelectedPatient(patient);
                   const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
-                  alert(`Patient ${patientName} selected for check-in.`);
+                  showToast(`Patient ${patientName} selected for check-in`, 'info');
                 }}
                 placeholder="Search patients..."
               />
             </div>
-            <button
-              onClick={() => {
-                logout();
-                navigate('/login');
-              }}
-              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
+            <div className="flex items-center gap-4">
+              <NotificationCenter />
+              <button
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -657,8 +664,17 @@ const ReceptionistDashboard: React.FC = () => {
                             </span>
                           )}
                           {item.nurse_name && (
-                            <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-medium">
+                            <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
                               Nurse: {item.nurse_name}
+                              <button
+                                onClick={() => setEditingNurseForEncounter(item.id)}
+                                className="hover:bg-slate-200 rounded p-1 transition-colors"
+                                title="Change nurse"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
                             </span>
                           )}
                         </div>
@@ -686,6 +702,36 @@ const ReceptionistDashboard: React.FC = () => {
                             </option>
                           ))}
                         </select>
+                      )}
+
+                      {editingNurseForEncounter === item.id && item.nurse_name && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleAssignNurse(item.id, Number(e.target.value));
+                              }
+                            }}
+                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            defaultValue=""
+                          >
+                            <option value="">Select new nurse</option>
+                            {nurses.map((nurse) => (
+                              <option key={nurse.id} value={nurse.id}>
+                                {nurse.first_name} {nurse.last_name}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => setEditingNurseForEncounter(null)}
+                            className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                            title="Cancel"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       )}
 
                       <button
