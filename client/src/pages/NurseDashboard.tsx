@@ -601,7 +601,136 @@ const NurseDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200">
+                  {/* Progress Indicator */}
+                  <div className="mt-6 mb-4">
+                    {(() => {
+                      // Calculate progress
+                      const hasVitals = selectedPatient.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0;
+                      const hasOrders = labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0;
+                      const allOrdersComplete = hasOrders &&
+                        [...labOrders, ...imagingOrders, ...pharmacyOrders].every(order => order.status === 'completed');
+
+                      let progress = 15; // Started (checked in + room assigned)
+                      let stage = 'Room Assigned';
+
+                      if (hasVitals) {
+                        progress = 30;
+                        stage = 'Vitals Recorded';
+                      }
+                      if (hasVitals && activeTab === 'hp') {
+                        progress = 45;
+                        stage = 'H&P In Progress';
+                      }
+                      if (hasOrders) {
+                        progress = 65;
+                        stage = 'Doctor Reviewing';
+                      }
+                      if (allOrdersComplete) {
+                        progress = 85;
+                        stage = 'Orders Complete';
+                      }
+
+                      return (
+                        <div className="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6 rounded-2xl border-2 border-blue-200 shadow-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Patient Journey</div>
+                              <div className="text-lg font-bold text-gray-900">{stage}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-3xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                                {progress}%
+                              </div>
+                              <div className="text-xs text-gray-500 font-semibold">Complete</div>
+                            </div>
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                            <div
+                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-1000 ease-out shadow-lg"
+                              style={{ width: `${progress}%` }}
+                            >
+                              <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-transparent animate-pulse"></div>
+                            </div>
+
+                            {/* Milestone markers */}
+                            <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-1">
+                              {[15, 30, 45, 65, 85, 100].map((milestone) => (
+                                <div
+                                  key={milestone}
+                                  className={`w-2 h-2 rounded-full border-2 transition-all duration-300 ${
+                                    progress >= milestone
+                                      ? 'bg-white border-blue-600 scale-110 shadow-lg'
+                                      : 'bg-gray-300 border-gray-400'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Order Status Badges */}
+                          {hasOrders && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider w-full mb-1">
+                                Active Orders:
+                              </div>
+                              {labOrders.length > 0 && (
+                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
+                                  labOrders.every(o => o.status === 'completed')
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : labOrders.some(o => o.status === 'in_progress')
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-300 animate-pulse'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                  </svg>
+                                  Labs ({labOrders.length})
+                                  {labOrders.every(o => o.status === 'completed') ? ' ✓' :
+                                   labOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
+                                </div>
+                              )}
+                              {pharmacyOrders.length > 0 && (
+                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
+                                  pharmacyOrders.every(o => o.status === 'completed')
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : pharmacyOrders.some(o => o.status === 'in_progress')
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-300 animate-pulse'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                  </svg>
+                                  Pharmacy ({pharmacyOrders.length})
+                                  {pharmacyOrders.every(o => o.status === 'completed') ? ' ✓' :
+                                   pharmacyOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
+                                </div>
+                              )}
+                              {imagingOrders.length > 0 && (
+                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
+                                  imagingOrders.every(o => o.status === 'completed')
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : imagingOrders.some(o => o.status === 'in_progress')
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-300 animate-pulse'
+                                    : 'bg-amber-100 text-amber-800 border border-amber-300'
+                                }`}>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                  </svg>
+                                  Imaging ({imagingOrders.length})
+                                  {imagingOrders.every(o => o.status === 'completed') ? ' ✓' :
+                                   imagingOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200">
                     <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-4 rounded-xl border border-gray-200">
                       <div className="text-xs text-gray-500 uppercase font-bold mb-2 flex items-center gap-2">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -663,6 +792,21 @@ const NurseDashboard: React.FC = () => {
                         Chief Complaint
                       </div>
                       <div className="font-bold text-lg text-gray-900">{selectedPatient.chief_complaint}</div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 flex items-center justify-center">
+                      <button
+                        onClick={handleAlertDoctor}
+                        className="w-full px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 font-bold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        Alert Doctor
+                        <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
