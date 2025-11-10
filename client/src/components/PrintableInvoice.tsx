@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { format } from 'date-fns';
+import apiClient from '../api/client';
 
 interface InvoiceItem {
   id: number;
@@ -41,19 +42,76 @@ interface PrintableInvoiceProps {
   invoice: Invoice;
   items: InvoiceItem[];
   payerSources: PayerSource[];
+  encounterId?: number;
   onClose: () => void;
+  onPaymentComplete?: () => void;
 }
 
 const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   invoice,
   items,
   payerSources,
+  encounterId,
   onClose,
+  onPaymentComplete,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
+
+  const handleMarkAsPaid = async () => {
+    if (!confirm('Mark this invoice as paid and complete the encounter?')) {
+      return;
+    }
+
+    try {
+      // Mark invoice as paid
+      await apiClient.put(`/invoices/${invoice.id}`, {
+        status: 'paid',
+        amount_paid: invoice.total_amount,
+      });
+
+      // Complete the encounter
+      await apiClient.post('/workflow/release-room', {
+        encounter_id: encounterId,
+      });
+
+      alert('Payment recorded and encounter completed successfully!');
+      onClose();
+      if (onPaymentComplete) onPaymentComplete();
+    } catch (error) {
+      console.error('Error completing payment:', error);
+      alert('Failed to complete payment. Please try again.');
+    }
+  };
+
+  const handleSubmitToPayer = async () => {
+    if (!confirm('Submit this invoice to the payer and complete the encounter?')) {
+      return;
+    }
+
+    try {
+      // Update invoice status to submitted
+      await apiClient.put(`/invoices/${invoice.id}`, {
+        status: 'submitted',
+      });
+
+      // Complete the encounter
+      await apiClient.post('/workflow/release-room', {
+        encounter_id: encounterId,
+      });
+
+      alert('Invoice submitted to payer and encounter completed successfully!');
+      onClose();
+      if (onPaymentComplete) onPaymentComplete();
+    } catch (error) {
+      console.error('Error submitting to payer:', error);
+      alert('Failed to submit to payer. Please try again.');
+    }
   };
 
   const formatPayerSource = (payer: PayerSource) => {
@@ -73,25 +131,54 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
         {/* Non-printable header with action buttons */}
-        <div className="print:hidden bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center rounded-t-lg">
-          <h2 className="text-xl font-bold text-gray-900">Invoice Preview</h2>
-          <div className="flex gap-2">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              Print Invoice
-            </button>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              Close
-            </button>
+        <div className="print:hidden bg-gray-100 px-6 py-4 border-b border-gray-200 rounded-t-lg">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Invoice Preview</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={handlePrint}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Invoice
+              </button>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
+
+          {/* Payment Actions - Only show if encounterId is provided */}
+          {encounterId && (
+            <div className="flex gap-3 pt-4 border-t border-gray-300">
+              {isSelfPay ? (
+                <button
+                  onClick={handleMarkAsPaid}
+                  className="flex-1 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Mark as Paid & Complete Encounter
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubmitToPayer}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Submit to {payerSources[0]?.payer_type === 'corporate' ? 'Corporate' : 'Insurance'} & Complete Encounter
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Printable invoice content */}

@@ -132,6 +132,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
   const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
+  const [currentEncounterId, setCurrentEncounterId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -328,11 +329,17 @@ const ReceptionistDashboard: React.FC = () => {
       setInvoiceData(response.data.invoice);
       setInvoiceItems(response.data.items || []);
       setInvoicePayerSources(response.data.payer_sources || []);
+      setCurrentEncounterId(encounterId);
       setShowInvoice(true);
     } catch (error) {
       console.error('Error loading invoice:', error);
       alert('Failed to load invoice');
     }
+  };
+
+  const handlePaymentComplete = () => {
+    // Reload the patient queue data after payment is completed
+    loadData();
   };
 
   const getWaitTimeColor = (waitTimeMinutes?: number) => {
@@ -1099,12 +1106,14 @@ const ReceptionistDashboard: React.FC = () => {
       </main>
 
       {/* Invoice Modal */}
-      {showInvoice && invoiceData && (
+      {showInvoice && invoiceData && currentEncounterId && (
         <PrintableInvoice
           invoice={invoiceData}
           items={invoiceItems}
           payerSources={invoicePayerSources}
+          encounterId={currentEncounterId}
           onClose={() => setShowInvoice(false)}
+          onPaymentComplete={handlePaymentComplete}
         />
       )}
     </div>
