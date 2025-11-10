@@ -2,11 +2,5 @@
   "buildCommand": "cd api && npm install && cd ../server && npm install --include=dev && npm run build && cd ../client && npm install --include=dev && npm run build && cd ..",
   "outputDirectory": "client/dist",
   "installCommand": "npm install",
-  "framework": null,
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api"
-    }
-  ]
+  "framework": null
 }
