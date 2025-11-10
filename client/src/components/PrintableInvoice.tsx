@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
+import { useNotification } from '../context/NotificationContext';
 
 interface InvoiceItem {
   id: number;
@@ -55,6 +56,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   onClose,
   onPaymentComplete,
 }) => {
+  const { showToast } = useNotification();
   const printRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
@@ -80,13 +82,13 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         encounter_id: encounterId,
       });
 
-      alert('Payment recorded and encounter completed successfully!');
+      showToast('Payment recorded and encounter completed successfully!', 'success');
       onClose();
       if (onPaymentComplete) onPaymentComplete();
     } catch (error: any) {
       console.error('Error completing payment:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
-      alert(`Failed to complete payment: ${errorMessage}`);
+      showToast(`Failed to complete payment: ${errorMessage}`, 'error');
     }
   };
 
@@ -106,13 +108,13 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         encounter_id: encounterId,
       });
 
-      alert('Invoice submitted to payer and encounter completed successfully!');
+      showToast('Invoice submitted to payer and encounter completed successfully!', 'success');
       onClose();
       if (onPaymentComplete) onPaymentComplete();
     } catch (error: any) {
       console.error('Error submitting to payer:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Unknown error occurred';
-      alert(`Failed to submit to payer: ${errorMessage}`);
+      showToast(`Failed to submit to payer: ${errorMessage}`, 'error');
     }
   };
 

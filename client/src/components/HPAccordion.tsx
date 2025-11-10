@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
+import { useNotification } from '../context/NotificationContext';
 
 interface HPSection {
   id: string;
@@ -17,6 +18,7 @@ interface HPAccordionProps {
 }
 
 const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, onSave }) => {
+  const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [sections, setSections] = useState<HPSection[]>([
     {
@@ -223,10 +225,11 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
 
       if (onSave) onSave();
 
-      alert('Section saved successfully!');
-    } catch (error) {
+      showToast('Section saved successfully!', 'success');
+    } catch (error: any) {
       console.error('Error saving H&P section:', error);
-      alert('Failed to save section');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to save section';
+      showToast(errorMessage, 'error');
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNotification } from '../context/NotificationContext';
 
 interface HPFormProps {
   encounter: any;
@@ -8,6 +9,8 @@ interface HPFormProps {
 }
 
 const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClose }) => {
+  const { showToast } = useNotification();
+
   // Auto-populated fields
   const patientAge = encounter.date_of_birth
     ? new Date().getFullYear() - new Date(encounter.date_of_birth).getFullYear()
@@ -157,11 +160,12 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
 
     try {
       await onSave(formData);
-      alert('H&P saved successfully!');
+      showToast('H&P saved successfully!', 'success');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving H&P:', error);
-      alert('Failed to save H&P');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to save H&P';
+      showToast(errorMessage, 'error');
     }
   };
 

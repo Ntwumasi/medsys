@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
+import { useNotification } from '../context/NotificationContext';
 import {
   Select,
   MenuItem,
@@ -53,6 +54,7 @@ interface InsuranceProvider {
 
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const { showToast } = useNotification();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,7 +278,7 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     try {
       if (!editingStaff && !staffForm.password) {
-        alert('Password is required for new staff members');
+        showToast('Password is required for new staff members', 'warning');
         return;
       }
 
@@ -290,11 +292,11 @@ const Dashboard: React.FC = () => {
         } else {
           await apiClient.put(`/users/${editingStaff.id}`, updateData);
         }
-        alert('Staff member updated successfully!');
+        showToast('Staff member updated successfully!', 'success');
       } else {
         // Create new staff
         await apiClient.post('/users', staffForm);
-        alert('Staff member created successfully!');
+        showToast('Staff member created successfully!', 'success');
       }
 
       setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
@@ -303,7 +305,7 @@ const Dashboard: React.FC = () => {
       loadStaff();
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Failed to save staff member';
-      alert(`Error: ${errorMessage}`);
+      showToast(`Error: ${errorMessage}`, 'error');
     }
   };
 
@@ -326,16 +328,17 @@ const Dashboard: React.FC = () => {
         // Deactivate
         if (!confirm('Are you sure you want to deactivate this staff member?')) return;
         await apiClient.delete(`/users/${id}`);
-        alert('Staff member deactivated successfully!');
+        showToast('Staff member deactivated successfully!', 'success');
       } else {
         // Activate
         if (!confirm('Are you sure you want to activate this staff member?')) return;
         await apiClient.post(`/users/${id}/activate`);
-        alert('Staff member activated successfully!');
+        showToast('Staff member activated successfully!', 'success');
       }
       loadStaff();
-    } catch (error) {
-      alert('Failed to update staff member status');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to update staff member status';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -350,10 +353,10 @@ const Dashboard: React.FC = () => {
       setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
       setShowCorporateForm(false);
       loadCorporateClients();
-      alert('Corporate client added successfully!');
+      showToast('Corporate client added successfully!', 'success');
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add corporate client';
-      alert(`Error: ${errorMessage}`);
+      showToast(`Error: ${errorMessage}`, 'error');
     }
   };
 
@@ -364,10 +367,10 @@ const Dashboard: React.FC = () => {
       setInsuranceForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
       setShowInsuranceForm(false);
       loadInsuranceProviders();
-      alert('Insurance provider added successfully!');
+      showToast('Insurance provider added successfully!', 'success');
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add insurance provider';
-      alert(`Error: ${errorMessage}`);
+      showToast(`Error: ${errorMessage}`, 'error');
     }
   };
 
@@ -376,9 +379,10 @@ const Dashboard: React.FC = () => {
     try {
       await apiClient.delete(`/payer-sources/corporate-clients/${id}`);
       loadCorporateClients();
-      alert('Corporate client deactivated successfully!');
-    } catch (error) {
-      alert('Failed to deactivate corporate client');
+      showToast('Corporate client deactivated successfully!', 'success');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to deactivate corporate client';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -387,9 +391,10 @@ const Dashboard: React.FC = () => {
     try {
       await apiClient.delete(`/payer-sources/insurance-providers/${id}`);
       loadInsuranceProviders();
-      alert('Insurance provider deactivated successfully!');
-    } catch (error) {
-      alert('Failed to deactivate insurance provider');
+      showToast('Insurance provider deactivated successfully!', 'success');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to deactivate insurance provider';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -419,9 +424,10 @@ const Dashboard: React.FC = () => {
       setInvoiceItems(response.data.items || []);
       setInvoicePayerSources(response.data.payer_sources || []);
       setShowInvoice(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading invoice:', error);
-      alert('Failed to load invoice');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to load invoice';
+      showToast(errorMessage, 'error');
     }
   };
 
