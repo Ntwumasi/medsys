@@ -57,6 +57,7 @@ const DoctorDashboard: React.FC = () => {
   // H&P Form state
   const [showHPForm, setShowHPForm] = useState(false);
   const [existingHP, setExistingHP] = useState<ClinicalNote | null>(null);
+  const [clinicalNotesTab, setClinicalNotesTab] = useState<'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('doctor');
 
   useEffect(() => {
     loadRoomEncounters();
@@ -522,170 +523,412 @@ const DoctorDashboard: React.FC = () => {
 
                 {/* Clinical Notes */}
                 <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Clinical Notes</h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
+                    {existingHP && (
+                      <button
+                        onClick={() => setShowHPForm(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        View H&P
+                      </button>
+                    )}
+                  </div>
 
-                  {/* H&P Note Display - Special Prominence */}
-                  {existingHP && (
-                    <div className="mb-6 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {/* Modern Tabs */}
+                  <div className="border-b border-gray-200 mb-6">
+                    <nav className="flex gap-2" aria-label="Clinical Notes Tabs">
+                      <button
+                        onClick={() => setClinicalNotesTab('doctor')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          clinicalNotesTab === 'doctor'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
-                          History & Physical (H&P)
-                        </h3>
-                        <button
-                          onClick={() => setShowHPForm(true)}
-                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                        >
-                          View/Edit
-                        </button>
-                      </div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        {existingHP.created_by_name} - {new Date(existingHP.created_at).toLocaleString()}
-                      </div>
-                      <div className="text-sm text-gray-800 max-h-40 overflow-y-auto bg-white p-3 rounded border border-blue-200">
-                        {existingHP.content.substring(0, 300)}...
-                      </div>
-                    </div>
-                  )}
+                          Doctor's Notes
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setClinicalNotesTab('nurse')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          clinicalNotesTab === 'nurse'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                          </svg>
+                          Nurse Notes
+                          {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length > 0 && (
+                            <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setClinicalNotesTab('instructions')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          clinicalNotesTab === 'instructions'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          Nurse Instructions
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setClinicalNotesTab('procedural')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          clinicalNotesTab === 'procedural'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                          Procedural Notes
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setClinicalNotesTab('past')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          clinicalNotesTab === 'past'
+                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Past Notes
+                          {notes.length > 0 && (
+                            <span className="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {notes.length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    </nav>
+                  </div>
 
-                  {/* Nurse Notes Section */}
-                  {notes.filter(n => n.created_by_role === 'nurse').length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        Nurse Notes
-                      </h3>
-                      <div className="space-y-2">
-                        {notes
-                          .filter(n => n.created_by_role === 'nurse')
-                          .map((note) => (
-                            <div
-                              key={note.id}
-                              className="p-3 rounded-lg bg-blue-50 border border-blue-200"
-                            >
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="text-xs text-blue-700 font-medium">
-                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
-                                </div>
-                                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
-                                  {note.note_type.replace('_', ' ').toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="text-sm text-gray-800">{note.content}</div>
+                  {/* Tab Content */}
+                  <div className="min-h-[400px]">
+                    {/* Doctor's Notes Tab */}
+                    {clinicalNotesTab === 'doctor' && (
+                      <div className="space-y-6">
+                        <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-900 mb-2">Add New Doctor's Note</label>
+                            <textarea
+                              value={noteContent}
+                              onChange={(e) => setNoteContent(e.target.value)}
+                              className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                              rows={6}
+                              placeholder="Enter clinical notes..."
+                              required
+                            />
+                          </div>
+                          <button type="submit" className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add Note
+                          </button>
+                        </form>
+
+                        {notes.filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general').length > 0 ? (
+                          <div>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Your Notes</h3>
+                            <div className="space-y-3">
+                              {notes
+                                .filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general')
+                                .map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className={`p-4 rounded-xl border-2 ${
+                                      note.is_signed
+                                        ? 'bg-emerald-50 border-emerald-300'
+                                        : 'bg-white border-gray-200 hover:border-blue-300'
+                                    } transition-all shadow-sm hover:shadow-md`}
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="text-xs text-gray-600 font-medium">
+                                        {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        {!note.is_signed && (
+                                          <button
+                                            onClick={() => handleSignNote(note.id)}
+                                            className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full hover:bg-emerald-700 font-semibold transition-colors"
+                                          >
+                                            Sign Note
+                                          </button>
+                                        )}
+                                        {note.is_signed && (
+                                          <span className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            SIGNED
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                  </div>
+                                ))}
                             </div>
-                          ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-gray-400">
+                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p className="text-lg font-medium">No doctor's notes yet</p>
+                            <p className="text-sm mt-1">Add your first clinical note above</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Add New Doctor Note */}
-                  <form onSubmit={handleAddDoctorNote} className="mb-6">
-                    <div>
-                      <label className="label">Add Doctor's Note</label>
-                      <textarea
-                        value={noteContent}
-                        onChange={(e) => setNoteContent(e.target.value)}
-                        className="input"
-                        rows={4}
-                        placeholder="Enter clinical notes..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn-primary mt-2">
-                      Add Note
-                    </button>
-                  </form>
-
-                  {/* Add Nurse Instructions/Orders */}
-                  <form onSubmit={handleAddNurseNote} className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                    <div>
-                      <label className="label flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        <span className="text-blue-900 font-semibold">Instructions for Nurse</span>
-                      </label>
-                      <textarea
-                        value={nurseNoteContent}
-                        onChange={(e) => setNurseNoteContent(e.target.value)}
-                        className="input mt-2"
-                        rows={4}
-                        placeholder="Enter instructions, orders, or tasks for the nurse..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mt-2">
-                      Add Nurse Instructions
-                    </button>
-                  </form>
-
-                  {/* Add Procedural Note */}
-                  <form onSubmit={handleAddProceduralNote} className="mb-6 p-4 bg-slate-50 border-2 border-slate-300 rounded-lg">
-                    <div>
-                      <label className="label flex items-center gap-2">
-                        <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        <span className="text-slate-900 font-semibold">Procedural Note</span>
-                      </label>
-                      <textarea
-                        value={proceduralNoteContent}
-                        onChange={(e) => setProceduralNoteContent(e.target.value)}
-                        className="input mt-2"
-                        rows={4}
-                        placeholder="Document procedures performed, technique, findings, complications..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors mt-2">
-                      Add Procedural Note
-                    </button>
-                  </form>
-
-                  {/* Doctor's Notes */}
-                  {notes.filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp').length > 0 && (
-                    <div>
-                      <h3 className="font-semibold text-gray-700 mb-3">Doctor's Notes</h3>
-                      <div className="space-y-2">
-                        {notes
-                          .filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp')
-                          .map((note) => (
-                            <div
-                              key={note.id}
-                              className={`p-3 rounded-lg ${
-                                note.is_signed ? 'bg-emerald-50 border-emerald-300' : 'bg-gray-50 border-gray-300'
-                              } border`}
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="text-xs text-gray-600">
-                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
-                                </div>
-                                <div className="flex gap-2">
-                                  {!note.is_signed && (
-                                    <button
-                                      onClick={() => handleSignNote(note.id)}
-                                      className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700"
-                                    >
-                                      Sign
-                                    </button>
-                                  )}
-                                  {note.is_signed && (
-                                    <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded">
-                                      SIGNED
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-2 text-sm text-gray-800">{note.content}</div>
+                    {/* Nurse Notes Tab */}
+                    {clinicalNotesTab === 'nurse' && (
+                      <div className="space-y-4">
+                        {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length > 0 ? (
+                          <>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Nurse Notes</h3>
+                            <div className="space-y-3">
+                              {notes
+                                .filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general')
+                                .map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200 shadow-sm hover:shadow-md transition-all"
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="text-xs text-blue-700 font-semibold">
+                                        {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                      <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full font-medium">
+                                        NURSE NOTE
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                  </div>
+                                ))}
                             </div>
-                          ))}
+                          </>
+                        ) : (
+                          <div className="text-center py-12 text-gray-400">
+                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <p className="text-lg font-medium">No nurse notes yet</p>
+                            <p className="text-sm mt-1">Nurses will add notes during patient care</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {/* Nurse Instructions Tab */}
+                    {clinicalNotesTab === 'instructions' && (
+                      <div className="space-y-6">
+                        <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-xl border-2 border-indigo-200">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              Add Instructions for Nurse
+                            </label>
+                            <textarea
+                              value={nurseNoteContent}
+                              onChange={(e) => setNurseNoteContent(e.target.value)}
+                              className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                              rows={6}
+                              placeholder="Enter instructions, orders, or tasks for the nurse..."
+                              required
+                            />
+                          </div>
+                          <button type="submit" className="mt-4 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Send Instructions
+                          </button>
+                        </form>
+
+                        {notes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (
+                          <div>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Sent Instructions</h3>
+                            <div className="space-y-3">
+                              {notes
+                                .filter(n => n.note_type === 'doctor_to_nurse')
+                                .map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="p-4 rounded-xl bg-indigo-50 border-2 border-indigo-200 shadow-sm"
+                                  >
+                                    <div className="text-xs text-indigo-700 font-medium mb-2">
+                                      Sent {new Date(note.created_at).toLocaleString()}
+                                    </div>
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Procedural Notes Tab */}
+                    {clinicalNotesTab === 'procedural' && (
+                      <div className="space-y-6">
+                        <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 rounded-xl border-2 border-slate-300">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                              </svg>
+                              Add Procedural Note
+                            </label>
+                            <textarea
+                              value={proceduralNoteContent}
+                              onChange={(e) => setProceduralNoteContent(e.target.value)}
+                              className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 resize-none"
+                              rows={6}
+                              placeholder="Document procedures performed, technique, findings, complications..."
+                              required
+                            />
+                          </div>
+                          <button type="submit" className="mt-4 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add Procedural Note
+                          </button>
+                        </form>
+
+                        {notes.filter(n => n.note_type === 'doctor_procedural').length > 0 ? (
+                          <div>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Procedural Notes</h3>
+                            <div className="space-y-3">
+                              {notes
+                                .filter(n => n.note_type === 'doctor_procedural')
+                                .map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="p-4 rounded-xl bg-slate-50 border-2 border-slate-200 shadow-sm hover:shadow-md transition-all"
+                                  >
+                                    <div className="text-xs text-slate-700 font-medium mb-2">
+                                      {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                    </div>
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-gray-400">
+                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                            <p className="text-lg font-medium">No procedural notes yet</p>
+                            <p className="text-sm mt-1">Document procedures as they are performed</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Past Notes Tab */}
+                    {clinicalNotesTab === 'past' && (
+                      <div className="space-y-4">
+                        {notes.length > 0 ? (
+                          <>
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className="font-bold text-gray-900 text-lg">All Clinical Notes ({notes.length})</h3>
+                            </div>
+                            <div className="space-y-3">
+                              {notes.map((note) => (
+                                <div
+                                  key={note.id}
+                                  className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${
+                                    note.note_type === 'doctor_general'
+                                      ? 'bg-blue-50 border-blue-200'
+                                      : note.note_type === 'nurse_general'
+                                      ? 'bg-emerald-50 border-emerald-200'
+                                      : note.note_type === 'doctor_to_nurse'
+                                      ? 'bg-indigo-50 border-indigo-200'
+                                      : note.note_type === 'doctor_procedural'
+                                      ? 'bg-slate-50 border-slate-200'
+                                      : 'bg-gray-50 border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                      <div className="text-xs font-semibold text-gray-700">
+                                        {note.created_by_name} ({note.created_by_role})
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-0.5">
+                                        {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                        note.note_type === 'doctor_general'
+                                          ? 'bg-blue-600 text-white'
+                                          : note.note_type === 'nurse_general'
+                                          ? 'bg-emerald-600 text-white'
+                                          : note.note_type === 'doctor_to_nurse'
+                                          ? 'bg-indigo-600 text-white'
+                                          : note.note_type === 'doctor_procedural'
+                                          ? 'bg-slate-600 text-white'
+                                          : 'bg-gray-600 text-white'
+                                      }`}>
+                                        {note.note_type.replace(/_/g, ' ').toUpperCase()}
+                                      </span>
+                                      {note.is_signed && (
+                                        <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full font-medium">
+                                          SIGNED
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-center py-12 text-gray-400">
+                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-lg font-medium">No notes yet</p>
+                            <p className="text-sm mt-1">Clinical notes will appear here as they are added</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Orders - New Multi-Order UI */}
