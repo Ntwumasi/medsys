@@ -459,6 +459,235 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Encounter Actions */}
+                <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-6 border border-blue-400">
+                  <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Encounter Actions
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button
+                      onClick={() => setShowHPForm(true)}
+                      className="group relative bg-white hover:bg-gradient-to-br hover:from-blue-500 hover:to-indigo-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
+                    >
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-500 group-hover:bg-white p-3 rounded-full transition-colors">
+                        <svg className="w-7 h-7 text-white group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-lg">{existingHP ? 'View/Edit H&P' : 'Fill H&P'}</div>
+                        <span className="text-xs opacity-70">
+                          {existingHP ? 'History & Physical' : 'Create H&P Document'}
+                        </span>
+                      </div>
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    </button>
+
+                    <button
+                      onClick={handleCompleteEncounter}
+                      className="group relative bg-white hover:bg-gradient-to-br hover:from-emerald-500 hover:to-green-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
+                    >
+                      <div className="bg-gradient-to-br from-emerald-500 to-green-500 group-hover:bg-white p-3 rounded-full transition-colors">
+                        <svg className="w-7 h-7 text-white group-hover:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-lg">Complete Encounter</div>
+                        <span className="text-xs opacity-70">Send to Nurse</span>
+                      </div>
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-400/0 via-white/10 to-emerald-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    </button>
+
+                    <button
+                      onClick={handleReleaseRoom}
+                      className="group relative bg-white hover:bg-gradient-to-br hover:from-slate-600 hover:to-gray-700 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
+                    >
+                      <div className="bg-gradient-to-br from-slate-600 to-gray-700 group-hover:bg-white p-3 rounded-full transition-colors">
+                        <svg className="w-7 h-7 text-white group-hover:text-slate-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-lg">Release Room</div>
+                        <span className="text-xs opacity-70">Mark Complete</span>
+                      </div>
+                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-slate-400/0 via-white/10 to-slate-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Clinical Notes */}
+                <div className="card">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Clinical Notes</h2>
+
+                  {/* H&P Note Display - Special Prominence */}
+                  {existingHP && (
+                    <div className="mb-6 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          History & Physical (H&P)
+                        </h3>
+                        <button
+                          onClick={() => setShowHPForm(true)}
+                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                        >
+                          View/Edit
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-600 mb-2">
+                        {existingHP.created_by_name} - {new Date(existingHP.created_at).toLocaleString()}
+                      </div>
+                      <div className="text-sm text-gray-800 max-h-40 overflow-y-auto bg-white p-3 rounded border border-blue-200">
+                        {existingHP.content.substring(0, 300)}...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Nurse Notes Section */}
+                  {notes.filter(n => n.created_by_role === 'nurse').length > 0 && (
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        Nurse Notes
+                      </h3>
+                      <div className="space-y-2">
+                        {notes
+                          .filter(n => n.created_by_role === 'nurse')
+                          .map((note) => (
+                            <div
+                              key={note.id}
+                              className="p-3 rounded-lg bg-blue-50 border border-blue-200"
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <div className="text-xs text-blue-700 font-medium">
+                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                </div>
+                                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
+                                  {note.note_type.replace('_', ' ').toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-800">{note.content}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add New Doctor Note */}
+                  <form onSubmit={handleAddDoctorNote} className="mb-6">
+                    <div>
+                      <label className="label">Add Doctor's Note</label>
+                      <textarea
+                        value={noteContent}
+                        onChange={(e) => setNoteContent(e.target.value)}
+                        className="input"
+                        rows={4}
+                        placeholder="Enter clinical notes..."
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary mt-2">
+                      Add Note
+                    </button>
+                  </form>
+
+                  {/* Add Nurse Instructions/Orders */}
+                  <form onSubmit={handleAddNurseNote} className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                    <div>
+                      <label className="label flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                        </svg>
+                        <span className="text-blue-900 font-semibold">Instructions for Nurse</span>
+                      </label>
+                      <textarea
+                        value={nurseNoteContent}
+                        onChange={(e) => setNurseNoteContent(e.target.value)}
+                        className="input mt-2"
+                        rows={4}
+                        placeholder="Enter instructions, orders, or tasks for the nurse..."
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mt-2">
+                      Add Nurse Instructions
+                    </button>
+                  </form>
+
+                  {/* Add Procedural Note */}
+                  <form onSubmit={handleAddProceduralNote} className="mb-6 p-4 bg-slate-50 border-2 border-slate-300 rounded-lg">
+                    <div>
+                      <label className="label flex items-center gap-2">
+                        <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        <span className="text-slate-900 font-semibold">Procedural Note</span>
+                      </label>
+                      <textarea
+                        value={proceduralNoteContent}
+                        onChange={(e) => setProceduralNoteContent(e.target.value)}
+                        className="input mt-2"
+                        rows={4}
+                        placeholder="Document procedures performed, technique, findings, complications..."
+                        required
+                      />
+                    </div>
+                    <button type="submit" className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors mt-2">
+                      Add Procedural Note
+                    </button>
+                  </form>
+
+                  {/* Doctor's Notes */}
+                  {notes.filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp').length > 0 && (
+                    <div>
+                      <h3 className="font-semibold text-gray-700 mb-3">Doctor's Notes</h3>
+                      <div className="space-y-2">
+                        {notes
+                          .filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp')
+                          .map((note) => (
+                            <div
+                              key={note.id}
+                              className={`p-3 rounded-lg ${
+                                note.is_signed ? 'bg-emerald-50 border-emerald-300' : 'bg-gray-50 border-gray-300'
+                              } border`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="text-xs text-gray-600">
+                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                </div>
+                                <div className="flex gap-2">
+                                  {!note.is_signed && (
+                                    <button
+                                      onClick={() => handleSignNote(note.id)}
+                                      className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700"
+                                    >
+                                      Sign
+                                    </button>
+                                  )}
+                                  {note.is_signed && (
+                                    <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded">
+                                      SIGNED
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 text-sm text-gray-800">{note.content}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* Orders - New Multi-Order UI */}
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
@@ -723,219 +952,6 @@ const DoctorDashboard: React.FC = () => {
                       </button>
                     </div>
                   )}
-                </div>
-
-                {/* Clinical Notes */}
-                <div className="card">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-4">Clinical Notes</h2>
-
-                  {/* H&P Note Display - Special Prominence */}
-                  {existingHP && (
-                    <div className="mb-6 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
-                      <div className="flex justify-between items-center mb-2">
-                        <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          History & Physical (H&P)
-                        </h3>
-                        <button
-                          onClick={() => setShowHPForm(true)}
-                          className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                        >
-                          View/Edit
-                        </button>
-                      </div>
-                      <div className="text-xs text-gray-600 mb-2">
-                        {existingHP.created_by_name} - {new Date(existingHP.created_at).toLocaleString()}
-                      </div>
-                      <div className="text-sm text-gray-800 max-h-40 overflow-y-auto bg-white p-3 rounded border border-blue-200">
-                        {existingHP.content.substring(0, 300)}...
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Nurse Notes Section */}
-                  {notes.filter(n => n.created_by_role === 'nurse').length > 0 && (
-                    <div className="mb-6">
-                      <h3 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        Nurse Notes
-                      </h3>
-                      <div className="space-y-2">
-                        {notes
-                          .filter(n => n.created_by_role === 'nurse')
-                          .map((note) => (
-                            <div
-                              key={note.id}
-                              className="p-3 rounded-lg bg-blue-50 border border-blue-200"
-                            >
-                              <div className="flex justify-between items-start mb-1">
-                                <div className="text-xs text-blue-700 font-medium">
-                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
-                                </div>
-                                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded">
-                                  {note.note_type.replace('_', ' ').toUpperCase()}
-                                </span>
-                              </div>
-                              <div className="text-sm text-gray-800">{note.content}</div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Add New Doctor Note */}
-                  <form onSubmit={handleAddDoctorNote} className="mb-6">
-                    <div>
-                      <label className="label">Add Doctor's Note</label>
-                      <textarea
-                        value={noteContent}
-                        onChange={(e) => setNoteContent(e.target.value)}
-                        className="input"
-                        rows={4}
-                        placeholder="Enter clinical notes..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn-primary mt-2">
-                      Add Note
-                    </button>
-                  </form>
-
-                  {/* Add Nurse Instructions/Orders */}
-                  <form onSubmit={handleAddNurseNote} className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                    <div>
-                      <label className="label flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                        <span className="text-blue-900 font-semibold">Instructions for Nurse</span>
-                      </label>
-                      <textarea
-                        value={nurseNoteContent}
-                        onChange={(e) => setNurseNoteContent(e.target.value)}
-                        className="input mt-2"
-                        rows={4}
-                        placeholder="Enter instructions, orders, or tasks for the nurse..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mt-2">
-                      Add Nurse Instructions
-                    </button>
-                  </form>
-
-                  {/* Add Procedural Note */}
-                  <form onSubmit={handleAddProceduralNote} className="mb-6 p-4 bg-slate-50 border-2 border-slate-300 rounded-lg">
-                    <div>
-                      <label className="label flex items-center gap-2">
-                        <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                        <span className="text-slate-900 font-semibold">Procedural Note</span>
-                      </label>
-                      <textarea
-                        value={proceduralNoteContent}
-                        onChange={(e) => setProceduralNoteContent(e.target.value)}
-                        className="input mt-2"
-                        rows={4}
-                        placeholder="Document procedures performed, technique, findings, complications..."
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="bg-slate-600 text-white px-4 py-2 rounded-lg hover:bg-slate-700 transition-colors mt-2">
-                      Add Procedural Note
-                    </button>
-                  </form>
-
-                  {/* Doctor's Notes */}
-                  {notes.filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp').length > 0 && (
-                    <div>
-                      <h3 className="font-semibold text-gray-700 mb-3">Doctor's Notes</h3>
-                      <div className="space-y-2">
-                        {notes
-                          .filter(n => n.created_by_role === 'doctor' && n.note_type !== 'doctor_hp')
-                          .map((note) => (
-                            <div
-                              key={note.id}
-                              className={`p-3 rounded-lg ${
-                                note.is_signed ? 'bg-emerald-50 border-emerald-300' : 'bg-gray-50 border-gray-300'
-                              } border`}
-                            >
-                              <div className="flex justify-between items-start">
-                                <div className="text-xs text-gray-600">
-                                  {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
-                                </div>
-                                <div className="flex gap-2">
-                                  {!note.is_signed && (
-                                    <button
-                                      onClick={() => handleSignNote(note.id)}
-                                      className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700"
-                                    >
-                                      Sign
-                                    </button>
-                                  )}
-                                  {note.is_signed && (
-                                    <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded">
-                                      SIGNED
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-2 text-sm text-gray-800">{note.content}</div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Complete Encounter & Release Room */}
-                <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Encounter Actions</h3>
-                  <div className="space-y-3">
-                    <button
-                      onClick={() => setShowHPForm(true)}
-                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-3 px-4 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <div className="text-left">
-                        <div>{existingHP ? 'View/Edit H&P' : 'Fill H&P'}</div>
-                        <span className="block text-xs font-normal opacity-90">
-                          {existingHP ? 'View or update H&P' : 'History & Physical Examination'}
-                        </span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={handleCompleteEncounter}
-                      className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-emerald-700 hover:to-emerald-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <div className="text-left">
-                        <div>Complete Encounter</div>
-                        <span className="block text-xs font-normal opacity-90">Send patient back to nurse</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={handleReleaseRoom}
-                      className="w-full bg-gradient-to-r from-slate-600 to-gray-700 text-white py-3 px-4 rounded-lg font-semibold hover:from-slate-700 hover:to-gray-800 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                      </svg>
-                      <div className="text-left">
-                        <div>Release Room</div>
-                        <span className="block text-xs font-normal opacity-90">Mark encounter as completed</span>
-                      </div>
-                    </button>
-                  </div>
                 </div>
               </div>
             ) : (
