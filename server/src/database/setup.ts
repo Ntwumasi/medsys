@@ -41,6 +41,8 @@ const createTables = async () => {
         insurance_number VARCHAR(100),
         marital_status VARCHAR(20),
         occupation VARCHAR(100),
+        pcp_name VARCHAR(255),
+        pcp_phone VARCHAR(20),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
