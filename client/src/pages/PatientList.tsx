@@ -25,8 +25,10 @@ const PatientList: React.FC = () => {
   };
 
   const calculateAge = (dob: string) => {
+    if (!dob) return 'N/A';
     const today = new Date();
     const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return 'N/A';
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {

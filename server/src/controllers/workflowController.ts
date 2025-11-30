@@ -411,15 +411,18 @@ export const getAvailableNurses = async (req: Request, res: Response): Promise<v
   }
 };
 
-// Get patient queue with color coding
+// Get patient queue with color coding - includes all patients for the day
 export const getPatientQueue = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
       `SELECT e.*,
         r.room_number,
         p.patient_number,
+        p.date_of_birth,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
+        i.status as invoice_status,
+        i.total_amount as billing_amount,
         CASE
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 15 THEN 'green'
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'
@@ -430,8 +433,16 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
-      WHERE e.status = 'in-progress'
-      ORDER BY e.triage_time`
+      LEFT JOIN invoices i ON i.encounter_id = e.id
+      WHERE DATE(e.encounter_date) = CURRENT_DATE
+      ORDER BY
+        CASE e.status
+          WHEN 'in-progress' THEN 1
+          WHEN 'with_nurse' THEN 2
+          WHEN 'completed' THEN 3
+          ELSE 4
+        END,
+        e.triage_time`
     );
 
     res.json({

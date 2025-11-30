@@ -54,6 +54,8 @@ interface QueueItem {
   chief_complaint: string;
   wait_time_minutes?: number;
   billing_amount?: number;
+  status: 'in-progress' | 'with_nurse' | 'completed';
+  invoice_status?: 'pending' | 'paid' | 'partial';
 }
 
 interface Nurse {
@@ -124,6 +126,8 @@ const ReceptionistDashboard: React.FC = () => {
     state: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
+    pcp_name: '',
+    pcp_phone: '',
   });
 
   // Payer source state
@@ -245,7 +249,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       await apiClient.post('/workflow/check-in', {
         patient_id: selectedPatient.id,
-        chief_complaint: chiefComplaint,
+        chief_complaint: '', // Now entered by nurse
         encounter_type: encounterType,
         billing_amount: billingAmount,
       });
@@ -315,7 +319,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       await apiClient.post('/workflow/check-in', {
         patient_id: newPatientData.id,
-        chief_complaint: chiefComplaint,
+        chief_complaint: '', // Now entered by nurse
         encounter_type: encounterType,
         billing_amount: billingAmount,
       });
@@ -333,6 +337,8 @@ const ReceptionistDashboard: React.FC = () => {
         state: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
+        pcp_name: '',
+        pcp_phone: '',
       });
       setChiefComplaint('');
       setEncounterType('walk-in');
@@ -624,14 +630,32 @@ const ReceptionistDashboard: React.FC = () => {
             <div className="space-y-4">
               {queue.map((item) => {
                 const waitTime = calculateWaitTime(item.check_in_time);
+                const isCompleted = item.status === 'completed';
+                const isPaid = item.invoice_status === 'paid';
+
+                // Status badge configuration
+                const getStatusBadge = () => {
+                  if (isCompleted && isPaid) {
+                    return { text: 'Completed & Paid', bg: 'bg-emerald-100', textColor: 'text-emerald-800', icon: '✓' };
+                  } else if (isCompleted) {
+                    return { text: 'Completed - Awaiting Payment', bg: 'bg-amber-100', textColor: 'text-amber-800', icon: '⏳' };
+                  } else if (item.status === 'with_nurse') {
+                    return { text: 'With Nurse', bg: 'bg-blue-100', textColor: 'text-blue-800', icon: '👩‍⚕️' };
+                  } else {
+                    return { text: 'In Progress', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '🔄' };
+                  }
+                };
+
+                const statusBadge = getStatusBadge();
+
                 return (
                   <div
                     key={item.id}
-                    className={`p-6 border-l-4 rounded-lg ${getWaitTimeColor(waitTime)}`}
+                    className={`p-6 border-l-4 rounded-lg ${isCompleted ? 'bg-gray-50 border-gray-300' : getWaitTimeColor(waitTime)} ${isCompleted ? 'opacity-75' : ''}`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-wrap">
                           <h3 className="text-xl font-semibold">
                             {item.patient_name}
                           </h3>
@@ -641,23 +665,28 @@ const ReceptionistDashboard: React.FC = () => {
                           <span className="text-sm font-medium text-gray-600">
                             Encounter #: {item.encounter_number}
                           </span>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge.bg} ${statusBadge.textColor}`}>
+                            {statusBadge.icon} {statusBadge.text}
+                          </span>
                         </div>
 
-                        <div className="mt-2 flex gap-4 text-sm text-gray-700">
+                        <div className="mt-2 flex gap-4 text-sm text-gray-700 flex-wrap">
                           <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')}</span>
                           <span>Checked in: {safeFormatDate(item.check_in_time, 'h:mm a')}</span>
                           {item.billing_amount && (
-                            <span className="font-semibold text-green-700">
-                              Billing: ${item.billing_amount}
+                            <span className={`font-semibold ${isPaid ? 'text-emerald-700' : 'text-amber-700'}`}>
+                              Billing: ${item.billing_amount} {isPaid ? '(Paid)' : '(Pending)'}
                             </span>
                           )}
                         </div>
 
-                        <p className="text-gray-700 mt-2">
-                          <span className="font-medium">Chief Complaint:</span> {item.chief_complaint}
-                        </p>
+                        {item.chief_complaint && (
+                          <p className="text-gray-700 mt-2">
+                            <span className="font-medium">Today's Visit:</span> {item.chief_complaint}
+                          </p>
+                        )}
 
-                        <div className="mt-3 flex gap-4 text-sm">
+                        <div className="mt-3 flex gap-4 text-sm flex-wrap">
                           {item.room_number && (
                             <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
                               Room: {item.room_number}
@@ -666,30 +695,40 @@ const ReceptionistDashboard: React.FC = () => {
                           {item.nurse_name && (
                             <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
                               Nurse: {item.nurse_name}
-                              <button
-                                onClick={() => setEditingNurseForEncounter(item.id)}
-                                className="hover:bg-slate-200 rounded p-1 transition-colors"
-                                title="Change nurse"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                              {!isCompleted && (
+                                <button
+                                  onClick={() => setEditingNurseForEncounter(item.id)}
+                                  className="hover:bg-slate-200 rounded p-1 transition-colors"
+                                  title="Change nurse"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              )}
                             </span>
                           )}
                         </div>
                       </div>
 
                       <div className="text-right ml-4">
-                        <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime)}</div>
-                        <div className="text-sm text-gray-600 mt-1">
-                          Wait: {waitTime} min
-                        </div>
+                        {!isCompleted ? (
+                          <>
+                            <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime)}</div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              Wait: {waitTime} min
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-lg font-semibold text-gray-500">
+                            Visit Complete
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    <div className="mt-4 flex gap-3">
-                      {!item.nurse_name && (
+                    <div className="mt-4 flex gap-3 flex-wrap">
+                      {!isCompleted && !item.nurse_name && (
                         <select
                           onChange={(e) => handleAssignNurse(item.id, Number(e.target.value))}
                           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
@@ -704,7 +743,7 @@ const ReceptionistDashboard: React.FC = () => {
                         </select>
                       )}
 
-                      {editingNurseForEncounter === item.id && item.nurse_name && (
+                      {!isCompleted && editingNurseForEncounter === item.id && item.nurse_name && (
                         <div className="flex items-center gap-2">
                           <select
                             onChange={(e) => {
@@ -741,7 +780,7 @@ const ReceptionistDashboard: React.FC = () => {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
-                        Print Invoice
+                        {isPaid ? 'View Invoice' : 'Print Invoice'}
                       </button>
                     </div>
                   </div>
@@ -817,20 +856,6 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Chief Complaint
-                  </label>
-                  <textarea
-                    value={chiefComplaint}
-                    onChange={(e) => setChiefComplaint(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    rows={4}
-                    required
-                    placeholder="Patient's main concern or reason for visit..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Encounter Type
                   </label>
                   <select
@@ -852,7 +877,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={!selectedPatient || !chiefComplaint}
+                  disabled={!selectedPatient}
                   className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Check In Patient
@@ -860,49 +885,58 @@ const ReceptionistDashboard: React.FC = () => {
               </form>
             </div>
 
-            {selectedPatient && patientHistory.length > 0 && (
+            {selectedPatient && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Past Medical History</h2>
-                <div className="space-y-4">
-                  {patientHistory.map((encounter) => (
-                    <div key={encounter.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <span className="font-semibold text-gray-900">
-                            Encounter #: {encounter.encounter_number}
-                          </span>
-                          <p className="text-sm text-gray-600">
-                            {safeFormatDate(encounter.encounter_date, 'MMM dd, yyyy')}
-                          </p>
-                        </div>
-                        <span className="text-sm font-semibold text-green-700">
-                          ${encounter.billing_amount}
-                        </span>
-                      </div>
-                      <div className="text-sm space-y-1 text-gray-700">
-                        <p><span className="font-medium">Complaint:</span> {encounter.chief_complaint}</p>
-                        {encounter.diagnosis && (
-                          <p><span className="font-medium">Diagnosis:</span> {encounter.diagnosis}</p>
-                        )}
-                        {encounter.treatment && (
-                          <p><span className="font-medium">Treatment:</span> {encounter.treatment}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                {/* PCP Information */}
+                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Primary Care Physician (PCP)</h3>
+                  <p className="text-gray-700">
+                    {(selectedPatient as any).pcp_name || 'Not specified'}
+                    {(selectedPatient as any).pcp_phone && (
+                      <span className="ml-2 text-sm text-gray-500">| {(selectedPatient as any).pcp_phone}</span>
+                    )}
+                  </p>
                 </div>
-              </div>
-            )}
 
-            {selectedPatient && patientHistory.length === 0 && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">Past Medical History</h2>
-                <div className="text-center py-12 text-gray-500">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <p className="mt-2">No previous encounters on record</p>
-                </div>
+                {/* Visit History */}
+                <h2 className="text-2xl font-bold text-gray-900 mb-6">Visit History</h2>
+                {patientHistory.length > 0 ? (
+                  <div className="space-y-4">
+                    {patientHistory.map((encounter) => (
+                      <div key={encounter.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="font-semibold text-gray-900">
+                              Encounter #: {encounter.encounter_number}
+                            </span>
+                            <p className="text-sm text-gray-600">
+                              {safeFormatDate(encounter.encounter_date, 'MMM dd, yyyy')}
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-green-700">
+                            ${encounter.billing_amount}
+                          </span>
+                        </div>
+                        <div className="text-sm space-y-1 text-gray-700">
+                          <p><span className="font-medium">Today's Visit:</span> {encounter.chief_complaint}</p>
+                          {encounter.diagnosis && (
+                            <p><span className="font-medium">Diagnosis:</span> {encounter.diagnosis}</p>
+                          )}
+                          {encounter.treatment && (
+                            <p><span className="font-medium">Treatment:</span> {encounter.treatment}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="mt-2">No previous visits on record</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1065,6 +1099,35 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* PCP Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Primary Care Physician (PCP) Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newPatient.pcp_name}
+                    onChange={(e) => setNewPatient({ ...newPatient, pcp_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="Dr. John Smith"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    PCP Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={newPatient.pcp_phone}
+                    onChange={(e) => setNewPatient({ ...newPatient, pcp_phone: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+              </div>
+
               <div className="border-t border-gray-200 pt-6">
                 <label className="block text-sm font-medium text-gray-700 mb-3">
                   Payer Source(s) *
@@ -1170,20 +1233,6 @@ const ReceptionistDashboard: React.FC = () => {
                     )}
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Chief Complaint *
-                </label>
-                <textarea
-                  value={chiefComplaint}
-                  onChange={(e) => setChiefComplaint(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  rows={4}
-                  required
-                  placeholder="Patient's main concern or reason for visit..."
-                />
               </div>
 
               <div>
@@ -1311,7 +1360,7 @@ const ReceptionistDashboard: React.FC = () => {
                         Date
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Chief Complaint
+                        Today's Visit
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Provider

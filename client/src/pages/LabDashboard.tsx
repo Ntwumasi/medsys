@@ -17,12 +17,16 @@ interface LabOrder {
   ordering_provider_name: string;
   specimen_collected_at?: string;
   results_available_at?: string;
+  results?: string;
+  notes?: string;
 }
 
 const LabDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'ordered' | 'resulted'>('ordered');
+  const [resultInput, setResultInput] = useState<{ [key: number]: string }>({});
 
   useEffect(() => {
     fetchLabOrders();
@@ -134,7 +138,7 @@ const LabDashboard: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-full mx-auto px-6 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Pending Orders</div>
             <div className="text-3xl font-bold text-amber-600 mt-2">
@@ -153,95 +157,267 @@ const LabDashboard: React.FC = () => {
               {labOrders.filter(o => o.status === 'completed').length}
             </div>
           </div>
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">STAT Orders</div>
+            <div className="text-3xl font-bold text-red-600 mt-2">
+              {labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length}
+            </div>
+          </div>
         </div>
 
-        {/* Lab Orders */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-slate-50 rounded-t-xl">
-            <h2 className="text-xl font-bold text-gray-900">Lab Orders</h2>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {labOrders.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+        {/* Tabs */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('ordered')}
+              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
+                activeTab === 'ordered'
+                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <p className="font-medium">No lab orders at this time</p>
+                Ordered Labs
+                <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded-full">
+                  {labOrders.filter(o => o.status === 'pending' || o.status === 'in_progress').length}
+                </span>
               </div>
-            ) : (
-              labOrders.map((order) => (
-                <div key={order.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {order.patient_name}
-                        </h3>
-                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(order.priority)}`}>
-                          {order.priority.toUpperCase()}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(order.status)}`}>
-                          {order.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="mb-3">
-                        <div className="text-md font-semibold text-blue-700">
-                          Test: {order.test_name}
-                          {order.test_code && <span className="text-sm text-gray-600 ml-2">({order.test_code})</span>}
-                        </div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          Ordered by: {order.ordering_provider_name}
-                        </div>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Patient #:</span>
-                          <span className="ml-2 text-gray-900 font-medium">{order.patient_number}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Encounter #:</span>
-                          <span className="ml-2 text-gray-900 font-medium">{order.encounter_number}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Ordered:</span>
-                          <span className="ml-2 text-gray-900 font-medium">
-                            {new Date(order.ordered_at).toLocaleString()}
-                          </span>
-                        </div>
-                        {order.specimen_collected_at && (
-                          <div>
-                            <span className="text-gray-500">Specimen Collected:</span>
-                            <span className="ml-2 text-gray-900 font-medium">
-                              {new Date(order.specimen_collected_at).toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="ml-4 flex gap-2">
-                      {order.status === 'pending' && (
-                        <button
-                          onClick={() => updateStatus(order.id, 'in_progress')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Start
-                        </button>
-                      )}
-                      {order.status === 'in_progress' && (
-                        <button
-                          onClick={() => updateStatus(order.id, 'completed')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
-                        >
-                          Complete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+            </button>
+            <button
+              onClick={() => setActiveTab('resulted')}
+              className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
+                activeTab === 'resulted'
+                  ? 'text-emerald-600 border-b-2 border-emerald-600 bg-emerald-50'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Resulted Labs
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded-full">
+                  {labOrders.filter(o => o.status === 'completed').length}
+                </span>
+              </div>
+            </button>
           </div>
         </div>
+
+        {/* Lab Orders - Ordered Tab */}
+        {activeTab === 'ordered' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Pending & In Progress Tests</h2>
+              <p className="text-sm text-gray-600 mt-1">Tests waiting to be processed or currently being processed</p>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {labOrders.filter(o => o.status === 'pending' || o.status === 'in_progress').length === 0 ? (
+                <div className="px-6 py-8 text-center text-gray-500">
+                  <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="font-medium">All tests have been completed!</p>
+                </div>
+              ) : (
+                labOrders
+                  .filter(o => o.status === 'pending' || o.status === 'in_progress')
+                  .map((order) => (
+                    <div key={order.id} className={`px-6 py-4 hover:bg-gray-50 transition-colors ${order.priority === 'stat' ? 'bg-red-50 border-l-4 border-red-500' : ''}`}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {order.patient_name}
+                            </h3>
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(order.priority)}`}>
+                              {order.priority.toUpperCase()}
+                            </span>
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(order.status)}`}>
+                              {order.status.replace('_', ' ').toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="mb-3">
+                            <div className="text-md font-semibold text-blue-700">
+                              Test: {order.test_name}
+                              {order.test_code && <span className="text-sm text-gray-600 ml-2">({order.test_code})</span>}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Ordered by: {order.ordering_provider_name}
+                            </div>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Patient #:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.patient_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Encounter #:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.encounter_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Ordered:</span>
+                              <span className="ml-2 text-gray-900 font-medium">
+                                {new Date(order.ordered_at).toLocaleString()}
+                              </span>
+                            </div>
+                            {order.specimen_collected_at && (
+                              <div>
+                                <span className="text-gray-500">Specimen Collected:</span>
+                                <span className="ml-2 text-gray-900 font-medium">
+                                  {new Date(order.specimen_collected_at).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Result Entry (only for in_progress) */}
+                          {order.status === 'in_progress' && (
+                            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <label className="block text-sm font-medium text-blue-800 mb-2">Enter Results:</label>
+                              <textarea
+                                value={resultInput[order.id] || ''}
+                                onChange={(e) => setResultInput({ ...resultInput, [order.id]: e.target.value })}
+                                placeholder="Enter test results here..."
+                                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                                rows={3}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-4 flex flex-col gap-2">
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => updateStatus(order.id, 'in_progress')}
+                              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                              Start Processing
+                            </button>
+                          )}
+                          {order.status === 'in_progress' && (
+                            <button
+                              onClick={() => {
+                                updateStatus(order.id, 'completed');
+                                setResultInput({ ...resultInput, [order.id]: '' });
+                              }}
+                              className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+                            >
+                              Complete & Submit Results
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Lab Orders - Resulted Tab */}
+        {activeTab === 'resulted' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-green-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Completed Test Results</h2>
+              <p className="text-sm text-gray-600 mt-1">Tests that have been completed with results</p>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {labOrders.filter(o => o.status === 'completed').length === 0 ? (
+                <div className="px-6 py-8 text-center text-gray-500">
+                  <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                  </svg>
+                  <p className="font-medium">No completed tests yet</p>
+                </div>
+              ) : (
+                labOrders
+                  .filter(o => o.status === 'completed')
+                  .sort((a, b) => new Date(b.results_available_at || b.ordered_at).getTime() - new Date(a.results_available_at || a.ordered_at).getTime())
+                  .map((order) => (
+                    <div key={order.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {order.patient_name}
+                            </h3>
+                            <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(order.priority)}`}>
+                              {order.priority.toUpperCase()}
+                            </span>
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-100 text-emerald-800">
+                              COMPLETED
+                            </span>
+                          </div>
+                          <div className="mb-3">
+                            <div className="text-md font-semibold text-blue-700">
+                              Test: {order.test_name}
+                              {order.test_code && <span className="text-sm text-gray-600 ml-2">({order.test_code})</span>}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Ordered by: {order.ordering_provider_name}
+                            </div>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Patient #:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.patient_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Encounter #:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.encounter_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Ordered:</span>
+                              <span className="ml-2 text-gray-900 font-medium">
+                                {new Date(order.ordered_at).toLocaleString()}
+                              </span>
+                            </div>
+                            {order.results_available_at && (
+                              <div>
+                                <span className="text-gray-500">Results Available:</span>
+                                <span className="ml-2 text-gray-900 font-medium">
+                                  {new Date(order.results_available_at).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Results Display */}
+                          {order.results && (
+                            <div className="mt-4 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                              <div className="text-sm font-bold text-emerald-800 mb-2">Test Results:</div>
+                              <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                            </div>
+                          )}
+
+                          {order.notes && (
+                            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="text-sm font-medium text-gray-700">Notes:</div>
+                              <div className="text-sm text-gray-600">{order.notes}</div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-4 flex flex-col gap-2">
+                          <button
+                            onClick={() => window.print()}
+                            className="px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Print
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -23,7 +23,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   const [sections, setSections] = useState<HPSection[]>([
     {
       id: 'chief_complaint',
-      title: 'Chief Complaint',
+      title: 'Today\'s Visit',
       content: '',
       completed: false,
     },

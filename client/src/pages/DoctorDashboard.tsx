@@ -441,8 +441,8 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200">
                     <div className="col-span-2">
-                      <div className="text-sm text-gray-600">Chief Complaint</div>
-                      <div className="font-semibold">{selectedEncounter.chief_complaint}</div>
+                      <div className="text-sm text-gray-600">Today's Visit</div>
+                      <div className="font-semibold text-lg text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                     </div>
                     {selectedEncounter.vital_signs && (
                       <div className="col-span-2">

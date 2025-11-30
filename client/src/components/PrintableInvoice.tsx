@@ -264,7 +264,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                 )}
                 {invoice.chief_complaint && (
                   <div className="mt-3 pt-3 border-t border-gray-200">
-                    <p className="text-xs font-semibold text-gray-500 uppercase">Chief Complaint:</p>
+                    <p className="text-xs font-semibold text-gray-500 uppercase">Today's Visit:</p>
                     <p className="text-sm text-gray-700 mt-1">{invoice.chief_complaint}</p>
                   </div>
                 )}

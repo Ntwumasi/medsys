@@ -188,3 +188,36 @@ export const addDiagnosis = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Update chief complaint (Today's Visit) - used by nurses
+export const updateChiefComplaint = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { chief_complaint } = req.body;
+
+    if (!chief_complaint || !chief_complaint.trim()) {
+      res.status(400).json({ error: 'Chief complaint is required' });
+      return;
+    }
+
+    const result = await pool.query(
+      `UPDATE encounters SET chief_complaint = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [chief_complaint.trim(), id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    res.json({
+      message: 'Chief complaint updated successfully',
+      encounter: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Update chief complaint error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

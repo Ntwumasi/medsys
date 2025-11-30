@@ -14,6 +14,8 @@ import ImagingDashboard from './pages/ImagingDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
+import AppointmentsCalendar from './pages/AppointmentsCalendar';
+import PatientPortal from './pages/PatientPortal';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -59,6 +61,8 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
       case 'admin':
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
+      case 'patient':
+        return <ErrorBoundary><PatientPortal /></ErrorBoundary>;
       default:
         console.warn('Unknown role:', user.role, 'Showing default dashboard');
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
@@ -90,7 +94,7 @@ function App() {
             <Route path="patients" element={<PatientList />} />
             <Route path="patients/new" element={<PatientRegistration />} />
             <Route path="patients/:id" element={<PatientDetails />} />
-            <Route path="appointments" element={<div className="p-8"><h1 className="text-2xl font-bold">Appointments (Coming Soon)</h1></div>} />
+            <Route path="appointments" element={<AppointmentsCalendar />} />
             <Route path="reports" element={<div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div>} />
           </Route>
 

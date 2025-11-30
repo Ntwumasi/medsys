@@ -118,6 +118,10 @@ const NurseDashboard: React.FC = () => {
   // Room editing state
   const [editingRoom, setEditingRoom] = useState(false);
 
+  // Today's Visit (Chief Complaint) editing state
+  const [editingTodaysVisit, setEditingTodaysVisit] = useState(false);
+  const [todaysVisitValue, setTodaysVisitValue] = useState('');
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
@@ -435,6 +439,26 @@ const NurseDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error releasing room:', error);
       showToast('Failed to release room', 'error');
+    }
+  };
+
+  const handleUpdateTodaysVisit = async () => {
+    if (!selectedPatient || !todaysVisitValue.trim()) {
+      showToast('Please enter a reason for today\'s visit', 'warning');
+      return;
+    }
+
+    try {
+      await apiClient.patch(`/encounters/${selectedPatient.id}/chief-complaint`, {
+        chief_complaint: todaysVisitValue.trim(),
+      });
+
+      showToast('Today\'s visit reason updated successfully', 'success');
+      setEditingTodaysVisit(false);
+      loadAssignedPatients();
+    } catch (error) {
+      console.error('Error updating today\'s visit:', error);
+      showToast('Failed to update today\'s visit reason', 'error');
     }
   };
 
@@ -796,9 +820,52 @@ const NurseDashboard: React.FC = () => {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
-                        Chief Complaint
+                        Today's Visit
                       </div>
-                      <div className="font-bold text-lg text-gray-900">{selectedPatient.chief_complaint}</div>
+                      {selectedPatient.chief_complaint && !editingTodaysVisit ? (
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-lg text-gray-900">{selectedPatient.chief_complaint}</div>
+                          <button
+                            onClick={() => {
+                              setTodaysVisitValue(selectedPatient.chief_complaint);
+                              setEditingTodaysVisit(true);
+                            }}
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <textarea
+                            value={todaysVisitValue}
+                            onChange={(e) => setTodaysVisitValue(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent font-semibold text-amber-900 resize-none"
+                            rows={2}
+                            placeholder="Enter patient's reason for today's visit..."
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleUpdateTodaysVisit}
+                              className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors font-semibold"
+                            >
+                              Save
+                            </button>
+                            {selectedPatient.chief_complaint && (
+                              <button
+                                onClick={() => {
+                                  setEditingTodaysVisit(false);
+                                  setTodaysVisitValue('');
+                                }}
+                                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 flex items-center justify-center">

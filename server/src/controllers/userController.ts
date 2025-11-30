@@ -2,15 +2,26 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import pool from '../database/db';
 
-// Get all users (staff members)
+// Get all users (staff members) - optionally filter by role
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await pool.query(
-      `SELECT id, email, role, first_name, last_name, phone, is_active, created_at, updated_at
-       FROM users
-       WHERE role != 'patient'
-       ORDER BY last_name ASC, first_name ASC`
-    );
+    const { role } = req.query;
+
+    let query = `
+      SELECT id, email, role, first_name, last_name, phone, is_active, created_at, updated_at
+      FROM users
+      WHERE role != 'patient'
+    `;
+    const params: any[] = [];
+
+    if (role) {
+      query += ` AND role = $1`;
+      params.push(role);
+    }
+
+    query += ` ORDER BY last_name ASC, first_name ASC`;
+
+    const result = await pool.query(query, params);
 
     res.json({ users: result.rows });
   } catch (error) {

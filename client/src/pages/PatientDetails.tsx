@@ -28,8 +28,10 @@ const PatientDetails: React.FC = () => {
   };
 
   const calculateAge = (dob: string) => {
+    if (!dob) return 'N/A';
     const today = new Date();
     const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return 'N/A';
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
@@ -260,7 +262,7 @@ const PatientDetails: React.FC = () => {
                         <span className="text-xs text-gray-500">{encounter.encounter_type}</span>
                       </div>
                       <p className="text-sm text-gray-600">
-                        <strong>Chief Complaint:</strong> {encounter.chief_complaint || 'N/A'}
+                        <strong>Today's Visit:</strong> {encounter.chief_complaint || 'N/A'}
                       </p>
                       {encounter.assessment && (
                         <p className="text-sm text-gray-600 mt-1">
@@ -325,7 +327,7 @@ const PatientDetails: React.FC = () => {
 
                     {encounter.chief_complaint && (
                       <div className="mb-3">
-                        <p className="text-sm font-medium text-gray-700">Chief Complaint:</p>
+                        <p className="text-sm font-medium text-gray-700">Today's Visit:</p>
                         <p className="text-sm text-gray-600 mt-1">{encounter.chief_complaint}</p>
                       </div>
                     )}

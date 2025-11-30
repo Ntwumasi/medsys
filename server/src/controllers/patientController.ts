@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 
+// Database migration needed for PCP fields:
+// ALTER TABLE patients ADD COLUMN pcp_name VARCHAR(255);
+// ALTER TABLE patients ADD COLUMN pcp_phone VARCHAR(20);
+
 export const createPatient = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
 
@@ -24,6 +28,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       marital_status,
       occupation,
       payer_sources, // New field: array of payer sources
+      pcp_name, // Primary Care Physician name
+      pcp_phone, // Primary Care Physician phone
     } = req.body;
 
     await client.query('BEGIN');
@@ -53,8 +59,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       `INSERT INTO patients (
         user_id, patient_number, date_of_birth, gender, blood_group, address, city, state,
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-        insurance_provider, insurance_number, marital_status, occupation
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        insurance_provider, insurance_number, marital_status, occupation, pcp_name, pcp_phone
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *`,
       [
         user_id,
@@ -72,6 +78,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         insurance_number,
         marital_status,
         occupation,
+        pcp_name || null,
+        pcp_phone || null,
       ]
     );
 
@@ -148,7 +156,8 @@ export const getPatients = async (req: Request, res: Response): Promise<void> =>
     const { search, limit = 50, offset = 0 } = req.query;
 
     let query = `
-      SELECT p.*, u.email, u.first_name, u.last_name
+      SELECT p.*, u.email, u.first_name, u.last_name, u.phone,
+             p.pcp_name, p.pcp_phone
       FROM patients p
       LEFT JOIN users u ON p.user_id = u.id
     `;
@@ -179,7 +188,8 @@ export const getPatientById = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
 
     const result = await pool.query(
-      `SELECT p.*, u.email, u.first_name, u.last_name, u.phone
+      `SELECT p.*, u.email, u.first_name, u.last_name, u.phone,
+              p.pcp_name, p.pcp_phone
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
        WHERE p.id = $1`,
