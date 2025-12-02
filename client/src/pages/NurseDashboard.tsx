@@ -212,7 +212,7 @@ const NurseDashboard: React.FC = () => {
 
       // Reload data and update selected patient
       const [patientsRes, roomsRes] = await Promise.all([
-        apiClient.get(`/workflow/nurse-patients/${user?.id}`),
+        apiClient.get('/workflow/nurse/patients'),
         apiClient.get('/workflow/rooms')
       ]);
 
