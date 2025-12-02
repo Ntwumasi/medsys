@@ -202,7 +202,7 @@ export const SmartTextArea: React.FC<SmartTextAreaProps> = ({
             {suggestions.map((suggestion, index) => (
               <div
                 key={suggestion}
-                onClick={() => handleSuggestionClick(suggestion, index)}
+                onClick={() => handleSuggestionClick(suggestion)}
                 onMouseEnter={() => setSelectedIndex(index)}
                 className={`px-4 py-2.5 cursor-pointer transition-colors flex items-center gap-3 ${
                   index === selectedIndex
