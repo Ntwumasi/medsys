@@ -282,10 +282,10 @@ router.get('/hp/:encounter_id', authenticateToken, authorizeRoles('nurse', 'doct
 router.post('/hp/save', authenticateToken, authorizeRoles('nurse', 'doctor'), saveHPSection);
 router.get('/hp/:encounter_id/status', authenticateToken, authorizeRoles('nurse', 'doctor'), getHPStatus);
 
-// System Updates / Roadmap routes
-router.get('/system-updates', authenticateToken, getSystemUpdates);
-router.get('/system-updates/stats', authenticateToken, getUpdateStats);
-router.post('/system-updates', authenticateToken, authorizeRoles('admin'), createSystemUpdate);
+// System Updates / Roadmap routes (public read access)
+router.get('/system-updates', getSystemUpdates);
+router.get('/system-updates/stats', getUpdateStats);
+router.post('/system-updates', createSystemUpdate);  // Public create for client updates
 router.put('/system-updates/:id', authenticateToken, authorizeRoles('admin'), updateSystemUpdate);
 router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'), deleteSystemUpdate);
 

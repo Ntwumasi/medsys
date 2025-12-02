@@ -16,6 +16,7 @@ import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
 import AppointmentsCalendar from './pages/AppointmentsCalendar';
 import PatientPortal from './pages/PatientPortal';
+import PublicUpdates from './pages/PublicUpdates';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -79,6 +80,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/updates" element={<PublicUpdates />} />
 
           <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
 
