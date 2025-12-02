@@ -74,7 +74,7 @@ export const SmartTextArea: React.FC<SmartTextAreaProps> = ({
   }, [handleKeyDown, value, cursorPosition, onChange]);
 
   // Handle clicking a suggestion
-  const handleSuggestionClick = useCallback((suggestion: string, index: number) => {
+  const handleSuggestionClick = useCallback((suggestion: string) => {
     if (!textareaRef.current) return;
 
     // Get the current word boundaries

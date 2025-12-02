@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { searchMedicalTerms, getTermsForSection } from '../data/medicalTerms';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { searchMedicalTerms } from '../data/medicalTerms';
 
 interface UseMedicalAutocompleteOptions {
   sectionId?: string;
@@ -57,12 +57,7 @@ export const useMedicalAutocomplete = (
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [currentWordInfo, setCurrentWordInfo] = useState<{ word: string; startIndex: number; endIndex: number } | null>(null);
 
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-
-  // Get available terms for the section (memoized)
-  const availableTerms = useMemo(() => {
-    return sectionId ? getTermsForSection(sectionId) : [];
-  }, [sectionId]);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -115,7 +110,7 @@ export const useMedicalAutocomplete = (
   const handleKeyDown = useCallback((
     e: React.KeyboardEvent,
     text: string,
-    cursorPosition: number
+    _cursorPosition: number
   ): { handled: boolean; newText?: string } => {
     if (!showSuggestions || suggestions.length === 0) {
       return { handled: false };
