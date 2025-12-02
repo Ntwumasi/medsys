@@ -412,8 +412,8 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const getWaitTimeLabel = (waitTimeMinutes?: number) => {
-    if (!waitTimeMinutes) return 'Unknown';
+  const getWaitTimeLabel = (waitTimeMinutes: number | null | undefined) => {
+    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'Just Arrived';
 
     if (waitTimeMinutes <= 15) {
       return 'GREEN';
@@ -424,8 +424,10 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const calculateWaitTime = (checkInTime: string): number => {
+  const calculateWaitTime = (checkInTime: string | null | undefined): number | null => {
+    if (!checkInTime) return null;
     const checkIn = new Date(checkInTime);
+    if (isNaN(checkIn.getTime())) return null;
     const now = new Date();
     const diffMs = now.getTime() - checkIn.getTime();
     return Math.floor(diffMs / (1000 * 60)); // Convert to minutes
@@ -716,7 +718,7 @@ const ReceptionistDashboard: React.FC = () => {
                           <>
                             <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime)}</div>
                             <div className="text-sm text-gray-600 mt-1">
-                              Wait: {waitTime} min
+                              {waitTime !== null ? `Wait: ${waitTime} min` : 'Not checked in'}
                             </div>
                           </>
                         ) : (
