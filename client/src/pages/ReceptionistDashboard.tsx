@@ -109,7 +109,7 @@ const ReceptionistDashboard: React.FC = () => {
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [chiefComplaint, setChiefComplaint] = useState('');
+  const [_chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
 

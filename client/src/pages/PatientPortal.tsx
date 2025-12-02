@@ -68,7 +68,7 @@ const PatientPortal: React.FC = () => {
   const [encounters, setEncounters] = useState<Encounter[]>([]);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [labResults, _setLabResults] = useState<LabResult[]>([]);
 
   useEffect(() => {
     loadPatientData();
