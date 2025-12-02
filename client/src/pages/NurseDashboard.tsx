@@ -7,6 +7,7 @@ import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
+import { SmartTextArea } from '../components/SmartTextArea';
 
 interface AssignedPatient {
   id: number;
@@ -1488,28 +1489,16 @@ const NurseDashboard: React.FC = () => {
                     {activeTab === 'notes' && (
                       <div className="space-y-6">
                         <form onSubmit={handleAddNote} className="space-y-4">
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="label mb-0">Clinical Note</label>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500">Voice Dictation</span>
-                                <VoiceDictationButton
-                                  onTranscriptChange={setNoteContent}
-                                  currentValue={noteContent}
-                                  appendMode={true}
-                                  size="md"
-                                />
-                              </div>
-                            </div>
-                            <textarea
-                              value={noteContent}
-                              onChange={(e) => setNoteContent(e.target.value)}
-                              className="input"
-                              rows={8}
-                              placeholder="Enter clinical notes... (or use voice dictation)\n\nUse the H&P tab for detailed History & Physical documentation."
-                              required
-                            />
-                          </div>
+                          <SmartTextArea
+                            value={noteContent}
+                            onChange={setNoteContent}
+                            placeholder="Enter clinical notes... Start typing for medical term suggestions.\n\nUse the H&P tab for detailed History & Physical documentation."
+                            rows={8}
+                            sectionId="hpi"
+                            showVoiceDictation={true}
+                            label="Clinical Note"
+                            required
+                          />
 
                           <div className="flex gap-2">
                             <button type="submit" className="btn-primary">
