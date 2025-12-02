@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { VoiceDictationButton } from './VoiceDictationButton';
 
 interface HPSection {
   id: string;
@@ -413,17 +414,29 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             {/* Content Area */}
             <div className="flex-1 p-6 overflow-y-auto">
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  Notes / Content
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Notes / Content
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Voice Dictation</span>
+                    <VoiceDictationButton
+                      onTranscriptChange={setEditingContent}
+                      currentValue={editingContent}
+                      appendMode={true}
+                      size="md"
+                      showStatus={true}
+                    />
+                  </div>
+                </div>
                 <textarea
                   value={editingContent}
                   onChange={(e) => setEditingContent(e.target.value)}
                   className="w-full h-80 px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-all shadow-sm hover:border-gray-300"
-                  placeholder={`Enter ${currentSection.title.toLowerCase()} information here...\n\nProvide detailed notes for this section.`}
+                  placeholder={`Enter ${currentSection.title.toLowerCase()} information here...\n\nProvide detailed notes for this section.\n\nTip: Click the microphone button to use voice dictation.`}
                 />
               </div>
 
