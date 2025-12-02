@@ -117,7 +117,23 @@ export const assignRoom = async (req: Request, res: Response): Promise<void> => 
   try {
     const { encounter_id, room_id } = req.body;
 
-    // Mark room as occupied
+    // First, get the current room assignment to release it
+    const currentEncounter = await pool.query(
+      `SELECT room_id FROM encounters WHERE id = $1`,
+      [encounter_id]
+    );
+
+    const oldRoomId = currentEncounter.rows[0]?.room_id;
+
+    // If patient was in a different room, mark old room as available
+    if (oldRoomId && oldRoomId !== room_id) {
+      await pool.query(
+        `UPDATE rooms SET is_available = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [oldRoomId]
+      );
+    }
+
+    // Mark new room as occupied
     await pool.query(
       `UPDATE rooms SET is_available = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [room_id]
