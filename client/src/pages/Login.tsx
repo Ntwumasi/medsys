@@ -82,17 +82,19 @@ const Login: React.FC = () => {
           </button>
         </form>
 
-        <div className="mt-6 text-sm text-gray-600 text-center">
-          <p className="font-semibold mb-2">Demo credentials:</p>
-          <div className="space-y-1">
-            <p>Receptionist: receptionist@medsys.com / demo123</p>
-            <p>Nurse: nurse@medsys.com / demo123</p>
-            <p>Doctor: doctor@medsys.com / demo123</p>
-            <p>Admin: admin@medsys.com / demo123</p>
-            <p>Lab: lab@medsys.com / demo123</p>
-            <p>Pharmacy: pharmacy@medsys.com / demo123</p>
-            <p>Imaging: imaging@medsys.com / demo123</p>
+        <div className="mt-6 text-sm text-gray-600">
+          <p className="font-semibold mb-3 text-center">Demo credentials:</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+            <p><span className="font-medium">Receptionist:</span> receptionist@medsys.com</p>
+            <p><span className="font-medium">Nurse:</span> nurse@medsys.com</p>
+            <p><span className="font-medium">Doctor:</span> doctor@medsys.com</p>
+            <p><span className="font-medium">Admin:</span> admin@medsys.com</p>
+            <p><span className="font-medium">Lab:</span> lab@medsys.com</p>
+            <p><span className="font-medium">Pharmacy:</span> pharmacy@medsys.com</p>
+            <p><span className="font-medium">Imaging:</span> imaging@medsys.com</p>
+            <p><span className="font-medium">Patient:</span> patient@medsys.com</p>
           </div>
+          <p className="text-center mt-2 text-gray-500">Password for all: <span className="font-mono bg-gray-100 px-1 rounded">demo123</span></p>
         </div>
       </div>
     </div>
