@@ -400,8 +400,8 @@ const ReceptionistDashboard: React.FC = () => {
     loadData();
   };
 
-  const getWaitTimeColor = (waitTimeMinutes?: number) => {
-    if (!waitTimeMinutes) return 'bg-slate-100 border-slate-400 text-slate-800';
+  const getWaitTimeColor = (waitTimeMinutes: number | null | undefined) => {
+    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'bg-slate-100 border-slate-400 text-slate-800';
 
     if (waitTimeMinutes <= 15) {
       return 'bg-emerald-100 border-emerald-400 text-emerald-800';
