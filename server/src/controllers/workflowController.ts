@@ -432,23 +432,34 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
   try {
     const result = await pool.query(
       `SELECT e.*,
+        e.checked_in_at as check_in_time,
         r.room_number,
         p.patient_number,
         p.date_of_birth,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
+        u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name,
         i.status as invoice_status,
         i.total_amount as billing_amount,
         CASE
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 15 THEN 'green'
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'
           ELSE 'red'
-        END as current_priority
+        END as current_priority,
+        CASE
+          WHEN e.status = 'completed' THEN 'completed'
+          WHEN e.doctor_started_at IS NOT NULL THEN 'with_doctor'
+          WHEN e.nurse_started_at IS NOT NULL THEN 'with_nurse'
+          WHEN e.nurse_id IS NOT NULL THEN 'waiting_for_nurse'
+          WHEN e.room_id IS NOT NULL THEN 'in_room'
+          ELSE 'checked_in'
+        END as workflow_status
       FROM encounters e
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
+      LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
       LEFT JOIN invoices i ON i.encounter_id = e.id
       WHERE DATE(e.encounter_date) = CURRENT_DATE
       ORDER BY

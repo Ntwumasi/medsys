@@ -125,6 +125,13 @@ import {
   saveHPSection,
   getHPStatus,
 } from '../controllers/hpController';
+import {
+  getSystemUpdates,
+  createSystemUpdate,
+  updateSystemUpdate,
+  deleteSystemUpdate,
+  getUpdateStats,
+} from '../controllers/systemUpdatesController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -274,5 +281,12 @@ router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('d
 router.get('/hp/:encounter_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getHP);
 router.post('/hp/save', authenticateToken, authorizeRoles('nurse', 'doctor'), saveHPSection);
 router.get('/hp/:encounter_id/status', authenticateToken, authorizeRoles('nurse', 'doctor'), getHPStatus);
+
+// System Updates / Roadmap routes
+router.get('/system-updates', authenticateToken, getSystemUpdates);
+router.get('/system-updates/stats', authenticateToken, getUpdateStats);
+router.post('/system-updates', authenticateToken, authorizeRoles('admin'), createSystemUpdate);
+router.put('/system-updates/:id', authenticateToken, authorizeRoles('admin'), updateSystemUpdate);
+router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'), deleteSystemUpdate);
 
 export default router;

@@ -48,6 +48,7 @@ interface QueueItem {
   date_of_birth: string;
   room_number?: string;
   nurse_name?: string;
+  doctor_name?: string;
   current_priority: 'green' | 'yellow' | 'red';
   triage_time: string;
   check_in_time: string;
@@ -55,6 +56,7 @@ interface QueueItem {
   wait_time_minutes?: number;
   billing_amount?: number;
   status: 'in-progress' | 'with_nurse' | 'completed';
+  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'with_doctor' | 'completed';
   invoice_status?: 'pending' | 'paid' | 'partial';
 }
 
@@ -400,7 +402,12 @@ const ReceptionistDashboard: React.FC = () => {
     loadData();
   };
 
-  const getWaitTimeColor = (waitTimeMinutes: number | null | undefined) => {
+  const getWaitTimeColor = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
+    // If patient is actively being seen, use a neutral/positive color
+    if (workflowStatus === 'with_nurse' || workflowStatus === 'with_doctor') {
+      return 'bg-blue-50 border-blue-400 text-blue-800';
+    }
+
     if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'bg-slate-100 border-slate-400 text-slate-800';
 
     if (waitTimeMinutes <= 15) {
@@ -412,8 +419,13 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const getWaitTimeLabel = (waitTimeMinutes: number | null | undefined) => {
-    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'Just Arrived';
+  const getWaitTimeLabel = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
+    // If patient is actively being seen, don't show wait time priority
+    if (workflowStatus === 'with_nurse' || workflowStatus === 'with_doctor') {
+      return 'IN CARE';
+    }
+
+    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'JUST ARRIVED';
 
     if (waitTimeMinutes <= 15) {
       return 'GREEN';
@@ -635,16 +647,28 @@ const ReceptionistDashboard: React.FC = () => {
                 const isCompleted = item.status === 'completed';
                 const isPaid = item.invoice_status === 'paid';
 
-                // Status badge configuration
+                // Status badge configuration based on workflow_status
                 const getStatusBadge = () => {
                   if (isCompleted && isPaid) {
                     return { text: 'Completed & Paid', bg: 'bg-emerald-100', textColor: 'text-emerald-800', icon: '✓' };
                   } else if (isCompleted) {
                     return { text: 'Completed - Awaiting Payment', bg: 'bg-amber-100', textColor: 'text-amber-800', icon: '⏳' };
-                  } else if (item.status === 'with_nurse') {
-                    return { text: 'With Nurse', bg: 'bg-blue-100', textColor: 'text-blue-800', icon: '👩‍⚕️' };
-                  } else {
-                    return { text: 'In Progress', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '🔄' };
+                  }
+
+                  // Use workflow_status for more detailed status
+                  switch (item.workflow_status) {
+                    case 'with_doctor':
+                      return { text: 'With Doctor', bg: 'bg-indigo-100', textColor: 'text-indigo-800', icon: '👨‍⚕️' };
+                    case 'with_nurse':
+                      return { text: 'With Nurse', bg: 'bg-blue-100', textColor: 'text-blue-800', icon: '👩‍⚕️' };
+                    case 'waiting_for_nurse':
+                      return { text: 'Waiting for Nurse', bg: 'bg-cyan-100', textColor: 'text-cyan-800', icon: '⏳' };
+                    case 'in_room':
+                      return { text: 'In Room', bg: 'bg-teal-100', textColor: 'text-teal-800', icon: '🚪' };
+                    case 'checked_in':
+                      return { text: 'Checked In', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '✓' };
+                    default:
+                      return { text: 'In Progress', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '🔄' };
                   }
                 };
 
@@ -653,7 +677,7 @@ const ReceptionistDashboard: React.FC = () => {
                 return (
                   <div
                     key={item.id}
-                    className={`p-6 border-l-4 rounded-lg ${isCompleted ? 'bg-gray-50 border-gray-300' : getWaitTimeColor(waitTime)} ${isCompleted ? 'opacity-75' : ''}`}
+                    className={`p-6 border-l-4 rounded-lg ${isCompleted ? 'bg-gray-50 border-gray-300' : getWaitTimeColor(waitTime, item.workflow_status)} ${isCompleted ? 'opacity-75' : ''}`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
@@ -710,15 +734,24 @@ const ReceptionistDashboard: React.FC = () => {
                               )}
                             </span>
                           )}
+                          {item.doctor_name && (
+                            <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-medium">
+                              Doctor: {item.doctor_name}
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <div className="text-right ml-4">
                         {!isCompleted ? (
                           <>
-                            <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime)}</div>
+                            <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime, item.workflow_status)}</div>
                             <div className="text-sm text-gray-600 mt-1">
-                              {waitTime !== null ? `Wait: ${waitTime} min` : 'Not checked in'}
+                              {item.workflow_status === 'with_nurse' || item.workflow_status === 'with_doctor'
+                                ? `In care for ${waitTime || 0} min`
+                                : waitTime !== null
+                                  ? `Wait: ${waitTime} min`
+                                  : 'Just checked in'}
                             </div>
                           </>
                         ) : (
