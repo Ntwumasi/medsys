@@ -6,6 +6,7 @@ import { validateVitalSign } from '../utils/vitalSignsValidation';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
+import { VoiceDictationButton } from '../components/VoiceDictationButton';
 
 interface AssignedPatient {
   id: number;
@@ -837,14 +838,23 @@ const NurseDashboard: React.FC = () => {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <textarea
-                            value={todaysVisitValue}
-                            onChange={(e) => setTodaysVisitValue(e.target.value)}
-                            className="w-full px-3 py-2 border-2 border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent font-semibold text-amber-900 resize-none"
-                            rows={2}
-                            placeholder="Enter patient's reason for today's visit..."
-                            autoFocus
-                          />
+                          <div className="flex items-start gap-2">
+                            <textarea
+                              value={todaysVisitValue}
+                              onChange={(e) => setTodaysVisitValue(e.target.value)}
+                              className="flex-1 px-3 py-2 border-2 border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent font-semibold text-amber-900 resize-none"
+                              rows={2}
+                              placeholder="Enter patient's reason for today's visit... (or use voice)"
+                              autoFocus
+                            />
+                            <VoiceDictationButton
+                              onTranscriptChange={setTodaysVisitValue}
+                              currentValue={todaysVisitValue}
+                              appendMode={true}
+                              size="md"
+                              showStatus={false}
+                            />
+                          </div>
                           <div className="flex gap-2">
                             <button
                               onClick={handleUpdateTodaysVisit}
@@ -1463,13 +1473,24 @@ const NurseDashboard: React.FC = () => {
                       <div className="space-y-6">
                         <form onSubmit={handleAddNote} className="space-y-4">
                           <div>
-                            <label className="label">Clinical Note</label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="label mb-0">Clinical Note</label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Voice Dictation</span>
+                                <VoiceDictationButton
+                                  onTranscriptChange={setNoteContent}
+                                  currentValue={noteContent}
+                                  appendMode={true}
+                                  size="md"
+                                />
+                              </div>
+                            </div>
                             <textarea
                               value={noteContent}
                               onChange={(e) => setNoteContent(e.target.value)}
                               className="input"
                               rows={8}
-                              placeholder="Enter clinical notes...\n\nUse the H&P tab for detailed History & Physical documentation."
+                              placeholder="Enter clinical notes... (or use voice dictation)\n\nUse the H&P tab for detailed History & Physical documentation."
                               required
                             />
                           </div>

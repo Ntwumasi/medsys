@@ -5,6 +5,7 @@ import apiClient from '../api/client';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
+import { VoiceDictationButton } from '../components/VoiceDictationButton';
 
 interface RoomEncounter {
   id: number;
@@ -636,13 +637,24 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-6">
                         <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
                           <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2">Add New Doctor's Note</label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-bold text-gray-900">Add New Doctor's Note</label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Voice Dictation</span>
+                                <VoiceDictationButton
+                                  onTranscriptChange={setNoteContent}
+                                  currentValue={noteContent}
+                                  appendMode={true}
+                                  size="md"
+                                />
+                              </div>
+                            </div>
                             <textarea
                               value={noteContent}
                               onChange={(e) => setNoteContent(e.target.value)}
                               className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                               rows={6}
-                              placeholder="Enter clinical notes..."
+                              placeholder="Enter clinical notes... (or use voice dictation)"
                               required
                             />
                           </div>
@@ -753,18 +765,29 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-6">
                         <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-xl border-2 border-indigo-200">
                           <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                              </svg>
-                              Add Instructions for Nurse
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                Add Instructions for Nurse
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Voice Dictation</span>
+                                <VoiceDictationButton
+                                  onTranscriptChange={setNurseNoteContent}
+                                  currentValue={nurseNoteContent}
+                                  appendMode={true}
+                                  size="md"
+                                />
+                              </div>
+                            </div>
                             <textarea
                               value={nurseNoteContent}
                               onChange={(e) => setNurseNoteContent(e.target.value)}
                               className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
                               rows={6}
-                              placeholder="Enter instructions, orders, or tasks for the nurse..."
+                              placeholder="Enter instructions, orders, or tasks for the nurse... (or use voice dictation)"
                               required
                             />
                           </div>
@@ -804,18 +827,29 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-6">
                         <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 rounded-xl border-2 border-slate-300">
                           <div>
-                            <label className="block text-sm font-bold text-gray-900 mb-2 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                              </svg>
-                              Add Procedural Note
-                            </label>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-bold text-gray-900 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                </svg>
+                                Add Procedural Note
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500">Voice Dictation</span>
+                                <VoiceDictationButton
+                                  onTranscriptChange={setProceduralNoteContent}
+                                  currentValue={proceduralNoteContent}
+                                  appendMode={true}
+                                  size="md"
+                                />
+                              </div>
+                            </div>
                             <textarea
                               value={proceduralNoteContent}
                               onChange={(e) => setProceduralNoteContent(e.target.value)}
                               className="w-full px-4 py-3 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 focus:border-slate-500 resize-none"
                               rows={6}
-                              placeholder="Document procedures performed, technique, findings, complications..."
+                              placeholder="Document procedures performed, technique, findings, complications... (or use voice dictation)"
                               required
                             />
                           </div>
