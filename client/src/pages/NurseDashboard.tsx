@@ -208,8 +208,24 @@ const NurseDashboard: React.FC = () => {
         room_id: roomId,
       });
       showToast('Room assigned successfully', 'success');
-      await loadAssignedPatients();
-      await loadRooms();
+
+      // Reload data and update selected patient
+      const [patientsRes, roomsRes] = await Promise.all([
+        apiClient.get(`/workflow/nurse-patients/${user?.id}`),
+        apiClient.get('/workflow/rooms')
+      ]);
+
+      const updatedPatients = patientsRes.data.patients || [];
+      setAssignedPatients(updatedPatients);
+      setRooms(roomsRes.data.rooms || []);
+
+      // Update selected patient with fresh data
+      if (selectedPatient) {
+        const updatedPatient = updatedPatients.find((p: AssignedPatient) => p.id === selectedPatient.id);
+        if (updatedPatient) {
+          setSelectedPatient(updatedPatient);
+        }
+      }
     } catch (error: any) {
       console.error('Error assigning room:', error);
       const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to assign room';
@@ -773,7 +789,7 @@ const NurseDashboard: React.FC = () => {
                       {selectedPatient.room_number && !editingRoom ? (
                         <div className="flex items-center justify-between">
                           <div className="font-bold text-xl text-gray-900">
-                            Room {selectedPatient.room_number} {selectedPatient.room_name}
+                            {selectedPatient.room_name || `Room ${selectedPatient.room_number}`}
                           </div>
                           <button
                             onClick={() => setEditingRoom(true)}
@@ -801,7 +817,7 @@ const NurseDashboard: React.FC = () => {
                               .filter((r) => r.is_available)
                               .map((room) => (
                                 <option key={room.id} value={room.id}>
-                                  Room {room.room_number}
+                                  {room.room_name || `Room ${room.room_number}`}
                                 </option>
                               ))}
                           </select>

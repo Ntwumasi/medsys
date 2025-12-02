@@ -426,7 +426,7 @@ const DoctorDashboard: React.FC = () => {
                           Encounter #: {selectedEncounter.encounter_number}
                         </span>
                         <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-semibold">
-                          Room {selectedEncounter.room_number}
+                          {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
                         </span>
                       </div>
                     </div>
