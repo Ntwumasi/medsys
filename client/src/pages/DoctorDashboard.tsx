@@ -31,6 +31,27 @@ interface ClinicalNote {
   created_at: string;
 }
 
+interface LabOrder {
+  id: number;
+  test_name: string;
+  priority: string;
+  status: string;
+  results?: string;
+  ordered_at: string;
+  completed_at?: string;
+}
+
+interface ImagingOrder {
+  id: number;
+  imaging_type: string;
+  body_part?: string;
+  priority: string;
+  status: string;
+  results?: string;
+  ordered_at: string;
+  completed_at?: string;
+}
+
 const DoctorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -60,6 +81,11 @@ const DoctorDashboard: React.FC = () => {
   const [existingHP, setExistingHP] = useState<ClinicalNote | null>(null);
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('doctor');
 
+  // Lab and Imaging results state
+  const [encounterLabOrders, setEncounterLabOrders] = useState<LabOrder[]>([]);
+  const [encounterImagingOrders, setEncounterImagingOrders] = useState<ImagingOrder[]>([]);
+  const [resultsTab, setResultsTab] = useState<'lab' | 'imaging'>('lab');
+
   useEffect(() => {
     loadRoomEncounters();
     const interval = setInterval(loadRoomEncounters, 30000);
@@ -69,6 +95,7 @@ const DoctorDashboard: React.FC = () => {
   useEffect(() => {
     if (selectedEncounter) {
       loadEncounterNotes(selectedEncounter.id);
+      loadEncounterOrders(selectedEncounter.id);
     }
   }, [selectedEncounter]);
 
@@ -94,6 +121,16 @@ const DoctorDashboard: React.FC = () => {
       setExistingHP(hpNote || null);
     } catch (error) {
       console.error('Error loading notes:', error);
+    }
+  };
+
+  const loadEncounterOrders = async (encounterId: number) => {
+    try {
+      const res = await apiClient.get(`/orders/encounter/${encounterId}`);
+      setEncounterLabOrders(res.data.lab_orders || []);
+      setEncounterImagingOrders(res.data.imaging_orders || []);
+    } catch (error) {
+      console.error('Error loading orders:', error);
     }
   };
 
@@ -1181,6 +1218,216 @@ const DoctorDashboard: React.FC = () => {
                         </svg>
                         Submit All {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Order(s)
                       </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Lab & Test Results Section */}
+                <div className="card">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                      <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Lab & Test Results
+                    </h2>
+                    <button
+                      onClick={() => selectedEncounter && loadEncounterOrders(selectedEncounter.id)}
+                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
+                  </div>
+
+                  {/* Tabs */}
+                  <div className="border-b border-gray-200 mb-6">
+                    <nav className="flex gap-2" aria-label="Results Tabs">
+                      <button
+                        onClick={() => setResultsTab('lab')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          resultsTab === 'lab'
+                            ? 'border-purple-600 text-purple-600 bg-purple-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                          Lab Results
+                          {encounterLabOrders.length > 0 && (
+                            <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {encounterLabOrders.length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setResultsTab('imaging')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          resultsTab === 'imaging'
+                            ? 'border-purple-600 text-purple-600 bg-purple-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          Imaging Results
+                          {encounterImagingOrders.length > 0 && (
+                            <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {encounterImagingOrders.length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    </nav>
+                  </div>
+
+                  {/* Lab Results Tab */}
+                  {resultsTab === 'lab' && (
+                    <div>
+                      {encounterLabOrders.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                          <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                          <p className="text-lg font-medium">No lab orders for this encounter</p>
+                          <p className="text-sm mt-1">Lab orders and results will appear here</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {encounterLabOrders.map((order) => (
+                            <div
+                              key={order.id}
+                              className={`p-4 rounded-xl border-2 ${
+                                order.status === 'completed'
+                                  ? 'border-emerald-200 bg-emerald-50'
+                                  : order.status === 'in_progress'
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <h4 className="font-bold text-gray-900 text-lg">{order.test_name}</h4>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      order.status === 'completed'
+                                        ? 'bg-emerald-200 text-emerald-800'
+                                        : order.status === 'in_progress'
+                                        ? 'bg-amber-200 text-amber-800'
+                                        : 'bg-gray-200 text-gray-800'
+                                    }`}>
+                                      {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      order.priority === 'stat'
+                                        ? 'bg-red-100 text-red-700'
+                                        : order.priority === 'urgent'
+                                        ? 'bg-orange-100 text-orange-700'
+                                        : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {order.priority.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    Ordered: {new Date(order.ordered_at).toLocaleString()}
+                                  </div>
+                                  {order.status === 'completed' && order.results && (
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-emerald-300">
+                                      <div className="text-sm font-semibold text-emerald-800 mb-1">Results:</div>
+                                      <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                                      {order.completed_at && (
+                                        <div className="text-xs text-gray-500 mt-2">
+                                          Resulted: {new Date(order.completed_at).toLocaleString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Imaging Results Tab */}
+                  {resultsTab === 'imaging' && (
+                    <div>
+                      {encounterImagingOrders.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                          <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                          <p className="text-lg font-medium">No imaging orders for this encounter</p>
+                          <p className="text-sm mt-1">Imaging orders and results will appear here</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {encounterImagingOrders.map((order) => (
+                            <div
+                              key={order.id}
+                              className={`p-4 rounded-xl border-2 ${
+                                order.status === 'completed'
+                                  ? 'border-emerald-200 bg-emerald-50'
+                                  : order.status === 'in_progress'
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <h4 className="font-bold text-gray-900 text-lg">{order.imaging_type}</h4>
+                                    {order.body_part && (
+                                      <span className="text-gray-600">- {order.body_part}</span>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      order.status === 'completed'
+                                        ? 'bg-emerald-200 text-emerald-800'
+                                        : order.status === 'in_progress'
+                                        ? 'bg-amber-200 text-amber-800'
+                                        : 'bg-gray-200 text-gray-800'
+                                    }`}>
+                                      {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      order.priority === 'stat'
+                                        ? 'bg-red-100 text-red-700'
+                                        : order.priority === 'urgent'
+                                        ? 'bg-orange-100 text-orange-700'
+                                        : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {order.priority.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm text-gray-500 mt-1">
+                                    Ordered: {new Date(order.ordered_at).toLocaleString()}
+                                  </div>
+                                  {order.status === 'completed' && order.results && (
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-emerald-300">
+                                      <div className="text-sm font-semibold text-emerald-800 mb-1">Results/Findings:</div>
+                                      <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                                      {order.completed_at && (
+                                        <div className="text-xs text-gray-500 mt-2">
+                                          Resulted: {new Date(order.completed_at).toLocaleString()}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
