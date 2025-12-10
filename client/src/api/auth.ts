@@ -29,4 +29,9 @@ export const authAPI = {
     const response = await apiClient.get('/auth/me');
     return response.data;
   },
+
+  impersonate: async (userId: number) => {
+    const response = await apiClient.post(`/auth/impersonate/${userId}`);
+    return response.data;
+  },
 };

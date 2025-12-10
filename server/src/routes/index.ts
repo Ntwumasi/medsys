@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getCurrentUser } from '../controllers/authController';
+import { register, login, getCurrentUser, impersonateUser } from '../controllers/authController';
 import {
   getAllUsers,
   getUserById,
@@ -146,6 +146,7 @@ const router = express.Router();
 router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth/me', authenticateToken, getCurrentUser);
+router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
 
 // User Management routes (Admin only)
 router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);

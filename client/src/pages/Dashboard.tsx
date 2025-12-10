@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
 import type { Appointment } from '../types';
@@ -54,7 +54,8 @@ interface InsuranceProvider {
 }
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, impersonateUser } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useNotification();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
@@ -339,6 +340,31 @@ const Dashboard: React.FC = () => {
       loadStaff();
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to update staff member status';
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  const handleImpersonate = async (member: any) => {
+    if (!confirm(`Log in as ${member.first_name} ${member.last_name} (${member.role})? You will be redirected to their dashboard.`)) {
+      return;
+    }
+
+    try {
+      await impersonateUser(member.id);
+      showToast(`Now logged in as ${member.first_name} ${member.last_name}`, 'success');
+      // Navigate to the appropriate dashboard based on role
+      const roleRoutes: Record<string, string> = {
+        doctor: '/doctor',
+        nurse: '/nurse',
+        receptionist: '/receptionist',
+        lab: '/lab',
+        pharmacy: '/pharmacy',
+        imaging: '/imaging',
+        patient: '/patient-portal',
+      };
+      navigate(roleRoutes[member.role] || '/dashboard');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Failed to impersonate user';
       showToast(errorMessage, 'error');
     }
   };
@@ -1412,6 +1438,14 @@ const Dashboard: React.FC = () => {
                         >
                           Edit
                         </button>
+                        {member.is_active && member.role !== 'admin' && (
+                          <button
+                            onClick={() => handleImpersonate(member)}
+                            className="text-purple-600 hover:text-purple-900"
+                          >
+                            Login As
+                          </button>
+                        )}
                         <button
                           onClick={() => handleToggleStaffStatus(member.id, member.is_active)}
                           className={member.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}

@@ -153,3 +153,91 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Admin impersonation - allows admin to log in as another user
+export const impersonateUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const adminId = authReq.user?.id;
+    const adminRole = authReq.user?.role;
+    const targetUserId = parseInt(req.params.userId);
+
+    // Verify the requesting user is an admin
+    if (adminRole !== 'admin') {
+      res.status(403).json({ error: 'Only administrators can impersonate users' });
+      return;
+    }
+
+    // Validate target user ID
+    if (!targetUserId || isNaN(targetUserId)) {
+      res.status(400).json({ error: 'Invalid user ID' });
+      return;
+    }
+
+    // Get target user
+    const targetResult = await pool.query(
+      `SELECT id, email, role, first_name, last_name, is_active
+       FROM users WHERE id = $1`,
+      [targetUserId]
+    );
+
+    if (targetResult.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const targetUser = targetResult.rows[0];
+
+    // Check if target user is active
+    if (!targetUser.is_active) {
+      res.status(403).json({ error: 'Cannot impersonate an inactive user' });
+      return;
+    }
+
+    // Prevent admin from impersonating another admin
+    if (targetUser.role === 'admin') {
+      res.status(403).json({ error: 'Cannot impersonate another administrator' });
+      return;
+    }
+
+    // Log the impersonation
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    await pool.query(
+      `INSERT INTO impersonation_logs (admin_id, impersonated_user_id, impersonated_role, ip_address)
+       VALUES ($1, $2, $3, $4)`,
+      [adminId, targetUserId, targetUser.role, ipAddress]
+    );
+
+    // Generate JWT token for the target user with impersonation flag
+    const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const token = jwt.sign(
+      {
+        id: targetUser.id,
+        email: targetUser.email,
+        role: targetUser.role,
+        impersonatedBy: adminId
+      },
+      secret,
+      { expiresIn: '2h' } // Shorter expiry for impersonation sessions
+    );
+
+    res.json({
+      message: 'Impersonation successful',
+      user: {
+        id: targetUser.id,
+        email: targetUser.email,
+        role: targetUser.role,
+        first_name: targetUser.first_name,
+        last_name: targetUser.last_name,
+      },
+      token,
+      impersonation: {
+        adminId: adminId,
+        startedAt: new Date().toISOString(),
+      }
+    });
+  } catch (error) {
+    console.error('Impersonation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

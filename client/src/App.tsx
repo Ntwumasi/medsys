@@ -17,6 +17,7 @@ import PatientDetails from './pages/PatientDetails';
 import AppointmentsCalendar from './pages/AppointmentsCalendar';
 import PatientPortal from './pages/PatientPortal';
 import PublicUpdates from './pages/PublicUpdates';
+import ImpersonationBanner from './components/ImpersonationBanner';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -74,34 +75,44 @@ const RoleDashboard: React.FC = () => {
   }
 };
 
+// Wrapper to include impersonation banner within auth context
+const AppContent: React.FC = () => {
+  return (
+    <>
+      <ImpersonationBanner />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/updates" element={<PublicUpdates />} />
+
+        <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/dashboard" />} />
+          <Route path="patients" element={<PatientList />} />
+          <Route path="patients/new" element={<PatientRegistration />} />
+          <Route path="patients/:id" element={<PatientDetails />} />
+          <Route path="appointments" element={<AppointmentsCalendar />} />
+          <Route path="reports" element={<div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div>} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </>
+  );
+};
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/updates" element={<PublicUpdates />} />
-
-          <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
-
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/dashboard" />} />
-            <Route path="patients" element={<PatientList />} />
-            <Route path="patients/new" element={<PatientRegistration />} />
-            <Route path="patients/:id" element={<PatientDetails />} />
-            <Route path="appointments" element={<AppointmentsCalendar />} />
-            <Route path="reports" element={<div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div>} />
-          </Route>
-
-          <Route path="*" element={<Navigate to="/dashboard" />} />
-        </Routes>
+        <AppContent />
       </AuthProvider>
     </BrowserRouter>
   );
