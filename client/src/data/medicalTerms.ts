@@ -342,6 +342,144 @@ export const allergyTerms: string[] = [
   'dairy',
 ];
 
+// Lab test orders
+export const labTests: string[] = [
+  'CBC',
+  'CMP',
+  'BMP',
+  'Lipid Panel',
+  'LFTs',
+  'TSH',
+  'HbA1c',
+  'Urinalysis',
+  'PT/INR',
+  'PTT',
+  'BNP',
+  'Troponin',
+  'D-dimer',
+  'Blood Cultures',
+  'Urine Culture',
+  'Glucose',
+  'Creatinine',
+  'BUN',
+  'Electrolytes',
+  'Magnesium',
+  'Phosphorus',
+  'Vitamin D',
+  'Vitamin B12',
+  'Ferritin',
+  'Iron Studies',
+  'ESR',
+  'CRP',
+  'ANA',
+  'Thyroid Panel',
+  'Free T4',
+  'Hemoglobin',
+  'Hematocrit',
+  'Platelet Count',
+  'WBC',
+  'RBC',
+  'Procalcitonin',
+  'Lactate',
+  'ABG',
+  'Blood Type and Screen',
+  'Coagulation Panel',
+];
+
+// Imaging types
+export const imagingTypes: string[] = [
+  'X-Ray',
+  'CT Scan',
+  'CT with Contrast',
+  'CT without Contrast',
+  'MRI',
+  'MRI with Contrast',
+  'MRI without Contrast',
+  'Ultrasound',
+  'PET Scan',
+  'DEXA Scan',
+  'Mammography',
+  'Fluoroscopy',
+  'Echocardiogram',
+  'Nuclear Medicine',
+  'Angiography',
+  'CT Angiography',
+  'MR Angiography',
+  'Bone Scan',
+  'Doppler Ultrasound',
+  'Venous Duplex',
+  'Arterial Duplex',
+];
+
+// Body parts for imaging
+export const imagingBodyParts: string[] = [
+  'Chest',
+  'Abdomen',
+  'Pelvis',
+  'Abdomen and Pelvis',
+  'Head',
+  'Brain',
+  'Spine',
+  'Cervical Spine',
+  'Thoracic Spine',
+  'Lumbar Spine',
+  'Shoulder',
+  'Elbow',
+  'Wrist',
+  'Hand',
+  'Hip',
+  'Knee',
+  'Ankle',
+  'Foot',
+  'Neck',
+  'Upper Extremity',
+  'Lower Extremity',
+  'Whole Body',
+  'Sinus',
+  'Facial Bones',
+  'Ribs',
+  'Clavicle',
+];
+
+// Routes of administration
+export const pharmacyRoutes: string[] = [
+  'PO',
+  'IV',
+  'IM',
+  'SQ',
+  'Topical',
+  'Rectal',
+  'Sublingual',
+  'Inhalation',
+  'Ophthalmic',
+  'Otic',
+  'Nasal',
+  'Transdermal',
+  'Vaginal',
+  'Buccal',
+];
+
+// Dosing frequencies
+export const pharmacyFrequencies: string[] = [
+  'Daily',
+  'BID',
+  'TID',
+  'QID',
+  'Q4H',
+  'Q6H',
+  'Q8H',
+  'Q12H',
+  'PRN',
+  'Once',
+  'Weekly',
+  'Twice Weekly',
+  'Monthly',
+  'At bedtime',
+  'With meals',
+  'Before meals',
+  'After meals',
+];
+
 // Get all terms as a flat array for general autocomplete
 export const getAllMedicalTerms = (): string[] => {
   const allTerms = [
@@ -408,6 +546,19 @@ export const getTermsForSection = (sectionId: string): string[] => {
       return [...diagnoses];
     case 'plan':
       return [...planPhrases, ...medications];
+    // Order-specific sections
+    case 'lab_tests':
+      return [...labTests];
+    case 'imaging_types':
+      return [...imagingTypes];
+    case 'imaging_body_parts':
+      return [...imagingBodyParts];
+    case 'pharmacy_medications':
+      return [...medications];
+    case 'pharmacy_routes':
+      return [...pharmacyRoutes];
+    case 'pharmacy_frequencies':
+      return [...pharmacyFrequencies];
     default:
       return getAllMedicalTerms();
   }
@@ -461,6 +612,11 @@ export default {
   socialHistoryTerms,
   familyHistoryTerms,
   allergyTerms,
+  labTests,
+  imagingTypes,
+  imagingBodyParts,
+  pharmacyRoutes,
+  pharmacyFrequencies,
   getAllMedicalTerms,
   getTermsForSection,
   searchMedicalTerms,

@@ -6,6 +6,7 @@ import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
 import { SmartTextArea } from '../components/SmartTextArea';
+import { AutocompleteInput } from '../components/AutocompleteInput';
 
 interface RoomEncounter {
   id: number;
@@ -1052,10 +1053,10 @@ const DoctorDashboard: React.FC = () => {
                       </h3>
 
                       <div className="space-y-3">
-                        <input
-                          type="text"
+                        <AutocompleteInput
                           value={currentLabOrder.test_name}
-                          onChange={(e) => setCurrentLabOrder({...currentLabOrder, test_name: e.target.value})}
+                          onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
+                          sectionId="lab_tests"
                           className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                           placeholder="CBC, CMP, Lipid Panel..."
                         />
@@ -1117,17 +1118,17 @@ const DoctorDashboard: React.FC = () => {
                       </h3>
 
                       <div className="space-y-3">
-                        <input
-                          type="text"
+                        <AutocompleteInput
                           value={currentImagingOrder.imaging_type}
-                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: e.target.value})}
+                          onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: value})}
+                          sectionId="imaging_types"
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
                           placeholder="X-Ray, CT, MRI..."
                         />
-                        <input
-                          type="text"
+                        <AutocompleteInput
                           value={currentImagingOrder.body_part}
-                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, body_part: e.target.value})}
+                          onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, body_part: value})}
+                          sectionId="imaging_body_parts"
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
                           placeholder="Body part (optional)"
                         />
@@ -1190,10 +1191,10 @@ const DoctorDashboard: React.FC = () => {
                       </h3>
 
                       <div className="space-y-3">
-                        <input
-                          type="text"
+                        <AutocompleteInput
                           value={currentPharmacyOrder.medication_name}
-                          onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, medication_name: e.target.value})}
+                          onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, medication_name: value})}
+                          sectionId="pharmacy_medications"
                           className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
                           placeholder="Medication name"
                         />
@@ -1205,17 +1206,17 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
                             placeholder="Dosage"
                           />
-                          <input
-                            type="text"
+                          <AutocompleteInput
                             value={currentPharmacyOrder.frequency}
-                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: e.target.value})}
+                            onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: value})}
+                            sectionId="pharmacy_frequencies"
                             className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
                             placeholder="Frequency"
                           />
-                          <input
-                            type="text"
+                          <AutocompleteInput
                             value={currentPharmacyOrder.route}
-                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: e.target.value})}
+                            onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: value})}
+                            sectionId="pharmacy_routes"
                             className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
                             placeholder="Route"
                           />
