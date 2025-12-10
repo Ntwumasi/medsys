@@ -132,6 +132,12 @@ import {
   deleteSystemUpdate,
   getUpdateStats,
 } from '../controllers/systemUpdatesController';
+import {
+  getShortStayBeds,
+  assignBed,
+  releaseBed,
+  getEncounterShortStayHistory,
+} from '../controllers/shortStayController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -288,5 +294,11 @@ router.get('/system-updates/stats', getUpdateStats);
 router.post('/system-updates', createSystemUpdate);  // Public create for client updates
 router.put('/system-updates/:id', authenticateToken, authorizeRoles('admin'), updateSystemUpdate);
 router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'), deleteSystemUpdate);
+
+// Short Stay Unit routes
+router.get('/short-stay/beds', authenticateToken, authorizeRoles('doctor', 'nurse'), getShortStayBeds);
+router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor'), assignBed);
+router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseBed);
+router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
 
 export default router;
