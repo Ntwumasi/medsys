@@ -1039,7 +1039,7 @@ const NurseDashboard: React.FC = () => {
                                     }
                                   }
                                 }}
-                                className={`input flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
+                                className={`input min-w-0 flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
                                 placeholder="98.6"
                               />
                               <select
@@ -1050,7 +1050,7 @@ const NurseDashboard: React.FC = () => {
                                     temperature_unit: e.target.value as 'C' | 'F',
                                   })
                                 }
-                                className="input w-20"
+                                className="input w-16 flex-shrink-0"
                               >
                                 <option value="F">°F</option>
                                 <option value="C">°C</option>
@@ -1204,7 +1204,7 @@ const NurseDashboard: React.FC = () => {
                                     weight: e.target.value ? parseFloat(e.target.value) : undefined,
                                   })
                                 }
-                                className="input flex-1"
+                                className="input min-w-0 flex-1"
                                 placeholder="150"
                               />
                               <select
@@ -1215,7 +1215,7 @@ const NurseDashboard: React.FC = () => {
                                     weight_unit: e.target.value as 'kg' | 'lbs',
                                   })
                                 }
-                                className="input w-20"
+                                className="input w-16 flex-shrink-0"
                               >
                                 <option value="lbs">lbs</option>
                                 <option value="kg">kg</option>
@@ -1236,7 +1236,7 @@ const NurseDashboard: React.FC = () => {
                                     height: e.target.value ? parseFloat(e.target.value) : undefined,
                                   })
                                 }
-                                className="input flex-1"
+                                className="input min-w-0 flex-1"
                                 placeholder="68"
                               />
                               <select
@@ -1247,7 +1247,7 @@ const NurseDashboard: React.FC = () => {
                                     height_unit: e.target.value as 'cm' | 'in',
                                   })
                                 }
-                                className="input w-20"
+                                className="input w-16 flex-shrink-0"
                               >
                                 <option value="in">in</option>
                                 <option value="cm">cm</option>

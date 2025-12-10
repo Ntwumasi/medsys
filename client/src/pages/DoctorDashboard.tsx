@@ -564,16 +564,78 @@ const DoctorDashboard: React.FC = () => {
                       <div className="text-sm text-gray-600">Today's Visit</div>
                       <div className="font-semibold text-lg text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                     </div>
-                    {selectedEncounter.vital_signs && (
-                      <div className="col-span-2">
-                        <div className="text-sm text-gray-600">Latest Vital Signs</div>
-                        <div className="mt-1 text-sm">
-                          BP: {selectedEncounter.vital_signs.blood_pressure_systolic}/
-                          {selectedEncounter.vital_signs.blood_pressure_diastolic} | HR:{' '}
-                          {selectedEncounter.vital_signs.heart_rate} | Temp:{' '}
-                          {selectedEncounter.vital_signs.temperature}°
-                          {selectedEncounter.vital_signs.temperature_unit} | O2:{' '}
-                          {selectedEncounter.vital_signs.oxygen_saturation}%
+                    {selectedEncounter.vital_signs ? (
+                      <div className="col-span-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
+                        <div className="text-sm font-medium text-green-800 mb-3 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          Vital Signs
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="text-xs text-gray-500">Blood Pressure</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
+                              <span className="text-xs font-normal text-gray-500 ml-1">mmHg</span>
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="text-xs text-gray-500">Heart Rate</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.heart_rate}
+                              <span className="text-xs font-normal text-gray-500 ml-1">bpm</span>
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="text-xs text-gray-500">Temperature</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
+                            </div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="text-xs text-gray-500">O2 Saturation</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.oxygen_saturation}
+                              <span className="text-xs font-normal text-gray-500 ml-1">%</span>
+                            </div>
+                          </div>
+                          {selectedEncounter.vital_signs.respiratory_rate && (
+                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                              <div className="text-xs text-gray-500">Respiratory Rate</div>
+                              <div className="font-bold text-gray-900">
+                                {selectedEncounter.vital_signs.respiratory_rate}
+                                <span className="text-xs font-normal text-gray-500 ml-1">/min</span>
+                              </div>
+                            </div>
+                          )}
+                          {selectedEncounter.vital_signs.weight && (
+                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                              <div className="text-xs text-gray-500">Weight</div>
+                              <div className="font-bold text-gray-900">
+                                {selectedEncounter.vital_signs.weight}
+                                <span className="text-xs font-normal text-gray-500 ml-1">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
+                              </div>
+                            </div>
+                          )}
+                          {selectedEncounter.vital_signs.height && (
+                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                              <div className="text-xs text-gray-500">Height</div>
+                              <div className="font-bold text-gray-900">
+                                {selectedEncounter.vital_signs.height}
+                                <span className="text-xs font-normal text-gray-500 ml-1">{selectedEncounter.vital_signs.height_unit || 'in'}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="col-span-2 bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                        <div className="text-sm text-yellow-800 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span>Vital signs not yet recorded by nurse</span>
                         </div>
                       </div>
                     )}

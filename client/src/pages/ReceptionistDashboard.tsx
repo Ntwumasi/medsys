@@ -30,6 +30,8 @@ interface Patient {
   first_name?: string;
   last_name?: string;
   date_of_birth: string;
+  gender?: string;
+  preferred_clinic?: string;
   phone?: string;
   email?: string;
   address?: string;
@@ -113,6 +115,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [_chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
+  const [selectedClinic, setSelectedClinic] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
 
   // Ghana regions
@@ -179,6 +182,8 @@ const ReceptionistDashboard: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotalPages, setHistoryTotalPages] = useState(1);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historySortField, setHistorySortField] = useState<string>('encounter_date');
+  const [historySortOrder, setHistorySortOrder] = useState<'asc' | 'desc'>('desc');
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -237,6 +242,8 @@ const ReceptionistDashboard: React.FC = () => {
       const params: any = {
         page: historyPage,
         limit: itemsPerPage,
+        sort_field: historySortField,
+        sort_order: historySortOrder,
       };
 
       if (historySearchTerm) {
@@ -262,12 +269,25 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  // Handle sorting for past patients table
+  const handleHistorySort = (field: string) => {
+    if (historySortField === field) {
+      // Toggle sort order if same field
+      setHistorySortOrder(historySortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New field, default to ascending
+      setHistorySortField(field);
+      setHistorySortOrder('asc');
+    }
+    setHistoryPage(1); // Reset to first page on sort change
+  };
+
   // Load past patients when filters change or page changes
   useEffect(() => {
     if (activeView === 'history') {
       loadPastPatients();
     }
-  }, [activeView, historyPage, historySearchTerm, historyDateFrom, historyDateTo]);
+  }, [activeView, historyPage, historySearchTerm, historyDateFrom, historyDateTo, historySortField, historySortOrder]);
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,6 +301,7 @@ const ReceptionistDashboard: React.FC = () => {
         chief_complaint: '', // Now entered by nurse
         encounter_type: encounterType,
         billing_amount: billingAmount,
+        clinic: selectedClinic || null,
       });
 
       // Store patient name for success message
@@ -292,6 +313,7 @@ const ReceptionistDashboard: React.FC = () => {
       setSearchTerm('');
       setPatientHistory([]);
       setEncounterType('walk-in');
+      setSelectedClinic('');
 
       // Reload data first to get the updated queue
       await loadData();
@@ -492,6 +514,10 @@ const ReceptionistDashboard: React.FC = () => {
   const handlePatientSelect = async (patient: Patient) => {
     setSelectedPatient(patient);
     setSearchTerm(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
+    // Pre-fill clinic from patient's preferred clinic if available
+    if (patient.preferred_clinic) {
+      setSelectedClinic(patient.preferred_clinic);
+    }
     await loadPatientHistory(patient.id);
   };
 
@@ -920,12 +946,32 @@ const ReceptionistDashboard: React.FC = () => {
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
                       <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')}</p>
+                      {selectedPatient.gender && (
+                        <p><span className="font-medium">Gender:</span> {selectedPatient.gender}</p>
+                      )}
                       {selectedPatient.phone && (
                         <p><span className="font-medium">Phone:</span> {selectedPatient.phone}</p>
                       )}
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Clinic *
+                  </label>
+                  <select
+                    value={selectedClinic}
+                    onChange={(e) => setSelectedClinic(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select Clinic</option>
+                    {clinics.map((clinic) => (
+                      <option key={clinic} value={clinic}>{clinic}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1538,20 +1584,93 @@ const ReceptionistDashboard: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Patient
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleHistorySort('patient_name')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Patient
+                          {historySortField === 'patient_name' && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {historySortOrder === 'asc' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleHistorySort('gender')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Gender
+                          {historySortField === 'gender' && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {historySortOrder === 'asc' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Encounter #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleHistorySort('encounter_date')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Date
+                          {historySortField === 'encounter_date' && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {historySortOrder === 'asc' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Today's Visit
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleHistorySort('clinic')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Clinic
+                          {historySortField === 'clinic' && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {historySortOrder === 'asc' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Provider
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleHistorySort('provider_name')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Physician
+                          {historySortField === 'provider_name' && (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {historySortOrder === 'asc' ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              )}
+                            </svg>
+                          )}
+                        </div>
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Action
@@ -1570,15 +1689,16 @@ const ReceptionistDashboard: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.gender || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {encounter.encounter_number}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {safeFormatDate(encounter.encounter_date, 'MM/dd/yyyy')}
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 max-w-xs truncate">
-                            {encounter.chief_complaint || 'N/A'}
-                          </div>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.clinic || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {encounter.provider_name || 'N/A'}

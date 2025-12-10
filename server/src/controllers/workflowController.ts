@@ -10,7 +10,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     const receptionist_id = authReq.user?.id;
 
-    const { patient_id, chief_complaint, encounter_type, billing_amount } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic } = req.body;
 
     await client.query('BEGIN');
 
@@ -32,8 +32,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const result = await client.query(
       `INSERT INTO encounters (
         patient_id, provider_id, receptionist_id, encounter_date, encounter_type,
-        chief_complaint, status, checked_in_at, triage_time, triage_priority
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green')
+        chief_complaint, status, checked_in_at, triage_time, triage_priority, clinic
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green', $7)
       RETURNING *`,
       [
         patient_id,
@@ -42,6 +42,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         new Date(),
         encounter_type || 'walk-in',
         chief_complaint,
+        clinic || null,
       ]
     );
 
@@ -383,8 +384,25 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       ORDER BY r.room_number`
     );
 
+    // Fetch latest vital signs for each encounter
+    const encountersWithVitals = await Promise.all(
+      result.rows.map(async (encounter) => {
+        const vitalsResult = await pool.query(
+          `SELECT * FROM vital_signs
+           WHERE encounter_id = $1
+           ORDER BY recorded_at DESC
+           LIMIT 1`,
+          [encounter.id]
+        );
+        return {
+          ...encounter,
+          vital_signs: vitalsResult.rows[0] || null,
+        };
+      })
+    );
+
     res.json({
-      encounters: result.rows,
+      encounters: encountersWithVitals,
     });
   } catch (error) {
     console.error('Get encounters by room error:', error);
@@ -584,13 +602,14 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
 // Get completed encounters with search and date filtering (for Past Patients view)
 export const getCompletedEncounters = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { search, date_from, date_to, page = 1, limit = 10 } = req.query;
+    const { search, date_from, date_to, page = 1, limit = 10, sort_field = 'encounter_date', sort_order = 'desc' } = req.query;
 
     const offset = (Number(page) - 1) * Number(limit);
 
     let query = `
       SELECT e.*,
         p.patient_number,
+        p.gender,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_provider.first_name || ' ' || u_provider.last_name as provider_name,
         r.room_number
@@ -637,8 +656,20 @@ export const getCompletedEncounters = async (req: Request, res: Response): Promi
     const countResult = await pool.query(countQuery, params);
     const totalCount = parseInt(countResult.rows[0].count);
 
+    // Map sort fields to actual column names
+    const sortFieldMap: { [key: string]: string } = {
+      'encounter_date': 'e.encounter_date',
+      'patient_name': 'patient_name',
+      'clinic': 'e.clinic',
+      'provider_name': 'provider_name',
+      'gender': 'p.gender',
+    };
+
+    const sortColumn = sortFieldMap[sort_field as string] || 'e.encounter_date';
+    const sortDirection = sort_order === 'asc' ? 'ASC' : 'DESC';
+
     // Add ordering and pagination
-    query += ` ORDER BY e.encounter_date DESC, e.completed_at DESC`;
+    query += ` ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, e.completed_at DESC`;
     query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(Number(limit), offset);
 

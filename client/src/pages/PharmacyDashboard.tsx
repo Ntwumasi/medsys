@@ -262,33 +262,59 @@ const PharmacyDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pharmacy Dashboard</h1>
-              <p className="text-sm text-gray-600">Welcome, {user?.first_name} {user?.last_name}</p>
+      <header className="bg-gradient-to-r from-green-600 to-emerald-600 shadow-lg">
+        <div className="max-w-full mx-auto px-6 py-5">
+          <div className="flex justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Pharmacy Dashboard
+                </h1>
+                <p className="text-green-100 text-sm">
+                  Welcome, {user?.first_name} {user?.last_name}
+                </p>
+              </div>
             </div>
             <button
               onClick={logout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              className="px-5 py-2.5 bg-white text-green-600 hover:bg-green-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
             >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
               Logout
             </button>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Navigation Tabs */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white border-b shadow-sm">
+        <div className="max-w-full mx-auto px-6">
           <nav className="flex space-x-8">
             {[
-              { id: 'orders', label: 'Prescriptions', icon: '💊' },
-              { id: 'inventory', label: 'Inventory', icon: '📦' },
-              { id: 'revenue', label: 'Revenue', icon: '📊' },
+              { id: 'orders', label: 'Prescriptions', icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              )},
+              { id: 'inventory', label: 'Inventory', icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              )},
+              { id: 'revenue', label: 'Revenue', icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              )},
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -296,7 +322,7 @@ const PharmacyDashboard: React.FC = () => {
                   setActiveTab(tab.id as any);
                   if (tab.id === 'revenue') fetchRevenueSummary();
                 }}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-green-500 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -309,34 +335,70 @@ const PharmacyDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-full mx-auto px-6 py-6">
         {/* ORDERS TAB */}
         {activeTab === 'orders' && (
           <div>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Pending Orders</div>
-                <div className="text-3xl font-bold text-yellow-600 mt-1">
-                  {pharmacyOrders.filter(o => o.status === 'ordered').length}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Pending Orders</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {pharmacyOrders.filter(o => o.status === 'ordered').length}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Routing Requests</div>
-                <div className="text-3xl font-bold text-blue-600 mt-1">
-                  {routingRequests.filter(r => r.status === 'pending').length}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Routing Requests</p>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {routingRequests.filter(r => r.status === 'pending').length}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">In Progress</div>
-                <div className="text-3xl font-bold text-purple-600 mt-1">
-                  {routingRequests.filter(r => r.status === 'in-progress').length}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">In Progress</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {routingRequests.filter(r => r.status === 'in-progress').length}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Low Stock Alerts</div>
-                <div className="text-3xl font-bold text-red-600 mt-1">
-                  {inventoryStats?.low_stock_count || 0}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-red-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Low Stock Alerts</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {inventoryStats?.low_stock_count || 0}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -363,14 +425,14 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Date Range Filter for History */}
             {ordersSubTab === 'history' && (
-              <div className="bg-white rounded-xl shadow p-4 mb-4 flex items-center gap-4">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="border rounded-lg px-3 py-2"
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -379,18 +441,18 @@ const PharmacyDashboard: React.FC = () => {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="border rounded-lg px-3 py-2"
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                 </div>
                 <button
                   onClick={fetchOrderHistory}
-                  className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
                 >
                   Search
                 </button>
                 <button
                   onClick={() => { setStartDate(''); setEndDate(''); fetchOrderHistory(); }}
-                  className="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
                   Clear
                 </button>
@@ -399,7 +461,7 @@ const PharmacyDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Orders List */}
-              <div className="lg:col-span-2 bg-white rounded-xl shadow">
+              <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">
                     {ordersSubTab === 'pending' ? 'Pending Prescriptions' : 'Order History'}
@@ -475,7 +537,7 @@ const PharmacyDashboard: React.FC = () => {
               </div>
 
               {/* Patient Details Panel */}
-              <div className="bg-white rounded-xl shadow">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">Patient Details</h2>
                 </div>
@@ -561,44 +623,95 @@ const PharmacyDashboard: React.FC = () => {
         {activeTab === 'inventory' && (
           <div>
             {/* Inventory Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Total Items</div>
-                <div className="text-2xl font-bold text-gray-900 mt-1">{inventoryStats?.total_items || 0}</div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Total Items</p>
+                    <p className="text-2xl font-bold text-gray-900">{inventoryStats?.total_items || 0}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4 cursor-pointer hover:ring-2 ring-yellow-500" onClick={() => setInventoryFilter('low_stock')}>
-                <div className="text-sm font-medium text-gray-500">Low Stock</div>
-                <div className="text-2xl font-bold text-yellow-600 mt-1">{inventoryStats?.low_stock_count || 0}</div>
+              <div
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-yellow-400"
+                onClick={() => setInventoryFilter('low_stock')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Low Stock</p>
+                    <p className="text-2xl font-bold text-yellow-600">{inventoryStats?.low_stock_count || 0}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4 cursor-pointer hover:ring-2 ring-orange-500" onClick={() => setInventoryFilter('expiring')}>
-                <div className="text-sm font-medium text-gray-500">Expiring Soon</div>
-                <div className="text-2xl font-bold text-orange-600 mt-1">{inventoryStats?.expiring_soon_count || 0}</div>
+              <div
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-orange-400"
+                onClick={() => setInventoryFilter('expiring')}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-orange-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Expiring Soon</p>
+                    <p className="text-2xl font-bold text-orange-600">{inventoryStats?.expiring_soon_count || 0}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Expired</div>
-                <div className="text-2xl font-bold text-red-600 mt-1">{inventoryStats?.expired_count || 0}</div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-red-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Expired</p>
+                    <p className="text-2xl font-bold text-red-600">{inventoryStats?.expired_count || 0}</p>
+                  </div>
+                </div>
               </div>
-              <div className="bg-white rounded-xl shadow p-4">
-                <div className="text-sm font-medium text-gray-500">Stock Value</div>
-                <div className="text-2xl font-bold text-green-600 mt-1">
-                  GH₵ {parseFloat(String(inventoryStats?.total_stock_value || 0)).toLocaleString()}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Stock Value</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      GH{'\u20B5'} {parseFloat(String(inventoryStats?.total_stock_value || 0)).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white rounded-xl shadow p-4 mb-6 flex items-center gap-4">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
               <input
                 type="text"
                 placeholder="Search medications..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="flex-1 border rounded-lg px-4 py-2"
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
               />
               <select
                 value={inventoryFilter}
                 onChange={(e) => setInventoryFilter(e.target.value as any)}
-                className="border rounded-lg px-4 py-2"
+                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
                 <option value="all">All Items</option>
                 <option value="low_stock">Low Stock Only</option>
@@ -606,14 +719,14 @@ const PharmacyDashboard: React.FC = () => {
               </select>
               <button
                 onClick={fetchInventory}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Search
               </button>
             </div>
 
             {/* Inventory Table */}
-            <div className="bg-white rounded-xl shadow overflow-hidden">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -676,14 +789,14 @@ const PharmacyDashboard: React.FC = () => {
         {activeTab === 'revenue' && (
           <div>
             {/* Date Filter */}
-            <div className="bg-white rounded-xl shadow p-4 mb-6 flex items-center gap-4">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="border rounded-lg px-3 py-2"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -692,12 +805,12 @@ const PharmacyDashboard: React.FC = () => {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="border rounded-lg px-3 py-2"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
               <button
                 onClick={fetchRevenueSummary}
-                className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
               >
                 Generate Report
               </button>
@@ -706,27 +819,63 @@ const PharmacyDashboard: React.FC = () => {
             {revenueData ? (
               <>
                 {/* Summary Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-white rounded-xl shadow p-4">
-                    <div className="text-sm font-medium text-gray-500">Total Orders</div>
-                    <div className="text-2xl font-bold text-gray-900 mt-1">{revenueData.totals?.total_orders || 0}</div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Total Orders</p>
+                        <p className="text-2xl font-bold text-gray-900">{revenueData.totals?.total_orders || 0}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow p-4">
-                    <div className="text-sm font-medium text-gray-500">Dispensed</div>
-                    <div className="text-2xl font-bold text-green-600 mt-1">{revenueData.totals?.dispensed_orders || 0}</div>
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-green-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Dispensed</p>
+                        <p className="text-2xl font-bold text-green-600">{revenueData.totals?.dispensed_orders || 0}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow p-4">
-                    <div className="text-sm font-medium text-gray-500">Pending</div>
-                    <div className="text-2xl font-bold text-yellow-600 mt-1">{revenueData.totals?.pending_orders || 0}</div>
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-yellow-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Pending</p>
+                        <p className="text-2xl font-bold text-yellow-600">{revenueData.totals?.pending_orders || 0}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow p-4">
-                    <div className="text-sm font-medium text-gray-500">Unique Patients</div>
-                    <div className="text-2xl font-bold text-blue-600 mt-1">{revenueData.totals?.unique_patients || 0}</div>
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-blue-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">Unique Patients</p>
+                        <p className="text-2xl font-bold text-blue-600">{revenueData.totals?.unique_patients || 0}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Top Medications */}
-                <div className="bg-white rounded-xl shadow mb-6">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
                   <div className="px-6 py-4 border-b">
                     <h2 className="text-lg font-semibold">Top 10 Medications</h2>
                   </div>
@@ -761,7 +910,7 @@ const PharmacyDashboard: React.FC = () => {
             )}
           </div>
         )}
-      </div>
+      </main>
 
       {/* Drug History Modal */}
       {showDrugHistory && (
