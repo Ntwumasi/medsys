@@ -20,6 +20,10 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       address,
       city,
       state,
+      region,
+      nationality,
+      gps_address,
+      preferred_clinic,
       emergency_contact_name,
       emergency_contact_phone,
       emergency_contact_relationship,
@@ -30,6 +34,13 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       payer_sources, // New field: array of payer sources
       pcp_name, // Primary Care Physician name
       pcp_phone, // Primary Care Physician phone
+      // Health status fields
+      hiv_status,
+      hepatitis_b_status,
+      hepatitis_c_status,
+      tb_status,
+      sickle_cell_status,
+      other_health_conditions,
     } = req.body;
 
     await client.query('BEGIN');
@@ -58,9 +69,11 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     const result = await client.query(
       `INSERT INTO patients (
         user_id, patient_number, date_of_birth, gender, blood_group, address, city, state,
+        region, nationality, gps_address, preferred_clinic,
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
-        insurance_provider, insurance_number, marital_status, occupation, pcp_name, pcp_phone
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        insurance_provider, insurance_number, marital_status, occupation, pcp_name, pcp_phone,
+        hiv_status, hepatitis_b_status, hepatitis_c_status, tb_status, sickle_cell_status, other_health_conditions
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         user_id,
@@ -71,6 +84,10 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         address,
         city,
         state,
+        region || null,
+        nationality || null,
+        gps_address || null,
+        preferred_clinic || null,
         emergency_contact_name,
         emergency_contact_phone,
         emergency_contact_relationship,
@@ -80,6 +97,12 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         occupation,
         pcp_name || null,
         pcp_phone || null,
+        hiv_status || null,
+        hepatitis_b_status || null,
+        hepatitis_c_status || null,
+        tb_status || null,
+        sickle_cell_status || null,
+        other_health_conditions || null,
       ]
     );
 

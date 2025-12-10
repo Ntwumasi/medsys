@@ -8,6 +8,7 @@ import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
+import PatientQuickView from '../components/PatientQuickView';
 
 interface AssignedPatient {
   id: number;
@@ -123,6 +124,9 @@ const NurseDashboard: React.FC = () => {
   // Today's Visit (Chief Complaint) editing state
   const [editingTodaysVisit, setEditingTodaysVisit] = useState(false);
   const [todaysVisitValue, setTodaysVisitValue] = useState('');
+
+  // Patient Quick View state
+  const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
 
   useEffect(() => {
     loadAssignedPatients();
@@ -597,7 +601,15 @@ const NurseDashboard: React.FC = () => {
                       patient.current_priority
                     )} ${selectedPatient?.id === patient.id ? 'ring-2 ring-blue-500 shadow-lg scale-[1.02]' : ''}`}
                   >
-                    <div className="font-bold text-lg">{patient.patient_name}</div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setQuickViewPatientId(patient.patient_id);
+                      }}
+                      className="font-bold text-lg hover:text-blue-600 hover:underline text-left transition-colors"
+                    >
+                      {patient.patient_name}
+                    </button>
                     <div className="text-sm text-gray-600 mt-1">
                       Room {patient.room_number} | {patient.patient_number}
                     </div>
@@ -1629,6 +1641,15 @@ const NurseDashboard: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Patient Quick View Side Panel */}
+      {quickViewPatientId && (
+        <PatientQuickView
+          patientId={quickViewPatientId}
+          onClose={() => setQuickViewPatientId(null)}
+          showHealthStatus={false}
+        />
+      )}
     </div>
   );
 };

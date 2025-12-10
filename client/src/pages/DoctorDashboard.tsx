@@ -7,6 +7,7 @@ import { useNotification } from '../context/NotificationContext';
 import NotificationCenter from '../components/NotificationCenter';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { AutocompleteInput } from '../components/AutocompleteInput';
+import PatientQuickView from '../components/PatientQuickView';
 
 interface RoomEncounter {
   id: number;
@@ -103,6 +104,9 @@ const DoctorDashboard: React.FC = () => {
   const [shortStayBeds, setShortStayBeds] = useState<ShortStayBed[]>([]);
   const [selectedBedId, setSelectedBedId] = useState<number | null>(null);
   const [shortStayNotes, setShortStayNotes] = useState('');
+
+  // Patient Quick View state
+  const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
 
   useEffect(() => {
     loadRoomEncounters();
@@ -492,7 +496,15 @@ const DoctorDashboard: React.FC = () => {
                         <div className="inline-block px-3 py-1 bg-blue-600 text-white text-sm font-bold rounded-lg mb-2">
                           Room {encounter.room_number}
                         </div>
-                        <div className="font-bold text-lg text-gray-900">{encounter.patient_name}</div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuickViewPatientId(encounter.patient_id);
+                          }}
+                          className="font-bold text-lg text-gray-900 hover:text-blue-600 hover:underline text-left transition-colors"
+                        >
+                          {encounter.patient_name}
+                        </button>
                         <div className="text-sm text-gray-600 mt-1">{encounter.patient_number}</div>
                         {encounter.nurse_name && (
                           <div className="text-xs text-blue-600 mt-1 font-medium">
@@ -1639,6 +1651,15 @@ const DoctorDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Patient Quick View Side Panel */}
+      {quickViewPatientId && (
+        <PatientQuickView
+          patientId={quickViewPatientId}
+          onClose={() => setQuickViewPatientId(null)}
+          showHealthStatus={true}
+        />
       )}
     </div>
   );
