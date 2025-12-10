@@ -115,6 +115,21 @@ const ReceptionistDashboard: React.FC = () => {
   const [encounterType, setEncounterType] = useState('walk-in');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
 
+  // Ghana regions
+  const ghanaRegions = [
+    'Greater Accra', 'Ashanti', 'Western', 'Central', 'Eastern', 'Northern',
+    'Volta', 'Upper East', 'Upper West', 'Bono', 'Bono East', 'Ahafo',
+    'Western North', 'Oti', 'North East', 'Savannah',
+  ];
+
+  // Clinic options
+  const clinics = [
+    'General Practice', 'ENT (Ear, Nose & Throat)', 'Urology', 'Cardiology',
+    'Dermatology', 'Gastroenterology', 'Neurology', 'Obstetrics & Gynecology',
+    'Ophthalmology', 'Orthopedics', 'Pediatrics', 'Psychiatry', 'Pulmonology',
+    'Rheumatology', 'Endocrinology',
+  ];
+
   // New patient form state
   const [newPatient, setNewPatient] = useState({
     first_name: '',
@@ -124,12 +139,24 @@ const ReceptionistDashboard: React.FC = () => {
     phone: '',
     email: '',
     address: '',
+    gps_address: '',
     city: '',
-    state: '',
+    region: '',
+    preferred_clinic: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
+    emergency_contact_relationship: '',
     pcp_name: '',
     pcp_phone: '',
+    blood_group: '',
+    nationality: '',
+    // Health status (doctors only can see detailed info)
+    hiv_status: '',
+    hepatitis_b_status: '',
+    hepatitis_c_status: '',
+    tb_status: '',
+    sickle_cell_status: '',
+    other_health_conditions: '',
   });
 
   // Payer source state
@@ -335,12 +362,23 @@ const ReceptionistDashboard: React.FC = () => {
         phone: '',
         email: '',
         address: '',
+        gps_address: '',
         city: '',
-        state: '',
+        region: '',
+        preferred_clinic: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
+        emergency_contact_relationship: '',
         pcp_name: '',
         pcp_phone: '',
+        blood_group: '',
+        nationality: '',
+        hiv_status: '',
+        hepatitis_b_status: '',
+        hepatitis_c_status: '',
+        tb_status: '',
+        sickle_cell_status: '',
+        other_health_conditions: '',
       });
       setChiefComplaint('');
       setEncounterType('walk-in');
@@ -987,7 +1025,14 @@ const ReceptionistDashboard: React.FC = () => {
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Personal Information */}
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Personal Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     First Name *
@@ -1038,12 +1083,71 @@ const ReceptionistDashboard: React.FC = () => {
                     required
                   >
                     <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Blood Group
+                  </label>
+                  <select
+                    value={newPatient.blood_group}
+                    onChange={(e) => setNewPatient({ ...newPatient, blood_group: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Select Blood Group</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Nationality
+                  </label>
+                  <input
+                    type="text"
+                    value={newPatient.nationality}
+                    onChange={(e) => setNewPatient({ ...newPatient, nationality: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="e.g., Ghanaian"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preferred Clinic
+                  </label>
+                  <select
+                    value={newPatient.preferred_clinic}
+                    onChange={(e) => setNewPatient({ ...newPatient, preferred_clinic: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Select Clinic</option>
+                    {clinics.map((clinic) => (
+                      <option key={clinic} value={clinic}>{clinic}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
+                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+                Contact Information
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number *
@@ -1053,6 +1157,7 @@ const ReceptionistDashboard: React.FC = () => {
                     value={newPatient.phone}
                     onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="e.g., 0244123456"
                     required
                   />
                 </div>
@@ -1068,24 +1173,36 @@ const ReceptionistDashboard: React.FC = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  value={newPatient.address}
-                  onChange={(e) => setNewPatient({ ...newPatient, address: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    City
+                    Residential Address
+                  </label>
+                  <input
+                    type="text"
+                    value={newPatient.address}
+                    onChange={(e) => setNewPatient({ ...newPatient, address: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="House number, Street name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    GPS Address Code
+                  </label>
+                  <input
+                    type="text"
+                    value={newPatient.gps_address}
+                    onChange={(e) => setNewPatient({ ...newPatient, gps_address: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="e.g., GA-123-4567"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    City/Town
                   </label>
                   <input
                     type="text"
@@ -1097,21 +1214,32 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State
+                    Region
                   </label>
-                  <input
-                    type="text"
-                    value={newPatient.state}
-                    onChange={(e) => setNewPatient({ ...newPatient, state: e.target.value })}
+                  <select
+                    value={newPatient.region}
+                    onChange={(e) => setNewPatient({ ...newPatient, region: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
+                  >
+                    <option value="">Select Region</option>
+                    {ghanaRegions.map((region) => (
+                      <option key={region} value={region}>{region}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Emergency Contact */}
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Emergency Contact
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Emergency Contact Name
+                    Contact Name
                   </label>
                   <input
                     type="text"
@@ -1123,7 +1251,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Emergency Contact Phone
+                    Contact Phone
                   </label>
                   <input
                     type="tel"
@@ -1132,13 +1260,38 @@ const ReceptionistDashboard: React.FC = () => {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Relationship
+                  </label>
+                  <select
+                    value={newPatient.emergency_contact_relationship}
+                    onChange={(e) => setNewPatient({ ...newPatient, emergency_contact_relationship: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Select Relationship</option>
+                    <option value="Spouse">Spouse</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Child">Child</option>
+                    <option value="Sibling">Sibling</option>
+                    <option value="Friend">Friend</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
               </div>
 
               {/* PCP Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Primary Care Physician
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Primary Care Physician (PCP) Name
+                    PCP Name
                   </label>
                   <input
                     type="text"
