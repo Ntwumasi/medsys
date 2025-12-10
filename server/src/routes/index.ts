@@ -138,6 +138,21 @@ import {
   releaseBed,
   getEncounterShortStayHistory,
 } from '../controllers/shortStayController';
+import {
+  getInventory,
+  getInventoryItem,
+  createInventoryItem,
+  updateInventoryItem,
+  adjustStock,
+  dispenseMedication,
+  getInventoryCategories,
+  getLowStockAlerts,
+  getExpiringMedications,
+  getPayerPricingRules,
+  calculatePrice,
+  getRevenueSummary,
+  getPatientDrugHistory,
+} from '../controllers/inventoryController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -301,5 +316,24 @@ router.get('/short-stay/beds', authenticateToken, authorizeRoles('doctor', 'nurs
 router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor'), assignBed);
 router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseBed);
 router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
+
+// Pharmacy Inventory routes
+router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventory);
+router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventoryCategories);
+router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'admin'), getLowStockAlerts);
+router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 'admin'), getExpiringMedications);
+router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventoryItem);
+router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'admin'), createInventoryItem);
+router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'admin'), updateInventoryItem);
+router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy', 'admin'), adjustStock);
+router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy'), dispenseMedication);
+
+// Payer Pricing routes
+router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'admin'), getPayerPricingRules);
+router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 'admin', 'receptionist'), calculatePrice);
+
+// Pharmacy Revenue & Drug History routes
+router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'admin'), getRevenueSummary);
+router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'doctor', 'nurse'), getPatientDrugHistory);
 
 export default router;

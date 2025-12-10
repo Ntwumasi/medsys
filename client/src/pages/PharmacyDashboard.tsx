@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
+import { format } from 'date-fns';
 
 interface RoutingRequest {
   id: number;
@@ -16,17 +17,125 @@ interface RoutingRequest {
   room_number: string;
 }
 
+interface PharmacyOrder {
+  id: number;
+  patient_id: number;
+  encounter_id: number;
+  medication_name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  quantity: string;
+  refills: number;
+  priority: string;
+  status: string;
+  ordered_date: string;
+  dispensed_date: string;
+  notes: string;
+  patient_name?: string;
+  patient_number?: string;
+  encounter_number?: string;
+  provider_name?: string;
+}
+
+interface InventoryItem {
+  id: number;
+  medication_name: string;
+  generic_name: string;
+  category: string;
+  unit: string;
+  quantity_on_hand: number;
+  reorder_level: number;
+  unit_cost: number;
+  selling_price: number;
+  expiry_date: string;
+  supplier: string;
+  location: string;
+  is_low_stock: boolean;
+  is_expiring_soon: boolean;
+}
+
+interface InventoryStats {
+  total_items: number;
+  low_stock_count: number;
+  expiring_soon_count: number;
+  expired_count: number;
+  total_stock_value: number;
+}
+
+interface Diagnosis {
+  id: number;
+  diagnosis_code: string;
+  diagnosis_description: string;
+  type: string;
+}
+
+interface Allergy {
+  id: number;
+  allergen: string;
+  reaction: string;
+  severity: string;
+}
+
+interface DrugHistory {
+  orders: PharmacyOrder[];
+  active_medications: any[];
+  allergies: Allergy[];
+}
+
 const PharmacyDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'revenue'>('orders');
+  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
+  // Orders state
+  const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
+  const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
+  const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
+  const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
+
+  // Inventory state
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null);
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low_stock' | 'expiring'>('all');
+  const [inventorySearch, setInventorySearch] = useState('');
+
+  // Date range state
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Drug history modal
+  const [showDrugHistory, setShowDrugHistory] = useState(false);
+  const [drugHistoryPatientName, setDrugHistoryPatientName] = useState('');
+  const [drugHistory, setDrugHistory] = useState<DrugHistory | null>(null);
+  const [loadingDrugHistory, setLoadingDrugHistory] = useState(false);
+
+  // Revenue state
+  const [revenueData, setRevenueData] = useState<any>(null);
+
   useEffect(() => {
-    fetchRoutingRequests();
-    // Poll for new requests every 30 seconds
+    fetchData();
     const interval = setInterval(fetchRoutingRequests, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (ordersSubTab === 'history') {
+      fetchOrderHistory();
+    }
+  }, [ordersSubTab, startDate, endDate]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchRoutingRequests(),
+      fetchPendingOrders(),
+      fetchInventory(),
+    ]);
+    setLoading(false);
+  };
 
   const fetchRoutingRequests = async () => {
     try {
@@ -34,34 +143,113 @@ const PharmacyDashboard: React.FC = () => {
       setRoutingRequests(response.data.queue || []);
     } catch (error) {
       console.error('Error fetching routing requests:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  const updateStatus = async (routingId: number, status: string) => {
+  const fetchPendingOrders = async () => {
     try {
-      await apiClient.put(`/department-routing/${routingId}/status`, {
-        status: status,
-      });
-      fetchRoutingRequests();
+      const response = await apiClient.get('/orders/pharmacy?status=ordered');
+      setPharmacyOrders(response.data.orders || []);
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('Error fetching pharmacy orders:', error);
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'cancelled':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const fetchOrderHistory = async () => {
+    try {
+      let url = '/orders/pharmacy?status=dispensed,completed';
+      if (startDate) url += `&start_date=${startDate}`;
+      if (endDate) url += `&end_date=${endDate}`;
+      const response = await apiClient.get(url);
+      setPharmacyOrders(response.data.orders || []);
+    } catch (error) {
+      console.error('Error fetching order history:', error);
+    }
+  };
+
+  const fetchInventory = async () => {
+    try {
+      let url = '/inventory';
+      if (inventoryFilter === 'low_stock') url += '?low_stock=true';
+      else if (inventoryFilter === 'expiring') url += '?expiring_soon=true';
+      if (inventorySearch) url += `${url.includes('?') ? '&' : '?'}search=${inventorySearch}`;
+
+      const response = await apiClient.get(url);
+      setInventory(response.data.inventory || []);
+      setInventoryStats(response.data.stats || null);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
+
+  const fetchPatientDetails = async (patientId: number, encounterId: number) => {
+    try {
+      // Fetch diagnoses
+      const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      setPatientDiagnoses(encounterRes.data.diagnoses || []);
+
+      // Fetch allergies from patient record
+      const patientRes = await apiClient.get(`/patients/${patientId}`);
+      setPatientAllergies(patientRes.data.patient?.allergies || []);
+    } catch (error) {
+      console.error('Error fetching patient details:', error);
+    }
+  };
+
+  const fetchDrugHistory = async (patientId: number, patientName: string) => {
+    setDrugHistoryPatientName(patientName);
+    setShowDrugHistory(true);
+    setLoadingDrugHistory(true);
+
+    try {
+      const response = await apiClient.get(`/pharmacy/drug-history/${patientId}`);
+      setDrugHistory(response.data);
+    } catch (error) {
+      console.error('Error fetching drug history:', error);
+    } finally {
+      setLoadingDrugHistory(false);
+    }
+  };
+
+  const fetchRevenueSummary = async () => {
+    try {
+      let url = '/pharmacy/revenue';
+      if (startDate) url += `?start_date=${startDate}`;
+      if (endDate) url += `${url.includes('?') ? '&' : '?'}end_date=${endDate}`;
+
+      const response = await apiClient.get(url);
+      setRevenueData(response.data);
+    } catch (error) {
+      console.error('Error fetching revenue:', error);
+    }
+  };
+
+  const dispenseMedication = async (orderId: number) => {
+    try {
+      await apiClient.put(`/orders/pharmacy/${orderId}`, {
+        status: 'dispensed',
+        dispensed_date: new Date().toISOString()
+      });
+      fetchPendingOrders();
+    } catch (error) {
+      console.error('Error dispensing medication:', error);
+    }
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
+      case 'severe': return 'bg-red-100 text-red-800 border-red-300';
+      case 'moderate': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'mild': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority?.toLowerCase()) {
+      case 'stat': return 'bg-red-600 text-white';
+      case 'urgent': return 'bg-orange-500 text-white';
+      default: return 'bg-blue-100 text-blue-800';
     }
   };
 
@@ -93,105 +281,591 @@ const PharmacyDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Pending Prescriptions</div>
-            <div className="text-3xl font-bold text-yellow-600 mt-2">
-              {routingRequests.filter(r => r.status === 'pending').length}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">In Progress</div>
-            <div className="text-3xl font-bold text-blue-600 mt-2">
-              {routingRequests.filter(r => r.status === 'in-progress').length}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Completed Today</div>
-            <div className="text-3xl font-bold text-green-600 mt-2">
-              {routingRequests.filter(r => r.status === 'completed').length}
-            </div>
-          </div>
-        </div>
-
-        {/* Routing Requests */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Pharmacy Requests</h2>
-          </div>
-          <div className="divide-y divide-gray-200">
-            {routingRequests.length === 0 ? (
-              <div className="px-6 py-8 text-center text-gray-500">
-                No pharmacy requests at this time
-              </div>
-            ) : (
-              routingRequests.map((request) => (
-                <div key={request.id} className="px-6 py-4 hover:bg-gray-50">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {request.patient_name}
-                        </h3>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusBadgeClass(request.status)}`}>
-                          {request.status.replace('_', ' ').toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <span className="text-gray-500">Patient #:</span>
-                          <span className="ml-2 text-gray-900 font-medium">{request.patient_number}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Encounter #:</span>
-                          <span className="ml-2 text-gray-900 font-medium">{request.encounter_number}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Room:</span>
-                          <span className="ml-2 text-gray-900 font-medium">{request.room_number || 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Requested:</span>
-                          <span className="ml-2 text-gray-900 font-medium">
-                            {new Date(request.routed_at).toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                      {request.notes && (
-                        <div className="mt-2 text-sm">
-                          <span className="text-gray-500">Notes:</span>
-                          <p className="text-gray-900 mt-1">{request.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="ml-4 flex gap-2">
-                      {request.status === 'pending' && (
-                        <button
-                          onClick={() => updateStatus(request.id, 'in-progress')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                        >
-                          Start
-                        </button>
-                      )}
-                      {request.status === 'in-progress' && (
-                        <button
-                          onClick={() => updateStatus(request.id, 'completed')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
-                        >
-                          Complete
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+      {/* Navigation Tabs */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8">
+            {[
+              { id: 'orders', label: 'Prescriptions', icon: '💊' },
+              { id: 'inventory', label: 'Inventory', icon: '📦' },
+              { id: 'revenue', label: 'Revenue', icon: '📊' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (tab.id === 'revenue') fetchRevenueSummary();
+                }}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === tab.id
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </nav>
         </div>
       </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* ORDERS TAB */}
+        {activeTab === 'orders' && (
+          <div>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Pending Orders</div>
+                <div className="text-3xl font-bold text-yellow-600 mt-1">
+                  {pharmacyOrders.filter(o => o.status === 'ordered').length}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Routing Requests</div>
+                <div className="text-3xl font-bold text-blue-600 mt-1">
+                  {routingRequests.filter(r => r.status === 'pending').length}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">In Progress</div>
+                <div className="text-3xl font-bold text-purple-600 mt-1">
+                  {routingRequests.filter(r => r.status === 'in-progress').length}
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Low Stock Alerts</div>
+                <div className="text-3xl font-bold text-red-600 mt-1">
+                  {inventoryStats?.low_stock_count || 0}
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-tabs */}
+            <div className="flex gap-4 mb-4">
+              <button
+                onClick={() => { setOrdersSubTab('pending'); fetchPendingOrders(); }}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  ordersSubTab === 'pending' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Pending Orders
+              </button>
+              <button
+                onClick={() => setOrdersSubTab('history')}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  ordersSubTab === 'history' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Order History
+              </button>
+            </div>
+
+            {/* Date Range Filter for History */}
+            {ordersSubTab === 'history' && (
+              <div className="bg-white rounded-xl shadow p-4 mb-4 flex items-center gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="border rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="border rounded-lg px-3 py-2"
+                  />
+                </div>
+                <button
+                  onClick={fetchOrderHistory}
+                  className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Search
+                </button>
+                <button
+                  onClick={() => { setStartDate(''); setEndDate(''); fetchOrderHistory(); }}
+                  className="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Orders List */}
+              <div className="lg:col-span-2 bg-white rounded-xl shadow">
+                <div className="px-6 py-4 border-b">
+                  <h2 className="text-lg font-semibold">
+                    {ordersSubTab === 'pending' ? 'Pending Prescriptions' : 'Order History'}
+                  </h2>
+                </div>
+                <div className="divide-y max-h-[600px] overflow-y-auto">
+                  {pharmacyOrders.length === 0 ? (
+                    <div className="px-6 py-12 text-center text-gray-500">
+                      No {ordersSubTab === 'pending' ? 'pending' : ''} orders found
+                    </div>
+                  ) : (
+                    pharmacyOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${
+                          selectedOrder?.id === order.id ? 'bg-green-50 border-l-4 border-green-500' : ''
+                        }`}
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          fetchPatientDetails(order.patient_id, order.encounter_id);
+                        }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-lg text-gray-900">
+                                {order.medication_name}
+                              </span>
+                              <span className={`px-2 py-0.5 text-xs font-semibold rounded ${getPriorityColor(order.priority)}`}>
+                                {order.priority?.toUpperCase() || 'ROUTINE'}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              {order.dosage} | {order.frequency} | {order.route}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              Patient: <span className="font-medium">{order.patient_name || `ID: ${order.patient_id}`}</span>
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              Ordered: {format(new Date(order.ordered_date), 'MMM dd, yyyy HH:mm')}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="text-lg font-bold text-gray-900">
+                              Qty: {order.quantity}
+                            </span>
+                            {ordersSubTab === 'pending' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  dispenseMedication(order.id);
+                                }}
+                                className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+                              >
+                                Dispense
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fetchDrugHistory(order.patient_id, order.patient_name || `Patient ${order.patient_id}`);
+                              }}
+                              className="px-3 py-1 bg-blue-100 text-blue-700 text-sm rounded-lg hover:bg-blue-200"
+                            >
+                              Drug History
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Patient Details Panel */}
+              <div className="bg-white rounded-xl shadow">
+                <div className="px-6 py-4 border-b">
+                  <h2 className="text-lg font-semibold">Patient Details</h2>
+                </div>
+                {selectedOrder ? (
+                  <div className="p-6 space-y-6">
+                    {/* Allergies/Sensitivities */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-red-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        Medication Sensitivities
+                      </h3>
+                      {patientAllergies.length > 0 ? (
+                        <div className="space-y-2">
+                          {patientAllergies.map((allergy) => (
+                            <div
+                              key={allergy.id}
+                              className={`p-2 rounded border ${getSeverityColor(allergy.severity)}`}
+                            >
+                              <div className="font-medium">{allergy.allergen}</div>
+                              <div className="text-xs">{allergy.reaction}</div>
+                              <span className="text-xs font-semibold uppercase">{allergy.severity}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No known allergies</p>
+                      )}
+                    </div>
+
+                    {/* Diagnoses */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wider mb-2">
+                        Current Diagnoses
+                      </h3>
+                      {patientDiagnoses.length > 0 ? (
+                        <div className="space-y-2">
+                          {patientDiagnoses.map((dx) => (
+                            <div key={dx.id} className="p-2 bg-blue-50 rounded">
+                              <div className="font-medium text-sm">
+                                {dx.diagnosis_code && <span className="text-blue-600">[{dx.diagnosis_code}]</span>}{' '}
+                                {dx.diagnosis_description}
+                              </div>
+                              <span className="text-xs text-blue-600 uppercase">{dx.type}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No diagnoses recorded</p>
+                      )}
+                    </div>
+
+                    {/* Prescription Details */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Prescription Details
+                      </h3>
+                      <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">
+                        <div><span className="text-gray-500">Medication:</span> <span className="font-medium">{selectedOrder.medication_name}</span></div>
+                        <div><span className="text-gray-500">Dosage:</span> {selectedOrder.dosage}</div>
+                        <div><span className="text-gray-500">Frequency:</span> {selectedOrder.frequency}</div>
+                        <div><span className="text-gray-500">Route:</span> {selectedOrder.route}</div>
+                        <div><span className="text-gray-500">Quantity:</span> {selectedOrder.quantity}</div>
+                        <div><span className="text-gray-500">Refills:</span> {selectedOrder.refills || 0}</div>
+                        {selectedOrder.notes && (
+                          <div><span className="text-gray-500">Notes:</span> {selectedOrder.notes}</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-gray-500">
+                    Select an order to view patient details
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* INVENTORY TAB */}
+        {activeTab === 'inventory' && (
+          <div>
+            {/* Inventory Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Total Items</div>
+                <div className="text-2xl font-bold text-gray-900 mt-1">{inventoryStats?.total_items || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4 cursor-pointer hover:ring-2 ring-yellow-500" onClick={() => setInventoryFilter('low_stock')}>
+                <div className="text-sm font-medium text-gray-500">Low Stock</div>
+                <div className="text-2xl font-bold text-yellow-600 mt-1">{inventoryStats?.low_stock_count || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4 cursor-pointer hover:ring-2 ring-orange-500" onClick={() => setInventoryFilter('expiring')}>
+                <div className="text-sm font-medium text-gray-500">Expiring Soon</div>
+                <div className="text-2xl font-bold text-orange-600 mt-1">{inventoryStats?.expiring_soon_count || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Expired</div>
+                <div className="text-2xl font-bold text-red-600 mt-1">{inventoryStats?.expired_count || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow p-4">
+                <div className="text-sm font-medium text-gray-500">Stock Value</div>
+                <div className="text-2xl font-bold text-green-600 mt-1">
+                  GH₵ {parseFloat(String(inventoryStats?.total_stock_value || 0)).toLocaleString()}
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Filters */}
+            <div className="bg-white rounded-xl shadow p-4 mb-6 flex items-center gap-4">
+              <input
+                type="text"
+                placeholder="Search medications..."
+                value={inventorySearch}
+                onChange={(e) => setInventorySearch(e.target.value)}
+                className="flex-1 border rounded-lg px-4 py-2"
+              />
+              <select
+                value={inventoryFilter}
+                onChange={(e) => setInventoryFilter(e.target.value as any)}
+                className="border rounded-lg px-4 py-2"
+              >
+                <option value="all">All Items</option>
+                <option value="low_stock">Low Stock Only</option>
+                <option value="expiring">Expiring Soon</option>
+              </select>
+              <button
+                onClick={fetchInventory}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Search
+              </button>
+            </div>
+
+            {/* Inventory Table */}
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Level</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {inventory.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{item.medication_name}</div>
+                        <div className="text-sm text-gray-500">{item.generic_name}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{item.category}</td>
+                      <td className="px-6 py-4">
+                        <span className={`font-bold ${item.is_low_stock ? 'text-red-600' : 'text-gray-900'}`}>
+                          {item.quantity_on_hand}
+                        </span>
+                        <span className="text-sm text-gray-500 ml-1">{item.unit}s</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{item.reorder_level}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        GH₵ {parseFloat(item.selling_price.toString()).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {item.expiry_date ? (
+                          <span className={item.is_expiring_soon ? 'text-orange-600 font-medium' : 'text-gray-600'}>
+                            {format(new Date(item.expiry_date), 'MMM yyyy')}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        {item.is_low_stock && (
+                          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Low Stock</span>
+                        )}
+                        {item.is_expiring_soon && (
+                          <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full ml-1">Expiring</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {inventory.length === 0 && (
+                <div className="py-12 text-center text-gray-500">
+                  No inventory items found
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* REVENUE TAB */}
+        {activeTab === 'revenue' && (
+          <div>
+            {/* Date Filter */}
+            <div className="bg-white rounded-xl shadow p-4 mb-6 flex items-center gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="border rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="border rounded-lg px-3 py-2"
+                />
+              </div>
+              <button
+                onClick={fetchRevenueSummary}
+                className="mt-6 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Generate Report
+              </button>
+            </div>
+
+            {revenueData ? (
+              <>
+                {/* Summary Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-white rounded-xl shadow p-4">
+                    <div className="text-sm font-medium text-gray-500">Total Orders</div>
+                    <div className="text-2xl font-bold text-gray-900 mt-1">{revenueData.totals?.total_orders || 0}</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow p-4">
+                    <div className="text-sm font-medium text-gray-500">Dispensed</div>
+                    <div className="text-2xl font-bold text-green-600 mt-1">{revenueData.totals?.dispensed_orders || 0}</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow p-4">
+                    <div className="text-sm font-medium text-gray-500">Pending</div>
+                    <div className="text-2xl font-bold text-yellow-600 mt-1">{revenueData.totals?.pending_orders || 0}</div>
+                  </div>
+                  <div className="bg-white rounded-xl shadow p-4">
+                    <div className="text-sm font-medium text-gray-500">Unique Patients</div>
+                    <div className="text-2xl font-bold text-blue-600 mt-1">{revenueData.totals?.unique_patients || 0}</div>
+                  </div>
+                </div>
+
+                {/* Top Medications */}
+                <div className="bg-white rounded-xl shadow mb-6">
+                  <div className="px-6 py-4 border-b">
+                    <h2 className="text-lg font-semibold">Top 10 Medications</h2>
+                  </div>
+                  <div className="p-6">
+                    {revenueData.top_medications?.length > 0 ? (
+                      <div className="space-y-3">
+                        {revenueData.top_medications.map((med: any, index: number) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <span className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold">
+                                {index + 1}
+                              </span>
+                              <span className="font-medium">{med.medication_name}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-gray-900">{med.order_count} orders</div>
+                              <div className="text-sm text-gray-500">{med.total_quantity} units</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500">No data available</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                Select a date range and click "Generate Report" to view revenue summary
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Drug History Modal */}
+      {showDrugHistory && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setShowDrugHistory(false)} />
+            <div className="relative bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white px-6 py-4 border-b flex justify-between items-center">
+                <h2 className="text-xl font-bold">Drug History - {drugHistoryPatientName}</h2>
+                <button
+                  onClick={() => setShowDrugHistory(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {loadingDrugHistory ? (
+                <div className="p-12 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+                </div>
+              ) : drugHistory ? (
+                <div className="p-6 space-y-6">
+                  {/* Allergies */}
+                  {drugHistory.allergies.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h3 className="font-bold text-red-700 mb-2">Known Allergies</h3>
+                      <div className="space-y-2">
+                        {drugHistory.allergies.map((allergy) => (
+                          <div key={allergy.id} className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(allergy.severity)}`}>
+                              {allergy.severity}
+                            </span>
+                            <span className="font-medium">{allergy.allergen}</span>
+                            <span className="text-sm text-gray-600">- {allergy.reaction}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Active Medications */}
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3">Active Medications</h3>
+                    {drugHistory.active_medications.length > 0 ? (
+                      <div className="space-y-2">
+                        {drugHistory.active_medications.map((med: any) => (
+                          <div key={med.id} className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="font-medium">{med.medication_name}</div>
+                            <div className="text-sm text-gray-600">
+                              {med.dosage} | {med.frequency} | {med.route}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              Started: {format(new Date(med.start_date), 'MMM dd, yyyy')}
+                              {med.doctor_first_name && ` | By Dr. ${med.doctor_first_name} ${med.doctor_last_name}`}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">No active medications</p>
+                    )}
+                  </div>
+
+                  {/* Order History */}
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-3">Prescription History</h3>
+                    {drugHistory.orders.length > 0 ? (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {drugHistory.orders.map((order) => (
+                          <div key={order.id} className="p-3 bg-gray-50 rounded-lg">
+                            <div className="flex justify-between">
+                              <span className="font-medium">{order.medication_name}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                order.status === 'dispensed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {order.dosage} | Qty: {order.quantity}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {format(new Date(order.ordered_date), 'MMM dd, yyyy')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">No prescription history</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-12 text-center text-gray-500">
+                  Failed to load drug history
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
