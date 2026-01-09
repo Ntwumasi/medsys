@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { SmartTextArea } from './SmartTextArea';
@@ -11,14 +11,30 @@ interface HPSection {
   subsections?: HPSection[];
 }
 
+interface VitalSignsData {
+  temperature?: number;
+  temperature_unit?: string;
+  heart_rate?: number;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
+  respiratory_rate?: number;
+  oxygen_saturation?: number;
+  weight?: number;
+  weight_unit?: string;
+  height?: number;
+  height_unit?: string;
+  pain_level?: number;
+}
+
 interface HPAccordionProps {
   encounterId: number;
   patientId: number;
   userRole: 'nurse' | 'doctor';
   onSave?: () => void;
+  vitalSigns?: VitalSignsData;
 }
 
-const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, onSave }) => {
+const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, onSave: _onSave, vitalSigns }) => {
   const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [sections, setSections] = useState<HPSection[]>([
@@ -152,7 +168,63 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   ]);
 
   const [editingContent, setEditingContent] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedContentRef = useRef<string>('');
+
+  // Auto-save debounce function
+  const debouncedSave = useCallback(async (sectionId: string, content: string) => {
+    if (content === lastSavedContentRef.current) return;
+
+    setAutoSaveStatus('saving');
+    try {
+      const completed = content.trim().length > 0;
+      await apiClient.post('/hp/save', {
+        encounter_id: encounterId,
+        patient_id: patientId,
+        section_id: sectionId,
+        content,
+        completed,
+        role: userRole,
+      });
+
+      lastSavedContentRef.current = content;
+      setSections(prev => updateSection(prev, sectionId, content, completed));
+      setAutoSaveStatus('saved');
+
+      // Reset status after 2 seconds
+      setTimeout(() => setAutoSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Auto-save error:', error);
+      setAutoSaveStatus('error');
+    }
+  }, [encounterId, patientId, userRole]);
+
+  // Handle content change with auto-save
+  const handleContentChange = useCallback((newContent: string) => {
+    setEditingContent(newContent);
+
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Set new timer for auto-save (1.5 second debounce)
+    if (expandedSection) {
+      autoSaveTimerRef.current = setTimeout(() => {
+        debouncedSave(expandedSection, newContent);
+      }, 1500);
+    }
+  }, [expandedSection, debouncedSave]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadHPData();
@@ -170,14 +242,140 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   };
 
   const handleSectionClick = (sectionId: string) => {
+    // Save any pending changes before switching sections
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+      if (expandedSection && editingContent !== lastSavedContentRef.current) {
+        debouncedSave(expandedSection, editingContent);
+      }
+    }
+
     if (expandedSection === sectionId) {
       setExpandedSection(null);
       setEditingContent('');
+      lastSavedContentRef.current = '';
     } else {
       setExpandedSection(sectionId);
       const section = findSection(sections, sectionId);
-      setEditingContent(section?.content || '');
+      const content = section?.content || '';
+      setEditingContent(content);
+      lastSavedContentRef.current = content;
     }
+    setAutoSaveStatus('idle');
+  };
+
+  // Print H&P document
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      showToast('Please allow pop-ups to print', 'error');
+      return;
+    }
+
+    const completedSections = sections.filter(s => s.completed || s.content);
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>History & Physical - Patient Record</title>
+        <style>
+          @media print {
+            body { margin: 0; padding: 20px; }
+            .no-print { display: none; }
+          }
+          body {
+            font-family: 'Times New Roman', Times, serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+          }
+          h1 {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+          }
+          .section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+          }
+          .section-title {
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            color: #1a1a1a;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 3px;
+          }
+          .section-content {
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin-left: 10px;
+          }
+          .subsection {
+            margin-left: 20px;
+            margin-top: 10px;
+          }
+          .subsection-title {
+            font-weight: bold;
+            font-size: 12px;
+          }
+          .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #ccc;
+            font-size: 10px;
+            color: #666;
+          }
+          .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+          }
+          .print-button:hover {
+            background: #1d4ed8;
+          }
+        </style>
+      </head>
+      <body>
+        <button class="print-button no-print" onclick="window.print()">Print / Save as PDF</button>
+        <h1>History & Physical</h1>
+        <div class="meta">
+          <p><strong>Encounter ID:</strong> ${encounterId}</p>
+          <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+        </div>
+        ${completedSections.map(section => `
+          <div class="section">
+            <div class="section-title">${section.title}</div>
+            <div class="section-content">${section.content || 'N/A'}</div>
+            ${section.subsections ? section.subsections.filter(sub => sub.completed || sub.content).map(sub => `
+              <div class="subsection">
+                <div class="subsection-title">${sub.title}:</div>
+                <div class="section-content">${sub.content || 'N/A'}</div>
+              </div>
+            `).join('') : ''}
+          </div>
+        `).join('')}
+        <div class="footer">
+          <p>Generated: ${new Date().toLocaleString()}</p>
+          <p>This document is part of the patient's medical record.</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   const findSection = (sectionsArray: HPSection[], id: string): HPSection | undefined => {
@@ -204,36 +402,6 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       }
       return section;
     });
-  };
-
-  const handleSaveSection = async () => {
-    if (!expandedSection) return;
-
-    setSaving(true);
-    try {
-      const completed = editingContent.trim().length > 0;
-      const updatedSections = updateSection(sections, expandedSection, editingContent, completed);
-      setSections(updatedSections);
-
-      await apiClient.post('/hp/save', {
-        encounter_id: encounterId,
-        patient_id: patientId,
-        section_id: expandedSection,
-        content: editingContent,
-        completed,
-        role: userRole,
-      });
-
-      if (onSave) onSave();
-
-      showToast('Section saved successfully!', 'success');
-    } catch (error: any) {
-      console.error('Error saving H&P section:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to save section';
-      showToast(errorMessage, 'error');
-    } finally {
-      setSaving(false);
-    }
   };
 
   const renderSection = (section: HPSection, level: number = 0) => {
@@ -342,25 +510,37 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 <span>sections completed</span>
               </p>
             </div>
-            {/* Progress Circle */}
-            <div className="relative w-14 h-14">
-              <svg className="transform -rotate-90 w-14 h-14">
-                <circle cx="28" cy="28" r="24" stroke="rgba(255,255,255,0.2)" strokeWidth="4" fill="none" />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="24"
-                  stroke="white"
-                  strokeWidth="4"
-                  fill="none"
-                  strokeDasharray={`${(sections.filter(s => s.completed).length / sections.length) * 150.8} 150.8`}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-white text-xs font-bold">
-                  {Math.round((sections.filter(s => s.completed).length / sections.length) * 100)}%
-                </span>
+            <div className="flex items-center gap-3">
+              {/* Print Button */}
+              <button
+                onClick={handlePrint}
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                title="Print / Save as PDF"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+              </button>
+              {/* Progress Circle */}
+              <div className="relative w-14 h-14">
+                <svg className="transform -rotate-90 w-14 h-14">
+                  <circle cx="28" cy="28" r="24" stroke="rgba(255,255,255,0.2)" strokeWidth="4" fill="none" />
+                  <circle
+                    cx="28"
+                    cy="28"
+                    r="24"
+                    stroke="white"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeDasharray={`${(sections.filter(s => s.completed).length / sections.length) * 150.8} 150.8`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-white text-xs font-bold">
+                    {Math.round((sections.filter(s => s.completed).length / sections.length) * 100)}%
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -413,67 +593,166 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
 
             {/* Content Area */}
             <div className="flex-1 p-6 overflow-y-auto">
-              <div className="mb-4">
-                <SmartTextArea
-                  value={editingContent}
-                  onChange={setEditingContent}
-                  placeholder={`Enter ${currentSection.title.toLowerCase()} information here...\n\nStart typing to see medical term suggestions.`}
-                  rows={12}
-                  sectionId={expandedSection || undefined}
-                  showVoiceDictation={true}
-                  label="Notes / Content"
-                  className="h-80"
-                />
-              </div>
-
-              {currentSection.completed && currentSection.content && (
-                <div className="p-5 bg-emerald-50 border-2 border-emerald-200 rounded-xl shadow-sm">
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              {/* Special display for Vital Signs section */}
+              {expandedSection === 'vital_signs' && vitalSigns && Object.keys(vitalSigns).length > 0 && (
+                <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+                  <h4 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <h4 className="text-sm font-bold text-emerald-900">Previously Saved Content</h4>
-                  </div>
-                  <div className="text-sm text-emerald-900 whitespace-pre-wrap bg-white bg-opacity-60 p-4 rounded-lg border border-emerald-200">
-                    {currentSection.content}
+                    Recorded Vital Signs
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {vitalSigns.temperature && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Temperature</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.temperature}°{vitalSigns.temperature_unit || 'F'}
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.heart_rate && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Heart Rate</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.heart_rate} <span className="text-sm font-normal">bpm</span>
+                        </div>
+                      </div>
+                    )}
+                    {(vitalSigns.blood_pressure_systolic || vitalSigns.blood_pressure_diastolic) && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Blood Pressure</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.blood_pressure_systolic || '--'}/{vitalSigns.blood_pressure_diastolic || '--'}
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.respiratory_rate && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Resp. Rate</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.respiratory_rate} <span className="text-sm font-normal">/min</span>
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.oxygen_saturation && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">SpO2</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.oxygen_saturation}%
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.weight && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Weight</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.weight} <span className="text-sm font-normal">{vitalSigns.weight_unit || 'lbs'}</span>
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.height && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Height</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.height} <span className="text-sm font-normal">{vitalSigns.height_unit || 'in'}</span>
+                        </div>
+                      </div>
+                    )}
+                    {vitalSigns.pain_level !== undefined && vitalSigns.pain_level !== null && (
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <div className="text-xs text-gray-500 uppercase font-medium">Pain Level</div>
+                        <div className="text-lg font-bold text-gray-900">
+                          {vitalSigns.pain_level}/10
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
+
+              {expandedSection === 'vital_signs' && (!vitalSigns || Object.keys(vitalSigns).length === 0) && (
+                <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 flex items-center gap-3">
+                  <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="font-medium">No vital signs recorded yet. Please record vital signs in the Vital Signs tab.</span>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <SmartTextArea
+                  value={editingContent}
+                  onChange={handleContentChange}
+                  placeholder={expandedSection === 'vital_signs'
+                    ? 'Add any additional notes about vital signs here (optional)...'
+                    : `Enter ${currentSection.title.toLowerCase()} information here...\n\nStart typing to see medical term suggestions.\n\nVoice commands: "period", "comma", "new line", "new paragraph", "question mark", "stop dictation"`}
+                  rows={expandedSection === 'vital_signs' ? 6 : 12}
+                  sectionId={expandedSection || undefined}
+                  showVoiceDictation={true}
+                  label={expandedSection === 'vital_signs' ? 'Additional Notes' : 'Notes / Content'}
+                  className={expandedSection === 'vital_signs' ? 'h-40' : 'h-80'}
+                />
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="border-t border-gray-200 bg-gray-50 p-6">
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setExpandedSection(null);
-                    setEditingContent('');
-                  }}
-                  className="px-6 py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveSection}
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg"
-                >
-                  {saving ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+            {/* Auto-save Status Footer */}
+            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
+              <div className="flex items-center justify-between">
+                {/* Auto-save Status */}
+                <div className="flex items-center gap-2">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-2 text-sm text-blue-600">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       Saving...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Save Section
-                    </>
+                    </span>
                   )}
+                  {autoSaveStatus === 'saved' && (
+                    <span className="flex items-center gap-2 text-sm text-emerald-600">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Saved
+                    </span>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <span className="flex items-center gap-2 text-sm text-red-600">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      Save failed - will retry
+                    </span>
+                  )}
+                  {autoSaveStatus === 'idle' && (
+                    <span className="text-sm text-gray-400 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Auto-saves as you type
+                    </span>
+                  )}
+                </div>
+
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    // Save any pending changes
+                    if (autoSaveTimerRef.current) {
+                      clearTimeout(autoSaveTimerRef.current);
+                    }
+                    if (editingContent !== lastSavedContentRef.current && expandedSection) {
+                      debouncedSave(expandedSection, editingContent);
+                    }
+                    setExpandedSection(null);
+                    setEditingContent('');
+                    lastSavedContentRef.current = '';
+                  }}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm"
+                >
+                  Close Section
                 </button>
               </div>
             </div>

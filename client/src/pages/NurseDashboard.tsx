@@ -128,6 +128,9 @@ const NurseDashboard: React.FC = () => {
   // Patient Quick View state
   const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
 
+  // Track which patients have had their doctor alerted
+  const [doctorAlertedPatients, setDoctorAlertedPatients] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
@@ -406,6 +409,8 @@ const NurseDashboard: React.FC = () => {
         message: 'Patient is ready for doctor evaluation',
       });
 
+      // Mark this patient as having doctor alerted
+      setDoctorAlertedPatients(prev => new Set([...prev, selectedPatient.id]));
       showToast('Doctor has been alerted', 'success');
     } catch (error) {
       console.error('Error alerting doctor:', error);
@@ -544,21 +549,28 @@ const NurseDashboard: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900">Room Status</h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            {rooms.map((room) => (
-              <div
-                key={room.id}
-                className={`p-4 rounded-xl text-center border-2 transition-all hover:shadow-lg ${
-                  room.is_available
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
-                    : 'bg-slate-100 border-slate-400 text-slate-900'
-                }`}
-              >
-                <div className="font-bold text-lg">Room {room.room_number}</div>
-                <div className="text-sm mt-1 font-medium">
-                  {room.is_available ? 'Available' : 'Occupied'}
+            {rooms.map((room) => {
+              // Find if there's a patient in this room
+              const patientInRoom = assignedPatients.find(
+                (p) => p.room_number === room.room_number
+              );
+
+              return (
+                <div
+                  key={room.id}
+                  className={`p-4 rounded-xl text-center border-2 transition-all hover:shadow-lg ${
+                    room.is_available
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900'
+                      : 'bg-slate-100 border-slate-400 text-slate-900'
+                  }`}
+                >
+                  <div className="font-bold text-lg">Room {room.room_number}</div>
+                  <div className={`text-sm mt-1 font-medium truncate ${!room.is_available ? 'text-blue-700' : ''}`} title={patientInRoom?.patient_name}>
+                    {room.is_available ? 'Available' : (patientInRoom?.patient_name || 'Occupied')}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -970,19 +982,32 @@ const NurseDashboard: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="bg-gradient-to-br from-emerald-50 to-green-50 p-4 rounded-xl border border-emerald-200 flex items-center justify-center">
-                      <button
-                        onClick={handleAlertDoctor}
-                        className="w-full px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 font-bold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center gap-2"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
-                        Alert Doctor
-                        <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        </svg>
-                      </button>
+                    <div className={`p-4 rounded-xl border flex items-center justify-center ${
+                      doctorAlertedPatients.has(selectedPatient.id)
+                        ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200'
+                        : 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200'
+                    }`}>
+                      {doctorAlertedPatients.has(selectedPatient.id) ? (
+                        <div className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2">
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Doctor Alerted
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleAlertDoctor}
+                          className="w-full px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all duration-300 font-bold text-sm shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                          </svg>
+                          Alert Doctor
+                          <svg className="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1073,14 +1098,109 @@ const NurseDashboard: React.FC = () => {
                           encounterId={selectedPatient.id}
                           patientId={selectedPatient.patient_id}
                           userRole="nurse"
+                          vitalSigns={selectedPatient.vital_signs}
                         />
                       </div>
                     )}
 
                     {/* Vital Signs Tab */}
                     {activeTab === 'vitals' && (
-                      <form onSubmit={handleSubmitVitals} className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-6">
+                        {/* Display Current Vital Signs */}
+                        {selectedPatient?.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 ? (
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Current Vital Signs
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              {selectedPatient.vital_signs.temperature && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Temperature</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.temperature}°{selectedPatient.vital_signs.temperature_unit || 'F'}
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.heart_rate && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Heart Rate</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.heart_rate} <span className="text-sm font-normal">bpm</span>
+                                  </div>
+                                </div>
+                              )}
+                              {(selectedPatient.vital_signs.blood_pressure_systolic || selectedPatient.vital_signs.blood_pressure_diastolic) && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Blood Pressure</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.blood_pressure_systolic || '--'}/{selectedPatient.vital_signs.blood_pressure_diastolic || '--'} <span className="text-sm font-normal">mmHg</span>
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.respiratory_rate && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Resp. Rate</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.respiratory_rate} <span className="text-sm font-normal">/min</span>
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.oxygen_saturation && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">SpO2</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.oxygen_saturation}%
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.weight && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Weight</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.weight} <span className="text-sm font-normal">{selectedPatient.vital_signs.weight_unit || 'lbs'}</span>
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.height && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Height</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.height} <span className="text-sm font-normal">{selectedPatient.vital_signs.height_unit || 'in'}</span>
+                                  </div>
+                                </div>
+                              )}
+                              {selectedPatient.vital_signs.pain_level !== undefined && selectedPatient.vital_signs.pain_level !== null && (
+                                <div className="bg-white rounded-lg p-3 shadow-sm">
+                                  <div className="text-xs text-gray-500 uppercase font-medium">Pain Level</div>
+                                  <div className="text-xl font-bold text-gray-900">
+                                    {selectedPatient.vital_signs.pain_level}/10
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 flex items-center gap-3">
+                            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span className="font-medium">No vital signs recorded yet. Please enter vital signs below.</span>
+                          </div>
+                        )}
+
+                        {/* Vital Signs Entry Form */}
+                        <div className="bg-white border border-gray-200 rounded-xl p-5">
+                          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            {selectedPatient?.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 ? 'Update Vital Signs' : 'Record New Vital Signs'}
+                          </h3>
+                          <form onSubmit={handleSubmitVitals} className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
                           <div>
                             <label className="label">Temperature</label>
                             <div className="flex gap-2">
@@ -1320,9 +1440,11 @@ const NurseDashboard: React.FC = () => {
                         </div>
 
                         <button type="submit" className="btn-primary w-full">
-                          Save Vital Signs
-                        </button>
-                      </form>
+                              Save Vital Signs
+                            </button>
+                          </form>
+                        </div>
+                      </div>
                     )}
 
                     {/* Doctor's Orders Tab */}

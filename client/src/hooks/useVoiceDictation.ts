@@ -1,10 +1,98 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+// Voice command mappings - industry standard dictation commands
+const VOICE_COMMANDS: Record<string, string> = {
+  // Punctuation
+  'period': '.',
+  'full stop': '.',
+  'dot': '.',
+  'comma': ',',
+  'question mark': '?',
+  'exclamation point': '!',
+  'exclamation mark': '!',
+  'colon': ':',
+  'semicolon': ';',
+  'hyphen': '-',
+  'dash': '-',
+  'ellipsis': '...',
+
+  // Quotes and brackets
+  'open quote': '"',
+  'close quote': '"',
+  'quote': '"',
+  'open parenthesis': '(',
+  'left parenthesis': '(',
+  'close parenthesis': ')',
+  'right parenthesis': ')',
+  'open bracket': '[',
+  'close bracket': ']',
+
+  // Line breaks
+  'new line': '\n',
+  'next line': '\n',
+  'newline': '\n',
+  'new paragraph': '\n\n',
+  'next paragraph': '\n\n',
+
+  // Common medical
+  'degree': '°',
+  'degrees': '°',
+  'percent': '%',
+  'percentage': '%',
+  'number sign': '#',
+  'hashtag': '#',
+  'at sign': '@',
+  'ampersand': '&',
+  'and sign': '&',
+  'plus sign': '+',
+  'minus sign': '-',
+  'equals sign': '=',
+  'forward slash': '/',
+  'slash': '/',
+  'backslash': '\\',
+};
+
+// Commands that control dictation behavior
+const CONTROL_COMMANDS = ['stop dictation', 'end dictation', 'stop recording', 'end recording'];
+
+// Process transcript to replace voice commands with their symbols
+const processVoiceCommands = (text: string): { processed: string; shouldStop: boolean } => {
+  let processed = text;
+  let shouldStop = false;
+
+  // Check for stop commands
+  const lowerText = text.toLowerCase().trim();
+  for (const cmd of CONTROL_COMMANDS) {
+    if (lowerText.includes(cmd)) {
+      shouldStop = true;
+      processed = processed.replace(new RegExp(cmd, 'gi'), '').trim();
+    }
+  }
+
+  // Replace voice commands with their symbols
+  for (const [command, symbol] of Object.entries(VOICE_COMMANDS)) {
+    // Match command as a whole word (case insensitive)
+    const regex = new RegExp(`\\b${command}\\b`, 'gi');
+    processed = processed.replace(regex, symbol);
+  }
+
+  // Clean up extra spaces around punctuation
+  processed = processed
+    .replace(/\s+([.,!?;:])/g, '$1')  // Remove space before punctuation
+    .replace(/\(\s+/g, '(')            // Remove space after open paren
+    .replace(/\s+\)/g, ')')            // Remove space before close paren
+    .replace(/"\s+/g, '"')             // Handle quotes
+    .replace(/\s+"/g, '"');
+
+  return { processed, shouldStop };
+};
+
 interface UseVoiceDictationOptions {
   onTranscript?: (transcript: string) => void;
   onInterimTranscript?: (transcript: string) => void;
   continuous?: boolean;
   language?: string;
+  processCommands?: boolean; // Enable voice command processing
 }
 
 interface UseVoiceDictationReturn {
@@ -58,6 +146,7 @@ export const useVoiceDictation = (
     onInterimTranscript,
     continuous = true,
     language = 'en-US',
+    processCommands = true,
   } = options;
 
   const [isListening, setIsListening] = useState(false);
@@ -112,11 +201,29 @@ export const useVoiceDictation = (
         }
 
         if (finalTranscript) {
-          setTranscript((prev) => {
-            const newTranscript = prev + (prev ? ' ' : '') + finalTranscript;
-            onTranscript?.(newTranscript);
-            return newTranscript;
-          });
+          // Process voice commands if enabled
+          let processedTranscript = finalTranscript;
+          let shouldStop = false;
+
+          if (processCommands) {
+            const result = processVoiceCommands(finalTranscript);
+            processedTranscript = result.processed;
+            shouldStop = result.shouldStop;
+          }
+
+          if (processedTranscript.trim()) {
+            setTranscript((prev) => {
+              const newTranscript = prev + (prev ? ' ' : '') + processedTranscript;
+              onTranscript?.(newTranscript);
+              return newTranscript;
+            });
+          }
+
+          // Stop dictation if control command was detected
+          if (shouldStop) {
+            isManualStop.current = true;
+            recognition.stop();
+          }
         }
 
         setInterimTranscript(currentInterim);
@@ -158,7 +265,7 @@ export const useVoiceDictation = (
         recognitionRef.current.abort();
       }
     };
-  }, [continuous, language, onTranscript, onInterimTranscript]);
+  }, [continuous, language, onTranscript, onInterimTranscript, processCommands]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported) {
