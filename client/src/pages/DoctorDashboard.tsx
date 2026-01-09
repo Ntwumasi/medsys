@@ -397,26 +397,6 @@ const DoctorDashboard: React.FC = () => {
     }
   };
 
-  const handleReleaseRoom = async () => {
-    if (!selectedEncounter) return;
-
-    if (!confirm('Are you sure you want to release the room? This will mark the encounter as completed.')) {
-      return;
-    }
-
-    try {
-      await apiClient.post('/workflow/release-room', {
-        encounter_id: selectedEncounter.id,
-      });
-      showToast('Room released and encounter completed', 'success');
-      setSelectedEncounter(null);
-      loadRoomEncounters();
-    } catch (error) {
-      console.error('Error releasing room:', error);
-      showToast('Failed to release room', 'error');
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -467,61 +447,91 @@ const DoctorDashboard: React.FC = () => {
 
       <main className="max-w-full mx-auto px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Room View */}
+          {/* Active Patients List */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-2 rounded-lg">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <h2 className="text-sm font-semibold text-white">
+                      Active Patients
+                    </h2>
+                  </div>
+                  <span className="px-2.5 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">
+                    {roomEncounters.length}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Active Patients <span className="text-blue-600">({roomEncounters.length})</span>
-                </h2>
               </div>
-              <div className="space-y-3">
+
+              {/* Column Headers */}
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-3">Room</div>
+                <div className="col-span-5">Patient</div>
+                <div className="col-span-4 text-right">ID</div>
+              </div>
+
+              {/* Patient List */}
+              <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
                 {roomEncounters.map((encounter) => (
                   <div
                     key={encounter.id}
                     onClick={() => setSelectedEncounter(encounter)}
-                    className={`p-4 border-l-4 border-blue-400 rounded-xl cursor-pointer transition-all hover:shadow-md bg-gradient-to-r from-blue-50 to-indigo-50 ${
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-blue-50 group ${
                       selectedEncounter?.id === encounter.id
-                        ? 'ring-2 ring-blue-500 shadow-lg scale-[1.02]'
-                        : ''
+                        ? 'bg-blue-100 border-l-4 border-blue-600'
+                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-blue-300'
                     }`}
                   >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="inline-block px-3 py-1 bg-blue-600 text-white text-sm font-bold rounded-lg mb-2">
-                          Room {encounter.room_number}
+                    {/* Room Number */}
+                    <div className="col-span-3">
+                      <span className="inline-flex items-center px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded">
+                        Rm {encounter.room_number}
+                      </span>
+                    </div>
+
+                    {/* Patient Name */}
+                    <div className="col-span-5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuickViewPatientId(encounter.patient_id);
+                        }}
+                        className={`font-semibold text-sm text-left truncate transition-colors ${
+                          selectedEncounter?.id === encounter.id
+                            ? 'text-blue-800'
+                            : 'text-slate-800 group-hover:text-blue-600'
+                        }`}
+                        title={encounter.patient_name}
+                      >
+                        {encounter.patient_name}
+                      </button>
+                      {encounter.nurse_name && (
+                        <div className="text-xs text-slate-500 truncate">
+                          Nurse: {encounter.nurse_name}
                         </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setQuickViewPatientId(encounter.patient_id);
-                          }}
-                          className="font-bold text-lg text-gray-900 hover:text-blue-600 hover:underline text-left transition-colors"
-                        >
-                          {encounter.patient_name}
-                        </button>
-                        <div className="text-sm text-gray-600 mt-1">{encounter.patient_number}</div>
-                        {encounter.nurse_name && (
-                          <div className="text-xs text-blue-600 mt-1 font-medium">
-                            👩‍⚕️ Nurse: {encounter.nurse_name}
-                          </div>
-                        )}
-                      </div>
+                      )}
+                    </div>
+
+                    {/* Patient Number */}
+                    <div className="col-span-4 text-right">
+                      <span className="text-xs text-slate-500 font-mono">
+                        {encounter.patient_number}
+                      </span>
                     </div>
                   </div>
                 ))}
 
                 {roomEncounters.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">
-                    <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  <div className="text-center py-8 text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <p className="font-medium">No active patients</p>
+                    <p className="text-sm font-medium">No active patients</p>
+                    <p className="text-xs mt-1">Patients will appear when nurses alert you</p>
                   </div>
                 )}
               </div>
@@ -650,7 +660,7 @@ const DoctorDashboard: React.FC = () => {
                     </svg>
                     Encounter Actions
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <button
                       onClick={() => setShowHPForm(true)}
                       className="group relative bg-white hover:bg-gradient-to-br hover:from-blue-500 hover:to-indigo-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
@@ -661,10 +671,8 @@ const DoctorDashboard: React.FC = () => {
                         </svg>
                       </div>
                       <div className="text-center">
-                        <div className="font-bold text-lg">{existingHP ? 'View/Edit H&P' : 'Fill H&P'}</div>
-                        <span className="text-xs opacity-70">
-                          {existingHP ? 'History & Physical' : 'Create H&P Document'}
-                        </span>
+                        <div className="font-bold text-lg">H&P</div>
+                        <span className="text-xs opacity-70">History & Physical</span>
                       </div>
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </button>
@@ -679,26 +687,10 @@ const DoctorDashboard: React.FC = () => {
                         </svg>
                       </div>
                       <div className="text-center">
-                        <div className="font-bold text-lg">Complete Encounter</div>
-                        <span className="text-xs opacity-70">Send to Nurse</span>
+                        <div className="font-bold text-lg">Alert Nurse</div>
+                        <span className="text-xs opacity-70">Notify for Follow-up</span>
                       </div>
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-400/0 via-white/10 to-emerald-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </button>
-
-                    <button
-                      onClick={handleReleaseRoom}
-                      className="group relative bg-white hover:bg-gradient-to-br hover:from-slate-600 hover:to-gray-700 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
-                    >
-                      <div className="bg-gradient-to-br from-slate-600 to-gray-700 group-hover:bg-white p-3 rounded-full transition-colors">
-                        <svg className="w-7 h-7 text-white group-hover:text-slate-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold text-lg">Release Room</div>
-                        <span className="text-xs opacity-70">Mark Complete</span>
-                      </div>
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-slate-400/0 via-white/10 to-slate-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </button>
                   </div>
                 </div>
