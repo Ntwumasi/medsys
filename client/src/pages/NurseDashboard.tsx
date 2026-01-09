@@ -88,6 +88,18 @@ interface PharmacyOrder {
   ordering_provider_name: string;
 }
 
+interface ShortStayBed {
+  id: number;
+  bed_number: string;
+  bed_name: string;
+  is_available: boolean;
+  current_encounter_id: number | null;
+  patient_id: number | null;
+  patient_name: string | null;
+  assigned_at: string | null;
+  notes: string | null;
+}
+
 const NurseDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -131,10 +143,16 @@ const NurseDashboard: React.FC = () => {
   // Track which patients have had their doctor alerted
   const [doctorAlertedPatients, setDoctorAlertedPatients] = useState<Set<number>>(new Set());
 
+  // Short Stay Unit state
+  const [shortStayBeds, setShortStayBeds] = useState<ShortStayBed[]>([]);
+  const [selectedBedId, setSelectedBedId] = useState<number | null>(null);
+  const [shortStayNotes, setShortStayNotes] = useState('');
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
     loadRooms();
+    loadShortStayBeds();
     if (selectedPatient) {
       loadOrders();
       loadClinicalNotes();
@@ -143,6 +161,7 @@ const NurseDashboard: React.FC = () => {
       loadAssignedPatients();
       loadNurseProcedures();
       loadRooms();
+      loadShortStayBeds();
       if (selectedPatient) {
         loadOrders();
         loadClinicalNotes();
@@ -177,6 +196,54 @@ const NurseDashboard: React.FC = () => {
       setRooms(res.data.rooms || []);
     } catch (error) {
       console.error('Error loading rooms:', error);
+    }
+  };
+
+  const loadShortStayBeds = async () => {
+    try {
+      const res = await apiClient.get('/short-stay/beds');
+      setShortStayBeds(res.data.beds || []);
+    } catch (error) {
+      console.error('Error loading short stay beds:', error);
+    }
+  };
+
+  const handleAssignShortStayBed = async () => {
+    if (!selectedPatient || !selectedBedId) {
+      showToast('Please select a patient and a bed', 'warning');
+      return;
+    }
+
+    try {
+      await apiClient.post('/short-stay/assign', {
+        bed_id: selectedBedId,
+        encounter_id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        notes: shortStayNotes || null,
+      });
+
+      showToast('Patient assigned to Short Stay bed', 'success');
+      setSelectedBedId(null);
+      setShortStayNotes('');
+      loadShortStayBeds();
+    } catch (error: any) {
+      console.error('Error assigning short stay bed:', error);
+      showToast(error.response?.data?.error || 'Failed to assign bed', 'error');
+    }
+  };
+
+  const handleReleaseShortStayBed = async (bedId: number) => {
+    if (!confirm('Are you sure you want to release this bed?')) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/short-stay/release/${bedId}`);
+      showToast('Bed released successfully', 'success');
+      loadShortStayBeds();
+    } catch (error) {
+      console.error('Error releasing bed:', error);
+      showToast('Failed to release bed', 'error');
     }
   };
 
@@ -707,6 +774,104 @@ const NurseDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Short Stay Unit */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+              <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                    <h2 className="text-sm font-semibold text-white">Short Stay Unit</h2>
+                  </div>
+                  <span className="px-2.5 py-1 bg-white text-violet-600 text-xs font-bold rounded-full">
+                    {shortStayBeds.filter(b => b.is_available).length}/{shortStayBeds.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-3">
+                {/* Bed Status Cards */}
+                <div className="grid grid-cols-2 gap-2">
+                  {shortStayBeds.map((bed) => (
+                    <div
+                      key={bed.id}
+                      className={`p-3 rounded-lg border-2 ${
+                        bed.is_available
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-red-300 bg-red-50'
+                      }`}
+                    >
+                      <div className="font-semibold text-gray-900 text-sm">{bed.bed_name}</div>
+                      {bed.is_available ? (
+                        <div className="flex items-center gap-1 text-green-700 text-xs mt-1">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                          Available
+                        </div>
+                      ) : (
+                        <div className="mt-1">
+                          <div className="text-red-700 text-xs font-medium truncate">{bed.patient_name}</div>
+                          <button
+                            onClick={() => handleReleaseShortStayBed(bed.id)}
+                            className="text-xs text-red-600 hover:text-red-800 underline mt-1"
+                          >
+                            Release
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Assignment Form */}
+                {selectedPatient && shortStayBeds.some(b => b.is_available) && (
+                  <div className="space-y-2 pt-2 border-t border-violet-200">
+                    <select
+                      value={selectedBedId || ''}
+                      onChange={(e) => setSelectedBedId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 bg-white text-sm"
+                    >
+                      <option value="">Select a bed...</option>
+                      {shortStayBeds.filter(b => b.is_available).map((bed) => (
+                        <option key={bed.id} value={bed.id}>{bed.bed_name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={shortStayNotes}
+                      onChange={(e) => setShortStayNotes(e.target.value)}
+                      className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-violet-500 bg-white text-sm"
+                      placeholder="Reason (optional)"
+                    />
+                    <button
+                      onClick={handleAssignShortStayBed}
+                      disabled={!selectedBedId}
+                      className="w-full px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Assign to Bed
+                    </button>
+                  </div>
+                )}
+
+                {!selectedPatient && (
+                  <p className="text-sm text-violet-600 text-center py-2">
+                    Select a patient to assign
+                  </p>
+                )}
+
+                {selectedPatient && !shortStayBeds.some(b => b.is_available) && (
+                  <p className="text-sm text-red-600 text-center py-2">
+                    All beds are occupied
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

@@ -58,6 +58,48 @@ const addTodaysUpdates = async () => {
       status: 'completed',
       version: '1.3.0',
     },
+    {
+      title: 'Redesigned Doctor Dashboard Patient List',
+      description: 'Active Patients section in Doctor Dashboard redesigned from bulky cards to a compact, sleek line-item table view matching the Nurse Dashboard design. Displays room number, patient name, nurse assignment, and patient ID efficiently.',
+      category: 'improvement',
+      status: 'completed',
+      version: '1.3.1',
+    },
+    {
+      title: 'Simplified H&P Button',
+      description: 'Changed "Fill H&P" / "View/Edit H&P" button to simply "H&P" for cleaner interface. Subtitle now consistently shows "History & Physical".',
+      category: 'improvement',
+      status: 'completed',
+      version: '1.3.1',
+    },
+    {
+      title: 'Alert Nurse Button',
+      description: 'Renamed "Complete Encounter" button to "Alert Nurse" in Doctor Dashboard. Provides clearer communication of the action - notifying the nurse for follow-up.',
+      category: 'improvement',
+      status: 'completed',
+      version: '1.3.1',
+    },
+    {
+      title: 'Removed Release Room Button',
+      description: 'Removed the Release Room button from Doctor Dashboard encounter actions for a cleaner interface. Room management now handled through workflow.',
+      category: 'improvement',
+      status: 'completed',
+      version: '1.3.1',
+    },
+    {
+      title: 'Results Alerts Section',
+      description: 'New Results Alerts section added to Doctor Dashboard showing recently completed lab results, imaging results, and pharmacy orders. Displays results from the last 48 hours with patient name, room number, and priority status.',
+      category: 'feature',
+      status: 'completed',
+      version: '1.3.1',
+    },
+    {
+      title: 'Short Stay Unit Moved to Nurse Dashboard',
+      description: 'Short Stay Unit (bed assignment) section moved from Doctor Dashboard to Nurse Dashboard. Nurses can now assign patients to short stay beds directly, with bed availability status and release functionality.',
+      category: 'improvement',
+      status: 'completed',
+      version: '1.3.1',
+    },
   ];
 
   const today = new Date().toISOString().split('T')[0];

@@ -74,6 +74,7 @@ import {
   getPharmacyOrders,
   updatePharmacyOrder,
   getAllEncounterOrders,
+  getDoctorAlerts,
 } from '../controllers/ordersController';
 import {
   getCorporateClients,
@@ -248,6 +249,9 @@ router.put('/orders/pharmacy/:id', authenticateToken, updatePharmacyOrder);
 
 // Get all orders for an encounter
 router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);
+
+// Get doctor alerts - recently completed results
+router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'), getDoctorAlerts);
 
 // Payer sources routes - Corporate Clients
 router.get('/payer-sources/corporate-clients', authenticateToken, getCorporateClients);

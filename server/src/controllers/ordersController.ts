@@ -412,3 +412,72 @@ export const getAllEncounterOrders = async (req: Request, res: Response): Promis
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Get doctor alerts - recently completed results for the doctor's orders
+export const getDoctorAlerts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const doctorId = authReq.user?.id;
+
+    // Get lab orders with completed status or results in the last 48 hours
+    const labAlerts = await pool.query(
+      `SELECT lo.*,
+        p.first_name || ' ' || p.last_name as patient_name,
+        p.patient_number,
+        e.room_number
+       FROM lab_orders lo
+       LEFT JOIN patients p ON lo.patient_id = p.id
+       LEFT JOIN encounters e ON lo.encounter_id = e.id
+       WHERE lo.ordering_provider = $1
+         AND lo.status = 'completed'
+         AND lo.completed_date >= NOW() - INTERVAL '48 hours'
+       ORDER BY lo.completed_date DESC
+       LIMIT 20`,
+      [doctorId]
+    );
+
+    // Get imaging orders with completed status or results in the last 48 hours
+    const imagingAlerts = await pool.query(
+      `SELECT io.*,
+        p.first_name || ' ' || p.last_name as patient_name,
+        p.patient_number,
+        e.room_number
+       FROM imaging_orders io
+       LEFT JOIN patients p ON io.patient_id = p.id
+       LEFT JOIN encounters e ON io.encounter_id = e.id
+       WHERE io.ordering_provider = $1
+         AND io.status = 'completed'
+         AND io.completed_date >= NOW() - INTERVAL '48 hours'
+       ORDER BY io.completed_date DESC
+       LIMIT 20`,
+      [doctorId]
+    );
+
+    // Get pharmacy orders that are ready/dispensed in the last 48 hours
+    const pharmacyAlerts = await pool.query(
+      `SELECT po.*,
+        p.first_name || ' ' || p.last_name as patient_name,
+        p.patient_number,
+        e.room_number
+       FROM pharmacy_orders po
+       LEFT JOIN patients p ON po.patient_id = p.id
+       LEFT JOIN encounters e ON po.encounter_id = e.id
+       WHERE po.ordering_provider = $1
+         AND po.status IN ('ready', 'dispensed')
+         AND po.updated_at >= NOW() - INTERVAL '48 hours'
+       ORDER BY po.updated_at DESC
+       LIMIT 20`,
+      [doctorId]
+    );
+
+    res.json({
+      lab_alerts: labAlerts.rows,
+      imaging_alerts: imagingAlerts.rows,
+      pharmacy_alerts: pharmacyAlerts.rows,
+      total_alerts: labAlerts.rows.length + imagingAlerts.rows.length + pharmacyAlerts.rows.length,
+    });
+  } catch (error) {
+    console.error('Get doctor alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
