@@ -48,6 +48,7 @@ import {
   getEncountersByRoom,
   getAvailableRooms,
   getAvailableNurses,
+  getAvailableDoctors,
   getPatientQueue,
   getNurseAssignedPatients,
   doctorCompleteEncounter,
@@ -208,6 +209,7 @@ router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 
 router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
+router.get('/workflow/doctors', authenticateToken, authorizeRoles('receptionist'), getAvailableDoctors);
 router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), releaseRoom);
 
 // Workflow routes - Nurse

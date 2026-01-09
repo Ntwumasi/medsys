@@ -484,19 +484,6 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'green':
-        return 'bg-emerald-50 border-emerald-500';
-      case 'yellow':
-        return 'bg-amber-50 border-amber-500';
-      case 'red':
-        return 'bg-red-50 border-red-500';
-      default:
-        return 'bg-slate-50 border-slate-400';
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -578,18 +565,34 @@ const NurseDashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Assigned Patients List */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-2 rounded-lg">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <h2 className="text-sm font-semibold text-white">
+                      My Assigned Patients
+                    </h2>
+                  </div>
+                  <span className="px-2.5 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">
+                    {assignedPatients.length}
+                  </span>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  My Assigned Patients <span className="text-blue-600">({assignedPatients.length})</span>
-                </h2>
               </div>
-              <div className="space-y-3">
+
+              {/* Column Headers */}
+              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div className="col-span-1"></div>
+                <div className="col-span-5">Patient</div>
+                <div className="col-span-3">Room</div>
+                <div className="col-span-3 text-right">ID</div>
+              </div>
+
+              {/* Patient List */}
+              <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                 {assignedPatients.map((patient) => (
                   <div
                     key={patient.id}
@@ -597,41 +600,101 @@ const NurseDashboard: React.FC = () => {
                       setSelectedPatient(patient);
                       setEditingRoom(false);
                     }}
-                    className={`p-4 border-l-4 rounded-xl cursor-pointer transition-all hover:shadow-md ${getPriorityColor(
-                      patient.current_priority
-                    )} ${selectedPatient?.id === patient.id ? 'ring-2 ring-blue-500 shadow-lg scale-[1.02]' : ''}`}
+                    className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-blue-50 group ${
+                      selectedPatient?.id === patient.id
+                        ? 'bg-blue-100 border-l-4 border-blue-600'
+                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-blue-300'
+                    }`}
                   >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setQuickViewPatientId(patient.patient_id);
-                      }}
-                      className="font-bold text-lg hover:text-blue-600 hover:underline text-left transition-colors"
-                    >
-                      {patient.patient_name}
-                    </button>
-                    <div className="text-sm text-gray-600 mt-1">
-                      Room {patient.room_number} | {patient.patient_number}
+                    {/* Priority Indicator */}
+                    <div className="col-span-1 flex justify-center">
+                      <div className={`w-3 h-3 rounded-full shadow-sm ${
+                        patient.current_priority === 'red'
+                          ? 'bg-red-500 animate-pulse shadow-red-300'
+                          : patient.current_priority === 'yellow'
+                          ? 'bg-amber-400 shadow-amber-200'
+                          : 'bg-emerald-500 shadow-emerald-200'
+                      }`} title={`Priority: ${patient.current_priority.toUpperCase()}`} />
                     </div>
-                    <div className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-bold uppercase ${
-                      patient.current_priority === 'red' ? 'bg-red-100 text-red-700' :
-                      patient.current_priority === 'yellow' ? 'bg-amber-100 text-amber-700' :
-                      'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {patient.current_priority}
+
+                    {/* Patient Name */}
+                    <div className="col-span-5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuickViewPatientId(patient.patient_id);
+                        }}
+                        className={`font-semibold text-sm text-left truncate transition-colors ${
+                          selectedPatient?.id === patient.id
+                            ? 'text-blue-800'
+                            : 'text-slate-800 group-hover:text-blue-600'
+                        }`}
+                        title={patient.patient_name}
+                      >
+                        {patient.patient_name}
+                      </button>
+                    </div>
+
+                    {/* Room */}
+                    <div className="col-span-3">
+                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${
+                        patient.room_number
+                          ? 'text-slate-700'
+                          : 'text-amber-600'
+                      }`}>
+                        {patient.room_number ? (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Rm {patient.room_number}
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            No Room
+                          </>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Patient Number */}
+                    <div className="col-span-3 text-right">
+                      <span className="text-xs text-slate-500 font-mono">
+                        {patient.patient_number}
+                      </span>
                     </div>
                   </div>
                 ))}
 
                 {assignedPatients.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">
-                    <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="text-center py-8 text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <p className="font-medium">No assigned patients</p>
+                    <p className="text-sm font-medium">No assigned patients</p>
                   </div>
                 )}
               </div>
+
+              {/* Footer with Legend */}
+              {assignedPatients.length > 0 && (
+                <div className="bg-slate-50 border-t border-slate-200 px-4 py-2">
+                  <div className="flex items-center justify-center gap-4 text-xs text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Low
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-400"></span> Medium
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500"></span> High
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

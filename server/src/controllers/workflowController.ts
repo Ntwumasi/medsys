@@ -445,6 +445,25 @@ export const getAvailableNurses = async (req: Request, res: Response): Promise<v
   }
 };
 
+// Get doctors for PCP assignment
+export const getAvailableDoctors = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, email, phone
+       FROM users
+       WHERE role = 'doctor' AND is_active = true
+       ORDER BY first_name, last_name`
+    );
+
+    res.json({
+      doctors: result.rows,
+    });
+  } catch (error) {
+    console.error('Get doctors error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get patient queue with color coding - includes all patients for the day
 export const getPatientQueue = async (req: Request, res: Response): Promise<void> => {
   try {

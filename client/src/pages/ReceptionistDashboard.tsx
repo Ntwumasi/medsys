@@ -68,6 +68,12 @@ interface Nurse {
   last_name: string;
 }
 
+interface Doctor {
+  id: number;
+  first_name: string;
+  last_name: string;
+}
+
 interface Encounter {
   id: number;
   encounter_number: string;
@@ -104,6 +110,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [nurses, setNurses] = useState<Nurse[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -197,18 +204,20 @@ const ReceptionistDashboard: React.FC = () => {
     try {
       setError(null);
       console.log('ReceptionistDashboard: Making API calls');
-      const [patientsRes, queueRes, nursesRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
+      const [patientsRes, queueRes, nursesRes, doctorsRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
         apiClient.get('/patients'),
         apiClient.get('/workflow/queue'),
         apiClient.get('/workflow/nurses'),
+        apiClient.get('/workflow/doctors'),
         apiClient.get('/payer-sources/corporate-clients'),
         apiClient.get('/payer-sources/insurance-providers'),
       ]);
-      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, nursesRes, corporateClientsRes, insuranceProvidersRes });
+      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, nursesRes, doctorsRes, corporateClientsRes, insuranceProvidersRes });
 
       setPatients(patientsRes.data.patients || []);
       setQueue(queueRes.data.queue || []);
       setNurses(nursesRes.data.nurses || []);
+      setDoctors(doctorsRes.data.doctors || []);
       setCorporateClients(corporateClientsRes.data.corporate_clients || []);
       setInsuranceProviders(insuranceProvidersRes.data.insurance_providers || []);
     } catch (error: any) {
@@ -219,6 +228,7 @@ const ReceptionistDashboard: React.FC = () => {
       setPatients([]);
       setQueue([]);
       setNurses([]);
+      setDoctors([]);
       setCorporateClients([]);
       setInsuranceProviders([]);
     } finally {
@@ -1339,13 +1349,18 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     PCP Name
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={newPatient.pcp_name}
                     onChange={(e) => setNewPatient({ ...newPatient, pcp_name: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="Dr. John Smith"
-                  />
+                  >
+                    <option value="">Select Doctor</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={`Dr. ${doctor.first_name} ${doctor.last_name}`}>
+                        Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
