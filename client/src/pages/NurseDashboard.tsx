@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
+import { format, parseISO, isValid } from 'date-fns';
 import { validateVitalSign } from '../utils/vitalSignsValidation';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
@@ -99,6 +100,20 @@ interface ShortStayBed {
   assigned_at: string | null;
   notes: string | null;
 }
+
+// Safe date formatting helper
+const safeFormatDate = (dateValue: any, formatString: string, fallback: string = ''): string => {
+  if (!dateValue) return fallback;
+  try {
+    const date = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue);
+    if (isValid(date)) {
+      return format(date, formatString);
+    }
+    return fallback;
+  } catch (error) {
+    return fallback;
+  }
+};
 
 const NurseDashboard: React.FC = () => {
   const { user, logout } = useAuth();
@@ -1695,6 +1710,9 @@ const NurseDashboard: React.FC = () => {
                                           <p className="text-xs text-gray-500 mt-1">
                                             Ordered by: {order.ordering_provider_name}
                                           </p>
+                                          <p className="text-xs text-gray-400 mt-0.5">
+                                            {safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a')}
+                                          </p>
                                         </div>
                                         <div className="ml-4 text-right">
                                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -1726,6 +1744,9 @@ const NurseDashboard: React.FC = () => {
                                           <p className="text-sm text-gray-600">Body Part: {order.body_part}</p>
                                           <p className="text-xs text-gray-500 mt-1">
                                             Ordered by: {order.ordering_provider_name}
+                                          </p>
+                                          <p className="text-xs text-gray-400 mt-0.5">
+                                            {safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a')}
                                           </p>
                                         </div>
                                         <div className="ml-4 text-right">
@@ -1760,6 +1781,9 @@ const NurseDashboard: React.FC = () => {
                                           </p>
                                           <p className="text-xs text-gray-500 mt-1">
                                             Ordered by: {order.ordering_provider_name}
+                                          </p>
+                                          <p className="text-xs text-gray-400 mt-0.5">
+                                            {safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a')}
                                           </p>
                                         </div>
                                         <div className="ml-4 text-right">
@@ -1816,6 +1840,9 @@ const NurseDashboard: React.FC = () => {
                                           {procedure.status.replace('_', ' ').toUpperCase()}
                                         </span>
                                       </div>
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        {safeFormatDate(procedure.ordered_at, 'MMM d, yyyy h:mm a')}
+                                      </p>
                                     </div>
                                     <div className="ml-4 flex gap-2">
                                       {procedure.status === 'pending' && (
