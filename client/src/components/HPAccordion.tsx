@@ -547,66 +547,35 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Side - Accordion Sections */}
       <div className="lg:col-span-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-5 z-10 shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                History & Physical
-              </h2>
-              <p className="text-blue-100 text-sm mt-1 flex items-center gap-2">
-                <span className="font-semibold">{sections.filter(s => s.completed).length}</span>
-                <span>of</span>
-                <span className="font-semibold">{sections.length}</span>
-                <span>sections completed</span>
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Smart Dictate Button */}
-              <button
-                onClick={() => setShowSmartDictation(true)}
-                className="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2"
-                title="Smart Dictation (AI-powered)"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
-                <span className="text-sm font-medium hidden sm:inline">Smart Dictate</span>
-              </button>
-              {/* Print Button */}
-              <button
-                onClick={handlePrint}
-                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                title="Print / Save as PDF"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-              </button>
-              {/* Progress Circle */}
-              <div className="relative w-14 h-14">
-                <svg className="transform -rotate-90 w-14 h-14">
-                  <circle cx="28" cy="28" r="24" stroke="rgba(255,255,255,0.2)" strokeWidth="4" fill="none" />
-                  <circle
-                    cx="28"
-                    cy="28"
-                    r="24"
-                    stroke="white"
-                    strokeWidth="4"
-                    fill="none"
-                    strokeDasharray={`${(sections.filter(s => s.completed).length / sections.length) * 150.8} 150.8`}
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-white text-xs font-bold">
-                    {Math.round((sections.filter(s => s.completed).length / sections.length) * 100)}%
-                  </span>
-                </div>
-              </div>
-            </div>
+        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 z-10 shadow-md">
+          {/* Title Row */}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold">History & Physical</h2>
+            <span className="text-blue-100 text-sm">
+              {sections.filter(s => s.completed).length} of {sections.length} completed
+            </span>
+          </div>
+          {/* Actions Row */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSmartDictation(true)}
+              className="flex-1 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+              title="Smart Dictation (AI-powered)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              Smart Dictate
+            </button>
+            <button
+              onClick={handlePrint}
+              className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+              title="Print / Save as PDF"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
