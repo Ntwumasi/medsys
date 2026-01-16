@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
 import { useNotification } from '../context/NotificationContext';
+import type { ApiError } from '../types';
+
+interface UpdateParams {
+  category?: string;
+  status?: string;
+}
 
 interface SystemUpdate {
   id: number;
@@ -52,7 +58,7 @@ const SystemUpdates: React.FC = () => {
 
   const loadUpdates = async () => {
     try {
-      const params: any = {};
+      const params: UpdateParams = {};
       if (filterCategory !== 'all') params.category = filterCategory;
       if (filterStatus !== 'all') params.status = filterStatus;
 
@@ -97,8 +103,9 @@ const SystemUpdates: React.FC = () => {
       });
       loadUpdates();
       loadStats();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to save update';
+    } catch (error) {
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.error || 'Failed to save update';
       showToast(errorMessage, 'error');
     }
   };
@@ -123,7 +130,7 @@ const SystemUpdates: React.FC = () => {
       showToast('Update deleted successfully', 'success');
       loadUpdates();
       loadStats();
-    } catch (error) {
+    } catch {
       showToast('Failed to delete update', 'error');
     }
   };

@@ -25,6 +25,15 @@ interface Doctor {
   last_name: string;
 }
 
+interface PatientSearchResult {
+  id: number;
+  patient_number: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  phone?: string;
+}
+
 const AppointmentsCalendar: React.FC = () => {
   const { showToast } = useNotification();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -37,7 +46,7 @@ const AppointmentsCalendar: React.FC = () => {
 
   // New appointment modal state
   const [showNewAppointment, setShowNewAppointment] = useState(false);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [patients, setPatients] = useState<PatientSearchResult[]>([]);
   const [patientSearch, setPatientSearch] = useState('');
   const [newAppointment, setNewAppointment] = useState({
     patient_id: '',

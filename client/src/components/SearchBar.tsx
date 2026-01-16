@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
-
-interface SearchResult {
-  patients: any[];
-  encounters: any[];
-  total_results: number;
-}
+import type { SearchResult, SearchPatient, SearchEncounter } from '../types';
 
 interface SearchBarProps {
-  onPatientSelect?: (patient: any) => void;
-  onEncounterSelect?: (encounter: any) => void;
+  onPatientSelect?: (patient: SearchPatient) => void;
+  onEncounterSelect?: (encounter: SearchEncounter) => void;
   placeholder?: string;
 }
 
@@ -67,7 +62,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     return () => clearTimeout(delaySearch);
   }, [searchTerm, performSearch]);
 
-  const handlePatientClick = (patient: any) => {
+  const handlePatientClick = (patient: SearchPatient) => {
     if (onPatientSelect) {
       onPatientSelect(patient);
     }
@@ -75,7 +70,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     setShowResults(false);
   };
 
-  const handleEncounterClick = (encounter: any) => {
+  const handleEncounterClick = (encounter: SearchEncounter) => {
     if (onEncounterSelect) {
       onEncounterSelect(encounter);
     }

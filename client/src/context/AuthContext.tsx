@@ -57,26 +57,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
-    try {
-      const response = await authAPI.login(credentials);
-      const { user: userData, token: authToken } = response;
+    const response = await authAPI.login(credentials);
+    const { user: userData, token: authToken } = response;
 
-      setUser(userData);
-      setToken(authToken);
+    setUser(userData);
+    setToken(authToken);
 
-      localStorage.setItem('token', authToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
 
-      // Clear any impersonation state on fresh login
-      setImpersonation({
-        isImpersonating: false,
-        originalUser: null,
-        originalToken: null,
-      });
-      localStorage.removeItem('impersonation');
-    } catch (error) {
-      throw error;
-    }
+    // Clear any impersonation state on fresh login
+    setImpersonation({
+      isImpersonating: false,
+      originalUser: null,
+      originalToken: null,
+    });
+    localStorage.removeItem('impersonation');
   };
 
   const logout = () => {
@@ -93,32 +89,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const impersonateUser = async (userId: number) => {
-    try {
-      const response = await authAPI.impersonate(userId);
-      const { user: impersonatedUser, token: impersonatedToken } = response;
+    const response = await authAPI.impersonate(userId);
+    const { user: impersonatedUser, token: impersonatedToken } = response;
 
-      // Save original admin session
-      const originalUser = user;
-      const originalToken = token;
+    // Save original admin session
+    const originalUser = user;
+    const originalToken = token;
 
-      // Set impersonated user as current
-      setUser(impersonatedUser);
-      setToken(impersonatedToken);
+    // Set impersonated user as current
+    setUser(impersonatedUser);
+    setToken(impersonatedToken);
 
-      const impersonationState = {
-        isImpersonating: true,
-        originalUser,
-        originalToken,
-      };
-      setImpersonation(impersonationState);
+    const impersonationState = {
+      isImpersonating: true,
+      originalUser,
+      originalToken,
+    };
+    setImpersonation(impersonationState);
 
-      // Store in localStorage
-      localStorage.setItem('token', impersonatedToken);
-      localStorage.setItem('user', JSON.stringify(impersonatedUser));
-      localStorage.setItem('impersonation', JSON.stringify(impersonationState));
-    } catch (error) {
-      throw error;
-    }
+    // Store in localStorage
+    localStorage.setItem('token', impersonatedToken);
+    localStorage.setItem('user', JSON.stringify(impersonatedUser));
+    localStorage.setItem('impersonation', JSON.stringify(impersonationState));
   };
 
   const endImpersonation = () => {
@@ -158,6 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {

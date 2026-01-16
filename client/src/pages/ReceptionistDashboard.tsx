@@ -11,6 +11,7 @@ import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
 import NotificationCenter from '../components/NotificationCenter';
 import { useNotification } from '../context/NotificationContext';
+import type { ApiError } from '../types';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -25,7 +26,7 @@ const localizer = dateFnsLocalizer({
 });
 
 // Safe date formatting helper
-const safeFormatDate = (dateValue: any, formatString: string, fallback: string = 'N/A'): string => {
+const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = 'N/A'): string => {
   if (!dateValue) return fallback;
 
   try {
@@ -45,7 +46,7 @@ interface Patient {
   patient_number: string;
   first_name?: string;
   last_name?: string;
-  date_of_birth: string;
+  date_of_birth?: string;
   gender?: string;
   preferred_clinic?: string;
   phone?: string;
@@ -55,6 +56,8 @@ interface Patient {
   state?: string;
   emergency_contact_name?: string;
   emergency_contact_phone?: string;
+  pcp_name?: string;
+  pcp_phone?: string;
 }
 
 interface QueueItem {
@@ -117,6 +120,66 @@ interface PayerSource {
   insurance_provider_id?: number;
 }
 
+// Invoice-related interfaces for viewing invoices
+interface InvoiceData {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  patient_number: string;
+  patient_name: string;
+  patient_email?: string;
+  patient_phone?: string;
+  patient_address?: string;
+  patient_city?: string;
+  patient_state?: string;
+  subtotal: number;
+  tax: number;
+  total_amount: number;
+  amount_paid: number;
+  status: string;
+  chief_complaint?: string;
+  encounter_date?: string;
+}
+
+interface InvoiceItem {
+  id: number;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+interface InvoicePayerSource {
+  id: number;
+  payer_type: string;
+  corporate_client_name?: string;
+  insurance_provider_name?: string;
+  is_primary: boolean;
+}
+
+// Past patient encounter for history view
+interface PastPatientEncounter {
+  id: number;
+  patient_name: string;
+  patient_number: string;
+  gender?: string;
+  encounter_number: string;
+  encounter_date: string;
+  clinic?: string;
+  provider_name?: string;
+}
+
+// Parameters for loading past patients
+interface PastPatientsParams {
+  page: number;
+  limit: number;
+  sort_field: string;
+  sort_order: string;
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
 interface Appointment {
   id: number;
   patient_id: number;
@@ -159,7 +222,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [editingNurseForEncounter, setEditingNurseForEncounter] = useState<number | null>(null);
 
   // Appointments state
-  const [_appointments, setAppointments] = useState<Appointment[]>([]);
+  const [, setAppointments] = useState<Appointment[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('week');
@@ -242,13 +305,13 @@ const ReceptionistDashboard: React.FC = () => {
 
   // Invoice state
   const [showInvoice, setShowInvoice] = useState(false);
-  const [invoiceData, setInvoiceData] = useState<any>(null);
-  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
-  const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
+  const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  const [invoicePayerSources, setInvoicePayerSources] = useState<InvoicePayerSource[]>([]);
   const [currentEncounterId, setCurrentEncounterId] = useState<number | null>(null);
 
   // Past Patients / History state
-  const [pastPatients, setPastPatients] = useState<any[]>([]);
+  const [pastPatients, setPastPatients] = useState<PastPatientEncounter[]>([]);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [historyDateFrom, setHistoryDateFrom] = useState('');
   const [historyDateTo, setHistoryDateTo] = useState('');
@@ -286,9 +349,10 @@ const ReceptionistDashboard: React.FC = () => {
       setDoctors(doctorsRes.data.doctors || []);
       setCorporateClients(corporateClientsRes.data.corporate_clients || []);
       setInsuranceProviders(insuranceProvidersRes.data.insurance_providers || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading data:', error);
-      const errorMsg = error.response?.data?.message || error.response?.data?.error || 'Failed to load dashboard data';
+      const apiError = error as ApiError;
+      const errorMsg = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to load dashboard data';
       setError(errorMsg);
       // Set empty arrays so the dashboard still renders
       setPatients([]);
@@ -315,7 +379,7 @@ const ReceptionistDashboard: React.FC = () => {
   const loadPastPatients = async () => {
     try {
       setLoadingHistory(true);
-      const params: any = {
+      const params: PastPatientsParams = {
         page: historyPage,
         limit: itemsPerPage,
         sort_field: historySortField,
@@ -473,9 +537,10 @@ const ReceptionistDashboard: React.FC = () => {
       setShowBookingModal(false);
       loadAppointments();
       loadTodayAppointments();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error booking appointment:', error);
-      showToast(error.response?.data?.error || 'Failed to book appointment', 'error');
+      const apiError = error as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to book appointment', 'error');
     } finally {
       setSavingAppointment(false);
     }
@@ -554,11 +619,12 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Show success message
       showToast(`${patientName} checked in successfully! Billing: $${billingAmount}`, 'success');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error checking in patient:', error);
 
       // Extract error message from API response
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to check in patient';
 
       showToast(errorMessage, 'error');
     } finally {
@@ -649,11 +715,12 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Show success message
       showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}, Billing: $${billingAmount}`, 'success');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating new patient:', error);
 
       // Extract error message from API response
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to register new patient';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to register new patient';
 
       showToast(errorMessage, 'error');
     }
@@ -668,9 +735,10 @@ const ReceptionistDashboard: React.FC = () => {
       await loadData();
       setEditingNurseForEncounter(null);
       showToast('Nurse assigned successfully!', 'success');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error assigning nurse:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to assign nurse';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to assign nurse';
       showToast(errorMessage, 'error');
     }
   };
@@ -683,9 +751,10 @@ const ReceptionistDashboard: React.FC = () => {
       setInvoicePayerSources(response.data.payer_sources || []);
       setCurrentEncounterId(encounterId);
       setShowInvoice(true);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading invoice:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to load invoice';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to load invoice';
       showToast(errorMessage, 'error');
     }
   };
@@ -1385,9 +1454,9 @@ const ReceptionistDashboard: React.FC = () => {
                 <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Primary Care Physician (PCP)</h3>
                   <p className="text-gray-700">
-                    {(selectedPatient as any).pcp_name || 'Not specified'}
-                    {(selectedPatient as any).pcp_phone && (
-                      <span className="ml-2 text-sm text-gray-500">| {(selectedPatient as any).pcp_phone}</span>
+                    {selectedPatient.pcp_name || 'Not specified'}
+                    {selectedPatient.pcp_phone && (
+                      <span className="ml-2 text-sm text-gray-500">| {selectedPatient.pcp_phone}</span>
                     )}
                   </p>
                 </div>

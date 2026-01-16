@@ -110,7 +110,7 @@ export const useMedicalAutocomplete = (
   const handleKeyDown = useCallback((
     e: React.KeyboardEvent,
     text: string,
-    _cursorPosition: number
+    // cursorPosition parameter reserved for future use
   ): { handled: boolean; newText?: string } => {
     if (!showSuggestions || suggestions.length === 0) {
       return { handled: false };

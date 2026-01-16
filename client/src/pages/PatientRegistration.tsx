@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
+import type { ApiError } from '../types';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
@@ -52,8 +53,9 @@ const PatientRegistration: React.FC = () => {
     try {
       const response = await patientsAPI.createPatient(formData);
       navigate(`/patients/${response.patient.id}`);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to register patient');
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.response?.data?.error || 'Failed to register patient');
     } finally {
       setLoading(false);
     }

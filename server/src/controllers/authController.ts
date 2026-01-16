@@ -3,6 +3,14 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../database/db';
 
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  return secret;
+};
+
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { email, password, role, first_name, last_name, phone } = req.body;
 
@@ -39,7 +47,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const user = result.rows[0];
 
     // Generate JWT token
-    const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const secret = getJwtSecret();
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       secret,
@@ -59,6 +67,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -102,7 +114,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Generate JWT token
-    const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const secret = getJwtSecret();
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       secret,
@@ -122,6 +134,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     console.error('Login error:', error);
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -209,7 +225,7 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
     );
 
     // Generate JWT token for the target user with impersonation flag
-    const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const secret = getJwtSecret();
     const token = jwt.sign(
       {
         id: targetUser.id,
@@ -238,6 +254,10 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('Impersonation error:', error);
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 };

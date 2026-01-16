@@ -35,7 +35,7 @@ interface HPAccordionProps {
   vitalSigns?: VitalSignsData;
 }
 
-const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, onSave: _onSave, vitalSigns }) => {
+const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns }) => {
   const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [sections, setSections] = useState<HPSection[]>([

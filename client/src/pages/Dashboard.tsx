@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { appointmentsAPI } from '../api/appointments';
-import type { Appointment } from '../types';
+import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
@@ -53,6 +53,89 @@ interface InsuranceProvider {
   contact_phone?: string;
 }
 
+interface DashboardInvoice {
+  id: number;
+  invoice_number: string;
+  encounter_id: number;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  invoice_date?: string;
+  chief_complaint?: string;
+  total?: string;
+}
+
+interface DashboardPatient {
+  id: number;
+  patient_number: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+}
+
+interface DashboardInvoiceData {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  patient_number: string;
+  patient_name: string;
+  patient_email?: string;
+  patient_phone?: string;
+  patient_address?: string;
+  patient_city?: string;
+  patient_state?: string;
+  subtotal: number;
+  tax: number;
+  total_amount: number;
+  amount_paid: number;
+  status: string;
+  chief_complaint?: string;
+  encounter_date?: string;
+}
+
+interface DashboardInvoiceItem {
+  id: number;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+interface DashboardPayerSource {
+  id: number;
+  payer_type: string;
+  corporate_client_name?: string;
+  insurance_provider_name?: string;
+  is_primary: boolean;
+}
+
+interface Doctor {
+  id: number;
+  first_name: string;
+  last_name: string;
+  role?: string;
+}
+
+interface StaffMember {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  role: string;
+  is_active: boolean;
+  created_at?: string;
+}
+
+interface StaffFormData {
+  email: string;
+  password: string;
+  role: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+}
+
 const Dashboard: React.FC = () => {
   const { user, logout, impersonateUser } = useAuth();
   const navigate = useNavigate();
@@ -65,13 +148,13 @@ const Dashboard: React.FC = () => {
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<DashboardInvoice[]>([]);
+  const [patients, setPatients] = useState<DashboardPatient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [showInvoice, setShowInvoice] = useState(false);
-  const [invoiceData, setInvoiceData] = useState<any>(null);
-  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
-  const [invoicePayerSources, setInvoicePayerSources] = useState<any[]>([]);
+  const [invoiceData, setInvoiceData] = useState<DashboardInvoiceData | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<DashboardInvoiceItem[]>([]);
+  const [invoicePayerSources, setInvoicePayerSources] = useState<DashboardPayerSource[]>([]);
 
   // Corporate clients state
   const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
@@ -79,7 +162,7 @@ const Dashboard: React.FC = () => {
   const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
 
   // Doctors state
-  const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
   // Insurance providers state
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
@@ -87,9 +170,9 @@ const Dashboard: React.FC = () => {
   const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
 
   // Staff management state
-  const [staff, setStaff] = useState<any[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [showStaffForm, setShowStaffForm] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<any>(null);
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [staffForm, setStaffForm] = useState({
     email: '',
     password: '',
@@ -232,7 +315,8 @@ const Dashboard: React.FC = () => {
 
     // Apply sorting
     filteredStaff.sort((a, b) => {
-      let compareA, compareB;
+      let compareA = '';
+      let compareB = '';
 
       if (staffSortBy === 'name') {
         compareA = `${a.first_name} ${a.last_name}`.toLowerCase();
@@ -286,10 +370,11 @@ const Dashboard: React.FC = () => {
 
       if (editingStaff) {
         // Update existing staff
-        const updateData: any = { ...staffForm };
+        const updateData: StaffFormData = { ...staffForm };
         if (!staffForm.password) {
           // Don't include password if not provided
-          const { password, ...dataWithoutPassword } = updateData;
+          const dataWithoutPassword = { ...updateData };
+          delete (dataWithoutPassword as { password?: string }).password;
           await apiClient.put(`/users/${editingStaff.id}`, dataWithoutPassword);
         } else {
           await apiClient.put(`/users/${editingStaff.id}`, updateData);
@@ -305,13 +390,14 @@ const Dashboard: React.FC = () => {
       setShowStaffForm(false);
       setEditingStaff(null);
       loadStaff();
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.error || 'Failed to save staff member';
       showToast(`Error: ${errorMessage}`, 'error');
     }
   };
 
-  const handleEditStaff = (staffMember: any) => {
+  const handleEditStaff = (staffMember: StaffMember) => {
     setEditingStaff(staffMember);
     setStaffForm({
       email: staffMember.email,
@@ -338,13 +424,14 @@ const Dashboard: React.FC = () => {
         showToast('Staff member activated successfully!', 'success');
       }
       loadStaff();
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to update staff member status';
       showToast(errorMessage, 'error');
     }
   };
 
-  const handleImpersonate = async (member: any) => {
+  const handleImpersonate = async (member: StaffMember) => {
     if (!confirm(`Log in as ${member.first_name} ${member.last_name} (${member.role})? You will be redirected to their dashboard.`)) {
       return;
     }
@@ -363,7 +450,8 @@ const Dashboard: React.FC = () => {
         patient: '/patient-portal',
       };
       navigate(roleRoutes[member.role] || '/dashboard');
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.error || 'Failed to impersonate user';
       showToast(errorMessage, 'error');
     }
@@ -381,7 +469,8 @@ const Dashboard: React.FC = () => {
       setShowCorporateForm(false);
       loadCorporateClients();
       showToast('Corporate client added successfully!', 'success');
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add corporate client';
       showToast(`Error: ${errorMessage}`, 'error');
     }
@@ -395,7 +484,8 @@ const Dashboard: React.FC = () => {
       setShowInsuranceForm(false);
       loadInsuranceProviders();
       showToast('Insurance provider added successfully!', 'success');
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add insurance provider';
       showToast(`Error: ${errorMessage}`, 'error');
     }
@@ -407,7 +497,8 @@ const Dashboard: React.FC = () => {
       await apiClient.delete(`/payer-sources/corporate-clients/${id}`);
       loadCorporateClients();
       showToast('Corporate client deactivated successfully!', 'success');
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to deactivate corporate client';
       showToast(errorMessage, 'error');
     }
@@ -419,7 +510,8 @@ const Dashboard: React.FC = () => {
       await apiClient.delete(`/payer-sources/insurance-providers/${id}`);
       loadInsuranceProviders();
       showToast('Insurance provider deactivated successfully!', 'success');
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to deactivate insurance provider';
       showToast(errorMessage, 'error');
     }
@@ -451,7 +543,8 @@ const Dashboard: React.FC = () => {
       setInvoiceItems(response.data.items || []);
       setInvoicePayerSources(response.data.payer_sources || []);
       setShowInvoice(true);
-    } catch (error: any) {
+    } catch (err) {
+      const error = err as ApiError;
       console.error('Error loading invoice:', error);
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to load invoice';
       showToast(errorMessage, 'error');
@@ -816,13 +909,13 @@ const Dashboard: React.FC = () => {
                               {invoice.invoice_number}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {format(new Date(invoice.invoice_date), 'MMM dd, yyyy')}
+                              {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'MMM dd, yyyy') : 'N/A'}
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-500">
                               {invoice.chief_complaint || 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              ${parseFloat(invoice.total).toFixed(2)}
+                              ${parseFloat(invoice.total || '0').toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span

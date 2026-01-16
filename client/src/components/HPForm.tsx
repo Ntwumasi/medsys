@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNotification } from '../context/NotificationContext';
+import type { HPEncounter, ExistingHPData, HPFormData, ApiError } from '../types';
 
 interface HPFormProps {
-  encounter: any;
-  existingData?: any;
-  onSave: (hpData: any) => Promise<void>;
+  encounter: HPEncounter;
+  existingData?: ExistingHPData;
+  onSave: (hpData: HPFormData) => Promise<void>;
   onClose: () => void;
 }
 
@@ -162,9 +163,10 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
       await onSave(formData);
       showToast('H&P saved successfully!', 'success');
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving H&P:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to save H&P';
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to save H&P';
       showToast(errorMessage, 'error');
     }
   };

@@ -10,6 +10,19 @@ import NotificationCenter from '../components/NotificationCenter';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
 import PatientQuickView from '../components/PatientQuickView';
+import type { ApiError } from '../types';
+
+interface ClinicalNote {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  note_type: string;
+  content: string;
+  created_by?: string;
+  created_by_name?: string;
+  created_at: string;
+  updated_at?: string;
+}
 
 interface AssignedPatient {
   id: number;
@@ -21,7 +34,7 @@ interface AssignedPatient {
   room_name?: string;
   current_priority: 'green' | 'yellow' | 'red';
   chief_complaint: string;
-  vital_signs?: any;
+  vital_signs?: VitalSigns;
 }
 
 interface NurseProcedure {
@@ -48,6 +61,7 @@ interface VitalSigns {
   weight_unit?: 'kg' | 'lbs';
   height?: number;
   height_unit?: 'cm' | 'in';
+  pain_level?: number;
 }
 
 interface Room {
@@ -102,7 +116,7 @@ interface ShortStayBed {
 }
 
 // Safe date formatting helper
-const safeFormatDate = (dateValue: any, formatString: string, fallback: string = ''): string => {
+const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = ''): string => {
   if (!dateValue) return fallback;
   try {
     const date = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue);
@@ -110,7 +124,7 @@ const safeFormatDate = (dateValue: any, formatString: string, fallback: string =
       return format(date, formatString);
     }
     return fallback;
-  } catch (error) {
+  } catch {
     return fallback;
   }
 };
@@ -127,7 +141,7 @@ const NurseDashboard: React.FC = () => {
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
-  const [clinicalNotes, setClinicalNotes] = useState<any[]>([]);
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
 
   // Vitals form state
   const [vitals, setVitals] = useState<VitalSigns>({
@@ -241,9 +255,10 @@ const NurseDashboard: React.FC = () => {
       setSelectedBedId(null);
       setShortStayNotes('');
       loadShortStayBeds();
-    } catch (error: any) {
+    } catch (error) {
+      const apiError = error as ApiError;
       console.error('Error assigning short stay bed:', error);
-      showToast(error.response?.data?.error || 'Failed to assign bed', 'error');
+      showToast(apiError.response?.data?.error || 'Failed to assign bed', 'error');
     }
   };
 
@@ -316,9 +331,10 @@ const NurseDashboard: React.FC = () => {
           setSelectedPatient(updatedPatient);
         }
       }
-    } catch (error: any) {
+    } catch (error) {
+      const apiError = error as ApiError;
       console.error('Error assigning room:', error);
-      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to assign room';
+      const errorMessage = apiError.response?.data?.error || apiError.response?.data?.message || 'Failed to assign room';
       showToast(errorMessage, 'error');
     }
   };
@@ -450,10 +466,11 @@ const NurseDashboard: React.FC = () => {
         height_unit: 'in',
       });
       loadAssignedPatients();
-    } catch (error: any) {
+    } catch (error) {
+      const apiError = error as ApiError & { response?: { data?: { errors?: Record<string, string> } } };
       console.error('Error submitting vitals:', error);
-      if (error.response?.data?.errors) {
-        setVitalErrors(error.response.data.errors);
+      if (apiError.response?.data?.errors) {
+        setVitalErrors(apiError.response.data.errors);
         showToast('Invalid vital signs. Please check the values and try again.', 'error');
       } else {
         showToast('Failed to save vital signs', 'error');
@@ -1397,8 +1414,9 @@ const NurseDashboard: React.FC = () => {
                                     if (!result.isValid || result.isCritical) {
                                       setVitalErrors({ ...vitalErrors, temperature: result.message || 'Invalid value' });
                                     } else {
-                                      const { temperature, ...rest } = vitalErrors;
-                                      setVitalErrors(rest);
+                                      const newErrors = { ...vitalErrors };
+                                      delete newErrors.temperature;
+                                      setVitalErrors(newErrors);
                                     }
                                   }
                                 }}
@@ -1437,8 +1455,9 @@ const NurseDashboard: React.FC = () => {
                                   if (!result.isValid || result.isCritical) {
                                     setVitalErrors({ ...vitalErrors, heart_rate: result.message || 'Invalid value' });
                                   } else {
-                                    const { heart_rate, ...rest } = vitalErrors;
-                                    setVitalErrors(rest);
+                                    const newErrors = { ...vitalErrors };
+                                    delete newErrors.heart_rate;
+                                    setVitalErrors(newErrors);
                                   }
                                 }
                               }}
@@ -1463,8 +1482,9 @@ const NurseDashboard: React.FC = () => {
                                   if (!result.isValid || result.isCritical) {
                                     setVitalErrors({ ...vitalErrors, blood_pressure_systolic: result.message || 'Invalid value' });
                                   } else {
-                                    const { blood_pressure_systolic, ...rest } = vitalErrors;
-                                    setVitalErrors(rest);
+                                    const newErrors = { ...vitalErrors };
+                                    delete newErrors.blood_pressure_systolic;
+                                    setVitalErrors(newErrors);
                                   }
                                 }
                               }}
@@ -1489,8 +1509,9 @@ const NurseDashboard: React.FC = () => {
                                   if (!result.isValid || result.isCritical) {
                                     setVitalErrors({ ...vitalErrors, blood_pressure_diastolic: result.message || 'Invalid value' });
                                   } else {
-                                    const { blood_pressure_diastolic, ...rest } = vitalErrors;
-                                    setVitalErrors(rest);
+                                    const newErrors = { ...vitalErrors };
+                                    delete newErrors.blood_pressure_diastolic;
+                                    setVitalErrors(newErrors);
                                   }
                                 }
                               }}
@@ -1515,8 +1536,9 @@ const NurseDashboard: React.FC = () => {
                                   if (!result.isValid || result.isCritical) {
                                     setVitalErrors({ ...vitalErrors, respiratory_rate: result.message || 'Invalid value' });
                                   } else {
-                                    const { respiratory_rate, ...rest } = vitalErrors;
-                                    setVitalErrors(rest);
+                                    const newErrors = { ...vitalErrors };
+                                    delete newErrors.respiratory_rate;
+                                    setVitalErrors(newErrors);
                                   }
                                 }
                               }}
@@ -1541,8 +1563,9 @@ const NurseDashboard: React.FC = () => {
                                   if (!result.isValid || result.isCritical) {
                                     setVitalErrors({ ...vitalErrors, oxygen_saturation: result.message || 'Invalid value' });
                                   } else {
-                                    const { oxygen_saturation, ...rest } = vitalErrors;
-                                    setVitalErrors(rest);
+                                    const newErrors = { ...vitalErrors };
+                                    delete newErrors.oxygen_saturation;
+                                    setVitalErrors(newErrors);
                                   }
                                 }
                               }}
@@ -1906,7 +1929,7 @@ const NurseDashboard: React.FC = () => {
                               Past Clinical Notes
                             </h3>
                             <div className="space-y-3">
-                              {clinicalNotes.map((note: any, index: number) => (
+                              {clinicalNotes.map((note: ClinicalNote, index: number) => (
                                 <div
                                   key={note.id || index}
                                   className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"

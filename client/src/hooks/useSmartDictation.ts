@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useVoiceDictation } from './useVoiceDictation';
 import apiClient from '../api/client';
+import type { ApiError } from '../types';
 
 export interface ParsedSection {
   id: string;
@@ -85,8 +86,9 @@ export const useSmartDictation = (): UseSmartDictationReturn => {
 
       setParsedSections(parsed);
       return true;
-    } catch (error: any) {
-      const message = error.response?.data?.error || 'Failed to parse dictation. Please try again.';
+    } catch (error) {
+      const apiError = error as ApiError;
+      const message = apiError.response?.data?.error || 'Failed to parse dictation. Please try again.';
       setParseError(message);
       return false;
     } finally {

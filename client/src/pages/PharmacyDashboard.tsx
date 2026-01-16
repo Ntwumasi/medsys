@@ -63,6 +63,24 @@ interface InventoryStats {
   total_stock_value: number;
 }
 
+interface TopMedication {
+  medication_name: string;
+  order_count: number;
+  total_quantity: number;
+}
+
+interface RevenueTotals {
+  total_orders: number;
+  dispensed_orders: number;
+  pending_orders: number;
+  unique_patients: number;
+}
+
+interface RevenueData {
+  totals: RevenueTotals;
+  top_medications: TopMedication[];
+}
+
 interface Diagnosis {
   id: number;
   diagnosis_code: string;
@@ -77,9 +95,21 @@ interface Allergy {
   severity: string;
 }
 
+interface ActiveMedication {
+  id: number;
+  medication_name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  start_date: string;
+  end_date?: string;
+  doctor_first_name?: string;
+  doctor_last_name?: string;
+}
+
 interface DrugHistory {
   orders: PharmacyOrder[];
-  active_medications: any[];
+  active_medications: ActiveMedication[];
   allergies: Allergy[];
 }
 
@@ -113,7 +143,7 @@ const PharmacyDashboard: React.FC = () => {
   const [loadingDrugHistory, setLoadingDrugHistory] = useState(false);
 
   // Revenue state
-  const [revenueData, setRevenueData] = useState<any>(null);
+  const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -299,7 +329,7 @@ const PharmacyDashboard: React.FC = () => {
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-6">
           <nav className="flex space-x-8">
-            {[
+            {([
               { id: 'orders', label: 'Prescriptions', icon: (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -315,11 +345,11 @@ const PharmacyDashboard: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               )},
-            ].map((tab) => (
+            ] as const).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => {
-                  setActiveTab(tab.id as any);
+                  setActiveTab(tab.id);
                   if (tab.id === 'revenue') fetchRevenueSummary();
                 }}
                 className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
@@ -710,7 +740,7 @@ const PharmacyDashboard: React.FC = () => {
               />
               <select
                 value={inventoryFilter}
-                onChange={(e) => setInventoryFilter(e.target.value as any)}
+                onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low_stock' | 'expiring')}
                 className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
               >
                 <option value="all">All Items</option>
@@ -882,7 +912,7 @@ const PharmacyDashboard: React.FC = () => {
                   <div className="p-6">
                     {revenueData.top_medications?.length > 0 ? (
                       <div className="space-y-3">
-                        {revenueData.top_medications.map((med: any, index: number) => (
+                        {revenueData.top_medications.map((med, index) => (
                           <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center gap-3">
                               <span className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold">
@@ -959,7 +989,7 @@ const PharmacyDashboard: React.FC = () => {
                     <h3 className="font-bold text-gray-900 mb-3">Active Medications</h3>
                     {drugHistory.active_medications.length > 0 ? (
                       <div className="space-y-2">
-                        {drugHistory.active_medications.map((med: any) => (
+                        {drugHistory.active_medications.map((med) => (
                           <div key={med.id} className="p-3 bg-green-50 border border-green-200 rounded-lg">
                             <div className="font-medium">{med.medication_name}</div>
                             <div className="text-sm text-gray-600">

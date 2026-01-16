@@ -9,6 +9,14 @@ export interface AuthRequest extends Request {
   };
 }
 
+const getJwtSecret = (): string => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  return secret;
+};
+
 export const authenticateToken = (
   req: Request,
   res: Response,
@@ -23,7 +31,7 @@ export const authenticateToken = (
   }
 
   try {
-    const secret = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+    const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret) as {
       id: number;
       email: string;
@@ -33,6 +41,11 @@ export const authenticateToken = (
     (req as AuthRequest).user = decoded;
     next();
   } catch (error) {
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      console.error('CRITICAL: JWT_SECRET not configured');
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
     res.status(403).json({ error: 'Invalid or expired token' });
   }
 };

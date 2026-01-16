@@ -8,6 +8,7 @@ import NotificationCenter from '../components/NotificationCenter';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
+import type { VitalSigns } from '../types';
 
 interface RoomEncounter {
   id: number;
@@ -19,7 +20,7 @@ interface RoomEncounter {
   room_name?: string;
   nurse_name?: string;
   chief_complaint: string;
-  vital_signs?: any;
+  vital_signs?: VitalSigns;
 }
 
 interface ClinicalNote {

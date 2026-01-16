@@ -113,8 +113,8 @@ export function validateVitalSign(
   }
 
   // Check if value is within critical ranges (if defined)
-  const criticalMin = (ranges as any).criticalMin;
-  const criticalMax = (ranges as any).criticalMax;
+  const criticalMin = 'criticalMin' in ranges ? ranges.criticalMin : undefined;
+  const criticalMax = 'criticalMax' in ranges ? ranges.criticalMax : undefined;
 
   if (criticalMin !== undefined && criticalMax !== undefined) {
     if (value < criticalMin || value > criticalMax) {

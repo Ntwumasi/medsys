@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { format, parseISO, isValid } from 'date-fns';
+import type { ApiError } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+interface UpdateParams {
+  category?: string;
+  status?: string;
+}
 
 interface SystemUpdate {
   id: number;
@@ -53,7 +59,7 @@ const PublicUpdates: React.FC = () => {
 
   const loadUpdates = async () => {
     try {
-      const params: any = {};
+      const params: UpdateParams = {};
       if (filterCategory !== 'all') params.category = filterCategory;
       if (filterStatus !== 'all') params.status = filterStatus;
 
@@ -93,8 +99,9 @@ const PublicUpdates: React.FC = () => {
       loadUpdates();
       loadStats();
       setTimeout(() => setSubmitSuccess(false), 3000);
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to add update');
+    } catch (error) {
+      const apiError = error as ApiError;
+      alert(apiError.response?.data?.error || 'Failed to add update');
     } finally {
       setSubmitting(false);
     }

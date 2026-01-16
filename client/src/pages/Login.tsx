@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import type { ApiError } from '../types';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -19,8 +20,9 @@ const Login: React.FC = () => {
     try {
       await login({ email, password });
       navigate('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
+    } catch (err) {
+      const apiError = err as ApiError;
+      setError(apiError.response?.data?.error || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -46,6 +46,7 @@ export interface VitalSigns {
   height?: number;
   height_unit?: 'cm' | 'in';
   bmi?: number;
+  pain_level?: number;
 }
 
 export interface Encounter {
@@ -128,4 +129,119 @@ export interface PatientSummary {
   active_medications: Medication[];
   allergies: Allergy[];
   upcoming_appointments: Appointment[];
+}
+
+// Extended Encounter for HP Form with additional display fields
+export interface HPEncounter extends Encounter {
+  patient_name?: string;
+  room_number?: string;
+  gender?: string;
+  date_of_birth?: string;
+}
+
+// HP Form Data structure
+export interface HPFormData {
+  [key: string]: string | boolean | number;
+}
+
+// Existing HP data from API
+export interface ExistingHPData {
+  id?: number;
+  content?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Search result types
+export interface SearchPatient {
+  id: number;
+  patient_number: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
+  phone?: string;
+  date_of_birth?: string;
+}
+
+export interface SearchEncounter {
+  id: number;
+  encounter_number: string;
+  patient_name?: string;
+  encounter_date: string;
+  status?: string;
+}
+
+export interface SearchResult {
+  patients: SearchPatient[];
+  encounters: SearchEncounter[];
+  total_results: number;
+}
+
+// API Error type
+export interface ApiError {
+  response?: {
+    data?: {
+      error?: string;
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
+// System Update types
+export interface SystemUpdate {
+  id: number;
+  title: string;
+  description: string;
+  category: 'feature' | 'improvement' | 'bugfix' | 'planned';
+  status: 'planned' | 'in_progress' | 'completed';
+  version?: string;
+  update_date: string;
+  created_by?: number;
+  created_by_name?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface SystemUpdateStats {
+  total_updates: number;
+  features: number;
+  improvements: number;
+  bugfixes: number;
+  planned: number;
+  in_progress: number;
+  completed: number;
+  latest_update_date?: string;
+}
+
+// Invoice types
+export interface InvoiceItem {
+  id: number;
+  invoice_id: number;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  charge_master_id?: number;
+}
+
+export interface Invoice {
+  id: number;
+  patient_id: number;
+  encounter_id: number;
+  total_amount: number;
+  paid_amount: number;
+  balance: number;
+  status: 'pending' | 'paid' | 'partial' | 'cancelled';
+  items?: InvoiceItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayerSource {
+  payer_type: 'self_pay' | 'corporate' | 'insurance';
+  corporate_client_id?: number;
+  corporate_client_name?: string;
+  insurance_provider_id?: number;
+  insurance_provider_name?: string;
 }
