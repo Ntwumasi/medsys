@@ -1073,7 +1073,7 @@ const DoctorDashboard: React.FC = () => {
 
                         {notes.filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general').length > 0 ? (
                           <div>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Your Notes</h3>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Notes</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general')
@@ -1088,7 +1088,7 @@ const DoctorDashboard: React.FC = () => {
                                   >
                                     <div className="flex justify-between items-start mb-2">
                                       <div className="text-xs text-gray-600 font-medium">
-                                        {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                        {new Date(note.created_at).toLocaleDateString()} - {note.created_by_name} - {note.is_signed ? 'Signed' : 'Unsigned'}
                                       </div>
                                       <div className="flex gap-2">
                                         {!note.is_signed && (
