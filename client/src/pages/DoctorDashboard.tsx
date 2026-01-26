@@ -658,6 +658,144 @@ const DoctorDashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Quick Vitals Section */}
+            {selectedEncounter && selectedEncounter.vital_signs && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+                <div className="bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <h2 className="text-sm font-semibold text-white">Vital Signs</h2>
+                    </div>
+                    <button
+                      onClick={() => setShowVitalsHistory(true)}
+                      className="px-2 py-1 bg-white bg-opacity-20 text-white text-xs font-bold rounded hover:bg-opacity-30 transition-colors flex items-center gap-1"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      History
+                    </button>
+                  </div>
+                </div>
+                <div className="p-3">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-red-50 rounded-lg p-2">
+                      <div className="text-xs text-red-600 font-medium">BP</div>
+                      <div className="font-bold text-red-800">
+                        {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
+                      </div>
+                    </div>
+                    <div className="bg-pink-50 rounded-lg p-2">
+                      <div className="text-xs text-pink-600 font-medium">HR</div>
+                      <div className="font-bold text-pink-800">
+                        {selectedEncounter.vital_signs.heart_rate} <span className="text-xs font-normal">bpm</span>
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-2">
+                      <div className="text-xs text-orange-600 font-medium">Temp</div>
+                      <div className="font-bold text-orange-800">
+                        {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
+                      </div>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-2">
+                      <div className="text-xs text-blue-600 font-medium">SpO2</div>
+                      <div className="font-bold text-blue-800">
+                        {selectedEncounter.vital_signs.oxygen_saturation}%
+                      </div>
+                    </div>
+                    {selectedEncounter.vital_signs.respiratory_rate && (
+                      <div className="bg-cyan-50 rounded-lg p-2">
+                        <div className="text-xs text-cyan-600 font-medium">RR</div>
+                        <div className="font-bold text-cyan-800">
+                          {selectedEncounter.vital_signs.respiratory_rate} <span className="text-xs font-normal">/min</span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedEncounter.vital_signs.weight && (
+                      <div className="bg-green-50 rounded-lg p-2">
+                        <div className="text-xs text-green-600 font-medium">Wt</div>
+                        <div className="font-bold text-green-800">
+                          {selectedEncounter.vital_signs.weight} <span className="text-xs font-normal">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Patient Notes Section */}
+            {selectedEncounter && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <h2 className="text-sm font-semibold text-white">Patient Notes</h2>
+                    </div>
+                    {notes.length > 0 && (
+                      <span className="px-2 py-0.5 bg-white bg-opacity-20 text-white text-xs font-bold rounded-full">
+                        {notes.length}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notes.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {notes.slice(0, 10).map((note) => (
+                        <div key={note.id} className="px-4 py-3 hover:bg-indigo-50 transition-colors">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  note.note_type === 'doctor_general' ? 'bg-blue-100 text-blue-700' :
+                                  note.note_type === 'nurse_general' ? 'bg-emerald-100 text-emerald-700' :
+                                  note.note_type === 'doctor_to_nurse' ? 'bg-indigo-100 text-indigo-700' :
+                                  note.note_type === 'doctor_procedural' ? 'bg-slate-100 text-slate-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {note.note_type === 'doctor_general' ? 'Doctor' :
+                                   note.note_type === 'nurse_general' ? 'Nurse' :
+                                   note.note_type === 'doctor_to_nurse' ? 'Instructions' :
+                                   note.note_type === 'doctor_procedural' ? 'Procedural' :
+                                   note.note_type}
+                                </span>
+                                {note.is_signed && (
+                                  <span className="text-xs text-green-600 flex items-center gap-0.5">
+                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                    </svg>
+                                    Signed
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-800 line-clamp-2">{note.content}</p>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {note.created_by_name} • {new Date(note.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-gray-400">
+                      <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-sm">No notes yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Patient Details & Actions */}
