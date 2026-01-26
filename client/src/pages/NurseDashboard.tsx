@@ -10,6 +10,7 @@ import NotificationCenter from '../components/NotificationCenter';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
 import PatientQuickView from '../components/PatientQuickView';
+import VitalSignsHistory from '../components/VitalSignsHistory';
 import type { ApiError } from '../types';
 
 interface ClinicalNote {
@@ -115,6 +116,17 @@ interface ShortStayBed {
   notes: string | null;
 }
 
+interface DoctorNotification {
+  id: number;
+  encounter_id: number;
+  patient_name: string;
+  patient_number: string;
+  message: string;
+  doctor_name: string;
+  created_at: string;
+  is_read: boolean;
+}
+
 // Safe date formatting helper
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = ''): string => {
   if (!dateValue) return fallback;
@@ -169,19 +181,33 @@ const NurseDashboard: React.FC = () => {
   // Patient Quick View state
   const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
 
+  // Vital Signs History state
+  const [showVitalsHistory, setShowVitalsHistory] = useState(false);
+
   // Track which patients have had their doctor alerted
   const [doctorAlertedPatients, setDoctorAlertedPatients] = useState<Set<number>>(new Set());
+
+  // Track routing status for each encounter (key: encounterId-department)
+  const [routedDepartments, setRoutedDepartments] = useState<Set<string>>(new Set());
+
+  // Auto-save timer for vitals
+  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [vitalsModified, setVitalsModified] = useState(false);
 
   // Short Stay Unit state
   const [shortStayBeds, setShortStayBeds] = useState<ShortStayBed[]>([]);
   const [selectedBedId, setSelectedBedId] = useState<number | null>(null);
   const [shortStayNotes, setShortStayNotes] = useState('');
 
+  // Doctor Notifications state
+  const [doctorNotifications, setDoctorNotifications] = useState<DoctorNotification[]>([]);
+
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
     loadRooms();
     loadShortStayBeds();
+    loadDoctorNotifications();
     if (selectedPatient) {
       loadOrders();
       loadClinicalNotes();
@@ -191,6 +217,7 @@ const NurseDashboard: React.FC = () => {
       loadNurseProcedures();
       loadRooms();
       loadShortStayBeds();
+      loadDoctorNotifications();
       if (selectedPatient) {
         loadOrders();
         loadClinicalNotes();
@@ -202,7 +229,12 @@ const NurseDashboard: React.FC = () => {
   const loadAssignedPatients = async () => {
     try {
       const res = await apiClient.get('/workflow/nurse/patients');
-      setAssignedPatients(res.data.patients || []);
+      const patients = res.data.patients || [];
+      // Deduplicate patients by encounter ID (id field)
+      const uniquePatients = patients.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
+        index === self.findIndex((p) => p.id === patient.id)
+      );
+      setAssignedPatients(uniquePatients);
     } catch (error) {
       console.error('Error loading assigned patients:', error);
     } finally {
@@ -234,6 +266,15 @@ const NurseDashboard: React.FC = () => {
       setShortStayBeds(res.data.beds || []);
     } catch (error) {
       console.error('Error loading short stay beds:', error);
+    }
+  };
+
+  const loadDoctorNotifications = async () => {
+    try {
+      const res = await apiClient.get('/workflow/nurse/notifications');
+      setDoctorNotifications(res.data.notifications || []);
+    } catch (error) {
+      console.error('Error loading doctor notifications:', error);
     }
   };
 
@@ -478,6 +519,49 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  // Auto-save vitals with debounce
+  const autoSaveVitals = async () => {
+    if (!selectedPatient || !vitalsModified) return;
+
+    // Check if there are any vital values to save
+    const hasValues = vitals.temperature || vitals.heart_rate ||
+                     vitals.blood_pressure_systolic || vitals.blood_pressure_diastolic ||
+                     vitals.respiratory_rate || vitals.oxygen_saturation ||
+                     vitals.weight || vitals.height;
+
+    if (!hasValues) return;
+
+    try {
+      await apiClient.post('/workflow/nurse/vitals', {
+        encounter_id: selectedPatient.id,
+        vital_signs: vitals,
+      });
+      setVitalsModified(false);
+      showToast('Vital signs auto-saved', 'info');
+      loadAssignedPatients();
+    } catch (error) {
+      console.error('Error auto-saving vitals:', error);
+    }
+  };
+
+  // Trigger auto-save when vitals change (with 3 second debounce)
+  useEffect(() => {
+    if (vitalsModified && selectedPatient) {
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+      }
+      const timer = setTimeout(() => {
+        autoSaveVitals();
+      }, 3000);
+      setAutoSaveTimer(timer);
+    }
+    return () => {
+      if (autoSaveTimer) {
+        clearTimeout(autoSaveTimer);
+      }
+    };
+  }, [vitals, vitalsModified, selectedPatient]);
+
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatient || !noteContent) return;
@@ -527,6 +611,14 @@ const NurseDashboard: React.FC = () => {
       receptionist: 'Receptionist',
     };
 
+    const routingKey = `${selectedPatient.id}-${department}`;
+
+    // Check if already routed
+    if (routedDepartments.has(routingKey)) {
+      showToast(`Patient already sent to ${departmentNames[department]}`, 'info');
+      return;
+    }
+
     if (!confirm(`Send patient to ${departmentNames[department]}?`)) {
       return;
     }
@@ -539,6 +631,8 @@ const NurseDashboard: React.FC = () => {
         priority: 'routine',
       });
 
+      // Mark as routed
+      setRoutedDepartments(prev => new Set(prev).add(routingKey));
       showToast(`Patient routed to ${departmentNames[department]} successfully`, 'success');
       loadAssignedPatients();
     } catch (error) {
@@ -550,7 +644,29 @@ const NurseDashboard: React.FC = () => {
   const handleReleaseRoom = async () => {
     if (!selectedPatient) return;
 
-    if (!confirm('Are you sure you want to release the room? This will complete the encounter.')) {
+    if (!confirm('Are you sure you want to release the room?')) {
+      return;
+    }
+
+    try {
+      await apiClient.post('/workflow/release-room', {
+        encounter_id: selectedPatient.id,
+        release_only: true, // Only release room, don't complete encounter
+      });
+
+      showToast('Room released successfully', 'success');
+      loadAssignedPatients();
+      loadRooms();
+    } catch (error) {
+      console.error('Error releasing room:', error);
+      showToast('Failed to release room', 'error');
+    }
+  };
+
+  const handleCompleteEncounter = async () => {
+    if (!selectedPatient) return;
+
+    if (!confirm('Are you sure you want to complete this encounter? This is the final step.')) {
       return;
     }
 
@@ -559,12 +675,21 @@ const NurseDashboard: React.FC = () => {
         encounter_id: selectedPatient.id,
       });
 
-      showToast('Room released and encounter completed', 'success');
+      showToast('Encounter completed successfully', 'success');
       setSelectedPatient(null);
+      // Clear routing status for this patient
+      setRoutedDepartments(prev => {
+        const newSet = new Set(prev);
+        ['lab', 'pharmacy', 'imaging', 'receptionist'].forEach(dept => {
+          newSet.delete(`${selectedPatient.id}-${dept}`);
+        });
+        return newSet;
+      });
       loadAssignedPatients();
+      loadRooms();
     } catch (error) {
-      console.error('Error releasing room:', error);
-      showToast('Failed to release room', 'error');
+      console.error('Error completing encounter:', error);
+      showToast('Failed to complete encounter', 'error');
     }
   };
 
@@ -905,6 +1030,70 @@ const NurseDashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Doctor Notifications */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-white font-bold flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Doctor Notifications
+                  </h3>
+                  {doctorNotifications.length > 0 && (
+                    <span className="bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {doctorNotifications.filter(n => !n.is_read).length} new
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {doctorNotifications.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {doctorNotifications.slice(0, 5).map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
+                          !notification.is_read ? 'bg-amber-50' : ''
+                        }`}
+                        onClick={() => {
+                          // Find and select the patient from the notification
+                          const patient = assignedPatients.find(p => p.id === notification.encounter_id);
+                          if (patient) {
+                            setSelectedPatient(patient);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {notification.patient_name}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              From Dr. {notification.doctor_name} • {safeFormatDate(notification.created_at, 'h:mm a', 'N/A')}
+                            </p>
+                          </div>
+                          {!notification.is_read && (
+                            <span className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0 mt-1.5"></span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-400">
+                    <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <p className="text-sm">No notifications</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Patient Details & Actions */}
@@ -952,7 +1141,7 @@ const NurseDashboard: React.FC = () => {
                       }
                       if (hasVitals && activeTab === 'hp') {
                         progress = 45;
-                        stage = 'H&P In Progress';
+                        stage = 'SOAP In Progress';
                       }
                       if (hasOrders) {
                         progress = 65;
@@ -1221,7 +1410,7 @@ const NurseDashboard: React.FC = () => {
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
-                        H&P
+                        SOAP
                       </button>
                       <button
                         onClick={() => setActiveTab('vitals')}
@@ -1288,7 +1477,7 @@ const NurseDashboard: React.FC = () => {
 
                   {/* Tab Content */}
                   <div className="p-6">
-                    {/* H&P Tab */}
+                    {/* SOAP Tab */}
                     {activeTab === 'hp' && selectedPatient && (
                       <div className="-m-6">
                         <HPAccordion
@@ -1306,12 +1495,23 @@ const NurseDashboard: React.FC = () => {
                         {/* Display Current Vital Signs */}
                         {selectedPatient?.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 ? (
                           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
-                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              Current Vital Signs
-                            </h3>
+                            <div className="flex justify-between items-center mb-4">
+                              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Current Vital Signs
+                              </h3>
+                              <button
+                                onClick={() => setShowVitalsHistory(true)}
+                                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                View History
+                              </button>
+                            </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                               {selectedPatient.vital_signs.temperature && (
                                 <div className="bg-white rounded-lg p-3 shadow-sm">
@@ -1390,12 +1590,22 @@ const NurseDashboard: React.FC = () => {
 
                         {/* Vital Signs Entry Form */}
                         <div className="bg-white border border-gray-200 rounded-xl p-5">
-                          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            {selectedPatient?.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 ? 'Update Vital Signs' : 'Record New Vital Signs'}
-                          </h3>
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              {selectedPatient?.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 ? 'Update Vital Signs' : 'Record New Vital Signs'}
+                            </h3>
+                            {vitalsModified && (
+                              <span className="text-sm text-amber-600 flex items-center gap-1">
+                                <svg className="w-4 h-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Auto-saving...
+                              </span>
+                            )}
+                          </div>
                           <form onSubmit={handleSubmitVitals} className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -1408,6 +1618,7 @@ const NurseDashboard: React.FC = () => {
                                 onChange={(e) => {
                                   const value = e.target.value ? parseFloat(e.target.value) : undefined;
                                   setVitals({ ...vitals, temperature: value });
+                                  setVitalsModified(true);
                                   if (value) {
                                     const tempType = vitals.temperature_unit === 'C' ? 'temperature_C' : 'temperature_F';
                                     const result = validateVitalSign(value, tempType);
@@ -1420,7 +1631,7 @@ const NurseDashboard: React.FC = () => {
                                     }
                                   }
                                 }}
-                                className={`input min-w-0 flex-1 ${vitalErrors.temperature ? 'border-red-500' : ''}`}
+                                className={`input flex-1 w-full ${vitalErrors.temperature ? 'border-red-500' : ''}`}
                                 placeholder="98.6"
                               />
                               <select
@@ -1450,6 +1661,7 @@ const NurseDashboard: React.FC = () => {
                               onChange={(e) => {
                                 const value = e.target.value ? parseInt(e.target.value) : undefined;
                                 setVitals({ ...vitals, heart_rate: value });
+                                setVitalsModified(true);
                                 if (value) {
                                   const result = validateVitalSign(value, 'heart_rate');
                                   if (!result.isValid || result.isCritical) {
@@ -1477,6 +1689,7 @@ const NurseDashboard: React.FC = () => {
                               onChange={(e) => {
                                 const value = e.target.value ? parseInt(e.target.value) : undefined;
                                 setVitals({ ...vitals, blood_pressure_systolic: value });
+                                setVitalsModified(true);
                                 if (value) {
                                   const result = validateVitalSign(value, 'blood_pressure_systolic');
                                   if (!result.isValid || result.isCritical) {
@@ -1504,6 +1717,7 @@ const NurseDashboard: React.FC = () => {
                               onChange={(e) => {
                                 const value = e.target.value ? parseInt(e.target.value) : undefined;
                                 setVitals({ ...vitals, blood_pressure_diastolic: value });
+                                setVitalsModified(true);
                                 if (value) {
                                   const result = validateVitalSign(value, 'blood_pressure_diastolic');
                                   if (!result.isValid || result.isCritical) {
@@ -1531,6 +1745,7 @@ const NurseDashboard: React.FC = () => {
                               onChange={(e) => {
                                 const value = e.target.value ? parseInt(e.target.value) : undefined;
                                 setVitals({ ...vitals, respiratory_rate: value });
+                                setVitalsModified(true);
                                 if (value) {
                                   const result = validateVitalSign(value, 'respiratory_rate');
                                   if (!result.isValid || result.isCritical) {
@@ -1558,6 +1773,7 @@ const NurseDashboard: React.FC = () => {
                               onChange={(e) => {
                                 const value = e.target.value ? parseInt(e.target.value) : undefined;
                                 setVitals({ ...vitals, oxygen_saturation: value });
+                                setVitalsModified(true);
                                 if (value) {
                                   const result = validateVitalSign(value, 'oxygen_saturation');
                                   if (!result.isValid || result.isCritical) {
@@ -1584,13 +1800,14 @@ const NurseDashboard: React.FC = () => {
                                 type="number"
                                 step="0.1"
                                 value={vitals.weight || ''}
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setVitals({
                                     ...vitals,
                                     weight: e.target.value ? parseFloat(e.target.value) : undefined,
-                                  })
-                                }
-                                className="input min-w-0 flex-1"
+                                  });
+                                  setVitalsModified(true);
+                                }}
+                                className="input flex-1 w-full"
                                 placeholder="150"
                               />
                               <select
@@ -1616,13 +1833,14 @@ const NurseDashboard: React.FC = () => {
                                 type="number"
                                 step="0.1"
                                 value={vitals.height || ''}
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   setVitals({
                                     ...vitals,
                                     height: e.target.value ? parseFloat(e.target.value) : undefined,
-                                  })
-                                }
-                                className="input min-w-0 flex-1"
+                                  });
+                                  setVitalsModified(true);
+                                }}
+                                className="input flex-1 w-full"
                                 placeholder="68"
                               />
                               <select
@@ -1904,7 +2122,7 @@ const NurseDashboard: React.FC = () => {
                           <SmartTextArea
                             value={noteContent}
                             onChange={setNoteContent}
-                            placeholder="Enter clinical notes... Start typing for medical term suggestions.\n\nUse the H&P tab for detailed History & Physical documentation."
+                            placeholder="Enter clinical notes... Start typing for medical term suggestions.\n\nUse the SOAP tab for detailed clinical documentation."
                             rows={8}
                             sectionId="hpi"
                             showVoiceDictation={true}
@@ -1986,36 +2204,63 @@ const NurseDashboard: React.FC = () => {
                           <div className="grid grid-cols-2 gap-3">
                             <button
                               onClick={() => handleRouteToDepartment('lab')}
-                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              disabled={routedDepartments.has(`${selectedPatient?.id}-lab`)}
+                              className={`py-3 rounded-lg font-semibold transition-colors ${
+                                routedDepartments.has(`${selectedPatient?.id}-lab`)
+                                  ? 'bg-green-600 text-white cursor-default'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
                             >
-                              Send to Lab
+                              {routedDepartments.has(`${selectedPatient?.id}-lab`) ? '✓ Sent to Lab' : 'Send to Lab'}
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('pharmacy')}
-                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              disabled={routedDepartments.has(`${selectedPatient?.id}-pharmacy`)}
+                              className={`py-3 rounded-lg font-semibold transition-colors ${
+                                routedDepartments.has(`${selectedPatient?.id}-pharmacy`)
+                                  ? 'bg-green-600 text-white cursor-default'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
                             >
-                              Send to Pharmacy
+                              {routedDepartments.has(`${selectedPatient?.id}-pharmacy`) ? '✓ Sent to Pharmacy' : 'Send to Pharmacy'}
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('imaging')}
-                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              disabled={routedDepartments.has(`${selectedPatient?.id}-imaging`)}
+                              className={`py-3 rounded-lg font-semibold transition-colors ${
+                                routedDepartments.has(`${selectedPatient?.id}-imaging`)
+                                  ? 'bg-green-600 text-white cursor-default'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
                             >
-                              Send to Imaging
+                              {routedDepartments.has(`${selectedPatient?.id}-imaging`) ? '✓ Sent to Imaging' : 'Send to Imaging'}
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('receptionist')}
-                              className="bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              disabled={routedDepartments.has(`${selectedPatient?.id}-receptionist`)}
+                              className={`py-3 rounded-lg font-semibold transition-colors ${
+                                routedDepartments.has(`${selectedPatient?.id}-receptionist`)
+                                  ? 'bg-green-600 text-white cursor-default'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
                             >
-                              Send to Receptionist
+                              {routedDepartments.has(`${selectedPatient?.id}-receptionist`) ? '✓ Sent to Receptionist' : 'Send to Receptionist'}
                             </button>
                           </div>
-                          <div className="mt-4 pt-4 border-t border-blue-300">
+                          <div className="mt-4 pt-4 border-t border-blue-300 grid grid-cols-2 gap-3">
                             <button
                               onClick={handleReleaseRoom}
-                              className="w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                              className="bg-amber-600 text-white py-3 rounded-lg font-semibold hover:bg-amber-700 transition-colors"
                             >
-                              Release Room & Complete Encounter
-                              <span className="block text-xs mt-1 font-normal">Final step after all routing is done</span>
+                              Release Room
+                              <span className="block text-xs mt-1 font-normal">Free up the room</span>
+                            </button>
+                            <button
+                              onClick={handleCompleteEncounter}
+                              className="bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition-colors"
+                            >
+                              Complete Encounter
+                              <span className="block text-xs mt-1 font-normal">Final step</span>
                             </button>
                           </div>
                         </div>
@@ -2048,6 +2293,14 @@ const NurseDashboard: React.FC = () => {
           patientId={quickViewPatientId}
           onClose={() => setQuickViewPatientId(null)}
           showHealthStatus={false}
+        />
+      )}
+
+      {/* Vital Signs History Modal */}
+      {showVitalsHistory && selectedPatient && (
+        <VitalSignsHistory
+          patientId={selectedPatient.patient_id}
+          onClose={() => setShowVitalsHistory(false)}
         />
       )}
     </div>

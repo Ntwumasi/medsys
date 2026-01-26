@@ -229,6 +229,8 @@ export const nurseStartEncounter = async (req: Request, res: Response): Promise<
 // Nurse: Add vital signs
 export const addVitalSigns = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as any;
+    const recorded_by = authReq.user?.id;
     const { encounter_id, vital_signs } = req.body;
 
     // Validate vital signs
@@ -254,6 +256,33 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Also insert into vital_signs_history for tracking
+    await pool.query(
+      `INSERT INTO vital_signs_history (
+        encounter_id, patient_id, recorded_by,
+        temperature, temperature_unit,
+        blood_pressure_systolic, blood_pressure_diastolic,
+        heart_rate, respiratory_rate, oxygen_saturation,
+        weight, weight_unit, height, height_unit
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      [
+        encounter_id,
+        result.rows[0].patient_id,
+        recorded_by,
+        vital_signs.temperature || null,
+        vital_signs.temperature_unit || 'F',
+        vital_signs.blood_pressure_systolic || null,
+        vital_signs.blood_pressure_diastolic || null,
+        vital_signs.heart_rate || null,
+        vital_signs.respiratory_rate || null,
+        vital_signs.oxygen_saturation || null,
+        vital_signs.weight || null,
+        vital_signs.weight_unit || 'lbs',
+        vital_signs.height || null,
+        vital_signs.height_unit || 'in',
+      ]
+    );
+
     // Check for critical vitals and create alert if needed
     const isCritical = validation.criticalValues.length > 0;
 
@@ -276,6 +305,35 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('Add vital signs error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get vital signs history for a patient
+export const getVitalSignsHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+    const { limit = 20 } = req.query;
+
+    const result = await pool.query(
+      `SELECT
+        vsh.*,
+        e.encounter_number,
+        CONCAT(u.first_name, ' ', u.last_name) as recorded_by_name
+       FROM vital_signs_history vsh
+       JOIN encounters e ON vsh.encounter_id = e.id
+       LEFT JOIN users u ON vsh.recorded_by = u.id
+       WHERE vsh.patient_id = $1
+       ORDER BY vsh.recorded_at DESC
+       LIMIT $2`,
+      [patient_id, limit]
+    );
+
+    res.json({
+      history: result.rows,
+    });
+  } catch (error) {
+    console.error('Get vital signs history error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -330,6 +388,46 @@ export const alertDoctor = async (req: Request, res: Response): Promise<void> =>
     });
   } catch (error) {
     console.error('Alert doctor error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Nurse: Get notifications from doctors
+export const getNurseNotifications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const nurse_id = authReq.user?.id;
+
+    // Get alerts where the nurse is the recipient (doctor completed encounter alerts)
+    // or alerts related to encounters the nurse is assigned to
+    const result = await pool.query(
+      `SELECT
+        a.id,
+        a.encounter_id,
+        a.message,
+        a.is_read,
+        a.created_at,
+        CONCAT(p_user.first_name, ' ', p_user.last_name) as patient_name,
+        pat.patient_number,
+        CONCAT(from_user.first_name, ' ', from_user.last_name) as doctor_name
+       FROM alerts a
+       JOIN encounters e ON a.encounter_id = e.id
+       JOIN patients pat ON a.patient_id = pat.id
+       LEFT JOIN users p_user ON pat.user_id = p_user.id
+       LEFT JOIN users from_user ON a.from_user_id = from_user.id
+       WHERE (a.to_user_id = $1 OR e.nurse_id = $1)
+         AND a.alert_type IN ('patient_ready', 'vitals_critical', 'urgent', 'general')
+         AND e.status NOT IN ('completed', 'discharged')
+       ORDER BY a.created_at DESC
+       LIMIT 20`,
+      [nurse_id]
+    );
+
+    res.json({
+      notifications: result.rows,
+    });
+  } catch (error) {
+    console.error('Get nurse notifications error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

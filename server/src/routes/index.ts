@@ -43,7 +43,9 @@ import {
   assignNurse,
   nurseStartEncounter,
   addVitalSigns,
+  getVitalSignsHistory,
   alertDoctor,
+  getNurseNotifications,
   doctorStartEncounter,
   getEncountersByRoom,
   getAvailableRooms,
@@ -217,7 +219,9 @@ router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor'
 // Workflow routes - Nurse
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);
 router.post('/workflow/nurse/vitals', authenticateToken, authorizeRoles('nurse'), addVitalSigns);
+router.get('/workflow/vitals-history/:patient_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getVitalSignsHistory);
 router.post('/workflow/nurse/alert-doctor', authenticateToken, authorizeRoles('nurse'), alertDoctor);
+router.get('/workflow/nurse/notifications', authenticateToken, authorizeRoles('nurse'), getNurseNotifications);
 router.get('/workflow/nurse/patients', authenticateToken, authorizeRoles('nurse'), getNurseAssignedPatients);
 
 // Workflow routes - Doctor

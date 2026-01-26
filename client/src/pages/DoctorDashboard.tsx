@@ -8,6 +8,7 @@ import NotificationCenter from '../components/NotificationCenter';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
+import VitalSignsHistory from '../components/VitalSignsHistory';
 import type { VitalSigns } from '../types';
 
 interface RoomEncounter {
@@ -94,7 +95,7 @@ const DoctorDashboard: React.FC = () => {
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
 
-  // H&P Form state
+  // SOAP Form state
   const [showHPForm, setShowHPForm] = useState(false);
   const [existingHP, setExistingHP] = useState<ClinicalNote | null>(null);
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('doctor');
@@ -112,6 +113,9 @@ const DoctorDashboard: React.FC = () => {
 
   // Patient Quick View state
   const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
+
+  // Vital Signs History state
+  const [showVitalsHistory, setShowVitalsHistory] = useState(false);
 
   useEffect(() => {
     loadRoomEncounters();
@@ -698,11 +702,22 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                     {selectedEncounter.vital_signs ? (
                       <div className="col-span-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
-                        <div className="text-sm font-medium text-green-800 mb-3 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                          Vital Signs
+                        <div className="text-sm font-medium text-green-800 mb-3 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            Vital Signs
+                          </div>
+                          <button
+                            onClick={() => setShowVitalsHistory(true)}
+                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors flex items-center gap-1"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            View History
+                          </button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="bg-white rounded-lg p-2 border border-green-100">
@@ -793,8 +808,8 @@ const DoctorDashboard: React.FC = () => {
                         </svg>
                       </div>
                       <div className="text-center">
-                        <div className="font-bold text-lg">H&P</div>
-                        <span className="text-xs opacity-70">History & Physical</span>
+                        <div className="font-bold text-lg">SOAP</div>
+                        <span className="text-xs opacity-70">Clinical Documentation</span>
                       </div>
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </button>
@@ -829,7 +844,7 @@ const DoctorDashboard: React.FC = () => {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        View H&P
+                        View SOAP
                       </button>
                     )}
                   </div>
@@ -1709,13 +1724,13 @@ const DoctorDashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* H&P Form Modal */}
+      {/* SOAP Form Modal */}
       {showHPForm && selectedEncounter && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full my-8">
             {/* Header */}
             <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center rounded-t-lg">
-              <h2 className="text-xl font-bold text-gray-900">History & Physical - {selectedEncounter.patient_name}</h2>
+              <h2 className="text-xl font-bold text-gray-900">SOAP Note - {selectedEncounter.patient_name}</h2>
               <button
                 onClick={() => setShowHPForm(false)}
                 className="text-gray-500 hover:text-gray-700"
@@ -1726,7 +1741,7 @@ const DoctorDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* H&P Accordion Content */}
+            {/* SOAP Accordion Content */}
             <div className="p-6">
               <HPAccordion
                 encounterId={selectedEncounter.id}
@@ -1745,6 +1760,14 @@ const DoctorDashboard: React.FC = () => {
           patientId={quickViewPatientId}
           onClose={() => setQuickViewPatientId(null)}
           showHealthStatus={true}
+        />
+      )}
+
+      {/* Vital Signs History Modal */}
+      {showVitalsHistory && selectedEncounter && (
+        <VitalSignsHistory
+          patientId={selectedEncounter.patient_id}
+          onClose={() => setShowVitalsHistory(false)}
         />
       )}
     </div>
