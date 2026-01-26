@@ -287,7 +287,7 @@ const ReceptionistDashboard: React.FC = () => {
     emergency_contact_relationship: '',
     pcp_name: '',
     pcp_phone: '',
-    blood_group: '',
+    allergies: '',
     nationality: '',
     // Health status (doctors only can see detailed info)
     hiv_status: '',
@@ -692,7 +692,7 @@ const ReceptionistDashboard: React.FC = () => {
         emergency_contact_relationship: '',
         pcp_name: '',
         pcp_phone: '',
-        blood_group: '',
+        allergies: '',
         nationality: '',
         hiv_status: '',
         hepatitis_b_status: '',
@@ -1021,7 +1021,7 @@ const ReceptionistDashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">Appointments</h2>
-                <p className="text-2xl font-bold text-violet-600">{todayAppointments.length}</p>
+                <p className="text-2xl font-bold text-violet-600">{calendarEvents.length}</p>
               </div>
             </div>
           </button>
@@ -1581,23 +1581,15 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Blood Group
+                    Allergies
                   </label>
-                  <select
-                    value={newPatient.blood_group}
-                    onChange={(e) => setNewPatient({ ...newPatient, blood_group: e.target.value })}
+                  <input
+                    type="text"
+                    value={newPatient.allergies}
+                    onChange={(e) => setNewPatient({ ...newPatient, allergies: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select Blood Group</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                  </select>
+                    placeholder="e.g., Penicillin, Peanuts, Latex"
+                  />
                 </div>
 
                 <div>

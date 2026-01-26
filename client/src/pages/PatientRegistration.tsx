@@ -15,7 +15,7 @@ const PatientRegistration: React.FC = () => {
     phone: '',
     date_of_birth: '',
     gender: '',
-    blood_group: '',
+    allergies: '',
     nationality: '',
     marital_status: '',
     occupation: '',
@@ -244,26 +244,18 @@ const PatientRegistration: React.FC = () => {
                 </div>
 
                 <div>
-                  <label htmlFor="blood_group" className="label">
-                    Blood Group
+                  <label htmlFor="allergies" className="label">
+                    Allergies
                   </label>
-                  <select
-                    id="blood_group"
-                    name="blood_group"
-                    value={formData.blood_group}
+                  <input
+                    type="text"
+                    id="allergies"
+                    name="allergies"
+                    value={formData.allergies}
                     onChange={handleChange}
                     className="input"
-                  >
-                    <option value="">Select Blood Group</option>
-                    <option value="A+">A+</option>
-                    <option value="A-">A-</option>
-                    <option value="B+">B+</option>
-                    <option value="B-">B-</option>
-                    <option value="AB+">AB+</option>
-                    <option value="AB-">AB-</option>
-                    <option value="O+">O+</option>
-                    <option value="O-">O-</option>
-                  </select>
+                    placeholder="e.g., Penicillin, Peanuts, Latex"
+                  />
                 </div>
 
                 <div>

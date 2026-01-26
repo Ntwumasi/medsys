@@ -8,7 +8,7 @@ interface PatientData {
   last_name: string;
   date_of_birth: string;
   gender: string;
-  blood_group?: string;
+  allergies?: string;
   nationality?: string;
   phone?: string;
   // Health Status
@@ -148,7 +148,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
                   <p className="text-sm text-gray-500">{patient.patient_number}</p>
                   <p className="text-sm text-gray-600">
                     {calculateAge(patient.date_of_birth)} yrs | {patient.gender}
-                    {patient.blood_group && ` | ${patient.blood_group}`}
+                    {patient.allergies && ` | Allergies: ${patient.allergies}`}
                   </p>
                 </div>
               </div>

@@ -18,7 +18,7 @@ export interface Patient {
   phone?: string;
   date_of_birth: string;
   gender: string;
-  blood_group?: string;
+  allergies?: string;
   address?: string;
   city?: string;
   state?: string;

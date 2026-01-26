@@ -30,7 +30,7 @@ const createTables = async () => {
         patient_number VARCHAR(50) UNIQUE NOT NULL,
         date_of_birth DATE NOT NULL,
         gender VARCHAR(20) NOT NULL,
-        blood_group VARCHAR(10),
+        allergies TEXT,
         address TEXT,
         city VARCHAR(100),
         state VARCHAR(100),

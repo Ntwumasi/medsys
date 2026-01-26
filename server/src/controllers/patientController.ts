@@ -16,7 +16,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       phone,
       date_of_birth,
       gender,
-      blood_group,
+      allergies,
       address,
       city,
       state,
@@ -68,7 +68,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     // Create patient record
     const result = await client.query(
       `INSERT INTO patients (
-        user_id, patient_number, date_of_birth, gender, blood_group, address, city, state,
+        user_id, patient_number, date_of_birth, gender, allergies, address, city, state,
         region, nationality, gps_address, preferred_clinic,
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
         insurance_provider, insurance_number, marital_status, occupation, pcp_name, pcp_phone,
@@ -80,7 +80,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         patient_number,
         date_of_birth,
         gender,
-        blood_group,
+        allergies,
         address,
         city,
         state,

@@ -131,9 +131,9 @@ const PatientDetails: React.FC = () => {
                   <span className="font-semibold text-gray-900 capitalize">{patient.gender}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Blood Group:</span>
-                  <span className={`font-semibold px-2 py-0.5 rounded ${patient.blood_group ? 'bg-red-100 text-red-800' : 'text-gray-400'}`}>
-                    {patient.blood_group || 'N/A'}
+                  <span className="text-gray-500 text-sm w-24">Allergies:</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded ${patient.allergies ? 'bg-orange-100 text-orange-800' : 'text-gray-400'}`}>
+                    {patient.allergies || 'None reported'}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">

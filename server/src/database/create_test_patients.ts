@@ -7,13 +7,13 @@ const createTestPatients = async () => {
     // Create test patient 1
     const patient1 = await client.query(`
       INSERT INTO patients (
-        patient_number, date_of_birth, gender, blood_group,
+        patient_number, date_of_birth, gender, allergies,
         address, city, state,
         emergency_contact_name, emergency_contact_phone,
         insurance_provider, insurance_number
       )
       VALUES (
-        'PAT001', '1985-03-15', 'Male', 'O+',
+        'PAT001', '1985-03-15', 'Male', 'Penicillin',
         '123 Main St', 'San Francisco', 'CA',
         'Mary Doe', '555-1234',
         'Blue Cross', 'BC123456'
@@ -35,13 +35,13 @@ const createTestPatients = async () => {
     // Create test patient 2
     const patient2 = await client.query(`
       INSERT INTO patients (
-        patient_number, date_of_birth, gender, blood_group,
+        patient_number, date_of_birth, gender, allergies,
         address, city, state,
         emergency_contact_name, emergency_contact_phone,
         insurance_provider, insurance_number
       )
       VALUES (
-        'PAT002', '1972-07-22', 'Female', 'A+',
+        'PAT002', '1972-07-22', 'Female', 'Latex, Sulfa drugs',
         '456 Oak Ave', 'San Francisco', 'CA',
         'Robert Smith', '555-5678',
         'Aetna', 'AE789012'
@@ -63,13 +63,13 @@ const createTestPatients = async () => {
     // Create test patient 3
     const patient3 = await client.query(`
       INSERT INTO patients (
-        patient_number, date_of_birth, gender, blood_group,
+        patient_number, date_of_birth, gender, allergies,
         address, city, state,
         emergency_contact_name, emergency_contact_phone,
         insurance_provider, insurance_number
       )
       VALUES (
-        'PAT003', '1990-11-30', 'Male', 'B-',
+        'PAT003', '1990-11-30', 'Male', NULL,
         '789 Pine St', 'Oakland', 'CA',
         'Lisa Brown', '555-9012',
         'Kaiser', 'KP345678'
