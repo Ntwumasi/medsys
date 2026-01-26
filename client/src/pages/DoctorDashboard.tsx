@@ -95,10 +95,8 @@ const DoctorDashboard: React.FC = () => {
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
 
-  // SOAP Form state
-  const [showHPForm, setShowHPForm] = useState(false);
-  const [existingHP, setExistingHP] = useState<ClinicalNote | null>(null);
-  const [clinicalNotesTab, setClinicalNotesTab] = useState<'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('doctor');
+  // Clinical Notes Tab state
+  const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('soap');
 
   // Lab and Imaging results state
   const [encounterLabOrders, setEncounterLabOrders] = useState<LabOrder[]>([]);
@@ -137,7 +135,9 @@ const DoctorDashboard: React.FC = () => {
   const loadRoomEncounters = async () => {
     try {
       const res = await apiClient.get('/workflow/doctor/rooms');
-      setRoomEncounters(res.data.encounters || []);
+      // Sort by newest first (highest ID = most recent)
+      const encounters = (res.data.encounters || []).sort((a: RoomEncounter, b: RoomEncounter) => b.id - a.id);
+      setRoomEncounters(encounters);
     } catch (error) {
       console.error('Error loading room encounters:', error);
     } finally {
@@ -150,10 +150,6 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get(`/clinical-notes/encounter/${encounterId}`);
       const allNotes = res.data.notes || [];
       setNotes(allNotes);
-
-      // Check if H&P note exists
-      const hpNote = allNotes.find((note: ClinicalNote) => note.note_type === 'doctor_hp');
-      setExistingHP(hpNote || null);
     } catch (error) {
       console.error('Error loading notes:', error);
     }
@@ -797,23 +793,7 @@ const DoctorDashboard: React.FC = () => {
                     </svg>
                     Encounter Actions
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button
-                      onClick={() => setShowHPForm(true)}
-                      className="group relative bg-white hover:bg-gradient-to-br hover:from-blue-500 hover:to-indigo-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
-                    >
-                      <div className="bg-gradient-to-br from-blue-500 to-indigo-500 group-hover:bg-white p-3 rounded-full transition-colors">
-                        <svg className="w-7 h-7 text-white group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold text-lg">SOAP</div>
-                        <span className="text-xs opacity-70">Clinical Documentation</span>
-                      </div>
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400/0 via-white/10 to-blue-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </button>
-
+                  <div className="flex justify-center">
                     <button
                       onClick={handleCompleteEncounter}
                       className="group relative bg-white hover:bg-gradient-to-br hover:from-emerald-500 hover:to-green-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
@@ -836,22 +816,26 @@ const DoctorDashboard: React.FC = () => {
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
-                    {existingHP && (
-                      <button
-                        onClick={() => setShowHPForm(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        View SOAP
-                      </button>
-                    )}
                   </div>
 
                   {/* Modern Tabs */}
                   <div className="border-b border-gray-200 mb-6">
-                    <nav className="flex gap-2" aria-label="Clinical Notes Tabs">
+                    <nav className="flex gap-2 overflow-x-auto" aria-label="Clinical Notes Tabs">
+                      <button
+                        onClick={() => setClinicalNotesTab('soap')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
+                          clinicalNotesTab === 'soap'
+                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          SOAP
+                        </div>
+                      </button>
                       <button
                         onClick={() => setClinicalNotesTab('doctor')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
@@ -942,6 +926,18 @@ const DoctorDashboard: React.FC = () => {
 
                   {/* Tab Content */}
                   <div className="min-h-[400px]">
+                    {/* SOAP Tab */}
+                    {clinicalNotesTab === 'soap' && selectedEncounter && (
+                      <div className="-mx-6 -mb-6">
+                        <HPAccordion
+                          encounterId={selectedEncounter.id}
+                          patientId={selectedEncounter.patient_id}
+                          userRole="doctor"
+                          vitalSigns={selectedEncounter.vital_signs}
+                        />
+                      </div>
+                    )}
+
                     {/* Doctor's Notes Tab */}
                     {clinicalNotesTab === 'doctor' && (
                       <div className="space-y-6">
@@ -1723,36 +1719,6 @@ const DoctorDashboard: React.FC = () => {
           </div>
         </div>
       </main>
-
-      {/* SOAP Form Modal */}
-      {showHPForm && selectedEncounter && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full my-8">
-            {/* Header */}
-            <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex justify-between items-center rounded-t-lg">
-              <h2 className="text-xl font-bold text-gray-900">SOAP Note - {selectedEncounter.patient_name}</h2>
-              <button
-                onClick={() => setShowHPForm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* SOAP Accordion Content */}
-            <div className="p-6">
-              <HPAccordion
-                encounterId={selectedEncounter.id}
-                patientId={selectedEncounter.patient_id}
-                userRole="doctor"
-                onSave={() => loadEncounterNotes(selectedEncounter.id)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Patient Quick View Side Panel */}
       {quickViewPatientId && (
