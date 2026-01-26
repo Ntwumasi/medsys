@@ -799,9 +799,74 @@ const NurseDashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Assigned Patients List */}
+          {/* Left Column */}
           <div className="lg:col-span-1">
+            {/* Doctor Notifications */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-white font-bold flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    Doctor Notifications
+                  </h3>
+                  {doctorNotifications.length > 0 && (
+                    <span className="bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                      {doctorNotifications.filter(n => !n.is_read).length} new
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {doctorNotifications.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {doctorNotifications.slice(0, 5).map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
+                          !notification.is_read ? 'bg-amber-50' : ''
+                        }`}
+                        onClick={() => {
+                          // Find and select the patient from the notification
+                          const patient = assignedPatients.find(p => p.id === notification.encounter_id);
+                          if (patient) {
+                            setSelectedPatient(patient);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {notification.patient_name}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              From Dr. {notification.doctor_name} • {safeFormatDate(notification.created_at, 'h:mm a', 'N/A')}
+                            </p>
+                          </div>
+                          {!notification.is_read && (
+                            <span className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0 mt-1.5"></span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-400">
+                    <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <p className="text-sm">No notifications</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Assigned Patients List */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
               {/* Header */}
               <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3">
                 <div className="flex items-center justify-between">
@@ -1031,69 +1096,6 @@ const NurseDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Doctor Notifications */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-white font-bold flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    Doctor Notifications
-                  </h3>
-                  {doctorNotifications.length > 0 && (
-                    <span className="bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {doctorNotifications.filter(n => !n.is_read).length} new
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="max-h-48 overflow-y-auto">
-                {doctorNotifications.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
-                    {doctorNotifications.slice(0, 5).map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
-                          !notification.is_read ? 'bg-amber-50' : ''
-                        }`}
-                        onClick={() => {
-                          // Find and select the patient from the notification
-                          const patient = assignedPatients.find(p => p.id === notification.encounter_id);
-                          if (patient) {
-                            setSelectedPatient(patient);
-                          }
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
-                              {notification.patient_name}
-                            </p>
-                            <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              From Dr. {notification.doctor_name} • {safeFormatDate(notification.created_at, 'h:mm a', 'N/A')}
-                            </p>
-                          </div>
-                          {!notification.is_read && (
-                            <span className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0 mt-1.5"></span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-6 text-gray-400">
-                    <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <p className="text-sm">No notifications</p>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           {/* Patient Details & Actions */}
