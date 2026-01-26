@@ -42,11 +42,16 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
 
     let query = `
       SELECT lo.*,
+        lo.ordered_date as ordered_at,
         u.first_name || ' ' || u.last_name as ordering_provider_name,
-        e.encounter_number
+        e.encounter_number,
+        p.patient_number,
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
+      LEFT JOIN patients p ON lo.patient_id = p.id
+      LEFT JOIN users u_patient ON p.user_id = u_patient.id
       WHERE 1=1
     `;
     const params: any[] = [];
