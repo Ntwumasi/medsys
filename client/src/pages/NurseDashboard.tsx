@@ -1610,7 +1610,7 @@ const NurseDashboard: React.FC = () => {
                           </div>
                           <form onSubmit={handleSubmitVitals} className="space-y-5">
                             {/* Row 1: Temperature & Heart Rate */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {/* Temperature */}
                               <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
                                 <label className="flex items-center gap-2 text-sm font-semibold text-orange-800 mb-3">
@@ -1619,7 +1619,7 @@ const NurseDashboard: React.FC = () => {
                                   </svg>
                                   Temperature
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     step="0.1"
@@ -1640,13 +1640,13 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`flex-1 text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none ${vitalErrors.temperature ? 'border-red-500 bg-red-50' : 'border-orange-300'}`}
+                                    className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none ${vitalErrors.temperature ? 'border-red-500 bg-red-50' : 'border-orange-300'}`}
                                     placeholder="98.6"
                                   />
                                   <select
                                     value={vitals.temperature_unit}
                                     onChange={(e) => setVitals({ ...vitals, temperature_unit: e.target.value as 'C' | 'F' })}
-                                    className="text-lg font-semibold py-3 px-3 border-2 border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
+                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                                   >
                                     <option value="F">°F</option>
                                     <option value="C">°C</option>
@@ -1665,7 +1665,7 @@ const NurseDashboard: React.FC = () => {
                                   </svg>
                                   Heart Rate
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     value={vitals.heart_rate || ''}
@@ -1684,10 +1684,10 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`flex-1 text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none ${vitalErrors.heart_rate ? 'border-red-500 bg-red-50' : 'border-pink-300'}`}
+                                    className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-pink-500 focus:border-pink-500 outline-none ${vitalErrors.heart_rate ? 'border-red-500 bg-red-50' : 'border-pink-300'}`}
                                     placeholder="72"
                                   />
-                                  <span className="text-lg font-semibold text-pink-700 bg-pink-100 py-3 px-4 rounded-lg border-2 border-pink-200">bpm</span>
+                                  <span className="flex-shrink-0 text-base sm:text-lg font-semibold text-pink-700 bg-pink-100 py-3 px-2 sm:px-3 rounded-lg border-2 border-pink-200">bpm</span>
                                 </div>
                                 {vitalErrors.heart_rate && (
                                   <p className="text-xs text-red-600 mt-2 font-medium">{vitalErrors.heart_rate}</p>
@@ -1703,8 +1703,8 @@ const NurseDashboard: React.FC = () => {
                                 </svg>
                                 Blood Pressure
                               </label>
-                              <div className="flex items-center gap-3">
-                                <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 min-w-0">
                                   <div className="text-xs text-red-600 font-medium mb-1 text-center">Systolic</div>
                                   <input
                                     type="number"
@@ -1724,12 +1724,12 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`w-full text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none ${vitalErrors.blood_pressure_systolic ? 'border-red-500 bg-red-100' : 'border-red-300'}`}
+                                    className={`w-full text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none ${vitalErrors.blood_pressure_systolic ? 'border-red-500 bg-red-100' : 'border-red-300'}`}
                                     placeholder="120"
                                   />
                                 </div>
-                                <span className="text-3xl font-bold text-red-400">/</span>
-                                <div className="flex-1">
+                                <span className="flex-shrink-0 text-2xl sm:text-3xl font-bold text-red-400">/</span>
+                                <div className="flex-1 min-w-0">
                                   <div className="text-xs text-red-600 font-medium mb-1 text-center">Diastolic</div>
                                   <input
                                     type="number"
@@ -1749,11 +1749,11 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`w-full text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none ${vitalErrors.blood_pressure_diastolic ? 'border-red-500 bg-red-100' : 'border-red-300'}`}
+                                    className={`w-full text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none ${vitalErrors.blood_pressure_diastolic ? 'border-red-500 bg-red-100' : 'border-red-300'}`}
                                     placeholder="80"
                                   />
                                 </div>
-                                <span className="text-lg font-semibold text-red-700 bg-red-100 py-3 px-4 rounded-lg border-2 border-red-200">mmHg</span>
+                                <span className="flex-shrink-0 text-sm sm:text-lg font-semibold text-red-700 bg-red-100 py-3 px-2 sm:px-3 rounded-lg border-2 border-red-200">mmHg</span>
                               </div>
                               {(vitalErrors.blood_pressure_systolic || vitalErrors.blood_pressure_diastolic) && (
                                 <p className="text-xs text-red-600 mt-2 font-medium">
@@ -1763,16 +1763,16 @@ const NurseDashboard: React.FC = () => {
                             </div>
 
                             {/* Row 3: Respiratory Rate & O2 Saturation */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {/* Respiratory Rate */}
                               <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-200">
                                 <label className="flex items-center gap-2 text-sm font-semibold text-cyan-800 mb-3">
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                   </svg>
-                                  Respiratory Rate
+                                  Resp. Rate
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     value={vitals.respiratory_rate || ''}
@@ -1791,10 +1791,10 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`flex-1 text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none ${vitalErrors.respiratory_rate ? 'border-red-500 bg-red-50' : 'border-cyan-300'}`}
+                                    className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none ${vitalErrors.respiratory_rate ? 'border-red-500 bg-red-50' : 'border-cyan-300'}`}
                                     placeholder="16"
                                   />
-                                  <span className="text-lg font-semibold text-cyan-700 bg-cyan-100 py-3 px-4 rounded-lg border-2 border-cyan-200">/min</span>
+                                  <span className="flex-shrink-0 text-base sm:text-lg font-semibold text-cyan-700 bg-cyan-100 py-3 px-2 sm:px-3 rounded-lg border-2 border-cyan-200">/min</span>
                                 </div>
                                 {vitalErrors.respiratory_rate && (
                                   <p className="text-xs text-red-600 mt-2 font-medium">{vitalErrors.respiratory_rate}</p>
@@ -1807,9 +1807,9 @@ const NurseDashboard: React.FC = () => {
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                   </svg>
-                                  O2 Saturation (SpO2)
+                                  SpO2
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     value={vitals.oxygen_saturation || ''}
@@ -1828,10 +1828,10 @@ const NurseDashboard: React.FC = () => {
                                         }
                                       }
                                     }}
-                                    className={`flex-1 text-2xl font-bold text-center py-3 px-4 border-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${vitalErrors.oxygen_saturation ? 'border-red-500 bg-red-50' : 'border-blue-300'}`}
+                                    className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${vitalErrors.oxygen_saturation ? 'border-red-500 bg-red-50' : 'border-blue-300'}`}
                                     placeholder="98"
                                   />
-                                  <span className="text-lg font-semibold text-blue-700 bg-blue-100 py-3 px-4 rounded-lg border-2 border-blue-200">%</span>
+                                  <span className="flex-shrink-0 text-base sm:text-lg font-semibold text-blue-700 bg-blue-100 py-3 px-2 sm:px-3 rounded-lg border-2 border-blue-200">%</span>
                                 </div>
                                 {vitalErrors.oxygen_saturation && (
                                   <p className="text-xs text-red-600 mt-2 font-medium">{vitalErrors.oxygen_saturation}</p>
@@ -1840,7 +1840,7 @@ const NurseDashboard: React.FC = () => {
                             </div>
 
                             {/* Row 4: Weight & Height */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {/* Weight */}
                               <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                                 <label className="flex items-center gap-2 text-sm font-semibold text-green-800 mb-3">
@@ -1849,7 +1849,7 @@ const NurseDashboard: React.FC = () => {
                                   </svg>
                                   Weight
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     step="0.1"
@@ -1858,13 +1858,13 @@ const NurseDashboard: React.FC = () => {
                                       setVitals({ ...vitals, weight: e.target.value ? parseFloat(e.target.value) : undefined });
                                       setVitalsModified(true);
                                     }}
-                                    className="flex-1 text-2xl font-bold text-center py-3 px-4 border-2 border-green-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                                    className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-green-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
                                     placeholder="150"
                                   />
                                   <select
                                     value={vitals.weight_unit}
                                     onChange={(e) => setVitals({ ...vitals, weight_unit: e.target.value as 'kg' | 'lbs' })}
-                                    className="text-lg font-semibold py-3 px-3 border-2 border-green-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-green-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
                                   >
                                     <option value="lbs">lbs</option>
                                     <option value="kg">kg</option>
@@ -1880,7 +1880,7 @@ const NurseDashboard: React.FC = () => {
                                   </svg>
                                   Height
                                 </label>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <input
                                     type="number"
                                     step="0.1"
@@ -1889,13 +1889,13 @@ const NurseDashboard: React.FC = () => {
                                       setVitals({ ...vitals, height: e.target.value ? parseFloat(e.target.value) : undefined });
                                       setVitalsModified(true);
                                     }}
-                                    className="flex-1 text-2xl font-bold text-center py-3 px-4 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+                                    className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                     placeholder="68"
                                   />
                                   <select
                                     value={vitals.height_unit}
                                     onChange={(e) => setVitals({ ...vitals, height_unit: e.target.value as 'cm' | 'in' })}
-                                    className="text-lg font-semibold py-3 px-3 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
+                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none"
                                   >
                                     <option value="in">in</option>
                                     <option value="cm">cm</option>
