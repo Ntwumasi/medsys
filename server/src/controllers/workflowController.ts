@@ -661,7 +661,28 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
 // Doctor: Complete encounter and send back to nurse
 export const doctorCompleteEncounter = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as any;
+    const doctor_id = authReq.user?.id;
     const { encounter_id } = req.body;
+
+    // Get encounter details to find nurse_id and patient_id
+    const encounterResult = await pool.query(
+      `SELECT e.nurse_id, e.patient_id, r.room_number,
+              u.first_name || ' ' || u.last_name as patient_name
+       FROM encounters e
+       LEFT JOIN rooms r ON e.room_id = r.id
+       LEFT JOIN patients p ON e.patient_id = p.id
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE e.id = $1`,
+      [encounter_id]
+    );
+
+    if (encounterResult.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    const { nurse_id, patient_id, room_number, patient_name } = encounterResult.rows[0];
 
     // Update encounter status to 'with_nurse' - patient goes back to nurse
     await pool.query(
@@ -672,6 +693,21 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
        WHERE id = $1`,
       [encounter_id]
     );
+
+    // Create alert for nurse that patient is ready for follow-up
+    if (nurse_id) {
+      await pool.query(
+        `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
+         VALUES ($1, $2, $3, $4, 'patient_ready', $5)`,
+        [
+          encounter_id,
+          patient_id,
+          doctor_id,
+          nurse_id,
+          `Patient ${patient_name || ''} in Room ${room_number || 'N/A'} is ready for follow-up care`
+        ]
+      );
+    }
 
     res.json({
       message: 'Encounter completed. Patient sent back to nurse.',
