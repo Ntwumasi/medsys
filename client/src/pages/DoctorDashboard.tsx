@@ -923,33 +923,6 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Encounter Actions */}
-                <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-2xl p-6 border border-blue-400">
-                  <h3 className="text-xl font-bold text-white mb-5 flex items-center gap-2">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                    Encounter Actions
-                  </h3>
-                  <div className="flex justify-center">
-                    <button
-                      onClick={handleCompleteEncounter}
-                      className="group relative bg-white hover:bg-gradient-to-br hover:from-emerald-500 hover:to-green-500 text-gray-900 hover:text-white py-4 px-5 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-105 transform flex flex-col items-center gap-2"
-                    >
-                      <div className="bg-gradient-to-br from-emerald-500 to-green-500 group-hover:bg-white p-3 rounded-full transition-colors">
-                        <svg className="w-7 h-7 text-white group-hover:text-emerald-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="text-center">
-                        <div className="font-bold text-lg">Alert Nurse</div>
-                        <span className="text-xs opacity-70">Notify for Follow-up</span>
-                      </div>
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-400/0 via-white/10 to-emerald-400/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Clinical Notes */}
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
@@ -1363,10 +1336,10 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Orders - New Multi-Order UI */}
+                {/* Orders & Actions */}
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Place Orders</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">Orders & Actions</h2>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
                       <span className="px-4 py-2 bg-blue-100 text-blue-800 font-bold rounded-lg">
                         {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
@@ -1374,7 +1347,30 @@ const DoctorDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    {/* Alert Nurse Action */}
+                    <div className="border-2 border-emerald-200 rounded-xl p-4 bg-gradient-to-br from-emerald-50 to-green-50">
+                      <h3 className="font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                        Quick Actions
+                      </h3>
+                      <div className="space-y-3">
+                        <button
+                          onClick={handleCompleteEncounter}
+                          className="w-full px-4 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                        >
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Alert Nurse
+                        </button>
+                        <p className="text-xs text-emerald-700 text-center">
+                          Notify nurse when patient is ready for follow-up care
+                        </p>
+                      </div>
+                    </div>
                     {/* Lab Orders */}
                     <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
                       <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2">

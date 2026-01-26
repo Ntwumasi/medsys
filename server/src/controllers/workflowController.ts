@@ -634,13 +634,17 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 15 THEN 'green'
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'
           ELSE 'red'
-        END as current_priority
+        END as current_priority,
+        CASE WHEN e.status = 'with_nurse' THEN true ELSE false END as from_doctor
       FROM encounters e
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
-      WHERE e.nurse_id = $1 AND e.status = 'in-progress'
-      ORDER BY e.triage_time`,
+      WHERE e.nurse_id = $1 AND e.status IN ('in-progress', 'with_nurse')
+      ORDER BY
+        CASE WHEN e.status = 'with_nurse' THEN 0 ELSE 1 END,
+        e.doctor_completed_at DESC NULLS LAST,
+        e.triage_time DESC`,
       [nurse_id]
     );
 
