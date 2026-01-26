@@ -400,8 +400,9 @@ export const getNurseNotifications = async (req: Request, res: Response): Promis
 
     // Get alerts where the nurse is the recipient (doctor completed encounter alerts)
     // or alerts related to encounters the nurse is assigned to
+    // Using DISTINCT to avoid duplicates when both conditions match
     const result = await pool.query(
-      `SELECT
+      `SELECT DISTINCT ON (a.id)
         a.id,
         a.encounter_id,
         a.message,
@@ -418,7 +419,7 @@ export const getNurseNotifications = async (req: Request, res: Response): Promis
        WHERE (a.to_user_id = $1 OR e.nurse_id = $1)
          AND a.alert_type IN ('patient_ready', 'vitals_critical', 'urgent', 'general')
          AND e.status NOT IN ('completed', 'discharged')
-       ORDER BY a.created_at DESC
+       ORDER BY a.id, a.created_at DESC
        LIMIT 20`,
       [nurse_id]
     );

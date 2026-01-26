@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import { useVoiceDictation } from '../hooks/useVoiceDictation';
 
 interface VoiceDictationButtonProps {
@@ -20,6 +20,12 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   size = 'md',
   showStatus = true,
 }) => {
+  // Use ref to always have the latest currentValue to avoid stale closures
+  const currentValueRef = useRef(currentValue);
+  useEffect(() => {
+    currentValueRef.current = currentValue;
+  }, [currentValue]);
+
   const {
     isListening,
     isSupported,
@@ -38,14 +44,15 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
   useEffect(() => {
     if (transcript) {
       if (appendMode) {
-        const separator = currentValue && !currentValue.endsWith(' ') && !currentValue.endsWith('\n') ? ' ' : '';
-        onTranscriptChange(currentValue + separator + transcript);
+        const latestValue = currentValueRef.current;
+        const separator = latestValue && !latestValue.endsWith(' ') && !latestValue.endsWith('\n') ? ' ' : '';
+        onTranscriptChange(latestValue + separator + transcript);
       } else {
         onTranscriptChange(transcript);
       }
       resetTranscript();
     }
-  }, [transcript, appendMode, currentValue, onTranscriptChange, resetTranscript]);
+  }, [transcript, appendMode, onTranscriptChange, resetTranscript]);
 
   // Stop listening when component unmounts or is disabled
   useEffect(() => {

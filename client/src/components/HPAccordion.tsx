@@ -172,6 +172,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContentRef = useRef<string>('');
+  const editingContentRef = useRef<string>(''); // Track latest content to avoid stale closures
   const [showSmartDictation, setShowSmartDictation] = useState(false);
 
   // Auto-save debounce function
@@ -205,6 +206,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   // Handle content change with auto-save
   const handleContentChange = useCallback((newContent: string) => {
     setEditingContent(newContent);
+    editingContentRef.current = newContent; // Keep ref in sync for stale closure protection
 
     // Clear existing timer
     if (autoSaveTimerRef.current) {
@@ -244,23 +246,25 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   };
 
   const handleSectionClick = (sectionId: string) => {
-    // Save any pending changes before switching sections
+    // Save any pending changes before switching sections (use ref to avoid stale closure)
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
-      if (expandedSection && editingContent !== lastSavedContentRef.current) {
-        debouncedSave(expandedSection, editingContent);
+      if (expandedSection && editingContentRef.current !== lastSavedContentRef.current) {
+        debouncedSave(expandedSection, editingContentRef.current);
       }
     }
 
     if (expandedSection === sectionId) {
       setExpandedSection(null);
       setEditingContent('');
+      editingContentRef.current = '';
       lastSavedContentRef.current = '';
     } else {
       setExpandedSection(sectionId);
       const section = findSection(sections, sectionId);
       const content = section?.content || '';
       setEditingContent(content);
+      editingContentRef.current = content;
       lastSavedContentRef.current = content;
     }
     setAutoSaveStatus('idle');
@@ -837,15 +841,16 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 {/* Close Button */}
                 <button
                   onClick={() => {
-                    // Save any pending changes
+                    // Save any pending changes (use ref to avoid stale closure)
                     if (autoSaveTimerRef.current) {
                       clearTimeout(autoSaveTimerRef.current);
                     }
-                    if (editingContent !== lastSavedContentRef.current && expandedSection) {
-                      debouncedSave(expandedSection, editingContent);
+                    if (editingContentRef.current !== lastSavedContentRef.current && expandedSection) {
+                      debouncedSave(expandedSection, editingContentRef.current);
                     }
                     setExpandedSection(null);
                     setEditingContent('');
+                    editingContentRef.current = '';
                     lastSavedContentRef.current = '';
                   }}
                   className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm"
