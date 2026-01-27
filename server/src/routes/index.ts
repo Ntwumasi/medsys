@@ -56,6 +56,8 @@ import {
   doctorCompleteEncounter,
   releaseRoom,
   getCompletedEncounters,
+  getReceptionistAlerts,
+  markAlertAsRead,
 } from '../controllers/workflowController';
 import {
   createClinicalNote,
@@ -215,6 +217,10 @@ router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
 router.get('/workflow/doctors', authenticateToken, authorizeRoles('receptionist'), getAvailableDoctors);
 router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), releaseRoom);
+
+// Workflow routes - Receptionist alerts
+router.get('/workflow/receptionist/alerts', authenticateToken, authorizeRoles('receptionist'), getReceptionistAlerts);
+router.post('/workflow/alerts/:alert_id/read', authenticateToken, markAlertAsRead);
 
 // Workflow routes - Nurse
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);

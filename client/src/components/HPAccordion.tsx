@@ -283,7 +283,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       <!DOCTYPE html>
       <html>
       <head>
-        <title>History & Physical - Patient Record</title>
+        <title>SOAP - Patient Record</title>
         <style>
           @media print {
             body { margin: 0; padding: 20px; }
@@ -355,7 +355,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       </head>
       <body>
         <button class="print-button no-print" onclick="window.print()">Print / Save as PDF</button>
-        <h1>History & Physical</h1>
+        <h1>SOAP</h1>
         <div class="meta">
           <p><strong>Encounter ID:</strong> ${encounterId}</p>
           <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
@@ -619,7 +619,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 z-10 shadow-md">
           {/* Title Row */}
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold">History & Physical</h2>
+            <h2 className="text-lg font-bold">SOAP</h2>
             <span className="text-blue-100 text-sm">
               {sections.filter(s => s.completed).length} of {sections.length} completed
             </span>
@@ -870,7 +870,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             </div>
             <p className="text-xl font-semibold text-gray-600 mb-2">Select a section to begin</p>
             <p className="text-sm text-gray-400 text-center max-w-md">
-              Click on any section from the accordion menu on the left to add or edit content for the patient's H&P record
+              Click on any section from the accordion menu on the left to add or edit content for the patient's SOAP record
             </p>
             <div className="mt-8 flex items-center gap-2 text-xs text-gray-400">
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">

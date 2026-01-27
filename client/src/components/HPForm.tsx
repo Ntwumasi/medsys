@@ -155,18 +155,18 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!confirm('Are you sure you want to save this H&P? This will be added to the patient\'s medical record.')) {
+    if (!confirm('Are you sure you want to save this SOAP note? This will be added to the patient\'s medical record.')) {
       return;
     }
 
     try {
       await onSave(formData);
-      showToast('H&P saved successfully!', 'success');
+      showToast('SOAP note saved successfully!', 'success');
       onClose();
     } catch (error) {
-      console.error('Error saving H&P:', error);
+      console.error('Error saving SOAP note:', error);
       const apiError = error as ApiError;
-      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to save H&P';
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to save SOAP note';
       showToast(errorMessage, 'error');
     }
   };
@@ -176,7 +176,7 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
       <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full my-8 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-lg z-10">
-          <h2 className="text-2xl font-bold text-gray-900">History & Physical Examination</h2>
+          <h2 className="text-2xl font-bold text-gray-900">SOAP Note</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
@@ -970,7 +970,7 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
               type="submit"
               className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold"
             >
-              Save H&P
+              Save SOAP Note
             </button>
           </div>
         </form>

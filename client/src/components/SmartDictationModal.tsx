@@ -125,6 +125,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             className="p-2 hover:bg-white/20 rounded-lg transition-colors"
           >
@@ -149,6 +150,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
               {/* Recording Controls */}
               <div className="text-center">
                 <button
+                  type="button"
                   onClick={isRecording ? stopRecording : startRecording}
                   disabled={!isSupported}
                   className={`
@@ -332,6 +334,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
           <div>
             {step === 'review' && (
               <button
+                type="button"
                 onClick={handleBack}
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium flex items-center gap-2"
               >
@@ -344,6 +347,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
           </div>
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={handleClose}
               className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 font-medium transition-colors"
             >
@@ -351,6 +355,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             </button>
             {step === 'record' ? (
               <button
+                type="button"
                 onClick={handleParse}
                 disabled={!transcript.trim() || isParsing}
                 className={`
@@ -379,6 +384,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleApply}
                 disabled={parsedSections.filter((s: ParsedSection) => s.selected).length === 0}
                 className={`

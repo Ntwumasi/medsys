@@ -322,9 +322,29 @@ const ReceptionistDashboard: React.FC = () => {
   const [historySortOrder, setHistorySortOrder] = useState<'asc' | 'desc'>('desc');
   const itemsPerPage = 10;
 
+  // Billing alerts state
+  interface BillingAlert {
+    id: number;
+    encounter_id: number;
+    patient_id: number;
+    patient_name: string;
+    patient_number: string;
+    encounter_number: string;
+    clinic: string;
+    room_number: string;
+    from_user_name: string;
+    message: string;
+    created_at: string;
+  }
+  const [billingAlerts, setBillingAlerts] = useState<BillingAlert[]>([]);
+
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
+    loadBillingAlerts();
+    const interval = setInterval(() => {
+      loadData();
+      loadBillingAlerts();
+    }, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -364,6 +384,36 @@ const ReceptionistDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadBillingAlerts = async () => {
+    try {
+      const response = await apiClient.get('/workflow/receptionist/alerts');
+      setBillingAlerts(response.data.alerts || []);
+    } catch (error) {
+      console.error('Error loading billing alerts:', error);
+    }
+  };
+
+  const handleDismissBillingAlert = async (alertId: number) => {
+    try {
+      await apiClient.post(`/workflow/alerts/${alertId}/read`);
+      setBillingAlerts(prev => prev.filter(alert => alert.id !== alertId));
+      showToast('Alert dismissed', 'info');
+    } catch (error) {
+      console.error('Error dismissing alert:', error);
+      showToast('Failed to dismiss alert', 'error');
+    }
+  };
+
+  const handleBillingAlertClick = (alert: BillingAlert) => {
+    // Find the queue item matching this encounter and open the invoice view
+    const queueItem = queue.find(q => q.encounter_number === alert.encounter_number);
+    if (queueItem) {
+      handleViewInvoice(queueItem.id);
+    }
+    // Dismiss the alert
+    handleDismissBillingAlert(alert.id);
   };
 
   const loadPatientHistory = async (patientId: number) => {
@@ -1030,6 +1080,71 @@ const ReceptionistDashboard: React.FC = () => {
 
         {/* Main Content Area */}
         {activeView === 'queue' && (
+          <>
+            {/* Billing Alerts Banner */}
+            {billingAlerts.length > 0 && (
+              <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 shadow-md">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-green-500 p-2 rounded-lg">
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-green-800">Ready for Billing</h3>
+                      <p className="text-sm text-green-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} ready for checkout</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {billingAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 hover:border-green-400 transition-colors cursor-pointer"
+                      onClick={() => handleBillingAlertClick(alert)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="bg-green-100 p-2 rounded-full">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{alert.patient_name}</p>
+                          <p className="text-sm text-gray-500">
+                            {alert.patient_number} • {alert.clinic || 'No clinic'} • Encounter #{alert.encounter_number}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          {new Date(alert.created_at).toLocaleTimeString()}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDismissBillingAlert(alert.id);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                          title="Dismiss"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        <button
+                          className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          View Invoice
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-2xl font-bold text-gray-900">
@@ -1310,6 +1425,7 @@ const ReceptionistDashboard: React.FC = () => {
               )}
             </div>
           </div>
+          </>
         )}
 
         {activeView === 'checkin' && (

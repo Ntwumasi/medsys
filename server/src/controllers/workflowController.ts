@@ -721,11 +721,20 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
 // Nurse: Release room when patient workflow is complete
 export const releaseRoom = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { encounter_id } = req.body;
+    const authReq = req as any;
+    const user_id = authReq.user?.id;
+    const { encounter_id, release_only } = req.body;
 
-    // Get room_id from encounter
+    // Get encounter details including room_id, patient info
     const encounterResult = await pool.query(
-      `SELECT room_id FROM encounters WHERE id = $1`,
+      `SELECT e.room_id, e.patient_id, r.room_number,
+              u.first_name || ' ' || u.last_name as patient_name,
+              p.patient_number
+       FROM encounters e
+       LEFT JOIN rooms r ON e.room_id = r.id
+       LEFT JOIN patients p ON e.patient_id = p.id
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE e.id = $1`,
       [encounter_id]
     );
 
@@ -734,8 +743,9 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const room_id = encounterResult.rows[0].room_id;
+    const { room_id, patient_id, room_number, patient_name, patient_number } = encounterResult.rows[0];
 
+    // Always release the room if it exists
     if (room_id) {
       await pool.query(
         `UPDATE rooms SET is_available = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -743,9 +753,32 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       );
     }
 
+    // If release_only is true, just release the room without completing the encounter
+    if (release_only) {
+      res.json({
+        message: 'Room released successfully',
+      });
+      return;
+    }
+
+    // Complete the encounter
     await pool.query(
       `UPDATE encounters SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`,
       [encounter_id]
+    );
+
+    // Create alert for all receptionists that patient is ready for billing/checkout
+    await pool.query(
+      `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
+       SELECT $1, $2, $3, u.id, 'patient_ready', $4
+       FROM users u
+       WHERE u.role = 'receptionist' AND u.is_active = true`,
+      [
+        encounter_id,
+        patient_id,
+        user_id,
+        `Patient ${patient_name || ''} (${patient_number || 'N/A'}) is ready for billing. Room ${room_number || 'N/A'} has been released.`
+      ]
     );
 
     res.json({
@@ -841,6 +874,64 @@ export const getCompletedEncounters = async (req: Request, res: Response): Promi
     });
   } catch (error) {
     console.error('Get completed encounters error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Receptionist: Get billing alerts for completed encounters
+export const getReceptionistAlerts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const receptionist_id = authReq.user?.id;
+
+    // Get unread alerts for this receptionist that are billing-related (patient_ready from nurses)
+    const result = await pool.query(
+      `SELECT a.*,
+              e.encounter_number,
+              e.clinic,
+              u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+              p.patient_number,
+              from_user.first_name || ' ' || from_user.last_name as from_user_name,
+              r.room_number
+       FROM alerts a
+       JOIN encounters e ON a.encounter_id = e.id
+       JOIN patients p ON a.patient_id = p.id
+       LEFT JOIN users u_patient ON p.user_id = u_patient.id
+       LEFT JOIN users from_user ON a.from_user_id = from_user.id
+       LEFT JOIN rooms r ON e.room_id = r.id
+       WHERE a.to_user_id = $1
+         AND a.is_read = false
+         AND e.status = 'completed'
+       ORDER BY a.created_at DESC
+       LIMIT 50`,
+      [receptionist_id]
+    );
+
+    res.json({
+      alerts: result.rows,
+    });
+  } catch (error) {
+    console.error('Get receptionist alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Receptionist: Mark alert as read
+export const markAlertAsRead = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const user_id = authReq.user?.id;
+    const { alert_id } = req.params;
+
+    await pool.query(
+      `UPDATE alerts SET is_read = true, read_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND to_user_id = $2`,
+      [alert_id, user_id]
+    );
+
+    res.json({ message: 'Alert marked as read' });
+  } catch (error) {
+    console.error('Mark alert as read error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
