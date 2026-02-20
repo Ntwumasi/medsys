@@ -80,6 +80,11 @@ const DoctorDashboard: React.FC = () => {
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // SOAP signing state
+  const [soapSigned, setSoapSigned] = useState(false);
+  const [soapSignedAt, setSoapSignedAt] = useState<string | null>(null);
+  const [soapSignedBy, setSoapSignedBy] = useState<string | null>(null);
+
   // Forms state
   const [noteContent, setNoteContent] = useState('');
   const [nurseNoteContent, setNurseNoteContent] = useState('');
@@ -173,6 +178,41 @@ const DoctorDashboard: React.FC = () => {
       setPharmacyAlerts(res.data.pharmacy_alerts || []);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
+    }
+  };
+
+  // Handle signing SOAP note
+  const handleSignSOAP = async () => {
+    if (!selectedEncounter) return;
+
+    if (!confirm('Are you sure you want to sign this SOAP note? Once signed, it cannot be edited.')) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/hp/${selectedEncounter.id}/sign`);
+      setSoapSigned(true);
+      setSoapSignedAt(new Date().toLocaleString());
+      setSoapSignedBy(user?.first_name && user?.last_name ? `Dr. ${user.first_name} ${user.last_name}` : 'Doctor');
+      showToast('SOAP note signed successfully', 'success');
+    } catch (error) {
+      console.error('Error signing SOAP note:', error);
+      showToast('Failed to sign SOAP note', 'error');
+    }
+  };
+
+  // Reset SOAP sign state when encounter changes
+  const loadSOAPSignStatus = async (encounterId: number) => {
+    try {
+      const response = await apiClient.get(`/hp/${encounterId}/status`);
+      setSoapSigned(response.data.is_signed || false);
+      setSoapSignedAt(response.data.signed_at || null);
+      setSoapSignedBy(response.data.signed_by_name || null);
+    } catch (error) {
+      console.error('Error loading SOAP status:', error);
+      setSoapSigned(false);
+      setSoapSignedAt(null);
+      setSoapSignedBy(null);
     }
   };
 
@@ -447,7 +487,10 @@ const DoctorDashboard: React.FC = () => {
                 {roomEncounters.map((encounter) => (
                   <div
                     key={encounter.id}
-                    onClick={() => setSelectedEncounter(encounter)}
+                    onClick={() => {
+                      setSelectedEncounter(encounter);
+                      loadSOAPSignStatus(encounter.id);
+                    }}
                     className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-blue-50 group ${
                       selectedEncounter?.id === encounter.id
                         ? 'bg-blue-100 border-l-4 border-blue-600'
@@ -1045,6 +1088,10 @@ const DoctorDashboard: React.FC = () => {
                           patientId={selectedEncounter.patient_id}
                           userRole="doctor"
                           vitalSigns={selectedEncounter.vital_signs}
+                          onSign={handleSignSOAP}
+                          isSigned={soapSigned}
+                          signedAt={soapSignedAt || undefined}
+                          signedBy={soapSignedBy || undefined}
                         />
                       </div>
                     )}

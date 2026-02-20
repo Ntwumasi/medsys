@@ -152,7 +152,8 @@ export const getHPStatus = async (req: Request, res: Response): Promise<void> =>
   try {
     const { encounter_id } = req.params;
 
-    const result = await pool.query(
+    // Get section stats
+    const sectionResult = await pool.query(
       `SELECT
         COUNT(*) as total_sections,
         COUNT(*) FILTER (WHERE completed = true) as completed_sections,
@@ -162,7 +163,22 @@ export const getHPStatus = async (req: Request, res: Response): Promise<void> =>
       [encounter_id]
     );
 
-    const status = result.rows[0];
+    // Get signing status from encounters table
+    const signResult = await pool.query(
+      `SELECT
+        soap_signed,
+        soap_signed_at,
+        soap_signed_by,
+        u.first_name,
+        u.last_name
+       FROM encounters e
+       LEFT JOIN users u ON e.soap_signed_by = u.id
+       WHERE e.id = $1`,
+      [encounter_id]
+    );
+
+    const status = sectionResult.rows[0];
+    const signStatus = signResult.rows[0];
     const completionPercentage = status.total_sections > 0
       ? Math.round((status.completed_sections / status.total_sections) * 100)
       : 0;
@@ -172,9 +188,61 @@ export const getHPStatus = async (req: Request, res: Response): Promise<void> =>
       completedSections: parseInt(status.completed_sections),
       completionPercentage,
       lastUpdated: status.last_updated,
+      is_signed: signStatus?.soap_signed || false,
+      signed_at: signStatus?.soap_signed_at || null,
+      signed_by_name: signStatus?.first_name && signStatus?.last_name
+        ? `Dr. ${signStatus.first_name} ${signStatus.last_name}`
+        : null,
     });
   } catch (error) {
     console.error('Get H&P status error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Sign SOAP note
+export const signSOAP = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const userRole = authReq.user?.role;
+    const { encounter_id } = req.params;
+
+    // Only doctors can sign SOAP notes
+    if (userRole !== 'doctor' && userRole !== 'admin') {
+      res.status(403).json({ error: 'Only doctors can sign SOAP notes' });
+      return;
+    }
+
+    // Check if already signed
+    const checkResult = await pool.query(
+      `SELECT soap_signed FROM encounters WHERE id = $1`,
+      [encounter_id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    if (checkResult.rows[0].soap_signed) {
+      res.status(400).json({ error: 'SOAP note is already signed' });
+      return;
+    }
+
+    // Sign the SOAP note
+    await pool.query(
+      `UPDATE encounters
+       SET soap_signed = true,
+           soap_signed_at = CURRENT_TIMESTAMP,
+           soap_signed_by = $1
+       WHERE id = $2`,
+      [userId, encounter_id]
+    );
+
+    res.json({ message: 'SOAP note signed successfully' });
+  } catch (error) {
+    console.error('Sign SOAP error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

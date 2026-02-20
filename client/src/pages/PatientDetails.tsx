@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
+import VitalSignsHistory from '../components/VitalSignsHistory';
 
 const PatientDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals'>('overview');
+  const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -290,6 +292,19 @@ const PatientDetails: React.FC = () => {
                   <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">{upcoming_appointments.length}</span>
                 )}
               </button>
+              <button
+                onClick={() => setShowVitalSignsHistory(true)}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  activeTab === 'vitals'
+                    ? 'border-red-600 text-red-600 bg-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                Vital Signs History
+              </button>
             </nav>
           </div>
 
@@ -558,6 +573,14 @@ const PatientDetails: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Vital Signs History Modal */}
+      {showVitalSignsHistory && patient && (
+        <VitalSignsHistory
+          patientId={patient.id}
+          onClose={() => setShowVitalSignsHistory(false)}
+        />
+      )}
     </div>
   );
 };

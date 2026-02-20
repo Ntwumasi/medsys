@@ -158,6 +158,19 @@ export const useVoiceDictation = (
   const recognitionRef = useRef<SpeechRecognitionType | null>(null);
   const isManualStop = useRef(false);
 
+  // Use refs for callbacks to avoid recreating recognition on every render
+  const onTranscriptRef = useRef(onTranscript);
+  const onInterimTranscriptRef = useRef(onInterimTranscript);
+
+  // Keep refs updated with latest callbacks
+  useEffect(() => {
+    onTranscriptRef.current = onTranscript;
+  }, [onTranscript]);
+
+  useEffect(() => {
+    onInterimTranscriptRef.current = onInterimTranscript;
+  }, [onInterimTranscript]);
+
   // Check for browser support
   useEffect(() => {
     const SpeechRecognition =
@@ -214,7 +227,7 @@ export const useVoiceDictation = (
           if (processedTranscript.trim()) {
             setTranscript((prev) => {
               const newTranscript = prev + (prev ? ' ' : '') + processedTranscript;
-              onTranscript?.(newTranscript);
+              onTranscriptRef.current?.(newTranscript);
               return newTranscript;
             });
           }
@@ -228,7 +241,7 @@ export const useVoiceDictation = (
 
         setInterimTranscript(currentInterim);
         if (currentInterim) {
-          onInterimTranscript?.(currentInterim);
+          onInterimTranscriptRef.current?.(currentInterim);
         }
       };
 
@@ -265,7 +278,7 @@ export const useVoiceDictation = (
         recognitionRef.current.abort();
       }
     };
-  }, [continuous, language, onTranscript, onInterimTranscript, processCommands]);
+  }, [continuous, language, processCommands]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || !isSupported) {

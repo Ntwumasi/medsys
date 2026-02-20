@@ -130,6 +130,7 @@ import {
   getHP,
   saveHPSection,
   getHPStatus,
+  signSOAP,
 } from '../controllers/hpController';
 import { parseDictation } from '../controllers/smartDictationController';
 import {
@@ -320,6 +321,7 @@ router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('d
 router.get('/hp/:encounter_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getHP);
 router.post('/hp/save', authenticateToken, authorizeRoles('nurse', 'doctor'), saveHPSection);
 router.get('/hp/:encounter_id/status', authenticateToken, authorizeRoles('nurse', 'doctor'), getHPStatus);
+router.post('/hp/:encounter_id/sign', authenticateToken, authorizeRoles('doctor'), signSOAP);
 router.post('/hp/parse-dictation', authenticateToken, authorizeRoles('nurse', 'doctor'), parseDictation);
 
 // System Updates / Roadmap routes (public read access)

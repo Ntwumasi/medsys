@@ -33,9 +33,13 @@ interface HPAccordionProps {
   userRole: 'nurse' | 'doctor';
   onSave?: () => void;
   vitalSigns?: VitalSignsData;
+  onSign?: () => void;
+  isSigned?: boolean;
+  signedAt?: string;
+  signedBy?: string;
 }
 
-const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns }) => {
+const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns, onSign, isSigned, signedAt, signedBy }) => {
   const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [sections, setSections] = useState<HPSection[]>([
@@ -630,6 +634,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               onClick={() => setShowSmartDictation(true)}
               className="flex-1 px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
               title="Smart Dictation (AI-powered)"
+              disabled={isSigned}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -645,7 +650,33 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
             </button>
+            {/* Sign Button - Only for doctors */}
+            {userRole === 'doctor' && onSign && (
+              <button
+                onClick={onSign}
+                disabled={isSigned}
+                className={`p-2 rounded-lg transition-colors ${
+                  isSigned
+                    ? 'bg-emerald-500/30 cursor-not-allowed'
+                    : 'bg-white/20 hover:bg-emerald-500/40'
+                }`}
+                title={isSigned ? `Signed by ${signedBy || 'Doctor'}` : 'Sign & Lock Note'}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </button>
+            )}
           </div>
+          {/* Signed Status */}
+          {isSigned && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-emerald-200">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Signed {signedAt ? `on ${signedAt}` : ''}</span>
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {sections.map(section => renderSection(section))}

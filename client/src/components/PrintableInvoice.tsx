@@ -135,8 +135,19 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const balance = (invoice.total_amount - (invoice.amount_paid || 0)).toFixed(2);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8 relative" onClick={(e) => e.stopPropagation()}>
+        {/* Close button - always visible in top-right corner */}
+        <button
+          onClick={onClose}
+          className="print:hidden absolute -top-3 -right-3 z-10 w-10 h-10 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg flex items-center justify-center transition-colors"
+          title="Close (Press Escape)"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
         {/* Non-printable header with action buttons */}
         <div className="print:hidden bg-gray-100 px-6 py-4 border-b border-gray-200 rounded-t-lg">
           <div className="flex justify-between items-center mb-4">
@@ -153,8 +164,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
                 Close
               </button>
             </div>
@@ -189,7 +203,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         </div>
 
         {/* Printable invoice content */}
-        <div ref={printRef} className="p-8 print:p-12">
+        <div ref={printRef} id="printable-invoice" className="p-8 print:p-12">
           {/* Header */}
           <div className="border-b-2 border-primary-600 pb-6 mb-6">
             <div className="flex justify-between items-start">
@@ -349,15 +363,20 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           body * {
             visibility: hidden;
           }
-          .print\\:block {
+          #printable-invoice,
+          #printable-invoice * {
             visibility: visible;
           }
-          ${printRef.current ? `
-            #${printRef.current.id},
-            #${printRef.current.id} * {
-              visibility: visible;
-            }
-          ` : ''}
+          #printable-invoice {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

@@ -136,6 +136,17 @@ interface StaffFormData {
   phone: string;
 }
 
+interface PastPatientEncounter {
+  id: number;
+  patient_name: string;
+  patient_number: string;
+  gender?: string;
+  encounter_number: string;
+  encounter_date: string;
+  clinic?: string;
+  provider_name?: string;
+}
+
 const Dashboard: React.FC = () => {
   const { user, logout, impersonateUser } = useAuth();
   const navigate = useNavigate();
@@ -144,7 +155,7 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates'>('staff');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients'>('staff');
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
@@ -190,6 +201,18 @@ const Dashboard: React.FC = () => {
   const [staffSortOrder, setStaffSortOrder] = useState<'asc' | 'desc'>('asc');
   const [staffPage, setStaffPage] = useState(1);
   const staffItemsPerPage = 10;
+
+  // Past Patients state
+  const [pastPatients, setPastPatients] = useState<PastPatientEncounter[]>([]);
+  const [pastPatientsSearchTerm, setPastPatientsSearchTerm] = useState('');
+  const [pastPatientsDateFrom, setPastPatientsDateFrom] = useState('');
+  const [pastPatientsDateTo, setPastPatientsDateTo] = useState('');
+  const [pastPatientsPage, setPastPatientsPage] = useState(1);
+  const [pastPatientsTotalPages, setPastPatientsTotalPages] = useState(1);
+  const [loadingPastPatients, setLoadingPastPatients] = useState(false);
+  const [pastPatientsSortField, setPastPatientsSortField] = useState<string>('encounter_date');
+  const [pastPatientsSortOrder, setPastPatientsSortOrder] = useState<'asc' | 'desc'>('desc');
+  const pastPatientsPerPage = 15;
 
   useEffect(() => {
     loadTodayAppointments();
@@ -551,6 +574,56 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Load past patients (completed encounters)
+  const loadPastPatients = async () => {
+    try {
+      setLoadingPastPatients(true);
+      const params: Record<string, string | number> = {
+        page: pastPatientsPage,
+        limit: pastPatientsPerPage,
+        sort_field: pastPatientsSortField,
+        sort_order: pastPatientsSortOrder,
+      };
+
+      if (pastPatientsSearchTerm) {
+        params.search = pastPatientsSearchTerm;
+      }
+      if (pastPatientsDateFrom) {
+        params.date_from = pastPatientsDateFrom;
+      }
+      if (pastPatientsDateTo) {
+        params.date_to = pastPatientsDateTo;
+      }
+
+      const response = await apiClient.get('/workflow/completed-encounters', { params });
+      setPastPatients(response.data.encounters || []);
+      setPastPatientsTotalPages(response.data.totalPages || 1);
+    } catch (error) {
+      console.error('Error loading past patients:', error);
+      setPastPatients([]);
+    } finally {
+      setLoadingPastPatients(false);
+    }
+  };
+
+  // Handle sorting for past patients table
+  const handlePastPatientsSort = (field: string) => {
+    if (pastPatientsSortField === field) {
+      setPastPatientsSortOrder(pastPatientsSortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setPastPatientsSortField(field);
+      setPastPatientsSortOrder('asc');
+    }
+    setPastPatientsPage(1);
+  };
+
+  // Load past patients when tab is active or filters change
+  useEffect(() => {
+    if (activeTab === 'pastPatients') {
+      loadPastPatients();
+    }
+  }, [activeTab, pastPatientsPage, pastPatientsSearchTerm, pastPatientsDateFrom, pastPatientsDateTo, pastPatientsSortField, pastPatientsSortOrder]);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -643,6 +716,19 @@ const Dashboard: React.FC = () => {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               Insurance Providers
+            </button>
+            <button
+              onClick={() => setActiveTab('pastPatients')}
+              className={`${
+                activeTab === 'pastPatients'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Past Patients
             </button>
             <button
               onClick={() => setActiveTab('updates')}
@@ -1627,6 +1713,256 @@ const Dashboard: React.FC = () => {
                     onClick={() => setStaffPage(staffPage + 1)}
                     disabled={staffPage === getTotalStaffPages()}
                     className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Past Patients Tab */}
+        {activeTab === 'pastPatients' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-slate-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Past Patients</h2>
+                <p className="text-sm text-gray-500">View completed encounter history</p>
+              </div>
+            </div>
+
+            {/* Search and Filter Controls */}
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={pastPatientsSearchTerm}
+                  onChange={(e) => {
+                    setPastPatientsSearchTerm(e.target.value);
+                    setPastPatientsPage(1);
+                  }}
+                  placeholder="Patient name, number, or encounter..."
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={pastPatientsDateFrom}
+                  onChange={(e) => {
+                    setPastPatientsDateFrom(e.target.value);
+                    setPastPatientsPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={pastPatientsDateTo}
+                  onChange={(e) => {
+                    setPastPatientsDateTo(e.target.value);
+                    setPastPatientsPage(1);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex items-end">
+                {(pastPatientsSearchTerm || pastPatientsDateFrom || pastPatientsDateTo) && (
+                  <button
+                    onClick={() => {
+                      setPastPatientsSearchTerm('');
+                      setPastPatientsDateFrom('');
+                      setPastPatientsDateTo('');
+                      setPastPatientsPage(1);
+                    }}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Loading State */}
+            {loadingPastPatients && (
+              <div className="text-center py-12">
+                <CircularProgress size={40} />
+                <p className="mt-4 text-gray-600">Loading past patients...</p>
+              </div>
+            )}
+
+            {/* Past Patients Table */}
+            {!loadingPastPatients && pastPatients.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handlePastPatientsSort('patient_name')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Patient
+                          {pastPatientsSortField === 'patient_name' && (
+                            <svg className={`w-4 h-4 transition-transform ${pastPatientsSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handlePastPatientsSort('gender')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Gender
+                          {pastPatientsSortField === 'gender' && (
+                            <svg className={`w-4 h-4 transition-transform ${pastPatientsSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Encounter #
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handlePastPatientsSort('encounter_date')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Date
+                          {pastPatientsSortField === 'encounter_date' && (
+                            <svg className={`w-4 h-4 transition-transform ${pastPatientsSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handlePastPatientsSort('clinic')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Clinic
+                          {pastPatientsSortField === 'clinic' && (
+                            <svg className={`w-4 h-4 transition-transform ${pastPatientsSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handlePastPatientsSort('provider_name')}
+                      >
+                        <div className="flex items-center gap-1">
+                          Physician
+                          {pastPatientsSortField === 'provider_name' && (
+                            <svg className={`w-4 h-4 transition-transform ${pastPatientsSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {pastPatients.map((encounter) => (
+                      <tr key={encounter.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {encounter.patient_name}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {encounter.patient_number}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.gender || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.encounter_number}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.encounter_date ? format(new Date(encounter.encounter_date), 'MM/dd/yyyy') : 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.clinic || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {encounter.provider_name || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => navigate(`/patients/${encounter.id}`)}
+                            className="text-blue-600 hover:text-blue-900 font-medium"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loadingPastPatients && pastPatients.length === 0 && (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="mt-2 text-lg font-medium text-gray-900">No past patients found</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {pastPatientsSearchTerm || pastPatientsDateFrom || pastPatientsDateTo
+                    ? 'Try adjusting your search or filters'
+                    : 'Completed encounters will appear here'}
+                </p>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loadingPastPatients && pastPatients.length > 0 && pastPatientsTotalPages > 1 && (
+              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="text-sm text-gray-700">
+                  Page {pastPatientsPage} of {pastPatientsTotalPages}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPastPatientsPage(pastPatientsPage - 1)}
+                    disabled={pastPatientsPage === 1}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPastPatientsPage(pastPatientsPage + 1)}
+                    disabled={pastPatientsPage === pastPatientsTotalPages}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
