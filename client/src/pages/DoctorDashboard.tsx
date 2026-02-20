@@ -101,7 +101,7 @@ const DoctorDashboard: React.FC = () => {
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
 
   // Clinical Notes Tab state
-  const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural' | 'past'>('soap');
+  const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural'>('soap');
 
   // Lab and Imaging results state
   const [encounterLabOrders, setEncounterLabOrders] = useState<LabOrder[]>([]);
@@ -1018,9 +1018,9 @@ const DoctorDashboard: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                           </svg>
                           Nurse Notes
-                          {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length > 0 && (
-                            <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
-                              {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length}
+                          {(notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length) > 0 && (
+                            <span className={`text-white text-xs px-2 py-0.5 rounded-full ${notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                              {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length}
                             </span>
                           )}
                         </div>
@@ -1053,26 +1053,6 @@ const DoctorDashboard: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                           </svg>
                           Procedural Notes
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => setClinicalNotesTab('past')}
-                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
-                          clinicalNotesTab === 'past'
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          Past Notes
-                          {notes.length > 0 && (
-                            <span className="bg-gray-600 text-white text-xs px-2 py-0.5 rounded-full">
-                              {notes.length}
-                            </span>
-                          )}
                         </div>
                       </button>
                     </nav>
@@ -1175,10 +1155,46 @@ const DoctorDashboard: React.FC = () => {
 
                     {/* Nurse Notes Tab */}
                     {clinicalNotesTab === 'nurse' && (
-                      <div className="space-y-4">
+                      <div className="space-y-6">
+                        {/* Nurse Messages to Doctor - highlighted section */}
+                        {notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 && (
+                          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border-2 border-purple-300">
+                            <h3 className="font-bold text-purple-800 mb-3 flex items-center gap-2">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                              </svg>
+                              Messages from Nurse ({notes.filter(n => n.note_type === 'nurse_to_doctor').length})
+                            </h3>
+                            <div className="space-y-3">
+                              {notes
+                                .filter(n => n.note_type === 'nurse_to_doctor')
+                                .map((note) => (
+                                  <div
+                                    key={note.id}
+                                    className="p-4 rounded-xl bg-white border-2 border-purple-200 shadow-sm"
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="text-xs text-purple-700 font-semibold">
+                                        {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
+                                      </div>
+                                      <span className="text-xs bg-purple-600 text-white px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                                        </svg>
+                                        MESSAGE
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Nurse Clinical Notes */}
                         {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length > 0 ? (
                           <>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Nurse Notes</h3>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Nurse Clinical Notes</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general')
@@ -1200,15 +1216,15 @@ const DoctorDashboard: React.FC = () => {
                                 ))}
                             </div>
                           </>
-                        ) : (
+                        ) : notes.filter(n => n.note_type === 'nurse_to_doctor').length === 0 ? (
                           <div className="text-center py-12 text-gray-400">
                             <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
-                            <p className="text-lg font-medium">No nurse notes yet</p>
-                            <p className="text-sm mt-1">Nurses will add notes during patient care</p>
+                            <p className="text-lg font-medium">No nurse notes or messages yet</p>
+                            <p className="text-sm mt-1">Nurses will add notes and messages during patient care</p>
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )}
 
@@ -1310,76 +1326,6 @@ const DoctorDashboard: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Past Notes Tab */}
-                    {clinicalNotesTab === 'past' && (
-                      <div className="space-y-4">
-                        {notes.length > 0 ? (
-                          <>
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="font-bold text-gray-900 text-lg">All Clinical Notes ({notes.length})</h3>
-                            </div>
-                            <div className="space-y-3">
-                              {notes.map((note) => (
-                                <div
-                                  key={note.id}
-                                  className={`p-4 rounded-xl border-2 shadow-sm hover:shadow-md transition-all ${
-                                    note.note_type === 'doctor_general'
-                                      ? 'bg-blue-50 border-blue-200'
-                                      : note.note_type === 'nurse_general'
-                                      ? 'bg-emerald-50 border-emerald-200'
-                                      : note.note_type === 'doctor_to_nurse'
-                                      ? 'bg-indigo-50 border-indigo-200'
-                                      : note.note_type === 'doctor_procedural'
-                                      ? 'bg-slate-50 border-slate-200'
-                                      : 'bg-gray-50 border-gray-200'
-                                  }`}
-                                >
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                      <div className="text-xs font-semibold text-gray-700">
-                                        {note.created_by_name} ({note.created_by_role})
-                                      </div>
-                                      <div className="text-xs text-gray-500 mt-0.5">
-                                        {new Date(note.created_at).toLocaleString()}
-                                      </div>
-                                    </div>
-                                    <div className="flex gap-2 items-center">
-                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                        note.note_type === 'doctor_general'
-                                          ? 'bg-blue-600 text-white'
-                                          : note.note_type === 'nurse_general'
-                                          ? 'bg-emerald-600 text-white'
-                                          : note.note_type === 'doctor_to_nurse'
-                                          ? 'bg-indigo-600 text-white'
-                                          : note.note_type === 'doctor_procedural'
-                                          ? 'bg-slate-600 text-white'
-                                          : 'bg-gray-600 text-white'
-                                      }`}>
-                                        {note.note_type.replace(/_/g, ' ').toUpperCase()}
-                                      </span>
-                                      {note.is_signed && (
-                                        <span className="text-xs bg-emerald-600 text-white px-2 py-1 rounded-full font-medium">
-                                          SIGNED
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-center py-12 text-gray-400">
-                            <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p className="text-lg font-medium">No notes yet</p>
-                            <p className="text-sm mt-1">Clinical notes will appear here as they are added</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
 

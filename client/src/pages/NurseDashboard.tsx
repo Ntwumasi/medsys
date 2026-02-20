@@ -169,6 +169,7 @@ const NurseDashboard: React.FC = () => {
 
   // Notes state
   const [noteContent, setNoteContent] = useState('');
+  const [doctorMessageContent, setDoctorMessageContent] = useState('');
 
   // Tab state for better UI organization
   const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing' | 'documents'>('hp');
@@ -582,6 +583,27 @@ const NurseDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error adding note:', error);
       showToast('Failed to add note', 'error');
+    }
+  };
+
+  const handleSendDoctorMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient || !doctorMessageContent) return;
+
+    try {
+      await apiClient.post('/clinical-notes', {
+        encounter_id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        note_type: 'nurse_to_doctor',
+        content: doctorMessageContent,
+      });
+
+      showToast('Message sent to doctor', 'success');
+      setDoctorMessageContent('');
+      loadClinicalNotes();
+    } catch (error) {
+      console.error('Error sending message to doctor:', error);
+      showToast('Failed to send message', 'error');
     }
   };
 
@@ -2229,15 +2251,41 @@ const NurseDashboard: React.FC = () => {
                     {/* Clinical Notes Tab */}
                     {activeTab === 'notes' && (
                       <div className="space-y-6">
+                        {/* Message to Doctor Form */}
+                        <form onSubmit={handleSendDoctorMessage} className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border-2 border-indigo-200">
+                          <h4 className="font-bold text-indigo-800 mb-3 flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            Send Message to Doctor
+                          </h4>
+                          <SmartTextArea
+                            value={doctorMessageContent}
+                            onChange={setDoctorMessageContent}
+                            placeholder="Type your message to the doctor about this patient..."
+                            rows={4}
+                            sectionId="assessment"
+                            showVoiceDictation={true}
+                            required
+                          />
+                          <button type="submit" className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                            Send to Doctor
+                          </button>
+                        </form>
+
+                        {/* Add Clinical Note Form */}
                         <form onSubmit={handleAddNote} className="space-y-4">
                           <SmartTextArea
                             value={noteContent}
                             onChange={setNoteContent}
                             placeholder="Enter clinical notes... Start typing for medical term suggestions.\n\nUse the SOAP tab for detailed clinical documentation."
-                            rows={8}
+                            rows={6}
                             sectionId="hpi"
                             showVoiceDictation={true}
-                            label="Clinical Note"
+                            label="Add Clinical Note"
                             required
                           />
 
@@ -2248,14 +2296,14 @@ const NurseDashboard: React.FC = () => {
                           </div>
                         </form>
 
-                        {/* Past Clinical Notes */}
+                        {/* Clinical Notes */}
                         {clinicalNotes.length > 0 && (
                           <div className="mt-8">
                             <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
-                              Past Clinical Notes
+                              Clinical Notes
                             </h3>
                             <div className="space-y-3">
                               {clinicalNotes.map((note: ClinicalNote, index: number) => (

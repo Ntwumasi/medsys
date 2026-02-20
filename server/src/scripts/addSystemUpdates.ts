@@ -3,39 +3,39 @@ import pool from '../database/db';
 async function addUpdates() {
   const updates = [
     {
-      title: 'Smart Dictation Microphone Fix',
-      description: 'Fixed an issue where the microphone would cut out during smart dictation. Recording now works continuously without interruption.',
-      category: 'fix',
-      status: 'completed'
-    },
-    {
-      title: 'Vital Signs History',
-      description: 'Added Vital Signs History tab to Patient Details page. View complete history of patient vital signs across all encounters.',
-      category: 'feature',
-      status: 'completed'
-    },
-    {
-      title: 'SOAP Note Signing',
-      description: 'Doctors can now sign and lock SOAP notes. Once signed, notes cannot be edited, ensuring medical record integrity.',
-      category: 'feature',
-      status: 'completed'
-    },
-    {
-      title: 'Appointment Counter Fix',
-      description: 'Fixed the appointment counter on Receptionist Dashboard to update immediately when new appointments are scheduled.',
-      category: 'fix',
-      status: 'completed'
-    },
-    {
-      title: 'Invoice Print Improvements',
-      description: 'Improved invoice printing with prominent close button, click-outside-to-close functionality, and better print layout.',
+      title: 'Patient Name Navigation',
+      description: 'Clicking on patient names in Nurse and Doctor dashboards now navigates directly to the patient chart.',
       category: 'improvement',
       status: 'completed'
     },
     {
-      title: 'Past Patients Moved to Admin',
-      description: 'Moved Past Patients view from Receptionist Dashboard to Admin Dashboard for better workflow organization.',
-      category: 'improvement',
+      title: 'Duplicate Patient Prevention',
+      description: 'System now prevents duplicate patient registration by checking for existing patients with the same name and date of birth.',
+      category: 'feature',
+      status: 'completed'
+    },
+    {
+      title: 'Quick Action Buttons - Lab & Imaging',
+      description: 'Added prominent Lab and Imaging routing buttons to the Nurse Dashboard for quick patient routing.',
+      category: 'feature',
+      status: 'completed'
+    },
+    {
+      title: 'Patient Documents Tab',
+      description: 'Added Documents tab to Nurse Dashboard for managing scanned patient documents including lab results, imaging reports, and referral letters.',
+      category: 'feature',
+      status: 'completed'
+    },
+    {
+      title: 'Nurse-to-Doctor Messaging',
+      description: 'Nurses can now send messages to doctors - both general messages and patient-specific messages within the patient chart.',
+      category: 'feature',
+      status: 'completed'
+    },
+    {
+      title: 'Doctor Instructions Fix',
+      description: 'Fixed an issue where adding doctor instructions for nurses would fail. Instructions now save correctly.',
+      category: 'fix',
       status: 'completed'
     }
   ];
