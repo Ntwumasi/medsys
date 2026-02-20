@@ -509,7 +509,7 @@ const DoctorDashboard: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setQuickViewPatientId(encounter.patient_id);
+                          navigate(`/patients/${encounter.patient_id}`);
                         }}
                         className={`font-semibold text-sm text-left truncate transition-colors ${
                           selectedEncounter?.id === encounter.id

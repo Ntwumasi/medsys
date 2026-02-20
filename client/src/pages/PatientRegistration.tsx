@@ -7,6 +7,7 @@ const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [duplicatePatient, setDuplicatePatient] = useState<{id: number, patientNumber: string} | null>(null);
 
   const [formData, setFormData] = useState({
     first_name: '',
@@ -48,6 +49,7 @@ const PatientRegistration: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setDuplicatePatient(null);
     setLoading(true);
 
     try {
@@ -55,7 +57,18 @@ const PatientRegistration: React.FC = () => {
       navigate(`/patients/${response.patient.id}`);
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.response?.data?.error || 'Failed to register patient');
+      const responseData = apiError.response?.data;
+
+      // Check if this is a duplicate patient error
+      if (responseData?.existingPatientId) {
+        setDuplicatePatient({
+          id: responseData.existingPatientId,
+          patientNumber: responseData.existingPatientNumber || 'Unknown'
+        });
+        setError(responseData.message || 'A patient with this information already exists.');
+      } else {
+        setError(responseData?.error || 'Failed to register patient');
+      }
     } finally {
       setLoading(false);
     }
@@ -117,7 +130,20 @@ const PatientRegistration: React.FC = () => {
         <div className="card">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-              {error}
+              <p>{error}</p>
+              {duplicatePatient && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/patients/${duplicatePatient.id}`)}
+                  className="mt-2 inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  View Existing Patient ({duplicatePatient.patientNumber})
+                </button>
+              )}
             </div>
           )}
 

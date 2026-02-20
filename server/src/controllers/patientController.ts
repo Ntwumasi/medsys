@@ -43,6 +43,29 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       other_health_conditions,
     } = req.body;
 
+    // Check for duplicate patient (same first name, last name, and date of birth)
+    const duplicateCheck = await client.query(
+      `SELECT p.id, p.patient_number, u.first_name, u.last_name
+       FROM patients p
+       JOIN users u ON p.user_id = u.id
+       WHERE LOWER(u.first_name) = LOWER($1)
+         AND LOWER(u.last_name) = LOWER($2)
+         AND p.date_of_birth = $3`,
+      [first_name, last_name, date_of_birth]
+    );
+
+    if (duplicateCheck.rows.length > 0) {
+      const existingPatient = duplicateCheck.rows[0];
+      res.status(409).json({
+        error: 'Duplicate patient',
+        message: `A patient with the same name and date of birth already exists (Patient #${existingPatient.patient_number}: ${existingPatient.first_name} ${existingPatient.last_name}). Please search for the existing patient to check them in.`,
+        existingPatientId: existingPatient.id,
+        existingPatientNumber: existingPatient.patient_number
+      });
+      client.release();
+      return;
+    }
+
     await client.query('BEGIN');
 
     // Generate patient number

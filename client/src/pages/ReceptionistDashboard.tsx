@@ -1078,7 +1078,7 @@ const ReceptionistDashboard: React.FC = () => {
                   onChange={(e) => setQueueClinicFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                 >
-                  <option value="">All Clinics</option>
+                  <option value="">Clinics</option>
                   {clinics.map((clinic) => (
                     <option key={clinic} value={clinic}>{clinic}</option>
                   ))}
@@ -1090,7 +1090,7 @@ const ReceptionistDashboard: React.FC = () => {
                   onChange={(e) => setQueueStatusFilter(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                 >
-                  <option value="">All Statuses</option>
+                  <option value="">Statuses</option>
                   <option value="checked_in">Checked In</option>
                   <option value="in_room">In Room</option>
                   <option value="waiting_for_nurse">Waiting for Nurse</option>

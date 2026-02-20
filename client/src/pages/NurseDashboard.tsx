@@ -934,7 +934,7 @@ const NurseDashboard: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setQuickViewPatientId(patient.patient_id);
+                            navigate(`/patients/${patient.patient_id}`);
                           }}
                           className={`font-semibold text-sm text-left truncate transition-colors ${
                             selectedPatient?.id === patient.id
@@ -1299,7 +1299,7 @@ const NurseDashboard: React.FC = () => {
                             defaultValue=""
                           >
                             <option value="">
-                              {selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM FIRST'}
+                              {selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM'}
                             </option>
                             {rooms
                               .filter((r) => r.is_available)

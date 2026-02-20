@@ -183,6 +183,8 @@ export interface ApiError {
     data?: {
       error?: string;
       message?: string;
+      existingPatientId?: number;
+      existingPatientNumber?: string;
     };
   };
   message?: string;
