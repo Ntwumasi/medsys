@@ -238,6 +238,14 @@ const NurseDashboard: React.FC = () => {
         index === self.findIndex((p) => p.id === patient.id)
       );
       setAssignedPatients(uniquePatients);
+
+      // Update selectedPatient with fresh data if currently selected
+      if (selectedPatient) {
+        const updatedSelectedPatient = uniquePatients.find((p: AssignedPatient) => p.id === selectedPatient.id);
+        if (updatedSelectedPatient) {
+          setSelectedPatient(updatedSelectedPatient);
+        }
+      }
     } catch (error) {
       console.error('Error loading assigned patients:', error);
     } finally {
@@ -813,9 +821,19 @@ const NurseDashboard: React.FC = () => {
                   }`}
                 >
                   <div className="font-bold text-lg">Room {room.room_number}</div>
-                  <div className={`text-sm mt-1 font-medium truncate ${!room.is_available ? 'text-blue-700' : ''}`} title={patientInRoom?.patient_name}>
-                    {room.is_available ? 'Available' : (patientInRoom?.patient_name || 'Occupied')}
-                  </div>
+                  {room.is_available ? (
+                    <div className="text-sm mt-1 font-medium">Available</div>
+                  ) : patientInRoom ? (
+                    <button
+                      onClick={() => navigate(`/patients/${patientInRoom.patient_id}`)}
+                      className="text-sm mt-1 font-medium text-blue-700 hover:text-blue-900 hover:underline truncate block w-full"
+                      title={`Click to view ${patientInRoom.patient_name}'s medical history`}
+                    >
+                      {patientInRoom.patient_name}
+                    </button>
+                  ) : (
+                    <div className="text-sm mt-1 font-medium">Occupied</div>
+                  )}
                 </div>
               );
             })}
