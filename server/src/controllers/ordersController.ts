@@ -49,6 +49,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.test_code,
         lo.priority,
         lo.notes,
+        lo.specimen_id,
         lo.ordered_date as ordered_at,
         lo.collected_date as specimen_collected_at,
         lo.result_date as results_available_at,
