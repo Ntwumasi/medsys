@@ -187,7 +187,21 @@ import {
   getTestVolumeByType,
   getCriticalResultsStats,
   getDailyWorkload,
+  exportAnalyticsCSV,
 } from '../controllers/labAnalyticsController';
+import {
+  getPatientDocuments,
+  uploadDocument,
+  getDocument,
+  deleteDocument,
+} from '../controllers/documentsController';
+import {
+  getQCResults,
+  recordQCResult,
+  getLeveyJenningsData,
+  getQCSummary,
+  deleteQCResult,
+} from '../controllers/labQCController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -408,10 +422,24 @@ router.get('/lab/analytics/tat', authenticateToken, authorizeRoles('lab', 'admin
 router.get('/lab/analytics/volume-by-type', authenticateToken, authorizeRoles('lab', 'admin'), getTestVolumeByType);
 router.get('/lab/analytics/critical-stats', authenticateToken, authorizeRoles('lab', 'admin'), getCriticalResultsStats);
 router.get('/lab/analytics/workload', authenticateToken, authorizeRoles('lab', 'admin'), getDailyWorkload);
+router.get('/lab/analytics/export', authenticateToken, authorizeRoles('lab', 'admin'), exportAnalyticsCSV);
 
 // Critical Result Alerts routes
 router.get('/lab/critical-alerts', authenticateToken, authorizeRoles('lab', 'doctor'), getCriticalResultAlerts);
 router.post('/lab/critical-alerts', authenticateToken, authorizeRoles('lab'), createCriticalResultAlert);
 router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor'), acknowledgeCriticalResult);
+
+// Patient Documents routes
+router.get('/documents/patient/:patient_id', authenticateToken, getPatientDocuments);
+router.post('/documents', authenticateToken, uploadDocument);
+router.get('/documents/:id', authenticateToken, getDocument);
+router.delete('/documents/:id', authenticateToken, authorizeRoles('lab', 'doctor', 'admin'), deleteDocument);
+
+// Lab QC routes
+router.get('/lab/qc', authenticateToken, authorizeRoles('lab', 'admin'), getQCResults);
+router.get('/lab/qc/summary', authenticateToken, authorizeRoles('lab', 'admin'), getQCSummary);
+router.get('/lab/qc/levey-jennings/:test_code', authenticateToken, authorizeRoles('lab', 'admin'), getLeveyJenningsData);
+router.post('/lab/qc', authenticateToken, authorizeRoles('lab'), recordQCResult);
+router.delete('/lab/qc/:id', authenticateToken, authorizeRoles('lab', 'admin'), deleteQCResult);
 
 export default router;

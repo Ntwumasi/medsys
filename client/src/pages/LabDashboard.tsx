@@ -109,13 +109,46 @@ interface LabTest {
   is_active: boolean;
 }
 
+interface QCResult {
+  id: number;
+  test_code: string;
+  test_name: string;
+  control_level: string;
+  lot_number: string;
+  measured_value: number;
+  target_value: number;
+  standard_deviation: number;
+  unit: string;
+  performed_by_name: string;
+  performed_at: string;
+  is_within_limits: boolean;
+  notes: string;
+}
+
+interface LeveyJenningsData {
+  test_code: string;
+  target_value: number;
+  standard_deviation: number;
+  upper_limit_2sd: number;
+  lower_limit_2sd: number;
+  upper_limit_3sd: number;
+  lower_limit_3sd: number;
+  data_points: {
+    id: number;
+    value: number;
+    date: string;
+    control_level: string;
+    is_within_limits: boolean;
+  }[];
+}
+
 const LabDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { showToast } = useNotification();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
 
   // Loading states
@@ -123,7 +156,6 @@ const LabDashboard: React.FC = () => {
 
   // Orders state
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
-  const [resultInput, setResultInput] = useState<{ [key: number]: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -153,6 +185,30 @@ const LabDashboard: React.FC = () => {
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogCategory, setCatalogCategory] = useState('');
   const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
+
+  // QC state
+  const [qcResults, setQCResults] = useState<QCResult[]>([]);
+  const [qcSummary, setQCSummary] = useState<any>(null);
+  const [qcAvailableTests, setQCAvailableTests] = useState<{test_code: string, test_name: string}[]>([]);
+  const [selectedQCTest, setSelectedQCTest] = useState('');
+  const [leveyJenningsData, setLeveyJenningsData] = useState<LeveyJenningsData | null>(null);
+  const [showQCModal, setShowQCModal] = useState(false);
+  const [qcForm, setQCForm] = useState({
+    test_code: '',
+    test_name: '',
+    control_level: 'normal',
+    lot_number: '',
+    measured_value: '',
+    target_value: '',
+    standard_deviation: '',
+    unit: '',
+    notes: '',
+  });
+
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Patient quick view
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
@@ -315,6 +371,32 @@ const LabDashboard: React.FC = () => {
     }
   }, [catalogCategory, catalogSearch]);
 
+  // Fetch QC data
+  const fetchQCData = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/lab/qc/summary');
+      setQCSummary(response.data.summary || null);
+      setQCResults(response.data.recent_runs || []);
+      setQCAvailableTests(response.data.available_tests || []);
+    } catch (error) {
+      console.error('Error fetching QC data:', error);
+    }
+  }, []);
+
+  // Fetch Levey-Jennings chart data
+  const fetchLeveyJenningsData = useCallback(async (testCode: string) => {
+    if (!testCode) {
+      setLeveyJenningsData(null);
+      return;
+    }
+    try {
+      const response = await apiClient.get(`/lab/qc/levey-jennings/${testCode}?days=30`);
+      setLeveyJenningsData(response.data.chart_data || null);
+    } catch (error) {
+      console.error('Error fetching Levey-Jennings data:', error);
+    }
+  }, []);
+
   // Initial load and polling
   useEffect(() => {
     fetchLabOrders();
@@ -342,6 +424,18 @@ const LabDashboard: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'catalog') fetchTestCatalog();
   }, [activeTab, fetchTestCatalog]);
+
+  useEffect(() => {
+    if (activeTab === 'qc') {
+      fetchQCData();
+    }
+  }, [activeTab, fetchQCData]);
+
+  useEffect(() => {
+    if (selectedQCTest) {
+      fetchLeveyJenningsData(selectedQCTest);
+    }
+  }, [selectedQCTest, fetchLeveyJenningsData]);
 
   // Update order status
   const updateStatus = async (orderId: number, status: string, results?: string) => {
@@ -460,25 +554,144 @@ const LabDashboard: React.FC = () => {
     }
   };
 
-  // Submit structured result
+  // Submit structured result with optional file upload
   const submitStructuredResult = async () => {
     if (!selectedOrderForResult) return;
     try {
       const resultText = `${structuredResult.value} ${structuredResult.unit}${structuredResult.notes ? '\n' + structuredResult.notes : ''}`;
+
+      // First update the lab order
       await apiClient.put(`/orders/lab/${selectedOrderForResult.id}`, {
         status: 'completed',
         results: resultText,
+        specimen_id: structuredResult.specimen_id,
       });
-      showToast('Result submitted successfully', 'success');
+
+      // If file is selected, upload it
+      if (selectedFile) {
+        setUploadingFile(true);
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            await apiClient.post('/documents', {
+              patient_id: selectedOrderForResult.patient_id,
+              encounter_id: selectedOrderForResult.encounter_id,
+              lab_order_id: selectedOrderForResult.id,
+              document_type: 'lab_result',
+              document_name: selectedFile.name,
+              file_data: reader.result,
+              file_type: selectedFile.type,
+              description: `Lab result for ${selectedOrderForResult.test_name}`,
+            });
+            showToast('Result and document uploaded successfully', 'success');
+          } catch (uploadError) {
+            console.error('Error uploading document:', uploadError);
+            showToast('Result saved but document upload failed', 'warning');
+          } finally {
+            setUploadingFile(false);
+          }
+        };
+        reader.readAsDataURL(selectedFile);
+      } else {
+        showToast('Result submitted successfully', 'success');
+      }
+
       setShowResultModal(false);
       setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
       setSelectedOrderForResult(null);
       setTestReferenceRanges(null);
+      setSelectedFile(null);
       fetchLabOrders();
       fetchCriticalAlerts();
     } catch (error) {
       console.error('Error submitting result:', error);
       showToast('Failed to submit result', 'error');
+    }
+  };
+
+  // Record QC result
+  const recordQCResult = async () => {
+    try {
+      const response = await apiClient.post('/lab/qc', {
+        ...qcForm,
+        measured_value: parseFloat(qcForm.measured_value),
+        target_value: parseFloat(qcForm.target_value),
+        standard_deviation: parseFloat(qcForm.standard_deviation),
+      });
+
+      if (response.data.warning) {
+        showToast(response.data.warning, 'warning');
+      } else {
+        showToast('QC result recorded successfully', 'success');
+      }
+
+      setShowQCModal(false);
+      setQCForm({
+        test_code: '',
+        test_name: '',
+        control_level: 'normal',
+        lot_number: '',
+        measured_value: '',
+        target_value: '',
+        standard_deviation: '',
+        unit: '',
+        notes: '',
+      });
+      fetchQCData();
+      if (selectedQCTest === qcForm.test_code) {
+        fetchLeveyJenningsData(selectedQCTest);
+      }
+    } catch (error: any) {
+      console.error('Error recording QC result:', error);
+      showToast(error.response?.data?.error || 'Failed to record QC result', 'error');
+    }
+  };
+
+  // Export analytics
+  const exportAnalytics = async (reportType: string) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('report_type', reportType);
+      if (analyticsStartDate) params.append('start_date', analyticsStartDate);
+      if (analyticsEndDate) params.append('end_date', analyticsEndDate);
+
+      const response = await apiClient.get(`/lab/analytics/export?${params.toString()}`, {
+        responseType: 'blob',
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `lab_${reportType}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      showToast('Report exported successfully', 'success');
+    } catch (error) {
+      console.error('Error exporting analytics:', error);
+      showToast('Failed to export report', 'error');
+    }
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('File size must be less than 10MB', 'error');
+        return;
+      }
+      // Check file type
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Only PDF and image files are allowed', 'error');
+        return;
+      }
+      setSelectedFile(file);
     }
   };
 
@@ -759,6 +972,7 @@ const LabDashboard: React.FC = () => {
               { id: 'orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', count: labOrders.filter(o => o.status !== 'completed').length },
               { id: 'inventory', label: 'Inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', count: inventory.length },
               { id: 'catalog', label: 'Test Catalog', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
+              { id: 'qc', label: 'Quality Control', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
               { id: 'analytics', label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
               { id: 'alerts', label: 'Critical Alerts', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', count: criticalAlerts.filter(a => !a.is_acknowledged).length, alert: true },
             ].map((tab) => (
@@ -1341,6 +1555,26 @@ const LabDashboard: React.FC = () => {
                     Generate Report
                   </button>
                 </div>
+                <div className="flex-1" />
+                <div className="flex items-end gap-2">
+                  <div className="relative group">
+                    <button
+                      className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Export CSV
+                    </button>
+                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden group-hover:block z-10">
+                      <button onClick={() => exportAnalytics('summary')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Summary Report</button>
+                      <button onClick={() => exportAnalytics('tests')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">All Tests</button>
+                      <button onClick={() => exportAnalytics('tat')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">TAT Report</button>
+                      <button onClick={() => exportAnalytics('volume')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Volume Report</button>
+                      <button onClick={() => exportAnalytics('critical')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Critical Results</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1506,6 +1740,163 @@ const LabDashboard: React.FC = () => {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quality Control Tab */}
+        {activeTab === 'qc' && (
+          <div>
+            {/* QC Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+                <div className="text-xs font-medium text-gray-500 uppercase">Total QC Runs</div>
+                <div className="text-2xl font-bold text-gray-700 mt-1">{qcSummary?.total_qc_runs || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+                <div className="text-xs font-medium text-gray-500 uppercase">Within Limits</div>
+                <div className="text-2xl font-bold text-emerald-600 mt-1">{qcSummary?.within_limits || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+                <div className="text-xs font-medium text-gray-500 uppercase">Out of Limits</div>
+                <div className="text-2xl font-bold text-red-600 mt-1">{qcSummary?.out_of_limits || 0}</div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+                <div className="text-xs font-medium text-gray-500 uppercase">Tests with QC</div>
+                <div className="text-2xl font-bold text-blue-600 mt-1">{qcSummary?.tests_with_qc || 0}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Levey-Jennings Chart */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">Levey-Jennings Chart</h3>
+                  <select
+                    value={selectedQCTest}
+                    onChange={(e) => setSelectedQCTest(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Test</option>
+                    {qcAvailableTests.map(test => (
+                      <option key={test.test_code} value={test.test_code}>
+                        {test.test_code} - {test.test_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {leveyJenningsData ? (
+                  <div className="relative h-64 bg-gray-50 rounded-lg p-4">
+                    {/* Simple Levey-Jennings visualization */}
+                    <div className="h-full flex flex-col justify-between relative">
+                      {/* Y-axis labels */}
+                      <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between text-xs text-gray-500">
+                        <span>+3SD ({leveyJenningsData.upper_limit_3sd.toFixed(1)})</span>
+                        <span>+2SD ({leveyJenningsData.upper_limit_2sd.toFixed(1)})</span>
+                        <span>Target ({leveyJenningsData.target_value.toFixed(1)})</span>
+                        <span>-2SD ({leveyJenningsData.lower_limit_2sd.toFixed(1)})</span>
+                        <span>-3SD ({leveyJenningsData.lower_limit_3sd.toFixed(1)})</span>
+                      </div>
+
+                      {/* Chart area */}
+                      <div className="ml-20 h-full relative border border-gray-200 bg-white rounded">
+                        {/* Grid lines */}
+                        <div className="absolute inset-0 flex flex-col justify-between">
+                          <div className="border-b border-red-300 border-dashed" style={{ height: '10%' }}></div>
+                          <div className="border-b border-orange-300 border-dashed" style={{ height: '20%' }}></div>
+                          <div className="border-b border-green-500" style={{ height: '40%' }}></div>
+                          <div className="border-b border-orange-300 border-dashed" style={{ height: '20%' }}></div>
+                          <div style={{ height: '10%' }}></div>
+                        </div>
+
+                        {/* Data points */}
+                        <div className="absolute inset-0 flex items-end justify-around px-2">
+                          {leveyJenningsData.data_points.slice(-20).map((point) => {
+                            const range = leveyJenningsData.upper_limit_3sd - leveyJenningsData.lower_limit_3sd;
+                            const percentFromBottom = ((point.value - leveyJenningsData.lower_limit_3sd) / range) * 100;
+                            const clampedPercent = Math.max(5, Math.min(95, percentFromBottom));
+
+                            return (
+                              <div
+                                key={point.id}
+                                className="relative group"
+                                style={{ height: `${clampedPercent}%` }}
+                              >
+                                <div
+                                  className={`w-3 h-3 rounded-full ${point.is_within_limits ? 'bg-blue-600' : 'bg-red-600'}`}
+                                />
+                                {/* Tooltip */}
+                                <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
+                                  {point.value.toFixed(2)} - {new Date(point.date).toLocaleDateString()}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex gap-4 mt-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-blue-600"></div>
+                        <span>Within limits</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                        <span>Out of limits</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-gray-500">
+                    Select a test to view Levey-Jennings chart
+                  </div>
+                )}
+              </div>
+
+              {/* Record QC Result */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">Record QC Result</h3>
+                  <button
+                    onClick={() => setShowQCModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    + New QC Entry
+                  </button>
+                </div>
+
+                {/* Recent QC Results */}
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {qcResults.slice(0, 10).map((result) => (
+                    <div
+                      key={result.id}
+                      className={`p-3 rounded-lg border ${result.is_within_limits ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-mono font-bold text-blue-600">{result.test_code}</span>
+                          <span className="ml-2 text-gray-600">{result.control_level}</span>
+                        </div>
+                        <span className={`text-sm font-bold ${result.is_within_limits ? 'text-green-600' : 'text-red-600'}`}>
+                          {result.measured_value} {result.unit}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Target: {result.target_value} | SD: {result.standard_deviation} | {new Date(result.performed_at).toLocaleString()}
+                      </div>
+                      {result.performed_by_name && (
+                        <div className="text-xs text-gray-400">By: {result.performed_by_name}</div>
+                      )}
+                    </div>
+                  ))}
+                  {qcResults.length === 0 && (
+                    <div className="text-center text-gray-500 py-4">No QC results recorded</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -2040,15 +2431,53 @@ const LabDashboard: React.FC = () => {
                 </div>
               )}
 
-              <div>
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes/Comments</label>
                 <textarea
                   value={structuredResult.notes}
                   onChange={(e) => setStructuredResult({ ...structuredResult, notes: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows={3}
+                  rows={2}
                   placeholder="Additional observations, methodology notes, etc."
                 />
+              </div>
+
+              {/* File Upload Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Lab Result Document (Optional)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.gif"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Choose File
+                  </button>
+                  {selectedFile && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-emerald-600">{selectedFile.name}</span>
+                      <button
+                        onClick={() => setSelectedFile(null)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">PDF or image files up to 10MB. This will be attached to the patient's profile.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
@@ -2058,6 +2487,7 @@ const LabDashboard: React.FC = () => {
                   setSelectedOrderForResult(null);
                   setTestReferenceRanges(null);
                   setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
+                  setSelectedFile(null);
                 }}
                 className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -2065,10 +2495,16 @@ const LabDashboard: React.FC = () => {
               </button>
               <button
                 onClick={submitStructuredResult}
-                disabled={!structuredResult.value}
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!structuredResult.value || uploadingFile}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Submit Result
+                {uploadingFile && (
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {uploadingFile ? 'Uploading...' : 'Complete & Submit Results'}
               </button>
             </div>
           </div>
@@ -2148,6 +2584,161 @@ const LabDashboard: React.FC = () => {
                 </div>
                 <p className="mt-6 text-xs">Report generated: {new Date().toLocaleString()}</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QC Entry Modal */}
+      {showQCModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Record QC Result</h2>
+              <p className="text-sm text-gray-600">Enter quality control measurement data</p>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Code *</label>
+                  <input
+                    type="text"
+                    value={qcForm.test_code}
+                    onChange={(e) => setQCForm({ ...qcForm, test_code: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 font-mono"
+                    placeholder="e.g., GLU, HB"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Name</label>
+                  <input
+                    type="text"
+                    value={qcForm.test_name}
+                    onChange={(e) => setQCForm({ ...qcForm, test_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="e.g., Blood Glucose"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Control Level *</label>
+                  <select
+                    value={qcForm.control_level}
+                    onChange={(e) => setQCForm({ ...qcForm, control_level: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="low">Low Control</option>
+                    <option value="normal">Normal Control</option>
+                    <option value="high">High Control</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot Number</label>
+                  <input
+                    type="text"
+                    value={qcForm.lot_number}
+                    onChange={(e) => setQCForm({ ...qcForm, lot_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="Control lot #"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Measured Value *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={qcForm.measured_value}
+                    onChange={(e) => setQCForm({ ...qcForm, measured_value: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="Your reading"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={qcForm.unit}
+                    onChange={(e) => setQCForm({ ...qcForm, unit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="e.g., mg/dL"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Value *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={qcForm.target_value}
+                    onChange={(e) => setQCForm({ ...qcForm, target_value: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="Expected value"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Standard Deviation *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={qcForm.standard_deviation}
+                    onChange={(e) => setQCForm({ ...qcForm, standard_deviation: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    placeholder="SD"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={qcForm.notes}
+                    onChange={(e) => setQCForm({ ...qcForm, notes: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    rows={2}
+                    placeholder="Additional notes, corrective actions, etc."
+                  />
+                </div>
+              </div>
+
+              {/* Preview calculation */}
+              {qcForm.measured_value && qcForm.target_value && qcForm.standard_deviation && (
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                  <div className="text-sm">
+                    <span className="font-medium">Deviation: </span>
+                    {Math.abs(parseFloat(qcForm.measured_value) - parseFloat(qcForm.target_value)).toFixed(2)}
+                    <span className="ml-4 font-medium">Status: </span>
+                    {Math.abs(parseFloat(qcForm.measured_value) - parseFloat(qcForm.target_value)) <= 2 * parseFloat(qcForm.standard_deviation) ? (
+                      <span className="text-emerald-600 font-bold">Within 2SD (OK)</span>
+                    ) : (
+                      <span className="text-red-600 font-bold">Outside 2SD (OUT OF CONTROL)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowQCModal(false);
+                  setQCForm({
+                    test_code: '',
+                    test_name: '',
+                    control_level: 'normal',
+                    lot_number: '',
+                    measured_value: '',
+                    target_value: '',
+                    standard_deviation: '',
+                    unit: '',
+                    notes: '',
+                  });
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={recordQCResult}
+                disabled={!qcForm.test_code || !qcForm.measured_value || !qcForm.target_value || !qcForm.standard_deviation}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Record QC Result
+              </button>
             </div>
           </div>
         </div>
