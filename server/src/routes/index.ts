@@ -79,6 +79,9 @@ import {
   updatePharmacyOrder,
   getAllEncounterOrders,
   getDoctorAlerts,
+  getCriticalResultAlerts,
+  acknowledgeCriticalResult,
+  createCriticalResultAlert,
 } from '../controllers/ordersController';
 import {
   getCorporateClients,
@@ -161,6 +164,30 @@ import {
   getRevenueSummary,
   getPatientDrugHistory,
 } from '../controllers/inventoryController';
+import {
+  getLabInventory,
+  getLabInventoryItem,
+  createLabInventoryItem,
+  updateLabInventoryItem,
+  adjustLabStock,
+  useLabSupply,
+  getLabInventoryCategories,
+  getLowLabStockAlerts,
+  getExpiringLabSupplies,
+  getEquipmentCalibrationDue,
+  recordCalibration,
+  getLabTestCatalog,
+  createLabTest,
+  updateLabTest,
+} from '../controllers/labInventoryController';
+import {
+  getLabAnalytics,
+  getTestsPerPeriod,
+  getTurnaroundTimeMetrics,
+  getTestVolumeByType,
+  getCriticalResultsStats,
+  getDailyWorkload,
+} from '../controllers/labAnalyticsController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -355,5 +382,36 @@ router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 
 // Pharmacy Revenue & Drug History routes
 router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'admin'), getRevenueSummary);
 router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'doctor', 'nurse'), getPatientDrugHistory);
+
+// Lab Inventory routes
+router.get('/lab-inventory', authenticateToken, authorizeRoles('lab', 'admin'), getLabInventory);
+router.get('/lab-inventory/categories', authenticateToken, authorizeRoles('lab', 'admin'), getLabInventoryCategories);
+router.get('/lab-inventory/low-stock', authenticateToken, authorizeRoles('lab', 'admin'), getLowLabStockAlerts);
+router.get('/lab-inventory/expiring', authenticateToken, authorizeRoles('lab', 'admin'), getExpiringLabSupplies);
+router.get('/lab-inventory/calibration-due', authenticateToken, authorizeRoles('lab', 'admin'), getEquipmentCalibrationDue);
+router.get('/lab-inventory/:id', authenticateToken, authorizeRoles('lab', 'admin'), getLabInventoryItem);
+router.post('/lab-inventory', authenticateToken, authorizeRoles('lab', 'admin'), createLabInventoryItem);
+router.put('/lab-inventory/:id', authenticateToken, authorizeRoles('lab', 'admin'), updateLabInventoryItem);
+router.post('/lab-inventory/:id/adjust', authenticateToken, authorizeRoles('lab', 'admin'), adjustLabStock);
+router.post('/lab-inventory/:id/calibrate', authenticateToken, authorizeRoles('lab', 'admin'), recordCalibration);
+router.post('/lab-inventory/use', authenticateToken, authorizeRoles('lab'), useLabSupply);
+
+// Lab Test Catalog routes
+router.get('/lab/test-catalog', authenticateToken, getLabTestCatalog);
+router.post('/lab/test-catalog', authenticateToken, authorizeRoles('lab', 'admin'), createLabTest);
+router.put('/lab/test-catalog/:id', authenticateToken, authorizeRoles('lab', 'admin'), updateLabTest);
+
+// Lab Analytics routes
+router.get('/lab/analytics', authenticateToken, authorizeRoles('lab', 'admin'), getLabAnalytics);
+router.get('/lab/analytics/tests-per-period', authenticateToken, authorizeRoles('lab', 'admin'), getTestsPerPeriod);
+router.get('/lab/analytics/tat', authenticateToken, authorizeRoles('lab', 'admin'), getTurnaroundTimeMetrics);
+router.get('/lab/analytics/volume-by-type', authenticateToken, authorizeRoles('lab', 'admin'), getTestVolumeByType);
+router.get('/lab/analytics/critical-stats', authenticateToken, authorizeRoles('lab', 'admin'), getCriticalResultsStats);
+router.get('/lab/analytics/workload', authenticateToken, authorizeRoles('lab', 'admin'), getDailyWorkload);
+
+// Critical Result Alerts routes
+router.get('/lab/critical-alerts', authenticateToken, authorizeRoles('lab', 'doctor'), getCriticalResultAlerts);
+router.post('/lab/critical-alerts', authenticateToken, authorizeRoles('lab'), createCriticalResultAlert);
+router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor'), acknowledgeCriticalResult);
 
 export default router;

@@ -41,8 +41,27 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
     const { patient_id, encounter_id, status } = req.query;
 
     let query = `
-      SELECT lo.*,
+      SELECT lo.id,
+        lo.patient_id,
+        lo.encounter_id,
+        lo.ordering_provider,
+        lo.test_name,
+        lo.test_code,
+        lo.priority,
+        lo.notes,
         lo.ordered_date as ordered_at,
+        lo.collected_date as specimen_collected_at,
+        lo.result_date as results_available_at,
+        lo.result_date as completed_at,
+        lo.result as results,
+        lo.created_at,
+        lo.updated_at,
+        CASE
+          WHEN lo.status = 'ordered' THEN 'pending'
+          WHEN lo.status = 'collected' THEN 'pending'
+          WHEN lo.status = 'in-progress' THEN 'in_progress'
+          ELSE lo.status
+        END as status,
         u.first_name || ' ' || u.last_name as ordering_provider_name,
         e.encounter_number,
         p.patient_number,
@@ -70,9 +89,17 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
     }
 
     if (status) {
-      query += ` AND lo.status = $${paramCount}`;
-      params.push(status);
-      paramCount++;
+      // Map frontend status to database status for filtering
+      let dbStatus = status;
+      if (status === 'pending') {
+        query += ` AND lo.status IN ('ordered', 'collected')`;
+      } else if (status === 'in_progress') {
+        query += ` AND lo.status = 'in-progress'`;
+      } else {
+        query += ` AND lo.status = $${paramCount}`;
+        params.push(dbStatus);
+        paramCount++;
+      }
     }
 
     query += ` ORDER BY lo.ordered_date DESC`;
@@ -91,7 +118,37 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
+
+    // Map frontend status values to database status values
+    if (updateData.status) {
+      const statusMap: { [key: string]: string } = {
+        'pending': 'ordered',
+        'in_progress': 'in-progress',
+        'completed': 'completed',
+        'cancelled': 'cancelled',
+      };
+      updateData.status = statusMap[updateData.status] || updateData.status;
+    }
+
+    // Map frontend field names to database field names
+    if (updateData.specimen_collected_at !== undefined) {
+      updateData.collected_date = updateData.specimen_collected_at;
+      delete updateData.specimen_collected_at;
+    }
+    if (updateData.results_available_at !== undefined) {
+      updateData.result_date = updateData.results_available_at;
+      delete updateData.results_available_at;
+    }
+    if (updateData.results !== undefined) {
+      updateData.result = updateData.results;
+      delete updateData.results;
+    }
+
+    // If completing, set result_date to now
+    if (updateData.status === 'completed' && !updateData.result_date) {
+      updateData.result_date = new Date().toISOString();
+    }
 
     const fields = Object.keys(updateData)
       .map((key, index) => `${key} = $${index + 2}`)
@@ -382,7 +439,29 @@ export const getAllEncounterOrders = async (req: Request, res: Response): Promis
 
     const [labOrders, imagingOrders, pharmacyOrders] = await Promise.all([
       pool.query(
-        `SELECT lo.*, u.first_name || ' ' || u.last_name as ordering_provider_name
+        `SELECT lo.id,
+          lo.patient_id,
+          lo.encounter_id,
+          lo.ordering_provider,
+          lo.test_name,
+          lo.test_code,
+          lo.priority,
+          lo.notes,
+          lo.ordered_date,
+          lo.ordered_date as ordered_at,
+          lo.collected_date as specimen_collected_at,
+          lo.result_date as results_available_at,
+          lo.result_date as completed_at,
+          lo.result as results,
+          lo.created_at,
+          lo.updated_at,
+          CASE
+            WHEN lo.status = 'ordered' THEN 'pending'
+            WHEN lo.status = 'collected' THEN 'pending'
+            WHEN lo.status = 'in-progress' THEN 'in_progress'
+            ELSE lo.status
+          END as status,
+          u.first_name || ' ' || u.last_name as ordering_provider_name
          FROM lab_orders lo
          LEFT JOIN users u ON lo.ordering_provider = u.id
          WHERE lo.encounter_id = $1
@@ -483,6 +562,131 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('Get doctor alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get critical result alerts
+export const getCriticalResultAlerts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { unacknowledged_only, doctor_id } = req.query;
+    const authReq = req as any;
+
+    let query = `
+      SELECT
+        cra.*,
+        lo.test_name,
+        lo.test_code,
+        lo.priority,
+        lo.result as result_text,
+        lo.patient_id,
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        p.patient_number,
+        u_provider.first_name || ' ' || u_provider.last_name as ordering_provider_name,
+        u_ack.first_name || ' ' || u_ack.last_name as acknowledged_by_name,
+        e.encounter_number,
+        e.room_number
+      FROM critical_result_alerts cra
+      JOIN lab_orders lo ON cra.lab_order_id = lo.id
+      JOIN patients p ON lo.patient_id = p.id
+      JOIN users u_patient ON p.user_id = u_patient.id
+      JOIN users u_provider ON cra.ordering_provider_id = u_provider.id
+      LEFT JOIN users u_ack ON cra.acknowledged_by = u_ack.id
+      LEFT JOIN encounters e ON lo.encounter_id = e.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (unacknowledged_only === 'true') {
+      query += ` AND cra.is_acknowledged = false`;
+    }
+
+    if (doctor_id) {
+      query += ` AND cra.ordering_provider_id = $${paramIndex}`;
+      params.push(doctor_id);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY cra.created_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      alerts: result.rows,
+      total: result.rows.length,
+      unacknowledged: result.rows.filter((a: any) => !a.is_acknowledged).length
+    });
+  } catch (error) {
+    console.error('Get critical result alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Acknowledge a critical result alert
+export const acknowledgeCriticalResult = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+
+    const result = await pool.query(
+      `UPDATE critical_result_alerts SET
+        is_acknowledged = true,
+        acknowledged_by = $1,
+        acknowledged_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [userId, id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Critical alert not found' });
+      return;
+    }
+
+    res.json({
+      message: 'Critical result acknowledged successfully',
+      alert: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Acknowledge critical result error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Create a critical result alert (called when lab enters critical result)
+export const createCriticalResultAlert = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { lab_order_id, alert_type, result_value } = req.body;
+
+    // Get the ordering provider from the lab order
+    const orderResult = await pool.query(
+      `SELECT ordering_provider FROM lab_orders WHERE id = $1`,
+      [lab_order_id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+
+    const ordering_provider_id = orderResult.rows[0].ordering_provider;
+
+    const result = await pool.query(
+      `INSERT INTO critical_result_alerts
+       (lab_order_id, ordering_provider_id, alert_type, result_value)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [lab_order_id, ordering_provider_id, alert_type, result_value]
+    );
+
+    res.status(201).json({
+      message: 'Critical result alert created successfully',
+      alert: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Create critical result alert error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -1,23 +1,53 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
+import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+
+interface LabResult {
+  id: number;
+  test_name: string;
+  test_code?: string;
+  priority: string;
+  status: string;
+  ordered_at: string;
+  results_available_at?: string;
+  results?: string;
+  ordering_provider_name: string;
+  encounter_number: string;
+  notes?: string;
+}
 
 const PatientDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs'>('overview');
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
+  const [labResults, setLabResults] = useState<LabResult[]>([]);
+  const [labsLoading, setLabsLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadPatientSummary(parseInt(id));
+      loadLabResults(parseInt(id));
     }
   }, [id]);
+
+  const loadLabResults = async (patientId: number) => {
+    setLabsLoading(true);
+    try {
+      const response = await apiClient.get(`/orders/lab?patient_id=${patientId}`);
+      setLabResults(response.data.lab_orders || []);
+    } catch (error) {
+      console.error('Error loading lab results:', error);
+    } finally {
+      setLabsLoading(false);
+    }
+  };
 
   const loadPatientSummary = async (patientId: number) => {
     try {
@@ -305,6 +335,22 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Vital Signs History
               </button>
+              <button
+                onClick={() => setActiveTab('labs')}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  activeTab === 'labs'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                Lab Results
+                {labResults.length > 0 && (
+                  <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{labResults.length}</span>
+                )}
+              </button>
             </nav>
           </div>
 
@@ -564,6 +610,110 @@ const PatientDetails: React.FC = () => {
                             <strong>Reason:</strong> {appointment.reason}
                           </p>
                         )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'labs' && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Lab Results History</h2>
+                {labsLoading ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="mt-2 text-gray-500">Loading lab results...</p>
+                  </div>
+                ) : labResults.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                    <p className="text-lg font-medium">No lab results found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {labResults.map((lab) => (
+                      <div key={lab.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${
+                        lab.status === 'completed' ? 'border-emerald-200' : 'border-amber-200'
+                      }`}>
+                        <div className={`px-6 py-3 ${
+                          lab.status === 'completed'
+                            ? 'bg-gradient-to-r from-emerald-50 to-green-50'
+                            : 'bg-gradient-to-r from-amber-50 to-yellow-50'
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-bold text-gray-900">{lab.test_name}</h3>
+                              {lab.test_code && (
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                  {lab.test_code}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                                lab.priority === 'stat'
+                                  ? 'bg-red-100 text-red-700 border border-red-300'
+                                  : lab.priority === 'urgent'
+                                    ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                                    : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {lab.priority.toUpperCase()}
+                              </span>
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                                lab.status === 'completed'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : lab.status === 'in_progress'
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {lab.status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-6 py-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                            <div>
+                              <span className="text-gray-500">Ordered:</span>
+                              <span className="ml-2 font-medium text-gray-900">
+                                {format(new Date(lab.ordered_at), 'MMM d, yyyy h:mm a')}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Encounter:</span>
+                              <span className="ml-2 font-medium text-gray-900">{lab.encounter_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Provider:</span>
+                              <span className="ml-2 font-medium text-gray-900">{lab.ordering_provider_name}</span>
+                            </div>
+                            {lab.results_available_at && (
+                              <div>
+                                <span className="text-gray-500">Results:</span>
+                                <span className="ml-2 font-medium text-gray-900">
+                                  {format(new Date(lab.results_available_at), 'MMM d, yyyy h:mm a')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+
+                          {lab.results && (
+                            <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                              <h4 className="text-sm font-bold text-emerald-800 mb-2">Results:</h4>
+                              <p className="text-gray-900 whitespace-pre-wrap">{lab.results}</p>
+                            </div>
+                          )}
+
+                          {lab.notes && (
+                            <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                              <span className="text-sm font-medium text-gray-600">Notes:</span>
+                              <p className="text-sm text-gray-800 mt-1">{lab.notes}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
