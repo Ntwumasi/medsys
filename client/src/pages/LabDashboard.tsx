@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import apiClient from '../api/client';
@@ -23,6 +23,9 @@ interface LabOrder {
   results_available_at?: string;
   results?: string;
   notes?: string;
+  specimen_id?: string;
+  specimen_type?: string;
+  rejection_reason?: string;
 }
 
 interface LabInventoryItem {
@@ -43,6 +46,7 @@ interface LabInventoryItem {
   is_expiring_soon: boolean;
   is_calibration_due?: boolean;
   next_calibration_date?: string;
+  last_calibration_date?: string;
 }
 
 interface LabInventoryStats {
@@ -89,12 +93,29 @@ interface CriticalResultAlert {
   room_number?: string;
 }
 
+interface LabTest {
+  id: number;
+  test_code: string;
+  test_name: string;
+  category: string;
+  specimen_type: string;
+  turnaround_time_hours: number;
+  base_price: number;
+  critical_low: number | null;
+  critical_high: number | null;
+  normal_range_low: number | null;
+  normal_range_high: number | null;
+  unit: string;
+  is_active: boolean;
+}
+
 const LabDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const { showToast } = useNotification();
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
 
   // Loading states
@@ -108,6 +129,7 @@ const LabDashboard: React.FC = () => {
   const [endDate, setEndDate] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const pendingStatuses = ['pending', 'in_progress'];
+  const [selectedOrders, setSelectedOrders] = useState<number[]>([]);
 
   // Inventory state
   const [inventory, setInventory] = useState<LabInventoryItem[]>([]);
@@ -126,14 +148,87 @@ const LabDashboard: React.FC = () => {
   // Alerts state
   const [criticalAlerts, setCriticalAlerts] = useState<CriticalResultAlert[]>([]);
 
+  // Test Catalog state
+  const [testCatalog, setTestCatalog] = useState<LabTest[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogCategory, setCatalogCategory] = useState('');
+  const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
+
   // Patient quick view
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [showPatientQuickView, setShowPatientQuickView] = useState(false);
 
-  // Fetch lab orders
+  // Modal states
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
+  const [showCalibrationModal, setShowCalibrationModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<LabInventoryItem | null>(null);
+  const [editingTest, setEditingTest] = useState<LabTest | null>(null);
+  const [selectedOrderForResult, setSelectedOrderForResult] = useState<LabOrder | null>(null);
+  const [selectedOrderForPrint, setSelectedOrderForPrint] = useState<LabOrder | null>(null);
+  const [testReferenceRanges, setTestReferenceRanges] = useState<LabTest | null>(null);
+
+  // Form states
+  const [inventoryForm, setInventoryForm] = useState({
+    item_name: '',
+    item_type: 'reagent',
+    category: '',
+    unit: '',
+    quantity_on_hand: 0,
+    reorder_level: 10,
+    unit_cost: 0,
+    expiry_date: '',
+    lot_number: '',
+    supplier: '',
+    storage_location: 'Main Lab',
+    storage_conditions: 'room_temp',
+  });
+
+  const [adjustStockForm, setAdjustStockForm] = useState({
+    adjustment: 0,
+    transaction_type: 'adjustment',
+    notes: '',
+  });
+
+  const [calibrationForm, setCalibrationForm] = useState({
+    next_calibration_date: '',
+    notes: '',
+  });
+
+  const [testForm, setTestForm] = useState({
+    test_code: '',
+    test_name: '',
+    category: '',
+    specimen_type: 'blood',
+    turnaround_time_hours: 24,
+    base_price: 0,
+    critical_low: '',
+    critical_high: '',
+    normal_range_low: '',
+    normal_range_high: '',
+    unit: '',
+  });
+
+  const [structuredResult, setStructuredResult] = useState({
+    value: '',
+    unit: '',
+    notes: '',
+    specimen_id: '',
+  });
+
+  // Fetch lab orders with filters
   const fetchLabOrders = useCallback(async () => {
     try {
-      const response = await apiClient.get('/orders/lab');
+      const params = new URLSearchParams();
+      if (startDate) params.append('start_date', startDate);
+      if (endDate) params.append('end_date', endDate);
+      if (priorityFilter) params.append('priority', priorityFilter);
+
+      const url = `/orders/lab${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await apiClient.get(url);
       const orders = response.data.lab_orders || [];
       const sortedOrders = orders.sort((a: LabOrder, b: LabOrder) => {
         const priorityOrder = { stat: 0, urgent: 1, routine: 2 };
@@ -145,7 +240,7 @@ const LabDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [startDate, endDate, priorityFilter]);
 
   // Fetch inventory
   const fetchInventory = useCallback(async () => {
@@ -193,7 +288,6 @@ const LabDashboard: React.FC = () => {
       const response = await apiClient.get('/lab/critical-alerts');
       setCriticalAlerts(response.data.alerts || []);
 
-      // Show toast for new unacknowledged alerts
       const unackCount = response.data.unacknowledged || 0;
       if (unackCount > 0) {
         showToast(`${unackCount} critical result(s) pending acknowledgment`, 'warning');
@@ -203,12 +297,31 @@ const LabDashboard: React.FC = () => {
     }
   }, [showToast]);
 
+  // Fetch test catalog
+  const fetchTestCatalog = useCallback(async () => {
+    try {
+      let url = '/lab/test-catalog';
+      const params = new URLSearchParams();
+      if (catalogCategory) params.append('category', catalogCategory);
+      if (catalogSearch) params.append('search', catalogSearch);
+      if (params.toString()) url += `?${params.toString()}`;
+
+      const response = await apiClient.get(url);
+      setTestCatalog(response.data.tests || []);
+      const cats = (response.data.categories || []).map((c: any) => c.category);
+      setCatalogCategories(cats);
+    } catch (error) {
+      console.error('Error fetching test catalog:', error);
+    }
+  }, [catalogCategory, catalogSearch]);
+
   // Initial load and polling
   useEffect(() => {
     fetchLabOrders();
+    fetchAnalytics(); // Load analytics for stats cards
     const interval = setInterval(fetchLabOrders, 30000);
     return () => clearInterval(interval);
-  }, [fetchLabOrders]);
+  }, [fetchLabOrders, fetchAnalytics]);
 
   useEffect(() => {
     if (activeTab === 'inventory') fetchInventory();
@@ -220,12 +333,15 @@ const LabDashboard: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'alerts') fetchCriticalAlerts();
-    // Also poll alerts every 30 seconds
     const interval = setInterval(() => {
       if (activeTab === 'alerts') fetchCriticalAlerts();
     }, 30000);
     return () => clearInterval(interval);
   }, [activeTab, fetchCriticalAlerts]);
+
+  useEffect(() => {
+    if (activeTab === 'catalog') fetchTestCatalog();
+  }, [activeTab, fetchTestCatalog]);
 
   // Update order status
   const updateStatus = async (orderId: number, status: string, results?: string) => {
@@ -236,9 +352,25 @@ const LabDashboard: React.FC = () => {
       });
       showToast('Order updated successfully', 'success');
       fetchLabOrders();
+      fetchCriticalAlerts(); // Refresh alerts in case critical result was created
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('Failed to update order', 'error');
+    }
+  };
+
+  // Batch update orders
+  const batchUpdateOrders = async (status: string) => {
+    try {
+      for (const orderId of selectedOrders) {
+        await apiClient.put(`/orders/lab/${orderId}`, { status });
+      }
+      showToast(`${selectedOrders.length} orders updated successfully`, 'success');
+      setSelectedOrders([]);
+      fetchLabOrders();
+    } catch (error) {
+      console.error('Error batch updating:', error);
+      showToast('Failed to update some orders', 'error');
     }
   };
 
@@ -254,6 +386,194 @@ const LabDashboard: React.FC = () => {
     }
   };
 
+  // Inventory CRUD operations
+  const saveInventoryItem = async () => {
+    try {
+      if (editingItem) {
+        await apiClient.put(`/lab-inventory/${editingItem.id}`, inventoryForm);
+        showToast('Item updated successfully', 'success');
+      } else {
+        await apiClient.post('/lab-inventory', inventoryForm);
+        showToast('Item created successfully', 'success');
+      }
+      setShowInventoryModal(false);
+      resetInventoryForm();
+      fetchInventory();
+    } catch (error) {
+      console.error('Error saving inventory item:', error);
+      showToast('Failed to save item', 'error');
+    }
+  };
+
+  const adjustStock = async () => {
+    if (!editingItem) return;
+    try {
+      await apiClient.post(`/lab-inventory/${editingItem.id}/adjust`, adjustStockForm);
+      showToast('Stock adjusted successfully', 'success');
+      setShowAdjustStockModal(false);
+      setAdjustStockForm({ adjustment: 0, transaction_type: 'adjustment', notes: '' });
+      fetchInventory();
+    } catch (error: any) {
+      console.error('Error adjusting stock:', error);
+      showToast(error.response?.data?.error || 'Failed to adjust stock', 'error');
+    }
+  };
+
+  const recordCalibration = async () => {
+    if (!editingItem) return;
+    try {
+      await apiClient.post(`/lab-inventory/${editingItem.id}/calibration`, calibrationForm);
+      showToast('Calibration recorded successfully', 'success');
+      setShowCalibrationModal(false);
+      setCalibrationForm({ next_calibration_date: '', notes: '' });
+      fetchInventory();
+    } catch (error) {
+      console.error('Error recording calibration:', error);
+      showToast('Failed to record calibration', 'error');
+    }
+  };
+
+  // Test catalog operations
+  const saveTest = async () => {
+    try {
+      const data = {
+        ...testForm,
+        critical_low: testForm.critical_low ? parseFloat(testForm.critical_low) : null,
+        critical_high: testForm.critical_high ? parseFloat(testForm.critical_high) : null,
+        normal_range_low: testForm.normal_range_low ? parseFloat(testForm.normal_range_low) : null,
+        normal_range_high: testForm.normal_range_high ? parseFloat(testForm.normal_range_high) : null,
+      };
+
+      if (editingTest) {
+        await apiClient.put(`/lab/test-catalog/${editingTest.id}`, data);
+        showToast('Test updated successfully', 'success');
+      } else {
+        await apiClient.post('/lab/test-catalog', data);
+        showToast('Test created successfully', 'success');
+      }
+      setShowTestModal(false);
+      resetTestForm();
+      fetchTestCatalog();
+    } catch (error: any) {
+      console.error('Error saving test:', error);
+      showToast(error.response?.data?.error || 'Failed to save test', 'error');
+    }
+  };
+
+  // Submit structured result
+  const submitStructuredResult = async () => {
+    if (!selectedOrderForResult) return;
+    try {
+      const resultText = `${structuredResult.value} ${structuredResult.unit}${structuredResult.notes ? '\n' + structuredResult.notes : ''}`;
+      await apiClient.put(`/orders/lab/${selectedOrderForResult.id}`, {
+        status: 'completed',
+        results: resultText,
+      });
+      showToast('Result submitted successfully', 'success');
+      setShowResultModal(false);
+      setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
+      setSelectedOrderForResult(null);
+      setTestReferenceRanges(null);
+      fetchLabOrders();
+      fetchCriticalAlerts();
+    } catch (error) {
+      console.error('Error submitting result:', error);
+      showToast('Failed to submit result', 'error');
+    }
+  };
+
+  // Open result modal with reference ranges
+  const openResultModal = async (order: LabOrder) => {
+    setSelectedOrderForResult(order);
+    setStructuredResult({ value: '', unit: '', notes: '', specimen_id: order.specimen_id || '' });
+
+    // Fetch reference ranges for this test
+    try {
+      const response = await apiClient.get(`/lab/test-catalog?search=${encodeURIComponent(order.test_name)}`);
+      if (response.data.tests && response.data.tests.length > 0) {
+        setTestReferenceRanges(response.data.tests[0]);
+        setStructuredResult(prev => ({ ...prev, unit: response.data.tests[0].unit || '' }));
+      }
+    } catch (error) {
+      console.error('Error fetching reference ranges:', error);
+    }
+
+    setShowResultModal(true);
+  };
+
+  // Helper functions
+  const resetInventoryForm = () => {
+    setInventoryForm({
+      item_name: '',
+      item_type: 'reagent',
+      category: '',
+      unit: '',
+      quantity_on_hand: 0,
+      reorder_level: 10,
+      unit_cost: 0,
+      expiry_date: '',
+      lot_number: '',
+      supplier: '',
+      storage_location: 'Main Lab',
+      storage_conditions: 'room_temp',
+    });
+    setEditingItem(null);
+  };
+
+  const resetTestForm = () => {
+    setTestForm({
+      test_code: '',
+      test_name: '',
+      category: '',
+      specimen_type: 'blood',
+      turnaround_time_hours: 24,
+      base_price: 0,
+      critical_low: '',
+      critical_high: '',
+      normal_range_low: '',
+      normal_range_high: '',
+      unit: '',
+    });
+    setEditingTest(null);
+  };
+
+  const openEditInventory = (item: LabInventoryItem) => {
+    setEditingItem(item);
+    setInventoryForm({
+      item_name: item.item_name,
+      item_type: item.item_type,
+      category: item.category,
+      unit: item.unit,
+      quantity_on_hand: item.quantity_on_hand,
+      reorder_level: item.reorder_level,
+      unit_cost: item.unit_cost,
+      expiry_date: item.expiry_date?.split('T')[0] || '',
+      lot_number: item.lot_number || '',
+      supplier: item.supplier || '',
+      storage_location: item.storage_location || 'Main Lab',
+      storage_conditions: item.storage_conditions || 'room_temp',
+    });
+    setShowInventoryModal(true);
+  };
+
+  const openEditTest = (test: LabTest) => {
+    setEditingTest(test);
+    setTestForm({
+      test_code: test.test_code,
+      test_name: test.test_name,
+      category: test.category,
+      specimen_type: test.specimen_type,
+      turnaround_time_hours: test.turnaround_time_hours,
+      base_price: test.base_price,
+      critical_low: test.critical_low?.toString() || '',
+      critical_high: test.critical_high?.toString() || '',
+      normal_range_low: test.normal_range_low?.toString() || '',
+      normal_range_high: test.normal_range_high?.toString() || '',
+      unit: test.unit || '',
+    });
+    setShowTestModal(true);
+  };
+
   // Filter orders
   const filteredOrders = labOrders.filter(order => {
     if (searchTerm) {
@@ -264,7 +584,6 @@ const LabDashboard: React.FC = () => {
         order.test_name.toLowerCase().includes(searchLower);
       if (!matches) return false;
     }
-    if (priorityFilter && order.priority !== priorityFilter) return false;
     if (ordersSubTab === 'pending') {
       return pendingStatuses.includes(order.status);
     } else {
@@ -272,7 +591,7 @@ const LabDashboard: React.FC = () => {
     }
   });
 
-  // Helper functions
+  // Helper display functions
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-amber-100 text-amber-800';
@@ -296,6 +615,52 @@ const LabDashboard: React.FC = () => {
     if (!hours) return 'N/A';
     if (hours < 1) return `${Math.round(hours * 60)}m`;
     return `${hours.toFixed(1)}h`;
+  };
+
+  const generateSpecimenId = () => {
+    const now = new Date();
+    return `SP${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+  };
+
+  // Print lab report
+  const printLabReport = (order: LabOrder) => {
+    setSelectedOrderForPrint(order);
+    setShowPrintModal(true);
+  };
+
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Lab Report - ${selectedOrderForPrint?.patient_name}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+            .logo { font-size: 24px; font-weight: bold; color: #1e40af; }
+            .patient-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+            .info-row { display: flex; gap: 10px; }
+            .label { font-weight: bold; color: #666; }
+            .result-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; }
+            .result-value { font-size: 24px; font-weight: bold; color: #1e40af; }
+            .reference { color: #666; font-size: 14px; }
+            .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; color: #666; }
+            .signature-line { margin-top: 40px; border-top: 1px solid #333; width: 200px; }
+            @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   if (loading) {
@@ -342,7 +707,7 @@ const LabDashboard: React.FC = () => {
       {/* Main Content */}
       <main className="max-w-full mx-auto px-6 py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending</div>
             <div className="text-2xl font-bold text-amber-600 mt-1">
@@ -389,17 +754,18 @@ const LabDashboard: React.FC = () => {
 
         {/* Main Tabs */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
             {[
               { id: 'orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', count: labOrders.filter(o => o.status !== 'completed').length },
               { id: 'inventory', label: 'Inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', count: inventory.length },
+              { id: 'catalog', label: 'Test Catalog', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
               { id: 'analytics', label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
               { id: 'alerts', label: 'Critical Alerts', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', count: criticalAlerts.filter(a => !a.is_acknowledged).length, alert: true },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
+                className={`flex-1 min-w-max px-6 py-4 text-center font-semibold transition-colors ${
                   activeTab === tab.id
                     ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
@@ -428,7 +794,7 @@ const LabDashboard: React.FC = () => {
           <div>
             {/* Search and Filters */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div className="md:col-span-2">
                   <input
                     type="text"
@@ -468,8 +834,37 @@ const LabDashboard: React.FC = () => {
                     placeholder="To Date"
                   />
                 </div>
+                <div>
+                  <button
+                    onClick={fetchLabOrders}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Batch Actions */}
+            {selectedOrders.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+                <span className="font-medium text-blue-800">{selectedOrders.length} order(s) selected</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => batchUpdateOrders('in_progress')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    Start All
+                  </button>
+                  <button
+                    onClick={() => setSelectedOrders([])}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Orders Sub-tabs */}
             <div className="flex gap-2 mb-4">
@@ -518,6 +913,20 @@ const LabDashboard: React.FC = () => {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
+                            {ordersSubTab === 'pending' && (
+                              <input
+                                type="checkbox"
+                                checked={selectedOrders.includes(order.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedOrders([...selectedOrders, order.id]);
+                                  } else {
+                                    setSelectedOrders(selectedOrders.filter(id => id !== order.id));
+                                  }
+                                }}
+                                className="w-5 h-5 rounded border-gray-300"
+                              />
+                            )}
                             <h3 className="text-lg font-semibold text-gray-900">{order.patient_name}</h3>
                             <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(order.priority)}`}>
                               {order.priority.toUpperCase()}
@@ -542,7 +951,7 @@ const LabDashboard: React.FC = () => {
                             </div>
                             <div className="text-xs text-gray-600 mt-1">Ordered by: {order.ordering_provider_name}</div>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                             <div>
                               <span className="text-gray-500">Patient #:</span>
                               <span className="ml-2 text-gray-900 font-medium">{order.patient_number}</span>
@@ -555,6 +964,12 @@ const LabDashboard: React.FC = () => {
                               <span className="text-gray-500">Ordered:</span>
                               <span className="ml-2 text-gray-900 font-medium">{new Date(order.ordered_at).toLocaleString()}</span>
                             </div>
+                            {order.specimen_id && (
+                              <div>
+                                <span className="text-gray-500">Specimen ID:</span>
+                                <span className="ml-2 text-gray-900 font-medium font-mono">{order.specimen_id}</span>
+                              </div>
+                            )}
                             {order.results_available_at && (
                               <div>
                                 <span className="text-gray-500">Resulted:</span>
@@ -562,20 +977,6 @@ const LabDashboard: React.FC = () => {
                               </div>
                             )}
                           </div>
-
-                          {/* Result Entry */}
-                          {order.status === 'in_progress' && (
-                            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <label className="block text-sm font-medium text-blue-800 mb-2">Enter Results:</label>
-                              <textarea
-                                value={resultInput[order.id] || ''}
-                                onChange={(e) => setResultInput({ ...resultInput, [order.id]: e.target.value })}
-                                placeholder="Enter test results here..."
-                                className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                                rows={3}
-                              />
-                            </div>
-                          )}
 
                           {/* Results Display */}
                           {order.status === 'completed' && order.results && (
@@ -596,24 +997,21 @@ const LabDashboard: React.FC = () => {
                           )}
                           {order.status === 'in_progress' && (
                             <button
-                              onClick={() => {
-                                updateStatus(order.id, 'completed', resultInput[order.id]);
-                                setResultInput({ ...resultInput, [order.id]: '' });
-                              }}
+                              onClick={() => openResultModal(order)}
                               className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
                             >
-                              Complete & Submit
+                              Enter Results
                             </button>
                           )}
                           {order.status === 'completed' && (
                             <button
-                              onClick={() => window.print()}
+                              onClick={() => printLabReport(order)}
                               className="px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors flex items-center gap-2"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                               </svg>
-                              Print
+                              Print Report
                             </button>
                           )}
                         </div>
@@ -655,7 +1053,7 @@ const LabDashboard: React.FC = () => {
 
             {/* Inventory Filters */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <input
                   type="text"
                   placeholder="Search items..."
@@ -682,18 +1080,25 @@ const LabDashboard: React.FC = () => {
                   <option value="low_stock">Low Stock Only</option>
                   <option value="expiring">Expiring Soon</option>
                 </select>
-                {(inventorySearch || inventoryTypeFilter || inventoryStatusFilter) && (
-                  <button
-                    onClick={() => {
-                      setInventorySearch('');
-                      setInventoryTypeFilter('');
-                      setInventoryStatusFilter('');
-                    }}
-                    className="px-4 py-2 text-gray-600 hover:text-gray-800 underline"
-                  >
-                    Clear Filters
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    setInventorySearch('');
+                    setInventoryTypeFilter('');
+                    setInventoryStatusFilter('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Clear Filters
+                </button>
+                <button
+                  onClick={() => {
+                    resetInventoryForm();
+                    setShowInventoryModal(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  + Add Item
+                </button>
               </div>
             </div>
 
@@ -710,6 +1115,7 @@ const LabDashboard: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lot #</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -735,12 +1141,56 @@ const LabDashboard: React.FC = () => {
                         {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap">
                           {item.is_low_stock && <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">Low</span>}
                           {item.is_expiring_soon && <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">Expiring</span>}
                           {item.is_calibration_due && <span className="px-2 py-1 text-xs bg-purple-100 text-purple-800 rounded-full">Cal Due</span>}
                           {!item.is_low_stock && !item.is_expiring_soon && !item.is_calibration_due && (
                             <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">OK</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => openEditInventory(item)}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="Edit"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingItem(item);
+                              setShowAdjustStockModal(true);
+                            }}
+                            className="text-green-600 hover:text-green-800"
+                            title="Adjust Stock"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                          </button>
+                          {item.item_type === 'equipment' && (
+                            <button
+                              onClick={() => {
+                                setEditingItem(item);
+                                setCalibrationForm({
+                                  next_calibration_date: '',
+                                  notes: '',
+                                });
+                                setShowCalibrationModal(true);
+                              }}
+                              className="text-purple-600 hover:text-purple-800"
+                              title="Record Calibration"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            </button>
                           )}
                         </div>
                       </td>
@@ -750,6 +1200,110 @@ const LabDashboard: React.FC = () => {
               </table>
               {inventory.length === 0 && (
                 <div className="px-6 py-8 text-center text-gray-500">No inventory items found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Test Catalog Tab */}
+        {activeTab === 'catalog' && (
+          <div>
+            {/* Catalog Filters */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input
+                  type="text"
+                  placeholder="Search tests..."
+                  value={catalogSearch}
+                  onChange={(e) => setCatalogSearch(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={catalogCategory}
+                  onChange={(e) => setCatalogCategory(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Categories</option>
+                  {catalogCategories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    setCatalogSearch('');
+                    setCatalogCategory('');
+                  }}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Clear Filters
+                </button>
+                <button
+                  onClick={() => {
+                    resetTestForm();
+                    setShowTestModal(true);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  + Add Test
+                </button>
+              </div>
+            </div>
+
+            {/* Test Catalog Table */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Specimen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">TAT</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Normal Range</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Critical Range</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {testCatalog.map((test) => (
+                    <tr key={test.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-blue-600">{test.test_code}</td>
+                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{test.test_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.category}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.specimen_type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.turnaround_time_hours}h</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                        {test.normal_range_low !== null && test.normal_range_high !== null
+                          ? `${test.normal_range_low} - ${test.normal_range_high} ${test.unit || ''}`
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {test.critical_low !== null || test.critical_high !== null ? (
+                          <span className="text-red-600 font-medium">
+                            {test.critical_low !== null && `<${test.critical_low}`}
+                            {test.critical_low !== null && test.critical_high !== null && ' / '}
+                            {test.critical_high !== null && `>${test.critical_high}`}
+                          </span>
+                        ) : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">${test.base_price?.toFixed(2) || '0.00'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => openEditTest(test)}
+                          className="text-blue-600 hover:text-blue-800"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {testCatalog.length === 0 && (
+                <div className="px-6 py-8 text-center text-gray-500">No tests found</div>
               )}
             </div>
           </div>
@@ -964,6 +1518,639 @@ const LabDashboard: React.FC = () => {
           patientId={selectedPatientId}
           onClose={() => setShowPatientQuickView(false)}
         />
+      )}
+
+      {/* Inventory Modal */}
+      {showInventoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingItem ? 'Edit Inventory Item' : 'Add New Inventory Item'}
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.item_name}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, item_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                  <select
+                    value={inventoryForm.item_type}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, item_type: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="reagent">Reagent</option>
+                    <option value="supply">Supply</option>
+                    <option value="equipment">Equipment</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.category}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.unit}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                    placeholder="e.g., test, ml, piece"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
+                  <input
+                    type="number"
+                    value={inventoryForm.quantity_on_hand}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, quantity_on_hand: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={!!editingItem}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                  <input
+                    type="number"
+                    value={inventoryForm.reorder_level}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, reorder_level: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={inventoryForm.unit_cost}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, unit_cost: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                  <input
+                    type="date"
+                    value={inventoryForm.expiry_date}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, expiry_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot Number</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.lot_number}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, lot_number: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.supplier}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, supplier: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Storage Location</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.storage_location}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, storage_location: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Storage Conditions</label>
+                  <select
+                    value={inventoryForm.storage_conditions}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, storage_conditions: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="room_temp">Room Temperature</option>
+                    <option value="refrigerated">Refrigerated (2-8°C)</option>
+                    <option value="frozen">Frozen (-20°C)</option>
+                    <option value="deep_frozen">Deep Frozen (-80°C)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowInventoryModal(false);
+                  resetInventoryForm();
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveInventoryItem}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                {editingItem ? 'Update Item' : 'Add Item'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Adjust Stock Modal */}
+      {showAdjustStockModal && editingItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Adjust Stock</h2>
+              <p className="text-sm text-gray-600">{editingItem.item_name}</p>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600">Current Stock: <span className="font-bold">{editingItem.quantity_on_hand} {editingItem.unit}</span></p>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
+                <select
+                  value={adjustStockForm.transaction_type}
+                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, transaction_type: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="purchase">Purchase (Add Stock)</option>
+                  <option value="adjustment">Adjustment</option>
+                  <option value="expired">Expired (Remove)</option>
+                  <option value="transfer">Transfer</option>
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (+ to add, - to remove)</label>
+                <input
+                  type="number"
+                  value={adjustStockForm.adjustment}
+                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, adjustment: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={adjustStockForm.notes}
+                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAdjustStockModal(false);
+                  setAdjustStockForm({ adjustment: 0, transaction_type: 'adjustment', notes: '' });
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={adjustStock}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              >
+                Adjust Stock
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calibration Modal */}
+      {showCalibrationModal && editingItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Record Calibration</h2>
+              <p className="text-sm text-gray-600">{editingItem.item_name}</p>
+            </div>
+            <div className="p-6">
+              {editingItem.last_calibration_date && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600">
+                    Last Calibration: <span className="font-bold">{new Date(editingItem.last_calibration_date).toLocaleDateString()}</span>
+                  </p>
+                </div>
+              )}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Next Calibration Date *</label>
+                <input
+                  type="date"
+                  value={calibrationForm.next_calibration_date}
+                  onChange={(e) => setCalibrationForm({ ...calibrationForm, next_calibration_date: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={calibrationForm.notes}
+                  onChange={(e) => setCalibrationForm({ ...calibrationForm, notes: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={2}
+                  placeholder="Calibration details, technician name, etc."
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowCalibrationModal(false);
+                  setCalibrationForm({ next_calibration_date: '', notes: '' });
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={recordCalibration}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                Record Calibration
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Catalog Modal */}
+      {showTestModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">
+                {editingTest ? 'Edit Test' : 'Add New Test'}
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Code *</label>
+                  <input
+                    type="text"
+                    value={testForm.test_code}
+                    onChange={(e) => setTestForm({ ...testForm, test_code: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono"
+                    placeholder="e.g., CBC, HB, GLU"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Name *</label>
+                  <input
+                    type="text"
+                    value={testForm.test_name}
+                    onChange={(e) => setTestForm({ ...testForm, test_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={testForm.category}
+                    onChange={(e) => setTestForm({ ...testForm, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Hematology, Chemistry"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Specimen Type</label>
+                  <select
+                    value={testForm.specimen_type}
+                    onChange={(e) => setTestForm({ ...testForm, specimen_type: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="blood">Blood</option>
+                    <option value="urine">Urine</option>
+                    <option value="stool">Stool</option>
+                    <option value="swab">Swab</option>
+                    <option value="csf">CSF</option>
+                    <option value="tissue">Tissue</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">TAT (hours)</label>
+                  <input
+                    type="number"
+                    value={testForm.turnaround_time_hours}
+                    onChange={(e) => setTestForm({ ...testForm, turnaround_time_hours: parseInt(e.target.value) || 24 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Base Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={testForm.base_price}
+                    onChange={(e) => setTestForm({ ...testForm, base_price: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={testForm.unit}
+                    onChange={(e) => setTestForm({ ...testForm, unit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., g/dL, mmol/L"
+                  />
+                </div>
+                <div className="col-span-2 border-t pt-4 mt-2">
+                  <h3 className="font-medium text-gray-900 mb-3">Reference Ranges</h3>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Normal Range Low</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={testForm.normal_range_low}
+                    onChange={(e) => setTestForm({ ...testForm, normal_range_low: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Normal Range High</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={testForm.normal_range_high}
+                    onChange={(e) => setTestForm({ ...testForm, normal_range_high: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-red-700 mb-1">Critical Low</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={testForm.critical_low}
+                    onChange={(e) => setTestForm({ ...testForm, critical_low: e.target.value })}
+                    className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 bg-red-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-red-700 mb-1">Critical High</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={testForm.critical_high}
+                    onChange={(e) => setTestForm({ ...testForm, critical_high: e.target.value })}
+                    className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 bg-red-50"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowTestModal(false);
+                  resetTestForm();
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveTest}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                {editingTest ? 'Update Test' : 'Add Test'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Structured Result Entry Modal */}
+      {showResultModal && selectedOrderForResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-green-50 rounded-t-xl">
+              <h2 className="text-xl font-bold text-gray-900">Enter Test Results</h2>
+              <p className="text-sm text-gray-600">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
+            </div>
+            <div className="p-6">
+              {/* Reference ranges display */}
+              {testReferenceRanges && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-800 mb-2">Reference Ranges</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    {testReferenceRanges.normal_range_low !== null && testReferenceRanges.normal_range_high !== null && (
+                      <div>
+                        <span className="text-gray-600">Normal:</span>
+                        <span className="ml-2 font-medium">{testReferenceRanges.normal_range_low} - {testReferenceRanges.normal_range_high} {testReferenceRanges.unit}</span>
+                      </div>
+                    )}
+                    {(testReferenceRanges.critical_low !== null || testReferenceRanges.critical_high !== null) && (
+                      <div>
+                        <span className="text-red-600">Critical:</span>
+                        <span className="ml-2 font-medium text-red-600">
+                          {testReferenceRanges.critical_low !== null && `<${testReferenceRanges.critical_low}`}
+                          {testReferenceRanges.critical_low !== null && testReferenceRanges.critical_high !== null && ' or '}
+                          {testReferenceRanges.critical_high !== null && `>${testReferenceRanges.critical_high}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specimen ID</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={structuredResult.specimen_id}
+                    onChange={(e) => setStructuredResult({ ...structuredResult, specimen_id: e.target.value })}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono"
+                    placeholder="SP20240221-ABC123"
+                  />
+                  <button
+                    onClick={() => setStructuredResult({ ...structuredResult, specimen_id: generateSpecimenId() })}
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    title="Generate ID"
+                  >
+                    Generate
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Result Value *</label>
+                  <input
+                    type="text"
+                    value={structuredResult.value}
+                    onChange={(e) => setStructuredResult({ ...structuredResult, value: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-lg font-bold"
+                    placeholder="Enter result"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={structuredResult.unit}
+                    onChange={(e) => setStructuredResult({ ...structuredResult, unit: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., g/dL"
+                  />
+                </div>
+              </div>
+
+              {/* Critical value warning */}
+              {testReferenceRanges && structuredResult.value && !isNaN(parseFloat(structuredResult.value)) && (
+                (testReferenceRanges.critical_low !== null && parseFloat(structuredResult.value) < testReferenceRanges.critical_low) ||
+                (testReferenceRanges.critical_high !== null && parseFloat(structuredResult.value) > testReferenceRanges.critical_high)
+              ) && (
+                <div className="mb-4 p-3 bg-red-100 rounded-lg border border-red-300">
+                  <div className="flex items-center gap-2 text-red-800 font-bold">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    CRITICAL VALUE - Physician notification required
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes/Comments</label>
+                <textarea
+                  value={structuredResult.notes}
+                  onChange={(e) => setStructuredResult({ ...structuredResult, notes: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Additional observations, methodology notes, etc."
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowResultModal(false);
+                  setSelectedOrderForResult(null);
+                  setTestReferenceRanges(null);
+                  setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitStructuredResult}
+                disabled={!structuredResult.value}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Submit Result
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Print Report Modal */}
+      {showPrintModal && selectedOrderForPrint && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">Lab Report Preview</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePrint}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPrintModal(false);
+                    setSelectedOrderForPrint(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div ref={printRef} className="p-8">
+              <div className="header text-center border-b-2 border-gray-800 pb-4 mb-6">
+                <div className="logo text-2xl font-bold text-blue-800">MedSys Healthcare</div>
+                <div className="text-gray-600">Laboratory Department</div>
+                <div className="text-sm text-gray-500">123 Medical Center Drive | Phone: (555) 123-4567</div>
+              </div>
+
+              <h2 className="text-xl font-bold text-center mb-6">LABORATORY REPORT</h2>
+
+              <div className="patient-info grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Patient Name:</span> {selectedOrderForPrint.patient_name}</div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Patient ID:</span> {selectedOrderForPrint.patient_number}</div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Encounter:</span> {selectedOrderForPrint.encounter_number}</div>
+                </div>
+                <div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Order Date:</span> {new Date(selectedOrderForPrint.ordered_at).toLocaleString()}</div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Report Date:</span> {selectedOrderForPrint.results_available_at ? new Date(selectedOrderForPrint.results_available_at).toLocaleString() : 'N/A'}</div>
+                  <div className="info-row"><span className="label text-gray-600 font-bold">Ordering Physician:</span> {selectedOrderForPrint.ordering_provider_name}</div>
+                </div>
+              </div>
+
+              <div className="result-section bg-gray-100 p-4 rounded-lg mb-6">
+                <h3 className="font-bold text-lg mb-2">{selectedOrderForPrint.test_name} {selectedOrderForPrint.test_code && `(${selectedOrderForPrint.test_code})`}</h3>
+                <div className="result-value text-2xl font-bold text-blue-800 mb-2">
+                  {selectedOrderForPrint.results}
+                </div>
+                {selectedOrderForPrint.specimen_id && (
+                  <div className="text-sm text-gray-600">Specimen ID: {selectedOrderForPrint.specimen_id}</div>
+                )}
+              </div>
+
+              <div className="footer mt-8 border-t border-gray-300 pt-4 text-sm text-gray-600">
+                <p className="mb-4">This report is electronically generated and verified.</p>
+                <div className="grid grid-cols-2 gap-8 mt-8">
+                  <div>
+                    <div className="signature-line border-t border-gray-800 w-48 mt-8"></div>
+                    <div>Medical Laboratory Technologist</div>
+                  </div>
+                  <div>
+                    <div className="signature-line border-t border-gray-800 w-48 mt-8"></div>
+                    <div>Laboratory Director</div>
+                  </div>
+                </div>
+                <p className="mt-6 text-xs">Report generated: {new Date().toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

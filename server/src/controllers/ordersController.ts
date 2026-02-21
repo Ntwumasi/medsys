@@ -38,7 +38,7 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
 
 export const getLabOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status } = req.query;
+    const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
 
     let query = `
       SELECT lo.id,
@@ -100,6 +100,24 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         params.push(dbStatus);
         paramCount++;
       }
+    }
+
+    if (start_date) {
+      query += ` AND lo.ordered_date >= $${paramCount}`;
+      params.push(start_date);
+      paramCount++;
+    }
+
+    if (end_date) {
+      query += ` AND lo.ordered_date <= $${paramCount}`;
+      params.push(end_date);
+      paramCount++;
+    }
+
+    if (priority) {
+      query += ` AND lo.priority = $${paramCount}`;
+      params.push(priority);
+      paramCount++;
     }
 
     query += ` ORDER BY lo.ordered_date DESC`;
@@ -168,9 +186,54 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const updatedOrder = result.rows[0];
+
+    // Auto-flag critical results when completing a test
+    if (updateData.status === 'completed' && updateData.result) {
+      try {
+        // Get the test catalog entry for reference ranges
+        const catalogResult = await pool.query(
+          `SELECT * FROM lab_test_catalog
+           WHERE test_code = $1 OR test_name ILIKE $2
+           LIMIT 1`,
+          [updatedOrder.test_code, updatedOrder.test_name]
+        );
+
+        if (catalogResult.rows.length > 0) {
+          const catalog = catalogResult.rows[0];
+          const resultValue = parseFloat(updateData.result);
+
+          // Check if result is a number and if it's outside critical ranges
+          if (!isNaN(resultValue)) {
+            let alertType = null;
+
+            if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
+              alertType = 'critical_low';
+            } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
+              alertType = 'critical_high';
+            }
+
+            if (alertType) {
+              // Create critical result alert
+              await pool.query(
+                `INSERT INTO critical_result_alerts
+                 (lab_order_id, ordering_provider_id, alert_type, result_value)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT DO NOTHING`,
+                [id, updatedOrder.ordering_provider, alertType, updateData.result]
+              );
+            }
+          }
+        }
+      } catch (criticalError) {
+        // Log but don't fail the main update
+        console.error('Error checking critical result:', criticalError);
+      }
+    }
+
     res.json({
       message: 'Lab order updated successfully',
-      order: result.rows[0],
+      order: updatedOrder,
     });
   } catch (error) {
     console.error('Update lab order error:', error);
