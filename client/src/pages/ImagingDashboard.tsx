@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
+import AppLayout from '../components/AppLayout';
 
 interface RoutingRequest {
   id: number;
@@ -17,7 +17,6 @@ interface RoutingRequest {
 }
 
 const ImagingDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
   const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -74,28 +73,8 @@ const ImagingDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Imaging Dashboard</h1>
-              <p className="text-sm text-gray-600">Welcome, {user?.first_name} {user?.last_name}</p>
-            </div>
-            <button
-              onClick={logout}
-              className="px-4 py-2 text-sm font-medium text-white bg-danger-600 rounded-lg hover:bg-danger-700"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats */}
+    <AppLayout title="Imaging Dashboard">
+      {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Pending Studies</div>
@@ -191,8 +170,7 @@ const ImagingDashboard: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </AppLayout>
   );
 };
 

@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
-import NotificationCenter from '../components/NotificationCenter';
+import AppLayout from '../components/AppLayout';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
@@ -72,7 +72,7 @@ interface DoctorAlert {
 }
 
 const DoctorDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useNotification();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
@@ -414,47 +414,8 @@ const DoctorDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Modern Header */}
-      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
-        <div className="max-w-full mx-auto px-6 py-5">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  Doctor Dashboard
-                </h1>
-                <p className="text-primary-100 text-sm">
-                  Dr. {user?.first_name} {user?.last_name}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <NotificationCenter />
-              <button
-                onClick={() => {
-                  logout();
-                  navigate('/login');
-                }}
-                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-full mx-auto px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <AppLayout title="Doctor Dashboard">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Active Patients List */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -1845,7 +1806,6 @@ const DoctorDashboard: React.FC = () => {
             )}
           </div>
         </div>
-      </main>
 
       {/* Patient Quick View Side Panel */}
       {quickViewPatientId && (
@@ -1863,7 +1823,7 @@ const DoctorDashboard: React.FC = () => {
           onClose={() => setShowVitalsHistory(false)}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 

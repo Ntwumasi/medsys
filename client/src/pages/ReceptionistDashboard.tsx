@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, isValid, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDay, parse } from 'date-fns';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
@@ -9,7 +8,7 @@ import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
-import NotificationCenter from '../components/NotificationCenter';
+import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import type { ApiError } from '../types';
 
@@ -183,9 +182,8 @@ interface CalendarEvent {
 
 const ReceptionistDashboard: React.FC = () => {
   console.log('ReceptionistDashboard: Component rendering');
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   console.log('ReceptionistDashboard: User', user);
-  const navigate = useNavigate();
   const { showToast } = useNotification();
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments'>('queue');
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -825,58 +823,21 @@ const ReceptionistDashboard: React.FC = () => {
 
   console.log('ReceptionistDashboard: Rendering main UI');
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
-        <div className="max-w-full mx-auto px-6 py-5">
-          <div className="flex justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  Receptionist Dashboard
-                </h1>
-                <p className="text-primary-100 text-sm">
-                  Welcome, {user?.first_name} {user?.last_name}
-                </p>
-              </div>
-            </div>
-            <div className="flex-1 max-w-md">
-              <SearchBar
-                onPatientSelect={(patient) => {
-                  // Switch to check-in view and select the patient
-                  setActiveView('checkin');
-                  setSelectedPatient(patient);
-                  const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
-                  showToast(`Patient ${patientName} selected for check-in`, 'info');
-                }}
-                placeholder="Search patients..."
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <NotificationCenter />
-              <button
-                onClick={() => {
-                  logout();
-                  navigate('/login');
-                }}
-                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <AppLayout title="Receptionist Dashboard">
+      {/* Search Bar */}
+      <div className="mb-6">
+        <SearchBar
+          onPatientSelect={(patient) => {
+            setActiveView('checkin');
+            setSelectedPatient(patient);
+            const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
+            showToast(`Patient ${patientName} selected for check-in`, 'info');
+          }}
+          placeholder="Search patients..."
+        />
+      </div>
 
-      <main className="max-w-full mx-auto px-6 py-6">
-        {error && (
+      {error && (
           <div className="mb-6 bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-xl flex items-start gap-3 shadow-md">
             <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -2402,8 +2363,6 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         )}
 
-      </main>
-
       {/* Invoice Modal */}
       {showInvoice && invoiceData && currentEncounterId && (
         <PrintableInvoice
@@ -2415,7 +2374,7 @@ const ReceptionistDashboard: React.FC = () => {
           onPaymentComplete={handlePaymentComplete}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 

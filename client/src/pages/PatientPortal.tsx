@@ -1,41 +1,10 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import AppLayout from '../components/AppLayout';
 
 const PatientPortal: React.FC = () => {
-  const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-5">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-4">
-              <div className="bg-white bg-opacity-20 p-3 rounded-xl">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">Patient Portal</h1>
-                <p className="text-blue-100 text-sm">Welcome, {user?.first_name} {user?.last_name}</p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content - Blank for now */}
-      <main className="max-w-7xl mx-auto px-6 py-12">
+    <AppLayout title="Patient Portal">
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-12 text-center">
           <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -83,16 +52,15 @@ const PatientPortal: React.FC = () => {
             </div>
           </div>
         </div>
-      </main>
 
       {/* Footer */}
-      <footer className="mt-12 py-6 bg-white border-t border-gray-200">
+      <footer className="mt-12 py-6 bg-white border-t border-gray-200 -mx-6 -mb-6">
         <div className="max-w-7xl mx-auto px-6 text-center text-gray-500 text-sm">
           <p>For medical emergencies, please call 911 or visit your nearest emergency room.</p>
           <p className="mt-2">Need help? Contact us at (555) 123-4567</p>
         </div>
       </footer>
-    </div>
+    </AppLayout>
   );
 };
 

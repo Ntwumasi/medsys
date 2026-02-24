@@ -8,6 +8,7 @@ import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
 import SystemUpdates from '../components/SystemUpdates';
+import AppLayout from '../components/AppLayout';
 import LabDocs from '../components/docs/LabDocs';
 import { useNotification } from '../context/NotificationContext';
 import {
@@ -149,7 +150,7 @@ interface PastPatientEncounter {
 }
 
 const Dashboard: React.FC = () => {
-  const { user, logout, impersonateUser } = useAuth();
+  const { user, impersonateUser } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useNotification();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
@@ -627,45 +628,13 @@ const Dashboard: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Modern Header */}
-      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
-        <div className="max-w-full mx-auto px-6 py-5">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="bg-white bg-opacity-20 p-2 rounded-lg">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  Admin Dashboard
-                </h1>
-                <p className="text-primary-100 text-sm">
-                  {user?.first_name} {user?.last_name}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <SearchBar />
-              <button
-                onClick={logout}
-                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <AppLayout title="Admin Dashboard">
+      {/* Search Bar */}
+      <div className="mb-6">
+        <SearchBar />
+      </div>
 
-      <main className="max-w-full mx-auto px-6 py-6">
-        {/* Tabs */}
+      {/* Tabs */}
         <div className="border-b border-gray-200 mb-6 bg-white rounded-t-xl shadow-lg">
           <nav className="-mb-px flex space-x-8 px-6">
             <button
@@ -2021,7 +1990,6 @@ const Dashboard: React.FC = () => {
             <LabDocs />
           </div>
         )}
-      </main>
 
       {/* Invoice Modal */}
       {showInvoice && invoiceData && (
@@ -2032,7 +2000,7 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowInvoice(false)}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 
