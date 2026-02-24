@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
 import NotificationCenter from './NotificationCenter';
+import apiClient from '../api/client';
 
 interface NavItem {
   label: string;
@@ -109,6 +110,14 @@ interface AppLayoutProps {
   breadcrumbs?: { label: string; path?: string }[];
 }
 
+interface SearchResult {
+  type: 'patient' | 'appointment';
+  id: number;
+  title: string;
+  subtitle: string;
+  path: string;
+}
+
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
@@ -116,6 +125,59 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef = React.useRef<HTMLDivElement>(null);
+
+  // Close search on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Search handler with debounce
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const response = await apiClient.get(`/patients?search=${encodeURIComponent(searchQuery)}&limit=5`);
+        const patients = response.data.patients || response.data || [];
+        const results: SearchResult[] = patients.map((p: { id: number; first_name: string; last_name: string; date_of_birth: string; mrn?: string }) => ({
+          type: 'patient' as const,
+          id: p.id,
+          title: `${p.first_name} ${p.last_name}`,
+          subtitle: `DOB: ${new Date(p.date_of_birth).toLocaleDateString()} ${p.mrn ? `| MRN: ${p.mrn}` : ''}`,
+          path: `/patients/${p.id}`,
+        }));
+        setSearchResults(results);
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearchSelect = (result: SearchResult) => {
+    navigate(result.path);
+    setSearchQuery('');
+    setSearchOpen(false);
+  };
 
   const handleLogout = () => {
     logout();
@@ -169,8 +231,78 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           <Logo size="sm" showText={!sidebarCollapsed} />
         </Link>
 
-        {/* Spacer */}
-        <div className="flex-1" />
+        {/* Global Search */}
+        <div ref={searchRef} className="relative ml-4 lg:ml-8 flex-1 max-w-md hidden sm:block">
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search patients..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+            />
+            {searchLoading && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+
+          {/* Search Results Dropdown */}
+          {searchOpen && searchQuery.length >= 2 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-card-hover border border-border overflow-hidden z-50 animate-slide-in-up">
+              {searchResults.length > 0 ? (
+                <ul className="py-2">
+                  {searchResults.map((result) => (
+                    <li key={`${result.type}-${result.id}`}>
+                      <button
+                        onClick={() => handleSearchSelect(result)}
+                        className="w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3"
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          result.type === 'patient' ? 'bg-primary-100 text-primary-600' : 'bg-secondary-100 text-secondary-600'
+                        }`}>
+                          {result.type === 'patient' ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-text-primary">{result.title}</p>
+                          <p className="text-xs text-text-secondary">{result.subtitle}</p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : !searchLoading ? (
+                <div className="px-4 py-6 text-center text-text-secondary text-sm">
+                  No results found for "{searchQuery}"
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* Spacer (for mobile) */}
+        <div className="flex-1 sm:hidden" />
 
         {/* Right side items */}
         <div className="flex items-center gap-2 lg:gap-4">
@@ -280,7 +412,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           {!sidebarCollapsed && (
             <div className="p-4 border-t border-border">
               <div className="text-xs text-text-secondary text-center">
-                Medics Clinic EMR
+                MedSys EMR
               </div>
             </div>
           )}
@@ -359,10 +491,46 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         )}
 
         {/* Page content */}
-        <div className="p-4 lg:p-6">
+        <div className="p-4 lg:p-6 pb-20 lg:pb-6">
           {children}
         </div>
       </main>
+
+      {/* Mobile Bottom Tab Bar */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-40 lg:hidden safe-area-bottom">
+        <div className="flex justify-around items-center h-16">
+          {filteredNavItems.slice(0, 5).map((item) => {
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center justify-center flex-1 h-full px-2 transition-colors ${
+                  isActive ? 'text-primary-600' : 'text-text-secondary'
+                }`}
+              >
+                <span className={`${isActive ? 'scale-110' : ''} transition-transform`}>
+                  {item.icon}
+                </span>
+                <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+          {filteredNavItems.length > 5 && (
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center flex-1 h-full px-2 text-text-secondary"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span className="text-[10px] mt-1 font-medium">More</span>
+            </button>
+          )}
+        </div>
+      </nav>
     </div>
   );
 };
