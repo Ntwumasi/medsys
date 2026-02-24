@@ -539,8 +539,8 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
           )}
         </div>
 
-        {/* Subsections */}
-        {hasSubsections && (
+        {/* Subsections - only show when parent is expanded */}
+        {hasSubsections && isExpanded && (
           <div className="ml-6 border-l-2 border-gray-200 hover:border-gray-300 transition-colors">
             {section.subsections!.map(subsection => renderSection(subsection, level + 1))}
           </div>
@@ -552,71 +552,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   const currentSection = expandedSection ? findSection(sections, expandedSection) : null;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Vital Signs Summary - Always visible at top */}
-      {vitalSigns && Object.keys(vitalSigns).some(key => vitalSigns[key as keyof VitalSignsData] !== undefined && vitalSigns[key as keyof VitalSignsData] !== null) && (
-        <div className="bg-gradient-to-r from-gray-50 to-primary-50 border border-primary-200 rounded-xl p-4 mx-6 mt-4">
-          <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            VITAL SIGNS
-          </h4>
-          <div className="flex flex-wrap gap-4">
-            {(vitalSigns.blood_pressure_systolic || vitalSigns.blood_pressure_diastolic) && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">BP</div>
-                <div className="text-lg font-bold text-gray-900">
-                  {vitalSigns.blood_pressure_systolic || '--'}/{vitalSigns.blood_pressure_diastolic || '--'}
-                </div>
-              </div>
-            )}
-            {vitalSigns.heart_rate && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">HR</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.heart_rate} <span className="text-xs font-normal">bpm</span></div>
-              </div>
-            )}
-            {vitalSigns.temperature && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">Temp</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.temperature}°{vitalSigns.temperature_unit || 'F'}</div>
-              </div>
-            )}
-            {vitalSigns.respiratory_rate && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">RR</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.respiratory_rate} <span className="text-xs font-normal">/min</span></div>
-              </div>
-            )}
-            {vitalSigns.oxygen_saturation && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">SpO2</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.oxygen_saturation}%</div>
-              </div>
-            )}
-            {vitalSigns.weight && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">Weight</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.weight} <span className="text-xs font-normal">{vitalSigns.weight_unit || 'lbs'}</span></div>
-              </div>
-            )}
-            {vitalSigns.height && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">Height</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.height} <span className="text-xs font-normal">{vitalSigns.height_unit || 'in'}</span></div>
-              </div>
-            )}
-            {vitalSigns.pain_level !== undefined && vitalSigns.pain_level !== null && (
-              <div className="bg-white rounded-lg px-3 py-2 shadow-sm border border-gray-100">
-                <div className="text-xs text-gray-500 font-medium">Pain</div>
-                <div className="text-lg font-bold text-gray-900">{vitalSigns.pain_level}/10</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col gap-6 px-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Side - Accordion Sections */}
       <div className="lg:col-span-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
@@ -869,25 +805,57 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                   )}
                 </div>
 
-                {/* Close Button */}
-                <button
-                  onClick={() => {
-                    // Save any pending changes (use ref to avoid stale closure)
-                    if (autoSaveTimerRef.current) {
-                      clearTimeout(autoSaveTimerRef.current);
-                    }
-                    if (editingContentRef.current !== lastSavedContentRef.current && expandedSection) {
-                      debouncedSave(expandedSection, editingContentRef.current);
-                    }
-                    setExpandedSection(null);
-                    setEditingContent('');
-                    editingContentRef.current = '';
-                    lastSavedContentRef.current = '';
-                  }}
-                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm"
-                >
-                  Close Section
-                </button>
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Print Button */}
+                  <button
+                    onClick={handlePrint}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm flex items-center gap-2"
+                    title="Print / Save as PDF"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print
+                  </button>
+                  {/* Sign Button - Only for doctors */}
+                  {userRole === 'doctor' && onSign && (
+                    <button
+                      onClick={onSign}
+                      disabled={isSigned}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 ${
+                        isSigned
+                          ? 'bg-success-100 text-success-700 cursor-not-allowed'
+                          : 'bg-success-600 text-white hover:bg-success-700'
+                      }`}
+                      title={isSigned ? `Signed by ${signedBy || 'Doctor'}` : 'Sign & Lock Note'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      {isSigned ? 'Signed' : 'Sign Note'}
+                    </button>
+                  )}
+                  {/* Close Button */}
+                  <button
+                    onClick={() => {
+                      // Save any pending changes (use ref to avoid stale closure)
+                      if (autoSaveTimerRef.current) {
+                        clearTimeout(autoSaveTimerRef.current);
+                      }
+                      if (editingContentRef.current !== lastSavedContentRef.current && expandedSection) {
+                        debouncedSave(expandedSection, editingContentRef.current);
+                      }
+                      setExpandedSection(null);
+                      setEditingContent('');
+                      editingContentRef.current = '';
+                      lastSavedContentRef.current = '';
+                    }}
+                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
           </div>
