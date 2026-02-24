@@ -11,6 +11,7 @@ import SearchBar from '../components/SearchBar';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import type { ApiError } from '../types';
+import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -1001,80 +1002,81 @@ const ReceptionistDashboard: React.FC = () => {
               </div>
             )}
 
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-gray-900">
-                Current Patient Queue ({filteredQueue.length}{filteredQueue.length !== queue.length && ` of ${queue.length}`})
-              </h2>
-              <div className="flex gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-success-500 rounded"></div>
-                  <span>0-15 min</span>
+          <Card>
+            <Card.Header
+              action={
+                <div className="flex gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-success-500 rounded-full"></div>
+                    <span className="text-gray-600">0-15 min</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-warning-500 rounded-full"></div>
+                    <span className="text-gray-600">15-30 min</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-danger-500 rounded-full"></div>
+                    <span className="text-gray-600">30+ min</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-warning-500 rounded"></div>
-                  <span>15-30 min</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-danger-500 rounded"></div>
-                  <span>30+ min</span>
-                </div>
-              </div>
-            </div>
+              }
+            >
+              <span className="text-xl">Current Patient Queue</span>
+              <Badge variant="primary" size="lg" className="ml-3">
+                {filteredQueue.length}{filteredQueue.length !== queue.length && ` of ${queue.length}`}
+              </Badge>
+            </Card.Header>
 
-            {/* Queue Filters */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <input
-                  type="text"
+            <Card.Body>
+              {/* Queue Filters */}
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Input
                   value={queueSearchTerm}
                   onChange={(e) => setQueueSearchTerm(e.target.value)}
                   placeholder="Search patient name or number..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                  leftIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  }
                 />
-              </div>
-              <div>
-                <select
+                <Select
                   value={queueClinicFilter}
                   onChange={(e) => setQueueClinicFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                >
-                  <option value="">Clinics</option>
-                  {clinics.map((clinic) => (
-                    <option key={clinic} value={clinic}>{clinic}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <select
+                  options={[
+                    { value: '', label: 'All Clinics' },
+                    ...clinics.map((clinic) => ({ value: clinic, label: clinic }))
+                  ]}
+                />
+                <Select
                   value={queueStatusFilter}
                   onChange={(e) => setQueueStatusFilter(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
-                >
-                  <option value="">Statuses</option>
-                  <option value="checked_in">Checked In</option>
-                  <option value="in_room">In Room</option>
-                  <option value="waiting_for_nurse">Waiting for Nurse</option>
-                  <option value="with_nurse">With Nurse</option>
-                  <option value="with_doctor">With Doctor</option>
-                  <option value="completed">Completed</option>
-                </select>
+                  options={[
+                    { value: '', label: 'All Statuses' },
+                    { value: 'checked_in', label: 'Checked In' },
+                    { value: 'in_room', label: 'In Room' },
+                    { value: 'waiting_for_nurse', label: 'Waiting for Nurse' },
+                    { value: 'with_nurse', label: 'With Nurse' },
+                    { value: 'with_doctor', label: 'With Doctor' },
+                    { value: 'completed', label: 'Completed' },
+                  ]}
+                />
+                {(queueSearchTerm || queueClinicFilter || queueStatusFilter) && (
+                  <div className="flex items-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setQueueSearchTerm('');
+                        setQueueClinicFilter('');
+                        setQueueStatusFilter('');
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  </div>
+                )}
               </div>
-              {(queueSearchTerm || queueClinicFilter || queueStatusFilter) && (
-                <div className="flex items-center">
-                  <button
-                    onClick={() => {
-                      setQueueSearchTerm('');
-                      setQueueClinicFilter('');
-                      setQueueStatusFilter('');
-                    }}
-                    className="text-sm text-gray-600 hover:text-gray-800 underline"
-                  >
-                    Clear filters
-                  </button>
-                </div>
-              )}
-            </div>
 
             <div className="space-y-4">
               {filteredQueue.map((item) => {
@@ -1083,31 +1085,30 @@ const ReceptionistDashboard: React.FC = () => {
                 const isPaid = item.invoice_status === 'paid';
 
                 // Status badge configuration based on workflow_status
-                const getStatusBadge = () => {
+                const getStatusConfig = (): { text: string; variant: 'success' | 'warning' | 'secondary' | 'primary' | 'info' | 'gray'; icon: string } => {
                   if (isCompleted && isPaid) {
-                    return { text: 'Completed & Paid', bg: 'bg-success-100', textColor: 'text-success-800', icon: '✓' };
+                    return { text: 'Completed & Paid', variant: 'success', icon: '✓' };
                   } else if (isCompleted) {
-                    return { text: 'Completed - Awaiting Payment', bg: 'bg-warning-100', textColor: 'text-warning-800', icon: '⏳' };
+                    return { text: 'Awaiting Payment', variant: 'warning', icon: '⏳' };
                   }
 
-                  // Use workflow_status for more detailed status
                   switch (item.workflow_status) {
                     case 'with_doctor':
-                      return { text: 'With Doctor', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '👨‍⚕️' };
+                      return { text: 'With Doctor', variant: 'secondary', icon: '👨‍⚕️' };
                     case 'with_nurse':
-                      return { text: 'With Nurse', bg: 'bg-primary-100', textColor: 'text-primary-800', icon: '👩‍⚕️' };
+                      return { text: 'With Nurse', variant: 'primary', icon: '👩‍⚕️' };
                     case 'waiting_for_nurse':
-                      return { text: 'Waiting for Nurse', bg: 'bg-cyan-100', textColor: 'text-cyan-800', icon: '⏳' };
+                      return { text: 'Waiting for Nurse', variant: 'info', icon: '⏳' };
                     case 'in_room':
-                      return { text: 'In Room', bg: 'bg-teal-100', textColor: 'text-teal-800', icon: '🚪' };
+                      return { text: 'In Room', variant: 'info', icon: '🚪' };
                     case 'checked_in':
-                      return { text: 'Checked In', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '✓' };
+                      return { text: 'Checked In', variant: 'gray', icon: '✓' };
                     default:
-                      return { text: 'In Progress', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '🔄' };
+                      return { text: 'In Progress', variant: 'gray', icon: '🔄' };
                   }
                 };
 
-                const statusBadge = getStatusBadge();
+                const statusConfig = getStatusConfig();
 
                 return (
                   <div
@@ -1126,9 +1127,9 @@ const ReceptionistDashboard: React.FC = () => {
                           <span className="text-sm font-medium text-gray-600">
                             Encounter #: {item.encounter_number}
                           </span>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusBadge.bg} ${statusBadge.textColor}`}>
-                            {statusBadge.icon} {statusBadge.text}
-                          </span>
+                          <Badge variant={statusConfig.variant} size="md" dot>
+                            {statusConfig.icon} {statusConfig.text}
+                          </Badge>
                         </div>
 
                         <div className="mt-2 flex gap-4 text-sm text-gray-700 flex-wrap">
@@ -1147,32 +1148,41 @@ const ReceptionistDashboard: React.FC = () => {
                           </p>
                         )}
 
-                        <div className="mt-3 flex gap-4 text-sm flex-wrap">
+                        <div className="mt-3 flex gap-2 text-sm flex-wrap items-center">
                           {item.room_number && (
-                            <span className="bg-primary-100 text-primary-800 px-3 py-1 rounded-full font-medium">
-                              Room: {item.room_number}
-                            </span>
+                            <Badge variant="primary" size="md">
+                              <svg className="w-3 h-3 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                              </svg>
+                              Room {item.room_number}
+                            </Badge>
                           )}
                           {item.nurse_name && (
-                            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
+                            <Badge variant="gray" size="md" className="flex items-center gap-1">
                               Nurse: {item.nurse_name}
                               {!isCompleted && (
                                 <button
-                                  onClick={() => setEditingNurseForEncounter(item.id)}
-                                  className="hover:bg-gray-200 rounded p-1 transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingNurseForEncounter(item.id);
+                                  }}
+                                  className="hover:bg-gray-300 rounded p-0.5 transition-colors ml-1"
                                   title="Change nurse"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                 </button>
                               )}
-                            </span>
+                            </Badge>
                           )}
                           {item.doctor_name && (
-                            <span className="bg-secondary-100 text-secondary-800 px-3 py-1 rounded-full font-medium">
-                              Doctor: {item.doctor_name}
-                            </span>
+                            <Badge variant="secondary" size="md">
+                              <svg className="w-3 h-3 mr-1 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Dr. {item.doctor_name}
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -1243,44 +1253,48 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
                       )}
 
-                      <button
+                      <Button
+                        variant="success"
+                        size="sm"
                         onClick={() => handleViewInvoice(item.id)}
-                        className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors flex items-center gap-2"
+                        leftIcon={
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                        }
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
                         {isPaid ? 'View Invoice' : 'Print Invoice'}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
               })}
 
               {filteredQueue.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <p className="mt-2 text-lg font-medium">
-                    {queue.length === 0 ? 'No patients in queue' : 'No patients match your filters'}
-                  </p>
-                  {queue.length > 0 && (queueSearchTerm || queueClinicFilter || queueStatusFilter) && (
-                    <button
-                      onClick={() => {
-                        setQueueSearchTerm('');
-                        setQueueClinicFilter('');
-                        setQueueStatusFilter('');
-                      }}
-                      className="mt-2 text-sm text-primary-600 hover:text-primary-800 underline"
-                    >
-                      Clear all filters
-                    </button>
-                  )}
-                </div>
+                <EmptyState
+                  title={queue.length === 0 ? 'No patients in queue' : 'No patients match your filters'}
+                  description={queue.length === 0
+                    ? 'Patients will appear here after check-in'
+                    : 'Try adjusting your search or filter criteria'
+                  }
+                  icon={
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  }
+                  action={queue.length > 0 && (queueSearchTerm || queueClinicFilter || queueStatusFilter) ? {
+                    label: 'Clear all filters',
+                    onClick: () => {
+                      setQueueSearchTerm('');
+                      setQueueClinicFilter('');
+                      setQueueStatusFilter('');
+                    }
+                  } : undefined}
+                />
               )}
             </div>
-          </div>
+            </Card.Body>
+          </Card>
           </>
         )}
 
