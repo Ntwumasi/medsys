@@ -405,22 +405,28 @@ const DoctorDashboard: React.FC = () => {
   };
 
   const handleCompleteEncounter = async () => {
-    if (!selectedEncounter) return;
+    if (!selectedEncounter) {
+      showToast('Please select a patient first', 'warning');
+      return;
+    }
 
-    if (!confirm('Are you sure you want to complete this encounter? Patient will be sent back to the nurse.')) {
+    if (!confirm('Are you sure you want to alert the nurse? The patient will be sent back to the nurse for follow-up care.')) {
       return;
     }
 
     try {
-      await apiClient.post('/workflow/doctor/complete-encounter', {
+      showToast('Alerting nurse...', 'info');
+      const response = await apiClient.post('/workflow/doctor/complete-encounter', {
         encounter_id: selectedEncounter.id,
       });
-      showToast('Encounter completed. Patient sent back to nurse.', 'success');
+      console.log('Alert nurse response:', response.data);
+      showToast('Nurse has been alerted. Patient is ready for follow-up care.', 'success');
       setSelectedEncounter(null);
       loadRoomEncounters();
-    } catch (error) {
-      console.error('Error completing encounter:', error);
-      showToast('Failed to complete encounter', 'error');
+    } catch (error: any) {
+      console.error('Error alerting nurse:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to alert nurse';
+      showToast(errorMessage, 'error');
     }
   };
 
@@ -679,71 +685,58 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Quick Vitals Section */}
-            {selectedEncounter && selectedEncounter.vital_signs && (
+            {/* Pending Signatures Section */}
+            {selectedEncounter && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-danger-500 to-pink-500 px-4 py-3">
+                <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
-                      <h2 className="text-sm font-semibold text-white">Vital Signs</h2>
+                      <h2 className="text-sm font-semibold text-white">Pending Signatures</h2>
                     </div>
-                    <button
-                      onClick={() => setShowVitalsHistory(true)}
-                      className="px-2 py-1 bg-white bg-opacity-20 text-white text-xs font-bold rounded hover:bg-opacity-30 transition-colors flex items-center gap-1"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      History
-                    </button>
+                    <span className="px-2 py-0.5 bg-white bg-opacity-20 text-white text-xs font-bold rounded-full">
+                      {!soapSigned ? 1 : 0}
+                    </span>
                   </div>
                 </div>
                 <div className="p-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-danger-50 rounded-lg p-2">
-                      <div className="text-xs text-danger-600 font-medium">BP</div>
-                      <div className="font-bold text-danger-800">
-                        {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
-                      </div>
-                    </div>
-                    <div className="bg-pink-50 rounded-lg p-2">
-                      <div className="text-xs text-pink-600 font-medium">HR</div>
-                      <div className="font-bold text-pink-800">
-                        {selectedEncounter.vital_signs.heart_rate} <span className="text-xs font-normal">bpm</span>
-                      </div>
-                    </div>
-                    <div className="bg-orange-50 rounded-lg p-2">
-                      <div className="text-xs text-orange-600 font-medium">Temp</div>
-                      <div className="font-bold text-orange-800">
-                        {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
-                      </div>
-                    </div>
-                    <div className="bg-primary-50 rounded-lg p-2">
-                      <div className="text-xs text-primary-600 font-medium">SpO2</div>
-                      <div className="font-bold text-primary-800">
-                        {selectedEncounter.vital_signs.oxygen_saturation}%
-                      </div>
-                    </div>
-                    {selectedEncounter.vital_signs.respiratory_rate && (
-                      <div className="bg-cyan-50 rounded-lg p-2">
-                        <div className="text-xs text-cyan-600 font-medium">RR</div>
-                        <div className="font-bold text-cyan-800">
-                          {selectedEncounter.vital_signs.respiratory_rate} <span className="text-xs font-normal">/min</span>
+                  {!soapSigned ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between p-3 bg-warning-50 rounded-lg border border-warning-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-sm font-semibold text-warning-800">SOAP Note</div>
+                            <div className="text-xs text-warning-600">Requires physician signature</div>
+                          </div>
                         </div>
+                        <button
+                          onClick={handleSignSOAP}
+                          className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors"
+                        >
+                          Sign Now
+                        </button>
                       </div>
-                    )}
-                    {selectedEncounter.vital_signs.weight && (
-                      <div className="bg-success-50 rounded-lg p-2">
-                        <div className="text-xs text-success-600 font-medium">Wt</div>
-                        <div className="font-bold text-success-800">
-                          {selectedEncounter.vital_signs.weight} <span className="text-xs font-normal">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
-                        </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 bg-success-50 rounded-lg border border-success-200">
+                      <div className="w-8 h-8 rounded-full bg-success-100 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <div className="text-sm font-semibold text-success-800">All documents signed</div>
+                        <div className="text-xs text-success-600">No pending signatures</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -849,97 +842,9 @@ const DoctorDashboard: React.FC = () => {
                       </svg>
                     </Link>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200">
-                    <div className="col-span-2">
-                      <div className="text-sm text-gray-600">Today's Visit</div>
-                      <div className="font-semibold text-lg text-primary-800 bg-primary-50 p-3 rounded-lg border border-primary-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
-                    </div>
-                    {selectedEncounter.vital_signs ? (
-                      <div className="col-span-2 bg-gradient-to-r from-success-50 to-success-50 rounded-xl p-4 border border-success-200">
-                        <div className="text-sm font-medium text-success-800 mb-3 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                            </svg>
-                            Vital Signs
-                          </div>
-                          <button
-                            onClick={() => setShowVitalsHistory(true)}
-                            className="text-xs bg-success-600 text-white px-2 py-1 rounded hover:bg-success-700 transition-colors flex items-center gap-1"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            View History
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="bg-white rounded-lg p-2 border border-success-100">
-                            <div className="text-xs text-gray-500">Blood Pressure</div>
-                            <div className="font-bold text-gray-900">
-                              {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
-                              <span className="text-xs font-normal text-gray-500 ml-1">mmHg</span>
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-lg p-2 border border-success-100">
-                            <div className="text-xs text-gray-500">Heart Rate</div>
-                            <div className="font-bold text-gray-900">
-                              {selectedEncounter.vital_signs.heart_rate}
-                              <span className="text-xs font-normal text-gray-500 ml-1">bpm</span>
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-lg p-2 border border-success-100">
-                            <div className="text-xs text-gray-500">Temperature</div>
-                            <div className="font-bold text-gray-900">
-                              {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
-                            </div>
-                          </div>
-                          <div className="bg-white rounded-lg p-2 border border-success-100">
-                            <div className="text-xs text-gray-500">O2 Saturation</div>
-                            <div className="font-bold text-gray-900">
-                              {selectedEncounter.vital_signs.oxygen_saturation}
-                              <span className="text-xs font-normal text-gray-500 ml-1">%</span>
-                            </div>
-                          </div>
-                          {selectedEncounter.vital_signs.respiratory_rate && (
-                            <div className="bg-white rounded-lg p-2 border border-success-100">
-                              <div className="text-xs text-gray-500">Respiratory Rate</div>
-                              <div className="font-bold text-gray-900">
-                                {selectedEncounter.vital_signs.respiratory_rate}
-                                <span className="text-xs font-normal text-gray-500 ml-1">/min</span>
-                              </div>
-                            </div>
-                          )}
-                          {selectedEncounter.vital_signs.weight && (
-                            <div className="bg-white rounded-lg p-2 border border-success-100">
-                              <div className="text-xs text-gray-500">Weight</div>
-                              <div className="font-bold text-gray-900">
-                                {selectedEncounter.vital_signs.weight}
-                                <span className="text-xs font-normal text-gray-500 ml-1">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
-                              </div>
-                            </div>
-                          )}
-                          {selectedEncounter.vital_signs.height && (
-                            <div className="bg-white rounded-lg p-2 border border-success-100">
-                              <div className="text-xs text-gray-500">Height</div>
-                              <div className="font-bold text-gray-900">
-                                {selectedEncounter.vital_signs.height}
-                                <span className="text-xs font-normal text-gray-500 ml-1">{selectedEncounter.vital_signs.height_unit || 'in'}</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="col-span-2 bg-warning-50 rounded-xl p-4 border border-warning-200">
-                        <div className="text-sm text-warning-800 flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
-                          <span>Vital signs not yet recorded by nurse</span>
-                        </div>
-                      </div>
-                    )}
+                  <div className="pt-4 mt-4 border-t border-gray-200">
+                    <div className="text-sm text-gray-600">Today's Visit</div>
+                    <div className="font-semibold text-lg text-primary-800 bg-primary-50 p-3 rounded-lg border border-primary-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                   </div>
                 </div>
 
