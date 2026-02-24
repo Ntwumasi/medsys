@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, parseISO } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import AppLayout from '../components/AppLayout';
+import { Card } from '../components/ui';
 
 interface Appointment {
   id: number;
@@ -608,66 +610,69 @@ const AppointmentsCalendar: React.FC = () => {
 
   if (loading && appointments.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+      <AppLayout title="Appointments Calendar">
+        <Card>
+          <div className="flex items-center justify-center p-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          </div>
+        </Card>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Appointments Calendar</h1>
-          <p className="text-gray-600">View and manage all scheduled appointments</p>
-        </div>
+    <AppLayout title="Appointments Calendar">
+      <div className="space-y-6">
+        <Card>
+          <div className="p-6">
+            {renderCalendarHeader()}
 
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          {renderCalendarHeader()}
-
-          {viewMode === 'month' ? (
-            <>
-              {renderDaysOfWeek()}
-              {renderCalendarCells()}
-            </>
-          ) : (
-            renderDayView()
-          )}
-        </div>
+            {viewMode === 'month' ? (
+              <>
+                {renderDaysOfWeek()}
+                {renderCalendarCells()}
+              </>
+            ) : (
+              renderDayView()
+            )}
+          </div>
+        </Card>
 
         {/* Legend */}
-        <div className="mt-4 bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-blue-100 border border-blue-300"></div>
-              <span>Scheduled</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-green-100 border border-green-300"></div>
-              <span>Confirmed</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-secondary-100 border border-secondary-300"></div>
-              <span>Checked In</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300"></div>
-              <span>Completed</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
-              <span>Cancelled</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300"></div>
-              <span>No Show</span>
+        <Card>
+          <div className="p-4">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-100 border border-blue-300"></div>
+                <span>Scheduled</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-green-100 border border-green-300"></div>
+                <span>Confirmed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-secondary-100 border border-secondary-300"></div>
+                <span>Checked In</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300"></div>
+                <span>Completed</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
+                <span>Cancelled</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300"></div>
+                <span>No Show</span>
+              </div>
             </div>
           </div>
-        </div>
+        </Card>
       </div>
 
       {renderNewAppointmentModal()}
-    </div>
+    </AppLayout>
   );
 };
 

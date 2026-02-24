@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import type { Patient } from '../types';
 import { format } from 'date-fns';
+import AppLayout from '../components/AppLayout';
+import { Card, Button, Input, Table, EmptyState, Skeleton } from '../components/ui';
 
 const PatientList: React.FC = () => {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -37,105 +40,123 @@ const PatientList: React.FC = () => {
     return age;
   };
 
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold text-gray-900">Patients</h1>
-            <Link to="/patients/new" className="btn-primary">
-              + New Patient
-            </Link>
+  const columns = [
+    {
+      key: 'patient_number',
+      header: 'Patient #',
+      render: (patient: Patient) => (
+        <span className="font-medium text-gray-900">{patient.patient_number}</span>
+      ),
+    },
+    {
+      key: 'name',
+      header: 'Name',
+      render: (patient: Patient) => (
+        <div>
+          <div className="text-sm font-medium text-gray-900">
+            {patient.first_name} {patient.last_name}
           </div>
+          {patient.email && (
+            <div className="text-sm text-gray-500">{patient.email}</div>
+          )}
         </div>
-      </header>
+      ),
+    },
+    {
+      key: 'age_gender',
+      header: 'Age/Gender',
+      render: (patient: Patient) => (
+        <span className="text-gray-500">{calculateAge(patient.date_of_birth)} yrs / {patient.gender}</span>
+      ),
+    },
+    {
+      key: 'contact',
+      header: 'Contact',
+      render: (patient: Patient) => (
+        <span className="text-gray-500">{patient.phone || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'registered',
+      header: 'Registered',
+      render: (patient: Patient) => (
+        <span className="text-gray-500">{format(new Date(patient.created_at), 'MMM d, yyyy')}</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (patient: Patient) => (
+        <Link to={`/patients/${patient.id}`}>
+          <Button variant="ghost" size="sm">View</Button>
+        </Link>
+      ),
+    },
+  ];
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card">
-          <div className="mb-6">
-            <input
-              type="text"
-              placeholder="Search patients by name or patient number..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="input"
-            />
+  return (
+    <AppLayout title="Patients">
+      <Card>
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex-1 max-w-md">
+              <Input
+                type="text"
+                placeholder="Search patients by name or patient number..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                leftIcon={
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                }
+              />
+            </div>
+            <Link to="/patients/new">
+              <Button variant="primary" leftIcon={
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              }>
+                New Patient
+              </Button>
+            </Link>
           </div>
 
           {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-              <p className="mt-2 text-gray-600">Loading patients...</p>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ))}
             </div>
           ) : patients.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <p>No patients found</p>
-            </div>
+            <EmptyState
+              title="No patients found"
+              description={search ? "Try adjusting your search criteria" : "No patients have been registered yet"}
+              icon={
+                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              }
+              action={!search ? { label: 'Register New Patient', onClick: () => navigate('/patients/new') } : undefined}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Patient #
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Age/Gender
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Registered
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {patients.map((patient) => (
-                    <tr key={patient.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {patient.patient_number}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
-                          {patient.first_name} {patient.last_name}
-                        </div>
-                        {patient.email && (
-                          <div className="text-sm text-gray-500">{patient.email}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {calculateAge(patient.date_of_birth)} yrs / {patient.gender}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {patient.phone || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {format(new Date(patient.created_at), 'MMM d, yyyy')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <Link
-                          to={`/patients/${patient.id}`}
-                          className="text-primary-600 hover:text-primary-900"
-                        >
-                          View
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table
+              columns={columns}
+              data={patients}
+              keyExtractor={(patient) => patient.id}
+              onRowClick={(patient) => navigate(`/patients/${patient.id}`)}
+            />
           )}
         </div>
-      </main>
-    </div>
+      </Card>
+    </AppLayout>
   );
 };
 

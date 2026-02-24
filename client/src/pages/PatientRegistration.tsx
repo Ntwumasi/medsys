@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import type { ApiError } from '../types';
+import AppLayout from '../components/AppLayout';
+import { Card, Button } from '../components/ui';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
@@ -119,30 +121,28 @@ const PatientRegistration: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Register New Patient</h1>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="card">
+    <AppLayout title="Register New Patient">
+      <div className="max-w-4xl mx-auto">
+        <Card>
+          <div className="p-6">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+            <div className="bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-lg mb-6">
               <p>{error}</p>
               {duplicatePatient && (
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-2"
                   onClick={() => navigate(`/patients/${duplicatePatient.id}`)}
-                  className="mt-2 inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                  leftIcon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  }
                 >
-                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
                   View Existing Patient ({duplicatePatient.patientNumber})
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -623,21 +623,22 @@ const PatientRegistration: React.FC = () => {
 
             {/* Form Actions */}
             <div className="flex gap-4 justify-end pt-4 border-t">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => navigate('/patients')}
-                className="btn-secondary"
               >
                 Cancel
-              </button>
-              <button type="submit" disabled={loading} className="btn-primary">
+              </Button>
+              <Button type="submit" variant="primary" disabled={loading} isLoading={loading}>
                 {loading ? 'Registering...' : 'Register Patient'}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
-      </main>
-    </div>
+          </div>
+        </Card>
+      </div>
+    </AppLayout>
   );
 };
 

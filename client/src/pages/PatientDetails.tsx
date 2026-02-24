@@ -5,6 +5,8 @@ import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import AppLayout from '../components/AppLayout';
+import { Card, EmptyState } from '../components/ui';
 
 interface LabResult {
   id: number;
@@ -84,64 +86,41 @@ const PatientDetails: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading patient information...</p>
-        </div>
-      </div>
+      <AppLayout title="Patient Details">
+        <Card>
+          <div className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            <p className="mt-4 text-gray-600">Loading patient information...</p>
+          </div>
+        </Card>
+      </AppLayout>
     );
   }
 
   if (!summary) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center bg-white rounded-xl shadow-lg p-8">
-          <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-gray-600 text-lg mb-4">Patient not found</p>
-          <button
-            onClick={() => navigate(-1)}
-            className="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
+      <AppLayout title="Patient Details">
+        <Card>
+          <EmptyState
+            title="Patient not found"
+            description="The patient you're looking for doesn't exist or has been removed."
+            icon={
+              <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            action={{ label: 'Go Back', onClick: () => navigate(-1) }}
+          />
+        </Card>
+      </AppLayout>
     );
   }
 
   const { patient, recent_encounters, active_medications, allergies, upcoming_appointments } = summary;
 
   return (
-    <div className="min-h-full">
-      <div className="max-w-full mx-auto px-6 py-6">
-        {/* Page Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-all font-medium"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Back
-            </button>
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-3 rounded-xl">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {patient.first_name} {patient.last_name}
-              </h1>
-              <p className="text-gray-500 text-sm">Patient # {patient.patient_number}</p>
-            </div>
-          </div>
-        </div>
+    <AppLayout title={`${patient.first_name} ${patient.last_name}`}>
+      <div className="space-y-6">
 
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
@@ -731,7 +710,7 @@ const PatientDetails: React.FC = () => {
           onClose={() => setShowVitalSignsHistory(false)}
         />
       )}
-    </div>
+    </AppLayout>
   );
 };
 
