@@ -434,9 +434,9 @@ const DoctorDashboard: React.FC = () => {
 
   return (
     <AppLayout title="Doctor Dashboard">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
           {/* Active Patients List */}
-          <div className="lg:col-span-1">
+          <div className="xl:col-span-1">
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               {/* Header */}
               <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
@@ -819,7 +819,7 @@ const DoctorDashboard: React.FC = () => {
           </div>
 
           {/* Patient Details & Actions */}
-          <div className="lg:col-span-2">
+          <div className="xl:col-span-2">
             {selectedEncounter ? (
               <div className="space-y-4">
                 {/* Patient Info */}
@@ -827,14 +827,14 @@ const DoctorDashboard: React.FC = () => {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedEncounter.patient_name}</h2>
-                      <div className="flex gap-4 mt-2 text-sm">
-                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
+                      <div className="flex flex-wrap gap-2 lg:gap-4 mt-2 text-sm">
+                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold whitespace-nowrap">
                           Patient #: {selectedEncounter.patient_number}
                         </span>
-                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold whitespace-nowrap">
                           Encounter #: {selectedEncounter.encounter_number}
                         </span>
-                        <span className="px-3 py-1 bg-success-50 text-success-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-success-50 text-success-700 rounded-lg font-semibold whitespace-nowrap">
                           {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
                         </span>
                       </div>
@@ -1317,7 +1317,7 @@ const DoctorDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 xl:gap-6">
                     {/* Alert Nurse Action */}
                     <div className="border-2 border-success-200 rounded-xl p-4 bg-gradient-to-br from-success-50 to-success-50">
                       <h3 className="font-bold text-success-900 mb-4 flex items-center gap-2">

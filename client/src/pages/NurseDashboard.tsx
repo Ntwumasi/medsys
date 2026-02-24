@@ -904,9 +904,9 @@ const NurseDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
           {/* Left Column */}
-          <div className="lg:col-span-1">
+          <div className="xl:col-span-1">
             {/* Doctor Notifications */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
@@ -1212,7 +1212,7 @@ const NurseDashboard: React.FC = () => {
           </div>
 
           {/* Patient Details & Actions */}
-          <div className="lg:col-span-2">
+          <div className="xl:col-span-2">
             {selectedPatient ? (
               <div className="space-y-4">
                 {/* Patient Info Header */}

@@ -41,3 +41,4 @@ coverage/
 .vercel
 api/index.ts
 .env*.local
+.env.vercel

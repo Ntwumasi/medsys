@@ -473,9 +473,9 @@ const PharmacyDashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
               {/* Orders List */}
-              <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="xl:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">
                     {ordersSubTab === 'pending' ? 'Pending Prescriptions' : 'Order History'}
