@@ -533,17 +533,17 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Results Alerts Section */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-              <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     <h2 className="text-sm font-semibold text-white">
                       Results Alerts
                     </h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-white text-warning-600 text-xs font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
                     {labAlerts.length + imagingAlerts.length + pharmacyAlerts.length}
                   </span>
                 </div>
@@ -688,15 +688,15 @@ const DoctorDashboard: React.FC = () => {
             {/* Pending Signatures Section */}
             {selectedEncounter && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
+                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
                       <h2 className="text-sm font-semibold text-white">Pending Signatures</h2>
                     </div>
-                    <span className="px-2 py-0.5 bg-white bg-opacity-20 text-white text-xs font-bold rounded-full">
+                    <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
                       {!soapSigned ? 1 : 0}
                     </span>
                   </div>
@@ -741,19 +741,19 @@ const DoctorDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Patient Notes Section */}
+            {/* Messages Section */}
             {selectedEncounter && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-secondary-600 to-secondary-600 px-4 py-3">
+                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
-                      <h2 className="text-sm font-semibold text-white">Patient Notes</h2>
+                      <h2 className="text-sm font-semibold text-white">Messages</h2>
                     </div>
                     {notes.length > 0 && (
-                      <span className="px-2 py-0.5 bg-white bg-opacity-20 text-white text-xs font-bold rounded-full">
+                      <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
                         {notes.length}
                       </span>
                     )}
@@ -1259,9 +1259,27 @@ const DoctorDashboard: React.FC = () => {
 
                   </div>
                 </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
+                <div className="text-center text-gray-400">
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-20"></div>
+                    <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                  </div>
+                  <p className="text-2xl font-semibold text-gray-600 mb-2">Select a patient to begin</p>
+                  <p className="text-gray-400">Choose a patient from the active rooms to view their details and medical records</p>
+                </div>
+              </div>
+            )}
+          </div>
 
-                {/* Orders & Actions */}
-                <div className="card">
+          {/* Full-width Orders & Actions */}
+          {selectedEncounter && (
+            <div className="xl:col-span-3 space-y-4">
+              <div className="card">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900">Orders & Actions</h2>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
@@ -1550,14 +1568,14 @@ const DoctorDashboard: React.FC = () => {
                   )}
                 </div>
 
-                {/* Lab & Test Results Section */}
+                {/* Lab & Imaging Results Section */}
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                       <svg className="w-6 h-6 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Lab & Test Results
+                      Lab & Imaging Results
                     </h2>
                     <button
                       onClick={() => selectedEncounter && loadEncounterOrders(selectedEncounter.id)}
@@ -1759,22 +1777,8 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
-                <div className="text-center text-gray-400">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-20"></div>
-                    <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <p className="text-2xl font-semibold text-gray-600 mb-2">Select a patient to begin</p>
-                  <p className="text-gray-400">Choose a patient from the active rooms to view their details and medical records</p>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
       {/* Patient Quick View Side Panel */}
