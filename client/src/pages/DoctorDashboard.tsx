@@ -846,6 +846,55 @@ const DoctorDashboard: React.FC = () => {
                     <div className="text-sm text-gray-600">Today's Visit</div>
                     <div className="font-semibold text-lg text-primary-800 bg-primary-50 p-3 rounded-lg border border-primary-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                   </div>
+
+                  {/* Vital Signs Summary */}
+                  {selectedEncounter.vital_signs && (
+                    <div className="pt-4 mt-4 border-t border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          Vital Signs
+                        </div>
+                        <button
+                          onClick={() => setShowVitalsHistory(true)}
+                          className="px-3 py-1.5 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          View History
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-500 mb-1">BP</div>
+                          <div className="font-bold text-gray-900">
+                            {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-500 mb-1">HR</div>
+                          <div className="font-bold text-gray-900">
+                            {selectedEncounter.vital_signs.heart_rate} <span className="text-xs font-normal">bpm</span>
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-500 mb-1">Temp</div>
+                          <div className="font-bold text-gray-900">
+                            {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
+                          </div>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-gray-500 mb-1">SpO2</div>
+                          <div className="font-bold text-gray-900">
+                            {selectedEncounter.vital_signs.oxygen_saturation}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Clinical Notes */}
