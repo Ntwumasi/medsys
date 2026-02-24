@@ -324,6 +324,27 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  // Start encounter when nurse begins working with a patient
+  const handleSelectPatient = async (patient: AssignedPatient) => {
+    setSelectedPatient(patient);
+    setEditingRoom(false);
+
+    // Only call start if patient hasn't been started yet (status is not 'with_nurse' or from_doctor)
+    // This updates nurse_started_at in the database
+    if (patient.status !== 'with_nurse' && !patient.from_doctor) {
+      try {
+        await apiClient.post('/workflow/nurse/start', {
+          encounter_id: patient.id,
+        });
+        // Reload patients to get updated status
+        loadAssignedPatients();
+      } catch (error) {
+        console.error('Error starting encounter:', error);
+        // Don't show error to user - this is a background update
+      }
+    }
+  };
+
   const handleCreateLabOrder = async () => {
     if (!selectedPatient) {
       showToast('Please select a patient first', 'warning');
@@ -982,10 +1003,7 @@ const NurseDashboard: React.FC = () => {
                 {assignedPatients.map((patient) => (
                   <div
                     key={patient.id}
-                    onClick={() => {
-                      setSelectedPatient(patient);
-                      setEditingRoom(false);
-                    }}
+                    onClick={() => handleSelectPatient(patient)}
                     className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-primary-50 group ${
                       selectedPatient?.id === patient.id
                         ? 'bg-primary-100 border-l-4 border-primary-600'

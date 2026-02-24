@@ -216,6 +216,25 @@ const DoctorDashboard: React.FC = () => {
     }
   };
 
+  // Handle selecting an encounter - also starts the doctor encounter if not already started
+  const handleSelectEncounter = async (encounter: RoomEncounter) => {
+    setSelectedEncounter(encounter);
+    loadSOAPSignStatus(encounter.id);
+
+    // Call doctor start endpoint to update workflow_status to 'with_doctor'
+    // This sets doctor_started_at in the database
+    try {
+      await apiClient.post('/workflow/doctor/start', {
+        encounter_id: encounter.id,
+      });
+      // Reload encounters to get updated status
+      loadRoomEncounters();
+    } catch (error) {
+      // Don't show error - this might fail if already started, which is fine
+      console.error('Error starting doctor encounter:', error);
+    }
+  };
+
   const handleAddDoctorNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEncounter || !noteContent) return;
@@ -448,10 +467,7 @@ const DoctorDashboard: React.FC = () => {
                 {roomEncounters.map((encounter) => (
                   <div
                     key={encounter.id}
-                    onClick={() => {
-                      setSelectedEncounter(encounter);
-                      loadSOAPSignStatus(encounter.id);
-                    }}
+                    onClick={() => handleSelectEncounter(encounter)}
                     className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-primary-50 group ${
                       selectedEncounter?.id === encounter.id
                         ? 'bg-primary-100 border-l-4 border-primary-600'
