@@ -305,7 +305,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         <div className="flex-1 sm:hidden" />
 
         {/* Right side items */}
-        <div className="flex items-center gap-2 lg:gap-4">
+        <div className="flex items-center gap-2 lg:gap-4 ml-auto">
           {/* Notifications */}
           <NotificationCenter />
 
