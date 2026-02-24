@@ -3,7 +3,7 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addM
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import AppLayout from '../components/AppLayout';
-import { Card } from '../components/ui';
+import { Card, Modal, Input, Select, Textarea, Button } from '../components/ui';
 
 interface Appointment {
   id: number;
@@ -450,163 +450,132 @@ const AppointmentsCalendar: React.FC = () => {
     );
   };
 
-  const renderNewAppointmentModal = () => {
-    if (!showNewAppointment) return null;
+  const doctorOptions = doctors.map((doctor) => ({
+    value: doctor.id,
+    label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+  }));
 
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-900">New Appointment</h3>
-              <button
-                onClick={() => setShowNewAppointment(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
+  const durationOptions = [
+    { value: 15, label: '15 minutes' },
+    { value: 30, label: '30 minutes' },
+    { value: 45, label: '45 minutes' },
+    { value: 60, label: '60 minutes' },
+  ];
 
-          <form onSubmit={handleCreateAppointment} className="p-6 space-y-4">
-            {/* Patient Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Patient *</label>
-              <input
-                type="text"
-                value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
-                placeholder="Search by name or patient number..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              {patients.length > 0 && (
-                <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
-                  {patients.map((patient) => (
-                    <div
-                      key={patient.id}
-                      onClick={() => {
-                        setNewAppointment({ ...newAppointment, patient_id: patient.id.toString() });
-                        setPatientSearch(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
-                        setPatients([]);
-                      }}
-                      className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                    >
-                      <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                      <div className="text-sm text-gray-500">{patient.patient_number}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+  const appointmentTypeOptions = [
+    { value: 'new-patient', label: 'New Patient' },
+    { value: 'follow-up', label: 'Follow-up' },
+    { value: 'consultation', label: 'Consultation' },
+    { value: 'routine-checkup', label: 'Routine Checkup' },
+    { value: 'urgent', label: 'Urgent' },
+  ];
 
-            {/* Doctor */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Doctor *</label>
-              <select
-                value={newAppointment.provider_id}
-                onChange={(e) => setNewAppointment({ ...newAppointment, provider_id: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select Doctor</option>
-                {doctors.map((doctor) => (
-                  <option key={doctor.id} value={doctor.id}>
-                    Dr. {doctor.first_name} {doctor.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Date and Time */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
-                <input
-                  type="date"
-                  value={newAppointment.appointment_date}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, appointment_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
-                <input
-                  type="time"
-                  value={newAppointment.appointment_time}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, appointment_time: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Duration and Type */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
-                <select
-                  value={newAppointment.duration_minutes}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, duration_minutes: parseInt(e.target.value) })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={15}>15 minutes</option>
-                  <option value={30}>30 minutes</option>
-                  <option value={45}>45 minutes</option>
-                  <option value={60}>60 minutes</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-                <select
-                  value={newAppointment.appointment_type}
-                  onChange={(e) => setNewAppointment({ ...newAppointment, appointment_type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="new-patient">New Patient</option>
-                  <option value="follow-up">Follow-up</option>
-                  <option value="consultation">Consultation</option>
-                  <option value="routine-checkup">Routine Checkup</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Reason */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Reason for Visit</label>
-              <textarea
-                value={newAppointment.reason}
-                onChange={(e) => setNewAppointment({ ...newAppointment, reason: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                rows={3}
-                placeholder="Brief description of the reason for this appointment..."
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowNewAppointment(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Create Appointment
-              </button>
-            </div>
-          </form>
+  const renderNewAppointmentModal = () => (
+    <Modal
+      isOpen={showNewAppointment}
+      onClose={() => setShowNewAppointment(false)}
+      title="New Appointment"
+      size="md"
+      footer={
+        <div className="flex gap-3 w-full">
+          <Button
+            variant="secondary"
+            onClick={() => setShowNewAppointment(false)}
+            fullWidth
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleCreateAppointment}
+            fullWidth
+          >
+            Create Appointment
+          </Button>
         </div>
-      </div>
-    );
-  };
+      }
+    >
+      <form onSubmit={handleCreateAppointment} className="space-y-4">
+        {/* Patient Search */}
+        <div>
+          <Input
+            label="Patient"
+            required
+            value={patientSearch}
+            onChange={(e) => setPatientSearch(e.target.value)}
+            placeholder="Search by name or patient number..."
+          />
+          {patients.length > 0 && (
+            <div className="mt-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
+              {patients.map((patient) => (
+                <div
+                  key={patient.id}
+                  onClick={() => {
+                    setNewAppointment({ ...newAppointment, patient_id: patient.id.toString() });
+                    setPatientSearch(`${patient.first_name} ${patient.last_name} (${patient.patient_number})`);
+                    setPatients([]);
+                  }}
+                  className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                >
+                  <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                  <div className="text-sm text-gray-500">{patient.patient_number}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <Select
+          label="Doctor"
+          required
+          value={newAppointment.provider_id}
+          onChange={(e) => setNewAppointment({ ...newAppointment, provider_id: e.target.value })}
+          options={doctorOptions}
+          placeholder="Select Doctor"
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Date"
+            type="date"
+            required
+            value={newAppointment.appointment_date}
+            onChange={(e) => setNewAppointment({ ...newAppointment, appointment_date: e.target.value })}
+          />
+          <Input
+            label="Time"
+            type="time"
+            required
+            value={newAppointment.appointment_time}
+            onChange={(e) => setNewAppointment({ ...newAppointment, appointment_time: e.target.value })}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Select
+            label="Duration"
+            value={newAppointment.duration_minutes}
+            onChange={(e) => setNewAppointment({ ...newAppointment, duration_minutes: parseInt(e.target.value) })}
+            options={durationOptions}
+          />
+          <Select
+            label="Type"
+            value={newAppointment.appointment_type}
+            onChange={(e) => setNewAppointment({ ...newAppointment, appointment_type: e.target.value })}
+            options={appointmentTypeOptions}
+          />
+        </div>
+
+        <Textarea
+          label="Reason for Visit"
+          value={newAppointment.reason}
+          onChange={(e) => setNewAppointment({ ...newAppointment, reason: e.target.value })}
+          rows={3}
+          placeholder="Brief description of the reason for this appointment..."
+        />
+      </form>
+    </Modal>
+  );
 
   if (loading && appointments.length === 0) {
     return (
