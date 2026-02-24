@@ -112,7 +112,7 @@ const PublicUpdates: React.FC = () => {
       feature: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Feature' },
       improvement: { bg: 'bg-green-100', text: 'text-green-800', label: 'Improvement' },
       bugfix: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Bug Fix' },
-      planned: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Planned' },
+      planned: { bg: 'bg-secondary-100', text: 'text-secondary-800', label: 'Planned' },
     };
     const badge = badges[category] || badges.feature;
     return (
@@ -126,7 +126,7 @@ const PublicUpdates: React.FC = () => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
       completed: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Completed' },
       in_progress: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'In Progress' },
-      planned: { bg: 'bg-slate-100', text: 'text-slate-800', label: 'Planned' },
+      planned: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Planned' },
     };
     const badge = badges[status] || badges.completed;
     return (
@@ -162,14 +162,14 @@ const PublicUpdates: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       {/* Header */}
       <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
@@ -203,9 +203,9 @@ const PublicUpdates: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-bold text-orange-700">{stats.bugfixes}</div>
               <div className="text-xs sm:text-sm text-orange-600">Bug Fixes</div>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm">
-              <div className="text-2xl sm:text-3xl font-bold text-purple-700">{stats.planned}</div>
-              <div className="text-xs sm:text-sm text-purple-600">Planned</div>
+            <div className="bg-white rounded-xl p-4 border border-secondary-200 shadow-sm">
+              <div className="text-2xl sm:text-3xl font-bold text-secondary-700">{stats.planned}</div>
+              <div className="text-xs sm:text-sm text-secondary-600">Planned</div>
             </div>
           </div>
         )}

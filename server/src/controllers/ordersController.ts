@@ -5,16 +5,29 @@ import pool from '../database/db';
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
-    const ordering_provider = authReq.user?.id;
+    const currentUserId = authReq.user?.id;
+    const currentUserRole = authReq.user?.role;
 
-    const { patient_id, encounter_id, test_name, test_code, priority, notes } = req.body;
+    const { patient_id, encounter_id, test_name, test_code, priority, notes, ordering_provider_id } = req.body;
+
+    // Determine the ordering provider:
+    // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
+    // - Otherwise, use current user (doctor ordering for themselves)
+    let orderingProvider = currentUserId;
+    let enteredBy = currentUserId;
+
+    if (currentUserRole === 'nurse' && ordering_provider_id) {
+      // Nurse is ordering on behalf of a doctor
+      orderingProvider = ordering_provider_id;
+      enteredBy = currentUserId;
+    }
 
     const result = await pool.query(
       `INSERT INTO lab_orders (
-        patient_id, encounter_id, ordering_provider, test_name, test_code, priority, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
-      [patient_id, encounter_id, ordering_provider, test_name, test_code, priority || 'routine', notes]
+      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes]
     );
 
     // Update billing
@@ -45,6 +58,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.patient_id,
         lo.encounter_id,
         lo.ordering_provider,
+        lo.entered_by,
         lo.test_name,
         lo.test_code,
         lo.priority,
@@ -64,11 +78,13 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
           ELSE lo.status
         END as status,
         u.first_name || ' ' || u.last_name as ordering_provider_name,
+        u_entered.first_name || ' ' || u_entered.last_name as entered_by_name,
         e.encounter_number,
         p.patient_number,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
+      LEFT JOIN users u_entered ON lo.entered_by = u_entered.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
       LEFT JOIN patients p ON lo.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id

@@ -319,7 +319,7 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Appointments
                 {upcoming_appointments.length > 0 && (
-                  <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">{upcoming_appointments.length}</span>
+                  <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">{upcoming_appointments.length}</span>
                 )}
               </button>
               <button
@@ -502,8 +502,8 @@ const PatientDetails: React.FC = () => {
                           )}
 
                           {encounter.plan && (
-                            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1">Plan</p>
+                            <div className="bg-secondary-50 rounded-lg p-4 border border-secondary-100 md:col-span-2">
+                              <p className="text-xs font-semibold text-secondary-600 uppercase tracking-wider mb-1">Plan</p>
                               <p className="text-sm text-gray-900">{encounter.plan}</p>
                             </div>
                           )}
@@ -583,9 +583,9 @@ const PatientDetails: React.FC = () => {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {upcoming_appointments.map((appointment) => (
-                      <div key={appointment.id} className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-5 border border-purple-200 shadow-sm">
+                      <div key={appointment.id} className="bg-gradient-to-br from-secondary-50 to-indigo-50 rounded-xl p-5 border border-secondary-200 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
-                          <div className="bg-purple-600 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                          <div className="bg-secondary-600 text-white px-3 py-1 rounded-lg text-sm font-bold">
                             {format(new Date(appointment.appointment_date), 'MMM d')}
                           </div>
                           <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
@@ -606,7 +606,7 @@ const PatientDetails: React.FC = () => {
                           Provider: {appointment.provider_name}
                         </p>
                         {appointment.reason && (
-                          <p className="text-sm text-purple-700 mt-3 pt-3 border-t border-purple-200">
+                          <p className="text-sm text-secondary-700 mt-3 pt-3 border-t border-secondary-200">
                             <strong>Reason:</strong> {appointment.reason}
                           </p>
                         )}

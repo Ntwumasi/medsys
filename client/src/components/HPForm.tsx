@@ -419,7 +419,7 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
                   <input type="checkbox" checked={formData.rosDiarrhea} onChange={(e) => setFormData({ ...formData, rosDiarrhea: e.target.checked })} className="mr-1" />
                   diarrhea
                   <input type="checkbox" checked={formData.rosDiarrheaBlood} onChange={(e) => setFormData({ ...formData, rosDiarrheaBlood: e.target.checked })} className="ml-1 mr-1" />
-                  <span className="text-red-600">blood?</span>
+                  <span className="text-danger-600">blood?</span>
                 </label>
                 <label className="flex items-center mb-1">
                   <input type="checkbox" checked={formData.rosConstipation} onChange={(e) => setFormData({ ...formData, rosConstipation: e.target.checked })} className="mr-1" />
@@ -437,7 +437,7 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
                   <input type="checkbox" checked={formData.rosVomiting} onChange={(e) => setFormData({ ...formData, rosVomiting: e.target.checked })} className="mr-1" />
                   vomiting
                   <input type="checkbox" checked={formData.rosVomitingBlood} onChange={(e) => setFormData({ ...formData, rosVomitingBlood: e.target.checked })} className="ml-1 mr-1" />
-                  <span className="text-red-600">blood?</span>
+                  <span className="text-danger-600">blood?</span>
                 </label>
               </div>
 
@@ -458,7 +458,7 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
                 </label>
                 <label className="flex items-center mb-1">
                   <input type="checkbox" checked={formData.rosBlood} onChange={(e) => setFormData({ ...formData, rosBlood: e.target.checked })} className="mr-1" />
-                  <span className="text-red-600">blood?</span>
+                  <span className="text-danger-600">blood?</span>
                 </label>
               </div>
 

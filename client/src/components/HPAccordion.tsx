@@ -479,10 +479,10 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             border-l-4 transition-all duration-200 ease-in-out
             ${
               section.completed
-                ? 'border-emerald-500 bg-emerald-50 hover:bg-emerald-100 shadow-sm'
-                : 'border-gray-200 bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-slate-50 hover:border-gray-300'
+                ? 'border-success-500 bg-success-50 hover:bg-success-100 shadow-sm'
+                : 'border-gray-200 bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50 hover:border-gray-300'
             }
-            ${isExpanded ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-500 shadow-md ring-2 ring-blue-100' : ''}
+            ${isExpanded ? 'bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-500 shadow-md ring-2 ring-primary-100' : ''}
           `}
         >
           {/* Completion Indicator */}
@@ -490,7 +490,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             {section.completed ? (
               <div className="relative">
                 <div className="absolute inset-0 bg-emerald-400 rounded-full blur-sm opacity-40"></div>
-                <svg className="w-6 h-6 text-emerald-600 relative" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="w-6 h-6 text-success-600 relative" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
               </div>
@@ -510,7 +510,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             </h3>
             {section.completed && (
               <div className="flex items-center gap-1 mt-1">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
                   <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
@@ -523,7 +523,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
           {/* Expand/Collapse Icon */}
           <div className="flex-shrink-0">
             {isExpanded ? (
-              <svg className="w-5 h-5 text-blue-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-primary-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             ) : (
@@ -555,9 +555,9 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     <div className="flex flex-col gap-6">
       {/* Vital Signs Summary - Always visible at top */}
       {vitalSigns && Object.keys(vitalSigns).some(key => vitalSigns[key as keyof VitalSignsData] !== undefined && vitalSigns[key as keyof VitalSignsData] !== null) && (
-        <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-blue-200 rounded-xl p-4 mx-6 mt-4">
+        <div className="bg-gradient-to-r from-gray-50 to-primary-50 border border-primary-200 rounded-xl p-4 mx-6 mt-4">
           <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
             VITAL SIGNS
@@ -620,11 +620,11 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Side - Accordion Sections */}
       <div className="lg:col-span-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 z-10 shadow-md">
+        <div className="sticky top-0 bg-gradient-to-r from-primary-600 to-secondary-600 text-white p-4 z-10 shadow-md">
           {/* Title Row */}
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold">SOAP</h2>
-            <span className="text-blue-100 text-sm">
+            <span className="text-primary-100 text-sm">
               {sections.filter(s => s.completed).length} of {sections.length} completed
             </span>
           </div>
@@ -657,8 +657,8 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 disabled={isSigned}
                 className={`p-2 rounded-lg transition-colors ${
                   isSigned
-                    ? 'bg-emerald-500/30 cursor-not-allowed'
-                    : 'bg-white/20 hover:bg-emerald-500/40'
+                    ? 'bg-success-500/30 cursor-not-allowed'
+                    : 'bg-white/20 hover:bg-success-500/40'
                 }`}
                 title={isSigned ? `Signed by ${signedBy || 'Doctor'}` : 'Sign & Lock Note'}
               >
@@ -688,20 +688,20 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
         {expandedSection && currentSection ? (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200 p-6">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-50 border-b border-gray-200 p-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSection.title}</h3>
                   <div className="flex items-center gap-2">
                     {currentSection.completed ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-emerald-100 text-emerald-800 shadow-sm">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-success-100 text-success-800 shadow-sm">
                         <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
                         Section completed
                       </span>
                     ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-800 shadow-sm">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-warning-100 text-warning-800 shadow-sm">
                         <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
@@ -728,9 +728,9 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             <div className="flex-1 p-6 overflow-y-auto">
               {/* Special display for Vital Signs section */}
               {expandedSection === 'vital_signs' && vitalSigns && Object.keys(vitalSigns).length > 0 && (
-                <div className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+                <div className="mb-6 bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-xl p-5">
                   <h4 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Recorded Vital Signs
@@ -805,8 +805,8 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               )}
 
               {expandedSection === 'vital_signs' && (!vitalSigns || Object.keys(vitalSigns).length === 0) && (
-                <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 flex items-center gap-3">
-                  <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mb-6 bg-warning-50 border border-amber-200 rounded-xl p-4 text-warning-800 flex items-center gap-3">
+                  <svg className="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <span className="font-medium">No vital signs recorded yet. Please record vital signs in the Vital Signs tab.</span>
@@ -835,7 +835,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 {/* Auto-save Status */}
                 <div className="flex items-center gap-2">
                   {autoSaveStatus === 'saving' && (
-                    <span className="flex items-center gap-2 text-sm text-blue-600">
+                    <span className="flex items-center gap-2 text-sm text-primary-600">
                       <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -844,7 +844,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     </span>
                   )}
                   {autoSaveStatus === 'saved' && (
-                    <span className="flex items-center gap-2 text-sm text-emerald-600">
+                    <span className="flex items-center gap-2 text-sm text-success-600">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
@@ -852,7 +852,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     </span>
                   )}
                   {autoSaveStatus === 'error' && (
-                    <span className="flex items-center gap-2 text-sm text-red-600">
+                    <span className="flex items-center gap-2 text-sm text-danger-600">
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
@@ -894,7 +894,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
         ) : (
           <div className="flex flex-col items-center justify-center h-full min-h-[600px] text-gray-400 p-8">
             <div className="relative mb-6">
-              <div className="absolute inset-0 bg-blue-200 rounded-full blur-2xl opacity-20"></div>
+              <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-20"></div>
               <svg className="w-24 h-24 text-gray-300 relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>

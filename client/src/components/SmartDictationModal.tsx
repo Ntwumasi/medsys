@@ -110,7 +110,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
       {/* Modal */}
       <div className="absolute inset-4 md:inset-8 lg:inset-12 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-secondary-600 to-secondary-600 text-white px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white/20 rounded-lg">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -119,7 +119,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold">Smart Dictation</h2>
-              <p className="text-purple-200 text-sm">
+              <p className="text-secondary-200 text-sm">
                 {step === 'record' ? 'Step 1: Record your notes' : 'Step 2: Review & Confirm'}
               </p>
             </div>
@@ -141,7 +141,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             /* Recording Step */
             <div className="max-w-3xl mx-auto space-y-6">
               {!isSupported && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
                   <p className="font-medium">Voice dictation is not supported in this browser.</p>
                   <p className="text-sm mt-1">Please use Chrome, Edge, or Safari.</p>
                 </div>
@@ -156,8 +156,8 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                   className={`
                     w-24 h-24 rounded-full flex items-center justify-center transition-all
                     ${isRecording
-                      ? 'bg-red-500 hover:bg-red-600 animate-pulse'
-                      : 'bg-purple-500 hover:bg-purple-600'}
+                      ? 'bg-danger-500 hover:bg-danger-600 animate-pulse'
+                      : 'bg-secondary-500 hover:bg-secondary-600'}
                     ${!isSupported ? 'opacity-50 cursor-not-allowed' : ''}
                     text-white shadow-lg
                   `}
@@ -179,7 +179,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
               </div>
 
               {recordingError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
                   {recordingError}
                 </div>
               )}
@@ -205,9 +205,9 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
               </div>
 
               {/* Tips */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-800 mb-2">Tips for best results:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
+              <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+                <h4 className="font-medium text-primary-800 mb-2">Tips for best results:</h4>
+                <ul className="text-sm text-primary-700 space-y-1">
                   <li>- Speak naturally, as if dictating to a medical scribe</li>
                   <li>- Mention section names (e.g., "Past medical history includes...")</li>
                   <li>- Say "period" or "comma" for punctuation</li>
@@ -220,7 +220,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             /* Review Step */
             <div className="space-y-6">
               {parseError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
                   {parseError}
                 </div>
               )}
@@ -233,7 +233,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                   </span>
                   <button
                     onClick={selectAllSections}
-                    className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                    className="text-sm text-secondary-600 hover:text-secondary-800 font-medium"
                   >
                     Select All
                   </button>
@@ -251,7 +251,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                     <select
                       value={mergeMode}
                       onChange={(e) => setMergeMode(e.target.value as MergeMode)}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
                     >
                       <option value="append">Append to existing</option>
                       <option value="prepend">Prepend to existing</option>
@@ -274,7 +274,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                       key={section.id}
                       className={`border-2 rounded-xl overflow-hidden transition-all ${
                         section.selected
-                          ? 'border-purple-300 bg-purple-50/50'
+                          ? 'border-secondary-300 bg-secondary-50/50'
                           : 'border-gray-200 bg-gray-50/50 opacity-60'
                       }`}
                     >
@@ -284,7 +284,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                             type="checkbox"
                             checked={section.selected}
                             onChange={() => toggleSectionSelection(section.id)}
-                            className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                            className="w-5 h-5 rounded text-secondary-600 focus:ring-secondary-500"
                           />
                           <h4 className="font-semibold text-gray-800">{section.title}</h4>
                           {hasExisting && (
@@ -295,7 +295,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                         </div>
                         <button
                           onClick={() => setEditingSectionId(isEditing ? null : section.id)}
-                          className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+                          className="text-sm text-secondary-600 hover:text-secondary-800 font-medium"
                         >
                           {isEditing ? 'Done' : 'Edit'}
                         </button>
@@ -305,7 +305,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                           <textarea
                             value={section.content}
                             onChange={(e) => updateParsedSection(section.id, e.target.value)}
-                            className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
                           />
                         ) : (
                           <p className="text-gray-700 whitespace-pre-wrap">{section.content}</p>
@@ -361,7 +361,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                 className={`
                   px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2
                   ${transcript.trim() && !isParsing
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                    ? 'bg-secondary-600 hover:bg-secondary-700 text-white'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                 `}
               >
@@ -390,7 +390,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                 className={`
                   px-6 py-2 rounded-lg font-medium transition-all flex items-center gap-2
                   ${parsedSections.filter((s: ParsedSection) => s.selected).length > 0
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    ? 'bg-success-600 hover:bg-success-700 text-white'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                 `}
               >

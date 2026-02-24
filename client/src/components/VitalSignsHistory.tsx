@@ -63,7 +63,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-red-500 to-pink-500 px-6 py-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-danger-500 to-pink-500 px-6 py-4 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -84,7 +84,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
           {loading ? (
             <div className="flex items-center justify-center h-48">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-danger-500"></div>
             </div>
           ) : history.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
@@ -100,7 +100,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                 <div
                   key={record.id}
                   className={`border rounded-xl p-4 ${
-                    index === 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'
+                    index === 0 ? 'border-red-200 bg-danger-50' : 'border-gray-200 bg-white'
                   }`}
                 >
                   {/* Record Header */}
@@ -108,7 +108,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                     <div>
                       <div className="flex items-center gap-2">
                         {index === 0 && (
-                          <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded">
+                          <span className="bg-danger-500 text-white text-xs font-bold px-2 py-0.5 rounded">
                             LATEST
                           </span>
                         )}
@@ -128,7 +128,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                     {/* Blood Pressure */}
                     <div className="bg-white rounded-lg p-3 border border-gray-100">
                       <div className="text-xs text-gray-500 font-medium mb-1">Blood Pressure</div>
-                      <div className="text-lg font-bold text-red-600">
+                      <div className="text-lg font-bold text-danger-600">
                         {record.blood_pressure_systolic && record.blood_pressure_diastolic
                           ? `${record.blood_pressure_systolic}/${record.blood_pressure_diastolic}`
                           : '--/--'}
@@ -157,7 +157,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                     {/* SpO2 */}
                     <div className="bg-white rounded-lg p-3 border border-gray-100">
                       <div className="text-xs text-gray-500 font-medium mb-1">SpO2</div>
-                      <div className="text-lg font-bold text-blue-600">
+                      <div className="text-lg font-bold text-primary-600">
                         {record.oxygen_saturation || '--'}
                         <span className="text-xs font-normal text-gray-500 ml-1">%</span>
                       </div>
@@ -175,7 +175,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                     {/* Weight */}
                     <div className="bg-white rounded-lg p-3 border border-gray-100">
                       <div className="text-xs text-gray-500 font-medium mb-1">Weight</div>
-                      <div className="text-lg font-bold text-green-600">
+                      <div className="text-lg font-bold text-success-600">
                         {record.weight || '--'}
                         <span className="text-xs font-normal text-gray-500 ml-1">{record.weight_unit || 'lbs'}</span>
                       </div>
@@ -184,7 +184,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
                     {/* Height */}
                     <div className="bg-white rounded-lg p-3 border border-gray-100">
                       <div className="text-xs text-gray-500 font-medium mb-1">Height</div>
-                      <div className="text-lg font-bold text-purple-600">
+                      <div className="text-lg font-bold text-secondary-600">
                         {record.height || '--'}
                         <span className="text-xs font-normal text-gray-500 ml-1">{record.height_unit || 'in'}</span>
                       </div>

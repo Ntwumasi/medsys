@@ -483,19 +483,25 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       ORDER BY r.room_number`
     );
 
-    // Fetch latest vital signs for each encounter
+    // Fetch latest vital signs for each encounter from vital_signs_history
+    // or use the vital_signs JSON column from encounters if available
     const encountersWithVitals = await Promise.all(
       result.rows.map(async (encounter) => {
+        // First try to get from vital_signs_history table
         const vitalsResult = await pool.query(
-          `SELECT * FROM vital_signs
+          `SELECT * FROM vital_signs_history
            WHERE encounter_id = $1
            ORDER BY recorded_at DESC
            LIMIT 1`,
           [encounter.id]
         );
+
+        // Use vital_signs_history if available, otherwise use the JSON column from encounters
+        const vitalSigns = vitalsResult.rows[0] || encounter.vital_signs || null;
+
         return {
           ...encounter,
-          vital_signs: vitalsResult.rows[0] || null,
+          vital_signs: vitalSigns,
         };
       })
     );

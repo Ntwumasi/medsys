@@ -108,7 +108,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
           focus:ring-offset-2
           ${
             isListening
-              ? 'bg-red-500 hover:bg-red-600 text-white focus:ring-red-500 animate-pulse'
+              ? 'bg-danger-500 hover:bg-danger-600 text-white focus:ring-danger-500 animate-pulse'
               : disabled
               ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
               : 'bg-primary-100 hover:bg-primary-200 text-primary-700 focus:ring-primary-500'
@@ -128,12 +128,12 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       {showStatus && (isListening || interimTranscript || error) && (
         <div className="absolute left-full ml-2 whitespace-nowrap z-10">
           {error ? (
-            <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+            <span className="text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded">
               {error}
             </span>
           ) : isListening ? (
-            <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded flex items-center gap-1">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            <span className="text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded flex items-center gap-1">
+              <span className="w-2 h-2 bg-danger-500 rounded-full animate-pulse" />
               {interimTranscript ? (
                 <span className="max-w-[200px] truncate italic text-gray-600">
                   {interimTranscript}

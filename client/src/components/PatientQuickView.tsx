@@ -95,8 +95,8 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
   const getStatusColor = (status: string | undefined): string => {
     if (!status || status === '' || status === 'Unknown') return 'bg-gray-100 text-gray-600';
-    if (status === 'Negative' || status === 'AA') return 'bg-green-100 text-green-700';
-    if (status === 'Positive' || status === 'SS' || status === 'SC') return 'bg-red-100 text-red-700';
+    if (status === 'Negative' || status === 'AA') return 'bg-success-100 text-success-700';
+    if (status === 'Positive' || status === 'SS' || status === 'SC') return 'bg-danger-100 text-danger-700';
     if (status === 'AS') return 'bg-yellow-100 text-yellow-700';
     if (status === 'Not Tested') return 'bg-gray-100 text-gray-600';
     return 'bg-gray-100 text-gray-600';
@@ -115,7 +115,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
       {/* Side Panel */}
       <div className="absolute inset-y-0 right-0 max-w-md w-full bg-white shadow-xl transform transition-transform">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+        <div className="px-6 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Patient Quick View</h2>
             <button
@@ -131,14 +131,14 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
           </div>
         ) : patient ? (
           <div className="overflow-y-auto h-full pb-20">
             {/* Patient Info */}
             <div className="px-6 py-4 border-b">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-secondary-600 flex items-center justify-center text-white text-xl font-bold">
                   {patient.first_name[0]}{patient.last_name[0]}
                 </div>
                 <div>
@@ -157,7 +157,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
             {/* Vital Signs Section */}
             <div className="px-6 py-4 border-b">
               <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
                 Latest Vital Signs
@@ -166,9 +166,9 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
               {vitals ? (
                 <div className="grid grid-cols-2 gap-3">
                   {/* Blood Pressure */}
-                  <div className="bg-red-50 rounded-lg p-3">
-                    <div className="text-xs text-red-600 font-medium">Blood Pressure</div>
-                    <div className="text-lg font-bold text-red-700">
+                  <div className="bg-danger-50 rounded-lg p-3">
+                    <div className="text-xs text-danger-600 font-medium">Blood Pressure</div>
+                    <div className="text-lg font-bold text-danger-700">
                       {vitals.blood_pressure_systolic && vitals.blood_pressure_diastolic
                         ? `${vitals.blood_pressure_systolic}/${vitals.blood_pressure_diastolic}`
                         : '--/--'} <span className="text-sm font-normal">mmHg</span>
@@ -192,9 +192,9 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
                   </div>
 
                   {/* SpO2 */}
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <div className="text-xs text-blue-600 font-medium">SpO2</div>
-                    <div className="text-lg font-bold text-blue-700">
+                  <div className="bg-primary-50 rounded-lg p-3">
+                    <div className="text-xs text-primary-600 font-medium">SpO2</div>
+                    <div className="text-lg font-bold text-primary-700">
                       {vitals.oxygen_saturation || '--'}<span className="text-sm font-normal">%</span>
                     </div>
                   </div>
@@ -208,9 +208,9 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
                   </div>
 
                   {/* Weight */}
-                  <div className="bg-green-50 rounded-lg p-3">
-                    <div className="text-xs text-green-600 font-medium">Weight</div>
-                    <div className="text-lg font-bold text-green-700">
+                  <div className="bg-success-50 rounded-lg p-3">
+                    <div className="text-xs text-success-600 font-medium">Weight</div>
+                    <div className="text-lg font-bold text-success-700">
                       {vitals.weight || '--'} <span className="text-sm font-normal">{vitals.weight_unit || 'kg'}</span>
                     </div>
                   </div>
@@ -236,7 +236,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
             {showHealthStatus && (
               <div className="px-6 py-4 border-b">
                 <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   Health Status
@@ -286,7 +286,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
             {/* Contact Info */}
             <div className="px-6 py-4">
               <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 Contact

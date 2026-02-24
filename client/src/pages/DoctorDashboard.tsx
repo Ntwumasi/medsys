@@ -416,7 +416,7 @@ const DoctorDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Modern Header */}
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
         <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -429,7 +429,7 @@ const DoctorDashboard: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">
                   Doctor Dashboard
                 </h1>
-                <p className="text-blue-100 text-sm">
+                <p className="text-primary-100 text-sm">
                   Dr. {user?.first_name} {user?.last_name}
                 </p>
               </div>
@@ -441,7 +441,7 @@ const DoctorDashboard: React.FC = () => {
                   logout();
                   navigate('/login');
                 }}
-                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -459,31 +459,31 @@ const DoctorDashboard: React.FC = () => {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
               {/* Header */}
-              <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-3">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                     <h2 className="text-sm font-semibold text-white">
                       Active Patients
                     </h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-blue-500 text-white text-xs font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
                     {roomEncounters.length}
                   </span>
                 </div>
               </div>
 
               {/* Column Headers */}
-              <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                 <div className="col-span-3">Room</div>
                 <div className="col-span-5">Patient</div>
                 <div className="col-span-4 text-right">ID</div>
               </div>
 
               {/* Patient List */}
-              <div className="divide-y divide-slate-100 max-h-[500px] overflow-y-auto">
+              <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
                 {roomEncounters.map((encounter) => (
                   <div
                     key={encounter.id}
@@ -491,15 +491,15 @@ const DoctorDashboard: React.FC = () => {
                       setSelectedEncounter(encounter);
                       loadSOAPSignStatus(encounter.id);
                     }}
-                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-blue-50 group ${
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-primary-50 group ${
                       selectedEncounter?.id === encounter.id
-                        ? 'bg-blue-100 border-l-4 border-blue-600'
-                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-blue-300'
+                        ? 'bg-primary-100 border-l-4 border-primary-600'
+                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-primary-300'
                     }`}
                   >
                     {/* Room Number */}
                     <div className="col-span-3">
-                      <span className="inline-flex items-center px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded">
+                      <span className="inline-flex items-center px-2 py-1 bg-primary-600 text-white text-xs font-bold rounded">
                         Rm {encounter.room_number}
                       </span>
                     </div>
@@ -513,15 +513,15 @@ const DoctorDashboard: React.FC = () => {
                         }}
                         className={`font-semibold text-sm text-left truncate transition-colors ${
                           selectedEncounter?.id === encounter.id
-                            ? 'text-blue-800'
-                            : 'text-slate-800 group-hover:text-blue-600'
+                            ? 'text-primary-800'
+                            : 'text-gray-800 group-hover:text-primary-600'
                         }`}
                         title={encounter.patient_name}
                       >
                         {encounter.patient_name}
                       </button>
                       {encounter.nurse_name && (
-                        <div className="text-xs text-slate-500 truncate">
+                        <div className="text-xs text-gray-500 truncate">
                           Nurse: {encounter.nurse_name}
                         </div>
                       )}
@@ -529,7 +529,7 @@ const DoctorDashboard: React.FC = () => {
 
                     {/* Patient Number */}
                     <div className="col-span-4 text-right">
-                      <span className="text-xs text-slate-500 font-mono">
+                      <span className="text-xs text-gray-500 font-mono">
                         {encounter.patient_number}
                       </span>
                     </div>
@@ -550,7 +550,7 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Results Alerts Section */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
+              <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -560,7 +560,7 @@ const DoctorDashboard: React.FC = () => {
                       Results Alerts
                     </h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-white text-amber-600 text-xs font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-white text-warning-600 text-xs font-bold rounded-full">
                     {labAlerts.length + imagingAlerts.length + pharmacyAlerts.length}
                   </span>
                 </div>
@@ -572,7 +572,7 @@ const DoctorDashboard: React.FC = () => {
                   onClick={() => setAlertsTab('lab')}
                   className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
                     alertsTab === 'lab'
-                      ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50'
+                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -582,7 +582,7 @@ const DoctorDashboard: React.FC = () => {
                   onClick={() => setAlertsTab('imaging')}
                   className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
                     alertsTab === 'imaging'
-                      ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50'
+                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -592,7 +592,7 @@ const DoctorDashboard: React.FC = () => {
                   onClick={() => setAlertsTab('pharmacy')}
                   className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
                     alertsTab === 'pharmacy'
-                      ? 'text-amber-600 border-b-2 border-amber-600 bg-amber-50'
+                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -611,19 +611,19 @@ const DoctorDashboard: React.FC = () => {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {labAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-amber-50 transition-colors">
+                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm">{alert.test_name}</div>
                                 <div className="text-xs text-gray-500">{alert.patient_name}</div>
                                 {alert.room_number && (
-                                  <span className="text-xs text-blue-600">Room {alert.room_number}</span>
+                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
                                 )}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.priority === 'stat' ? 'bg-red-100 text-red-700' :
-                                alert.priority === 'urgent' ? 'bg-amber-100 text-amber-700' :
-                                'bg-green-100 text-green-700'
+                                alert.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                                alert.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
+                                'bg-success-100 text-success-700'
                               }`}>
                                 {alert.status}
                               </span>
@@ -644,19 +644,19 @@ const DoctorDashboard: React.FC = () => {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {imagingAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-amber-50 transition-colors">
+                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm">{alert.imaging_type} - {alert.body_part}</div>
                                 <div className="text-xs text-gray-500">{alert.patient_name}</div>
                                 {alert.room_number && (
-                                  <span className="text-xs text-blue-600">Room {alert.room_number}</span>
+                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
                                 )}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.priority === 'stat' ? 'bg-red-100 text-red-700' :
-                                alert.priority === 'urgent' ? 'bg-amber-100 text-amber-700' :
-                                'bg-green-100 text-green-700'
+                                alert.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                                alert.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
+                                'bg-success-100 text-success-700'
                               }`}>
                                 {alert.status}
                               </span>
@@ -677,18 +677,18 @@ const DoctorDashboard: React.FC = () => {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {pharmacyAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-amber-50 transition-colors">
+                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm">{alert.medication_name}</div>
                                 <div className="text-xs text-gray-500">{alert.patient_name}</div>
                                 {alert.room_number && (
-                                  <span className="text-xs text-blue-600">Room {alert.room_number}</span>
+                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
                                 )}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.status === 'dispensed' ? 'bg-green-100 text-green-700' :
-                                'bg-blue-100 text-blue-700'
+                                alert.status === 'dispensed' ? 'bg-success-100 text-success-700' :
+                                'bg-primary-100 text-primary-700'
                               }`}>
                                 {alert.status}
                               </span>
@@ -705,7 +705,7 @@ const DoctorDashboard: React.FC = () => {
             {/* Quick Vitals Section */}
             {selectedEncounter && selectedEncounter.vital_signs && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3">
+                <div className="bg-gradient-to-r from-danger-500 to-pink-500 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -726,9 +726,9 @@ const DoctorDashboard: React.FC = () => {
                 </div>
                 <div className="p-3">
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-red-50 rounded-lg p-2">
-                      <div className="text-xs text-red-600 font-medium">BP</div>
-                      <div className="font-bold text-red-800">
+                    <div className="bg-danger-50 rounded-lg p-2">
+                      <div className="text-xs text-danger-600 font-medium">BP</div>
+                      <div className="font-bold text-danger-800">
                         {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
                       </div>
                     </div>
@@ -744,9 +744,9 @@ const DoctorDashboard: React.FC = () => {
                         {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
                       </div>
                     </div>
-                    <div className="bg-blue-50 rounded-lg p-2">
-                      <div className="text-xs text-blue-600 font-medium">SpO2</div>
-                      <div className="font-bold text-blue-800">
+                    <div className="bg-primary-50 rounded-lg p-2">
+                      <div className="text-xs text-primary-600 font-medium">SpO2</div>
+                      <div className="font-bold text-primary-800">
                         {selectedEncounter.vital_signs.oxygen_saturation}%
                       </div>
                     </div>
@@ -759,9 +759,9 @@ const DoctorDashboard: React.FC = () => {
                       </div>
                     )}
                     {selectedEncounter.vital_signs.weight && (
-                      <div className="bg-green-50 rounded-lg p-2">
-                        <div className="text-xs text-green-600 font-medium">Wt</div>
-                        <div className="font-bold text-green-800">
+                      <div className="bg-success-50 rounded-lg p-2">
+                        <div className="text-xs text-success-600 font-medium">Wt</div>
+                        <div className="font-bold text-success-800">
                           {selectedEncounter.vital_signs.weight} <span className="text-xs font-normal">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
                         </div>
                       </div>
@@ -774,7 +774,7 @@ const DoctorDashboard: React.FC = () => {
             {/* Patient Notes Section */}
             {selectedEncounter && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3">
+                <div className="bg-gradient-to-r from-secondary-600 to-secondary-600 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -793,15 +793,15 @@ const DoctorDashboard: React.FC = () => {
                   {notes.length > 0 ? (
                     <div className="divide-y divide-gray-100">
                       {notes.slice(0, 10).map((note) => (
-                        <div key={note.id} className="px-4 py-3 hover:bg-indigo-50 transition-colors">
+                        <div key={note.id} className="px-4 py-3 hover:bg-secondary-50 transition-colors">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  note.note_type === 'doctor_general' ? 'bg-blue-100 text-blue-700' :
-                                  note.note_type === 'nurse_general' ? 'bg-emerald-100 text-emerald-700' :
-                                  note.note_type === 'doctor_to_nurse' ? 'bg-indigo-100 text-indigo-700' :
-                                  note.note_type === 'doctor_procedural' ? 'bg-slate-100 text-slate-700' :
+                                  note.note_type === 'doctor_general' ? 'bg-primary-100 text-primary-700' :
+                                  note.note_type === 'nurse_general' ? 'bg-success-100 text-success-700' :
+                                  note.note_type === 'doctor_to_nurse' ? 'bg-secondary-100 text-secondary-700' :
+                                  note.note_type === 'doctor_procedural' ? 'bg-gray-100 text-gray-700' :
                                   'bg-gray-100 text-gray-700'
                                 }`}>
                                   {note.note_type === 'doctor_general' ? 'Doctor' :
@@ -811,7 +811,7 @@ const DoctorDashboard: React.FC = () => {
                                    note.note_type}
                                 </span>
                                 {note.is_signed && (
-                                  <span className="text-xs text-green-600 flex items-center gap-0.5">
+                                  <span className="text-xs text-success-600 flex items-center gap-0.5">
                                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                     </svg>
@@ -851,20 +851,20 @@ const DoctorDashboard: React.FC = () => {
                     <div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedEncounter.patient_name}</h2>
                       <div className="flex gap-4 mt-2 text-sm">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
                           Patient #: {selectedEncounter.patient_number}
                         </span>
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
                           Encounter #: {selectedEncounter.encounter_number}
                         </span>
-                        <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-semibold">
+                        <span className="px-3 py-1 bg-success-50 text-success-700 rounded-lg font-semibold">
                           {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
                         </span>
                       </div>
                     </div>
                     <Link
                       to={`/patients/${selectedEncounter.patient_id}`}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-semibold flex items-center gap-2"
+                      className="px-4 py-2 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg hover:from-primary-700 hover:to-secondary-700 transition-all shadow-md hover:shadow-lg font-semibold flex items-center gap-2"
                     >
                       View Full Chart
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -875,11 +875,11 @@ const DoctorDashboard: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-gray-200">
                     <div className="col-span-2">
                       <div className="text-sm text-gray-600">Today's Visit</div>
-                      <div className="font-semibold text-lg text-blue-800 bg-blue-50 p-3 rounded-lg border border-blue-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
+                      <div className="font-semibold text-lg text-primary-800 bg-primary-50 p-3 rounded-lg border border-primary-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                     </div>
                     {selectedEncounter.vital_signs ? (
-                      <div className="col-span-2 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200">
-                        <div className="text-sm font-medium text-green-800 mb-3 flex items-center justify-between">
+                      <div className="col-span-2 bg-gradient-to-r from-success-50 to-success-50 rounded-xl p-4 border border-success-200">
+                        <div className="text-sm font-medium text-success-800 mb-3 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -888,7 +888,7 @@ const DoctorDashboard: React.FC = () => {
                           </div>
                           <button
                             onClick={() => setShowVitalsHistory(true)}
-                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 transition-colors flex items-center gap-1"
+                            className="text-xs bg-success-600 text-white px-2 py-1 rounded hover:bg-success-700 transition-colors flex items-center gap-1"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -897,27 +897,27 @@ const DoctorDashboard: React.FC = () => {
                           </button>
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                          <div className="bg-white rounded-lg p-2 border border-success-100">
                             <div className="text-xs text-gray-500">Blood Pressure</div>
                             <div className="font-bold text-gray-900">
                               {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
                               <span className="text-xs font-normal text-gray-500 ml-1">mmHg</span>
                             </div>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                          <div className="bg-white rounded-lg p-2 border border-success-100">
                             <div className="text-xs text-gray-500">Heart Rate</div>
                             <div className="font-bold text-gray-900">
                               {selectedEncounter.vital_signs.heart_rate}
                               <span className="text-xs font-normal text-gray-500 ml-1">bpm</span>
                             </div>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                          <div className="bg-white rounded-lg p-2 border border-success-100">
                             <div className="text-xs text-gray-500">Temperature</div>
                             <div className="font-bold text-gray-900">
                               {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
                             </div>
                           </div>
-                          <div className="bg-white rounded-lg p-2 border border-green-100">
+                          <div className="bg-white rounded-lg p-2 border border-success-100">
                             <div className="text-xs text-gray-500">O2 Saturation</div>
                             <div className="font-bold text-gray-900">
                               {selectedEncounter.vital_signs.oxygen_saturation}
@@ -925,7 +925,7 @@ const DoctorDashboard: React.FC = () => {
                             </div>
                           </div>
                           {selectedEncounter.vital_signs.respiratory_rate && (
-                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="bg-white rounded-lg p-2 border border-success-100">
                               <div className="text-xs text-gray-500">Respiratory Rate</div>
                               <div className="font-bold text-gray-900">
                                 {selectedEncounter.vital_signs.respiratory_rate}
@@ -934,7 +934,7 @@ const DoctorDashboard: React.FC = () => {
                             </div>
                           )}
                           {selectedEncounter.vital_signs.weight && (
-                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="bg-white rounded-lg p-2 border border-success-100">
                               <div className="text-xs text-gray-500">Weight</div>
                               <div className="font-bold text-gray-900">
                                 {selectedEncounter.vital_signs.weight}
@@ -943,7 +943,7 @@ const DoctorDashboard: React.FC = () => {
                             </div>
                           )}
                           {selectedEncounter.vital_signs.height && (
-                            <div className="bg-white rounded-lg p-2 border border-green-100">
+                            <div className="bg-white rounded-lg p-2 border border-success-100">
                               <div className="text-xs text-gray-500">Height</div>
                               <div className="font-bold text-gray-900">
                                 {selectedEncounter.vital_signs.height}
@@ -954,8 +954,8 @@ const DoctorDashboard: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="col-span-2 bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                        <div className="text-sm text-yellow-800 flex items-center gap-2">
+                      <div className="col-span-2 bg-warning-50 rounded-xl p-4 border border-warning-200">
+                        <div className="text-sm text-warning-800 flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           </svg>
@@ -979,7 +979,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('soap')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           clinicalNotesTab === 'soap'
-                            ? 'border-indigo-600 text-indigo-600 bg-indigo-50'
+                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -994,7 +994,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('doctor')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'doctor'
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            ? 'border-primary-600 text-primary-600 bg-primary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1009,7 +1009,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('nurse')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'nurse'
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            ? 'border-primary-600 text-primary-600 bg-primary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1019,7 +1019,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Nurse Notes
                           {(notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length) > 0 && (
-                            <span className={`text-white text-xs px-2 py-0.5 rounded-full ${notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                            <span className={`text-white text-xs px-2 py-0.5 rounded-full ${notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 ? 'bg-secondary-600' : 'bg-primary-600'}`}>
                               {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length}
                             </span>
                           )}
@@ -1029,7 +1029,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('instructions')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'instructions'
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            ? 'border-primary-600 text-primary-600 bg-primary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1044,7 +1044,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('procedural')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'procedural'
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
+                            ? 'border-primary-600 text-primary-600 bg-primary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1079,7 +1079,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Doctor's Notes Tab */}
                     {clinicalNotesTab === 'doctor' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
+                        <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-primary-50 to-secondary-50 p-6 rounded-xl border-2 border-primary-200">
                           <SmartTextArea
                             value={noteContent}
                             onChange={setNoteContent}
@@ -1090,7 +1090,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add New Doctor's Note"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold shadow-md flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -1109,8 +1109,8 @@ const DoctorDashboard: React.FC = () => {
                                     key={note.id}
                                     className={`p-4 rounded-xl border-2 ${
                                       note.is_signed
-                                        ? 'bg-emerald-50 border-emerald-300'
-                                        : 'bg-white border-gray-200 hover:border-blue-300'
+                                        ? 'bg-success-50 border-success-300'
+                                        : 'bg-white border-gray-200 hover:border-primary-300'
                                     } transition-all shadow-sm hover:shadow-md`}
                                   >
                                     <div className="flex justify-between items-start mb-2">
@@ -1121,13 +1121,13 @@ const DoctorDashboard: React.FC = () => {
                                         {!note.is_signed && (
                                           <button
                                             onClick={() => handleSignNote(note.id)}
-                                            className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full hover:bg-emerald-700 font-semibold transition-colors"
+                                            className="text-xs bg-success-600 text-white px-3 py-1 rounded-full hover:bg-success-700 font-semibold transition-colors"
                                           >
                                             Sign Note
                                           </button>
                                         )}
                                         {note.is_signed && (
-                                          <span className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                                          <span className="text-xs bg-success-600 text-white px-3 py-1 rounded-full font-semibold flex items-center gap-1">
                                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                             </svg>
@@ -1158,8 +1158,8 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-6">
                         {/* Nurse Messages to Doctor - highlighted section */}
                         {notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 && (
-                          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl border-2 border-purple-300">
-                            <h3 className="font-bold text-purple-800 mb-3 flex items-center gap-2">
+                          <div className="bg-gradient-to-r from-secondary-50 to-secondary-50 p-4 rounded-xl border-2 border-secondary-300">
+                            <h3 className="font-bold text-secondary-800 mb-3 flex items-center gap-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                               </svg>
@@ -1171,13 +1171,13 @@ const DoctorDashboard: React.FC = () => {
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-white border-2 border-purple-200 shadow-sm"
+                                    className="p-4 rounded-xl bg-white border-2 border-secondary-200 shadow-sm"
                                   >
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-purple-700 font-semibold">
+                                      <div className="text-xs text-secondary-700 font-semibold">
                                         {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="text-xs bg-purple-600 text-white px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                                      <span className="text-xs bg-secondary-600 text-white px-2 py-1 rounded-full font-medium flex items-center gap-1">
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                                         </svg>
@@ -1201,13 +1201,13 @@ const DoctorDashboard: React.FC = () => {
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-blue-50 border-2 border-blue-200 shadow-sm hover:shadow-md transition-all"
+                                    className="p-4 rounded-xl bg-primary-50 border-2 border-primary-200 shadow-sm hover:shadow-md transition-all"
                                   >
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-blue-700 font-semibold">
+                                      <div className="text-xs text-primary-700 font-semibold">
                                         {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-full font-medium">
+                                      <span className="text-xs bg-primary-600 text-white px-2 py-1 rounded-full font-medium">
                                         NURSE NOTE
                                       </span>
                                     </div>
@@ -1231,7 +1231,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Nurse Instructions Tab */}
                     {clinicalNotesTab === 'instructions' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-indigo-50 to-blue-50 p-6 rounded-xl border-2 border-indigo-200">
+                        <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-secondary-50 to-primary-50 p-6 rounded-xl border-2 border-secondary-200">
                           <SmartTextArea
                             value={nurseNoteContent}
                             onChange={setNurseNoteContent}
@@ -1242,7 +1242,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add Instructions for Nurse"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 transition-colors font-semibold shadow-md flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -1259,9 +1259,9 @@ const DoctorDashboard: React.FC = () => {
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-indigo-50 border-2 border-indigo-200 shadow-sm"
+                                    className="p-4 rounded-xl bg-secondary-50 border-2 border-secondary-200 shadow-sm"
                                   >
-                                    <div className="text-xs text-indigo-700 font-medium mb-2">
+                                    <div className="text-xs text-secondary-700 font-medium mb-2">
                                       Sent {new Date(note.created_at).toLocaleString()}
                                     </div>
                                     <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
@@ -1276,7 +1276,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Procedural Notes Tab */}
                     {clinicalNotesTab === 'procedural' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 rounded-xl border-2 border-slate-300">
+                        <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-gray-50 to-gray-50 p-6 rounded-xl border-2 border-gray-300">
                           <SmartTextArea
                             value={proceduralNoteContent}
                             onChange={setProceduralNoteContent}
@@ -1287,7 +1287,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add Procedural Note"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold shadow-md flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -1304,9 +1304,9 @@ const DoctorDashboard: React.FC = () => {
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-slate-50 border-2 border-slate-200 shadow-sm hover:shadow-md transition-all"
+                                    className="p-4 rounded-xl bg-gray-50 border-2 border-gray-200 shadow-sm hover:shadow-md transition-all"
                                   >
-                                    <div className="text-xs text-slate-700 font-medium mb-2">
+                                    <div className="text-xs text-gray-700 font-medium mb-2">
                                       {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                     </div>
                                     <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
@@ -1334,7 +1334,7 @@ const DoctorDashboard: React.FC = () => {
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900">Orders & Actions</h2>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
-                      <span className="px-4 py-2 bg-blue-100 text-blue-800 font-bold rounded-lg">
+                      <span className="px-4 py-2 bg-primary-100 text-primary-800 font-bold rounded-lg">
                         {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
                       </span>
                     )}
@@ -1342,8 +1342,8 @@ const DoctorDashboard: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                     {/* Alert Nurse Action */}
-                    <div className="border-2 border-emerald-200 rounded-xl p-4 bg-gradient-to-br from-emerald-50 to-green-50">
-                      <h3 className="font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                    <div className="border-2 border-success-200 rounded-xl p-4 bg-gradient-to-br from-success-50 to-success-50">
+                      <h3 className="font-bold text-success-900 mb-4 flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                         </svg>
@@ -1352,27 +1352,27 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-3">
                         <button
                           onClick={handleCompleteEncounter}
-                          className="w-full px-4 py-4 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl hover:from-emerald-700 hover:to-green-700 transition-all font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                          className="w-full px-4 py-4 bg-gradient-to-r from-success-600 to-success-600 text-white rounded-xl hover:from-success-700 hover:to-success-700 transition-all font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
                         >
                           <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Alert Nurse
                         </button>
-                        <p className="text-xs text-emerald-700 text-center">
+                        <p className="text-xs text-success-700 text-center">
                           Notify nurse when patient is ready for follow-up care
                         </p>
                       </div>
                     </div>
                     {/* Lab Orders */}
-                    <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50">
-                      <h3 className="font-bold text-blue-900 mb-4 flex items-center gap-2">
+                    <div className="border-2 border-primary-200 rounded-xl p-4 bg-primary-50">
+                      <h3 className="font-bold text-primary-900 mb-4 flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                         Lab Tests
                         {pendingLabOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-primary-600 text-white rounded-full text-xs">
                             {pendingLabOrders.length}
                           </span>
                         )}
@@ -1383,13 +1383,13 @@ const DoctorDashboard: React.FC = () => {
                           value={currentLabOrder.test_name}
                           onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
                           sectionId="lab_tests"
-                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
                           placeholder="CBC, CMP, Lipid Panel..."
                         />
                         <select
                           value={currentLabOrder.priority}
                           onChange={(e) => setCurrentLabOrder({...currentLabOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -1397,7 +1397,7 @@ const DoctorDashboard: React.FC = () => {
                         </select>
                         <button
                           onClick={handleAddLabOrder}
-                          className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1409,14 +1409,14 @@ const DoctorDashboard: React.FC = () => {
                         {pendingLabOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingLabOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-blue-200 flex justify-between items-start">
+                              <div key={index} className="bg-white p-3 rounded-lg border border-primary-200 flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="font-semibold text-gray-900">{order.test_name}</div>
-                                  <div className="text-xs text-blue-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                  <div className="text-xs text-primary-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
                                   onClick={() => handleRemoveLabOrder(index)}
-                                  className="text-red-600 hover:text-red-800 ml-2"
+                                  className="text-danger-600 hover:text-danger-800 ml-2"
                                 >
                                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1430,14 +1430,14 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Imaging Orders */}
-                    <div className="border-2 border-slate-200 rounded-xl p-4 bg-slate-50">
-                      <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <div className="border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                         </svg>
                         Imaging
                         {pendingImagingOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-slate-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-gray-600 text-white rounded-full text-xs">
                             {pendingImagingOrders.length}
                           </span>
                         )}
@@ -1448,20 +1448,20 @@ const DoctorDashboard: React.FC = () => {
                           value={currentImagingOrder.imaging_type}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: value})}
                           sectionId="imaging_types"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
                           placeholder="X-Ray, CT, MRI..."
                         />
                         <AutocompleteInput
                           value={currentImagingOrder.body_part}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, body_part: value})}
                           sectionId="imaging_body_parts"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
                           placeholder="Body part (optional)"
                         />
                         <select
                           value={currentImagingOrder.priority}
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -1469,7 +1469,7 @@ const DoctorDashboard: React.FC = () => {
                         </select>
                         <button
                           onClick={handleAddImagingOrder}
-                          className="w-full px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center justify-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1481,15 +1481,15 @@ const DoctorDashboard: React.FC = () => {
                         {pendingImagingOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingImagingOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-start">
+                              <div key={index} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="font-semibold text-gray-900">{order.imaging_type}</div>
                                   {order.body_part && <div className="text-sm text-gray-600">{order.body_part}</div>}
-                                  <div className="text-xs text-slate-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                  <div className="text-xs text-gray-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
                                   onClick={() => handleRemoveImagingOrder(index)}
-                                  className="text-red-600 hover:text-red-800 ml-2"
+                                  className="text-danger-600 hover:text-danger-800 ml-2"
                                 >
                                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1503,14 +1503,14 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Pharmacy Orders */}
-                    <div className="border-2 border-emerald-200 rounded-xl p-4 bg-emerald-50">
-                      <h3 className="font-bold text-emerald-900 mb-4 flex items-center gap-2">
+                    <div className="border-2 border-success-200 rounded-xl p-4 bg-success-50">
+                      <h3 className="font-bold text-success-900 mb-4 flex items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
                         Pharmacy
                         {pendingPharmacyOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-emerald-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-success-600 text-white rounded-full text-xs">
                             {pendingPharmacyOrders.length}
                           </span>
                         )}
@@ -1521,7 +1521,7 @@ const DoctorDashboard: React.FC = () => {
                           value={currentPharmacyOrder.medication_name}
                           onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, medication_name: value})}
                           sectionId="pharmacy_medications"
-                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
                           placeholder="Medication name"
                         />
                         <div className="grid grid-cols-2 gap-2">
@@ -1529,35 +1529,35 @@ const DoctorDashboard: React.FC = () => {
                             type="text"
                             value={currentPharmacyOrder.dosage}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, dosage: e.target.value})}
-                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Dosage"
                           />
                           <AutocompleteInput
                             value={currentPharmacyOrder.frequency}
                             onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: value})}
                             sectionId="pharmacy_frequencies"
-                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Frequency"
                           />
                           <AutocompleteInput
                             value={currentPharmacyOrder.route}
                             onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: value})}
                             sectionId="pharmacy_routes"
-                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Route"
                           />
                           <input
                             type="text"
                             value={currentPharmacyOrder.quantity}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
-                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Quantity"
                           />
                         </div>
                         <select
                           value={currentPharmacyOrder.priority}
                           onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-emerald-300 rounded-lg focus:ring-2 focus:ring-emerald-500 bg-white"
+                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -1565,7 +1565,7 @@ const DoctorDashboard: React.FC = () => {
                         </select>
                         <button
                           onClick={handleAddPharmacyOrder}
-                          className="w-full px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1577,18 +1577,18 @@ const DoctorDashboard: React.FC = () => {
                         {pendingPharmacyOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingPharmacyOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-emerald-200 flex justify-between items-start">
+                              <div key={index} className="bg-white p-3 rounded-lg border border-success-200 flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="font-semibold text-gray-900">{order.medication_name}</div>
                                   <div className="text-sm text-gray-600">
                                     {order.dosage} {order.frequency && `• ${order.frequency}`}
                                   </div>
                                   {order.route && <div className="text-sm text-gray-600">{order.route} • {order.quantity}</div>}
-                                  <div className="text-xs text-emerald-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                  <div className="text-xs text-success-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
                                   onClick={() => handleRemovePharmacyOrder(index)}
-                                  className="text-red-600 hover:text-red-800 ml-2"
+                                  className="text-danger-600 hover:text-danger-800 ml-2"
                                 >
                                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1608,7 +1608,7 @@ const DoctorDashboard: React.FC = () => {
                     <div className="mt-6 pt-6 border-t-2 border-gray-200">
                       <button
                         onClick={handleSubmitAllOrders}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-bold text-lg flex items-center justify-center gap-3"
+                        className="w-full px-6 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl hover:from-primary-700 hover:to-secondary-700 transition-all shadow-lg hover:shadow-xl font-bold text-lg flex items-center justify-center gap-3"
                       >
                         <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1623,7 +1623,7 @@ const DoctorDashboard: React.FC = () => {
                 <div className="card">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-6 h-6 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       Lab & Test Results
@@ -1646,7 +1646,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setResultsTab('lab')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           resultsTab === 'lab'
-                            ? 'border-purple-600 text-purple-600 bg-purple-50'
+                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1656,7 +1656,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Lab Results
                           {encounterLabOrders.length > 0 && (
-                            <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">
                               {encounterLabOrders.length}
                             </span>
                           )}
@@ -1666,7 +1666,7 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setResultsTab('imaging')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           resultsTab === 'imaging'
-                            ? 'border-purple-600 text-purple-600 bg-purple-50'
+                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -1676,7 +1676,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Imaging Results
                           {encounterImagingOrders.length > 0 && (
-                            <span className="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">
                               {encounterImagingOrders.length}
                             </span>
                           )}
@@ -1703,9 +1703,9 @@ const DoctorDashboard: React.FC = () => {
                               key={order.id}
                               className={`p-4 rounded-xl border-2 ${
                                 order.status === 'completed'
-                                  ? 'border-emerald-200 bg-emerald-50'
+                                  ? 'border-success-200 bg-success-50'
                                   : order.status === 'in_progress'
-                                  ? 'border-amber-200 bg-amber-50'
+                                  ? 'border-warning-200 bg-warning-50'
                                   : 'border-gray-200 bg-gray-50'
                               }`}
                             >
@@ -1715,19 +1715,19 @@ const DoctorDashboard: React.FC = () => {
                                     <h4 className="font-bold text-gray-900 text-lg">{order.test_name}</h4>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       order.status === 'completed'
-                                        ? 'bg-emerald-200 text-emerald-800'
+                                        ? 'bg-success-200 text-success-800'
                                         : order.status === 'in_progress'
-                                        ? 'bg-amber-200 text-amber-800'
+                                        ? 'bg-warning-200 text-warning-800'
                                         : 'bg-gray-200 text-gray-800'
                                     }`}>
                                       {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       order.priority === 'stat'
-                                        ? 'bg-red-100 text-red-700'
+                                        ? 'bg-danger-100 text-danger-700'
                                         : order.priority === 'urgent'
                                         ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-blue-100 text-blue-700'
+                                        : 'bg-primary-100 text-primary-700'
                                     }`}>
                                       {order.priority.toUpperCase()}
                                     </span>
@@ -1736,8 +1736,8 @@ const DoctorDashboard: React.FC = () => {
                                     Ordered: {new Date(order.ordered_at).toLocaleString()}
                                   </div>
                                   {order.status === 'completed' && order.results && (
-                                    <div className="mt-3 p-3 bg-white rounded-lg border border-emerald-300">
-                                      <div className="text-sm font-semibold text-emerald-800 mb-1">Results:</div>
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
+                                      <div className="text-sm font-semibold text-success-800 mb-1">Results:</div>
                                       <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
                                       {order.completed_at && (
                                         <div className="text-xs text-gray-500 mt-2">
@@ -1773,9 +1773,9 @@ const DoctorDashboard: React.FC = () => {
                               key={order.id}
                               className={`p-4 rounded-xl border-2 ${
                                 order.status === 'completed'
-                                  ? 'border-emerald-200 bg-emerald-50'
+                                  ? 'border-success-200 bg-success-50'
                                   : order.status === 'in_progress'
-                                  ? 'border-amber-200 bg-amber-50'
+                                  ? 'border-warning-200 bg-warning-50'
                                   : 'border-gray-200 bg-gray-50'
                               }`}
                             >
@@ -1788,19 +1788,19 @@ const DoctorDashboard: React.FC = () => {
                                     )}
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       order.status === 'completed'
-                                        ? 'bg-emerald-200 text-emerald-800'
+                                        ? 'bg-success-200 text-success-800'
                                         : order.status === 'in_progress'
-                                        ? 'bg-amber-200 text-amber-800'
+                                        ? 'bg-warning-200 text-warning-800'
                                         : 'bg-gray-200 text-gray-800'
                                     }`}>
                                       {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       order.priority === 'stat'
-                                        ? 'bg-red-100 text-red-700'
+                                        ? 'bg-danger-100 text-danger-700'
                                         : order.priority === 'urgent'
                                         ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-blue-100 text-blue-700'
+                                        : 'bg-primary-100 text-primary-700'
                                     }`}>
                                       {order.priority.toUpperCase()}
                                     </span>
@@ -1809,8 +1809,8 @@ const DoctorDashboard: React.FC = () => {
                                     Ordered: {new Date(order.ordered_at).toLocaleString()}
                                   </div>
                                   {order.status === 'completed' && order.results && (
-                                    <div className="mt-3 p-3 bg-white rounded-lg border border-emerald-300">
-                                      <div className="text-sm font-semibold text-emerald-800 mb-1">Results/Findings:</div>
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
+                                      <div className="text-sm font-semibold text-success-800 mb-1">Results/Findings:</div>
                                       <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
                                       {order.completed_at && (
                                         <div className="text-xs text-gray-500 mt-2">
@@ -1833,7 +1833,7 @@ const DoctorDashboard: React.FC = () => {
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
                 <div className="text-center text-gray-400">
                   <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-blue-200 rounded-full blur-3xl opacity-20"></div>
+                    <div className="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-20"></div>
                     <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>

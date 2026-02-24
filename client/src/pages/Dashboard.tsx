@@ -8,6 +8,7 @@ import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
 import SystemUpdates from '../components/SystemUpdates';
+import LabDocs from '../components/docs/LabDocs';
 import { useNotification } from '../context/NotificationContext';
 import {
   Select,
@@ -155,7 +156,7 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients'>('staff');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs'>('staff');
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
@@ -628,7 +629,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Modern Header */}
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
         <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -642,7 +643,7 @@ const Dashboard: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">
                   Admin Dashboard
                 </h1>
-                <p className="text-blue-100 text-sm">
+                <p className="text-primary-100 text-sm">
                   {user?.first_name} {user?.last_name}
                 </p>
               </div>
@@ -651,7 +652,7 @@ const Dashboard: React.FC = () => {
               <SearchBar />
               <button
                 onClick={logout}
-                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -671,7 +672,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('staff')}
               className={`${
                 activeTab === 'staff'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -681,7 +682,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('appointments')}
               className={`${
                 activeTab === 'appointments'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -691,7 +692,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('invoices')}
               className={`${
                 activeTab === 'invoices'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -701,7 +702,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('corporate')}
               className={`${
                 activeTab === 'corporate'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -711,7 +712,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('insurance')}
               className={`${
                 activeTab === 'insurance'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
@@ -721,7 +722,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('pastPatients')}
               className={`${
                 activeTab === 'pastPatients'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
             >
@@ -734,7 +735,7 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('updates')}
               className={`${
                 activeTab === 'updates'
-                  ? 'border-blue-500 text-blue-600'
+                  ? 'border-primary-500 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
             >
@@ -742,6 +743,19 @@ const Dashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
               System Updates
+            </button>
+            <button
+              onClick={() => setActiveTab('docs')}
+              className={`${
+                activeTab === 'docs'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+              Documentation
             </button>
           </nav>
         </div>
@@ -1007,9 +1021,9 @@ const Dashboard: React.FC = () => {
                               <span
                                 className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                   invoice.status === 'paid'
-                                    ? 'bg-green-100 text-green-800'
+                                    ? 'bg-success-100 text-success-800'
                                     : invoice.status === 'pending'
-                                    ? 'bg-yellow-100 text-yellow-800'
+                                    ? 'bg-warning-100 text-warning-800'
                                     : 'bg-gray-100 text-gray-800'
                                 }`}
                               >
@@ -1121,7 +1135,7 @@ const Dashboard: React.FC = () => {
                 <div className="mt-4">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
                   >
                     Save Corporate Client
                   </button>
@@ -1180,7 +1194,7 @@ const Dashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           onClick={() => handleDeleteCorporateClient(client.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-danger-600 hover:text-danger-900"
                         >
                           Deactivate
                         </button>
@@ -1258,7 +1272,7 @@ const Dashboard: React.FC = () => {
                 <div className="mt-4">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
                   >
                     Save Insurance Provider
                   </button>
@@ -1305,7 +1319,7 @@ const Dashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           onClick={() => handleDeleteInsuranceProvider(provider.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-danger-600 hover:text-danger-900"
                         >
                           Deactivate
                         </button>
@@ -1331,7 +1345,7 @@ const Dashboard: React.FC = () => {
                     setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 {showStaffForm ? 'Cancel' : 'Add New Staff Member'}
               </button>
@@ -1412,7 +1426,7 @@ const Dashboard: React.FC = () => {
             </Box>
 
             {showStaffForm && (
-              <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-slate-50 rounded-lg border-2 border-slate-200">
+              <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   {editingStaff ? 'Edit Staff Member' : 'New Staff Member'}
                 </h3>
@@ -1425,7 +1439,7 @@ const Dashboard: React.FC = () => {
                       type="text"
                       value={staffForm.first_name}
                       onChange={(e) => setStaffForm({ ...staffForm, first_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required
                     />
                   </div>
@@ -1437,7 +1451,7 @@ const Dashboard: React.FC = () => {
                       type="text"
                       value={staffForm.last_name}
                       onChange={(e) => setStaffForm({ ...staffForm, last_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required
                     />
                   </div>
@@ -1449,7 +1463,7 @@ const Dashboard: React.FC = () => {
                       type="email"
                       value={staffForm.email}
                       onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required
                     />
                   </div>
@@ -1461,7 +1475,7 @@ const Dashboard: React.FC = () => {
                       type="tel"
                       value={staffForm.phone}
                       onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   </div>
                   <div>
@@ -1471,7 +1485,7 @@ const Dashboard: React.FC = () => {
                     <select
                       value={staffForm.role}
                       onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required
                     >
                       <option value="doctor">Doctor</option>
@@ -1491,7 +1505,7 @@ const Dashboard: React.FC = () => {
                       type="password"
                       value={staffForm.password}
                       onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required={!editingStaff}
                       placeholder={editingStaff ? 'Leave blank to keep current password' : ''}
                     />
@@ -1500,7 +1514,7 @@ const Dashboard: React.FC = () => {
                 <div className="mt-4 flex gap-3">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold"
+                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold"
                   >
                     {editingStaff ? 'Update Staff Member' : 'Create Staff Member'}
                   </button>
@@ -1512,7 +1526,7 @@ const Dashboard: React.FC = () => {
                         setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
                         setShowStaffForm(false);
                       }}
-                      className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                      className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                     >
                       Cancel Edit
                     </button>
@@ -1523,11 +1537,11 @@ const Dashboard: React.FC = () => {
 
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-slate-50">
+                <thead className="bg-gray-50">
                   <tr>
                     <th
                       onClick={() => handleStaffSort('name')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                     >
                       <div className="flex items-center gap-2">
                         Name
@@ -1540,7 +1554,7 @@ const Dashboard: React.FC = () => {
                     </th>
                     <th
                       onClick={() => handleStaffSort('email')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                     >
                       <div className="flex items-center gap-2">
                         Email
@@ -1553,7 +1567,7 @@ const Dashboard: React.FC = () => {
                     </th>
                     <th
                       onClick={() => handleStaffSort('role')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                     >
                       <div className="flex items-center gap-2">
                         Role / Department
@@ -1588,13 +1602,13 @@ const Dashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          member.role === 'doctor' ? 'bg-blue-100 text-blue-800' :
-                          member.role === 'nurse' ? 'bg-emerald-100 text-emerald-800' :
-                          member.role === 'receptionist' ? 'bg-purple-100 text-purple-800' :
-                          member.role === 'lab' ? 'bg-yellow-100 text-yellow-800' :
-                          member.role === 'pharmacy' ? 'bg-green-100 text-green-800' :
-                          member.role === 'imaging' ? 'bg-indigo-100 text-indigo-800' :
-                          member.role === 'admin' ? 'bg-red-100 text-red-800' :
+                          member.role === 'doctor' ? 'bg-primary-100 text-primary-800' :
+                          member.role === 'nurse' ? 'bg-success-100 text-success-800' :
+                          member.role === 'receptionist' ? 'bg-secondary-100 text-secondary-800' :
+                          member.role === 'lab' ? 'bg-warning-100 text-warning-800' :
+                          member.role === 'pharmacy' ? 'bg-success-100 text-success-800' :
+                          member.role === 'imaging' ? 'bg-secondary-100 text-secondary-800' :
+                          member.role === 'admin' ? 'bg-danger-100 text-danger-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
@@ -1605,7 +1619,7 @@ const Dashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          member.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          member.is_active ? 'bg-success-100 text-success-800' : 'bg-danger-100 text-danger-800'
                         }`}>
                           {member.is_active ? 'Active' : 'Inactive'}
                         </span>
@@ -1613,21 +1627,21 @@ const Dashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                         <button
                           onClick={() => handleEditStaff(member)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className="text-primary-600 hover:text-primary-900"
                         >
                           Edit
                         </button>
                         {member.is_active && member.role !== 'admin' && (
                           <button
                             onClick={() => handleImpersonate(member)}
-                            className="text-purple-600 hover:text-purple-900"
+                            className="text-secondary-600 hover:text-purple-900"
                           >
                             Login As
                           </button>
                         )}
                         <button
                           onClick={() => handleToggleStaffStatus(member.id, member.is_active)}
-                          className={member.is_active ? 'text-red-600 hover:text-red-900' : 'text-green-600 hover:text-green-900'}
+                          className={member.is_active ? 'text-danger-600 hover:text-danger-900' : 'text-success-600 hover:text-green-900'}
                         >
                           {member.is_active ? 'Deactivate' : 'Activate'}
                         </button>
@@ -1699,7 +1713,7 @@ const Dashboard: React.FC = () => {
                           onClick={() => setStaffPage(pageNum)}
                           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             pageNum === staffPage
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-primary-600 text-white'
                               : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                           }`}
                         >
@@ -1726,8 +1740,8 @@ const Dashboard: React.FC = () => {
         {activeTab === 'pastPatients' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="bg-slate-100 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-gray-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -1751,7 +1765,7 @@ const Dashboard: React.FC = () => {
                     setPastPatientsPage(1);
                   }}
                   placeholder="Patient name, number, or encounter..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
 
@@ -1766,7 +1780,7 @@ const Dashboard: React.FC = () => {
                     setPastPatientsDateFrom(e.target.value);
                     setPastPatientsPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
 
@@ -1781,7 +1795,7 @@ const Dashboard: React.FC = () => {
                     setPastPatientsDateTo(e.target.value);
                     setPastPatientsPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
 
@@ -1918,7 +1932,7 @@ const Dashboard: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
                             onClick={() => navigate(`/patients/${encounter.id}`)}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
+                            className="text-primary-600 hover:text-primary-900 font-medium"
                           >
                             View Details
                           </button>
@@ -1976,8 +1990,8 @@ const Dashboard: React.FC = () => {
         {activeTab === 'updates' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-primary-100 p-2 rounded-lg">
+                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </div>
@@ -1987,6 +2001,24 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <SystemUpdates />
+          </div>
+        )}
+
+        {/* Documentation Tab */}
+        {activeTab === 'docs' && (
+          <div>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-primary-100 p-3 rounded-lg">
+                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">System Documentation</h2>
+                <p className="text-sm text-gray-500">User guides and feature documentation for MedSys EMR</p>
+              </div>
+            </div>
+            <LabDocs />
           </div>
         )}
       </main>

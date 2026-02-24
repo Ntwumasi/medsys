@@ -137,10 +137,10 @@ const SystemUpdates: React.FC = () => {
 
   const getCategoryBadge = (category: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
-      feature: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Feature' },
-      improvement: { bg: 'bg-green-100', text: 'text-green-800', label: 'Improvement' },
+      feature: { bg: 'bg-primary-100', text: 'text-primary-800', label: 'Feature' },
+      improvement: { bg: 'bg-success-100', text: 'text-green-800', label: 'Improvement' },
       bugfix: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Bug Fix' },
-      planned: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Planned' },
+      planned: { bg: 'bg-secondary-100', text: 'text-secondary-800', label: 'Planned' },
     };
     const badge = badges[category] || badges.feature;
     return (
@@ -152,9 +152,9 @@ const SystemUpdates: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
-      completed: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Completed' },
+      completed: { bg: 'bg-success-100', text: 'text-success-800', label: 'Completed' },
       in_progress: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'In Progress' },
-      planned: { bg: 'bg-slate-100', text: 'text-slate-800', label: 'Planned' },
+      planned: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Planned' },
     };
     const badge = badges[status] || badges.completed;
     return (
@@ -191,7 +191,7 @@ const SystemUpdates: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
@@ -201,21 +201,21 @@ const SystemUpdates: React.FC = () => {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-            <div className="text-2xl font-bold text-blue-700">{stats.features}</div>
-            <div className="text-sm text-blue-600">Features</div>
+          <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200">
+            <div className="text-2xl font-bold text-primary-700">{stats.features}</div>
+            <div className="text-sm text-primary-600">Features</div>
           </div>
-          <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-            <div className="text-2xl font-bold text-green-700">{stats.improvements}</div>
-            <div className="text-sm text-green-600">Improvements</div>
+          <div className="bg-gradient-to-br from-success-50 to-success-100 rounded-xl p-4 border border-green-200">
+            <div className="text-2xl font-bold text-success-700">{stats.improvements}</div>
+            <div className="text-sm text-success-600">Improvements</div>
           </div>
           <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
             <div className="text-2xl font-bold text-orange-700">{stats.bugfixes}</div>
             <div className="text-sm text-orange-600">Bug Fixes</div>
           </div>
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-            <div className="text-2xl font-bold text-purple-700">{stats.planned}</div>
-            <div className="text-sm text-purple-600">Planned</div>
+          <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 rounded-xl p-4 border border-secondary-200">
+            <div className="text-2xl font-bold text-secondary-700">{stats.planned}</div>
+            <div className="text-sm text-secondary-600">Planned</div>
           </div>
         </div>
       )}
@@ -226,7 +226,7 @@ const SystemUpdates: React.FC = () => {
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">All Categories</option>
             <option value="feature">Features</option>
@@ -237,7 +237,7 @@ const SystemUpdates: React.FC = () => {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
@@ -258,7 +258,7 @@ const SystemUpdates: React.FC = () => {
             });
             setShowForm(!showForm);
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -269,7 +269,7 @@ const SystemUpdates: React.FC = () => {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-slate-50 rounded-xl p-6 border border-slate-200 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">
             {editingUpdate ? 'Edit Update' : 'Add New Update'}
           </h3>
@@ -280,7 +280,7 @@ const SystemUpdates: React.FC = () => {
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 required
                 placeholder="e.g., Added voice dictation feature"
               />
@@ -290,7 +290,7 @@ const SystemUpdates: React.FC = () => {
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 rows={3}
                 required
                 placeholder="Describe the update in detail..."
@@ -301,7 +301,7 @@ const SystemUpdates: React.FC = () => {
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               >
                 <option value="feature">Feature</option>
                 <option value="improvement">Improvement</option>
@@ -314,7 +314,7 @@ const SystemUpdates: React.FC = () => {
               <select
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               >
                 <option value="completed">Completed</option>
                 <option value="in_progress">In Progress</option>
@@ -327,7 +327,7 @@ const SystemUpdates: React.FC = () => {
                 type="text"
                 value={formData.version}
                 onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 placeholder="e.g., 1.2.0"
               />
             </div>
@@ -337,14 +337,14 @@ const SystemUpdates: React.FC = () => {
                 type="date"
                 value={formData.update_date}
                 onChange={(e) => setFormData({ ...formData, update_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </div>
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+              className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
             >
               {editingUpdate ? 'Save Changes' : 'Add Update'}
             </button>
@@ -377,21 +377,21 @@ const SystemUpdates: React.FC = () => {
             <div key={date} className="relative">
               {/* Date Header */}
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md">
+                <div className="bg-primary-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md">
                   {formatDate(date)}
                 </div>
-                <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-transparent"></div>
+                <div className="flex-1 h-px bg-gradient-to-r from-primary-200 to-transparent"></div>
               </div>
 
               {/* Updates for this date */}
-              <div className="space-y-3 ml-4 border-l-2 border-blue-100 pl-6">
+              <div className="space-y-3 ml-4 border-l-2 border-primary-100 pl-6">
                 {groupedUpdates[date].map((update) => (
                   <div
                     key={update.id}
                     className="relative bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                   >
                     {/* Timeline dot */}
-                    <div className="absolute -left-9 top-6 w-4 h-4 bg-blue-500 rounded-full border-4 border-white shadow"></div>
+                    <div className="absolute -left-9 top-6 w-4 h-4 bg-primary-500 rounded-full border-4 border-white shadow"></div>
 
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex-1">
@@ -417,7 +417,7 @@ const SystemUpdates: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(update)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Edit"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -426,7 +426,7 @@ const SystemUpdates: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleDelete(update.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-2 text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
                           title="Delete"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -3,11 +3,17 @@ import pool from '../database/db';
 import path from 'path';
 import fs from 'fs';
 
-const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+// Use /tmp in serverless environments (Vercel), local uploads dir otherwise
+const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+const UPLOAD_DIR = isServerless ? '/tmp/uploads' : path.join(__dirname, '../../uploads');
 
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Ensure upload directory exists (wrapped in try-catch for serverless environments)
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn('Could not create upload directory:', err);
 }
 
 // Get documents for a patient

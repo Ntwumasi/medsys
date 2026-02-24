@@ -7,6 +7,7 @@ import {
   updateUser,
   deleteUser,
   activateUser,
+  getActiveDoctors,
 } from '../controllers/userController';
 import {
   createPatient,
@@ -202,6 +203,14 @@ import {
   getQCSummary,
   deleteQCResult,
 } from '../controllers/labQCController';
+import {
+  getUserNotifications,
+  createSelfNotification,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  clearAllNotifications,
+} from '../controllers/notificationsController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 
 const router = express.Router();
@@ -211,6 +220,17 @@ router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth/me', authenticateToken, getCurrentUser);
 router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
+
+// Notification routes (user-specific)
+router.get('/notifications', authenticateToken, getUserNotifications);
+router.post('/notifications', authenticateToken, createSelfNotification);
+router.put('/notifications/:id/read', authenticateToken, markNotificationRead);
+router.put('/notifications/read-all', authenticateToken, markAllNotificationsRead);
+router.delete('/notifications/:id', authenticateToken, deleteNotification);
+router.delete('/notifications', authenticateToken, clearAllNotifications);
+
+// Get active doctors (for nurses to select when ordering labs)
+router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getActiveDoctors);
 
 // User Management routes (Admin only)
 router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
@@ -286,7 +306,7 @@ router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('docto
 router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, getSignedNotes);
 
 // Orders routes - Lab
-router.post('/orders/lab', authenticateToken, authorizeRoles('doctor'), createLabOrder);
+router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse'), createLabOrder);
 router.get('/orders/lab', authenticateToken, getLabOrders);
 router.put('/orders/lab/:id', authenticateToken, updateLabOrder);
 

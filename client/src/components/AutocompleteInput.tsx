@@ -98,7 +98,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
               onClick={() => selectSuggestion(suggestion)}
               className={`px-3 py-2 cursor-pointer text-sm transition-colors ${
                 index === selectedIndex
-                  ? 'bg-blue-100 text-blue-900'
+                  ? 'bg-primary-100 text-primary-900'
                   : 'hover:bg-gray-50 text-gray-700'
               }`}
             >

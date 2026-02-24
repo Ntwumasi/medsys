@@ -276,3 +276,20 @@ export const activateUser = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Get active doctors - accessible by nurses for lab ordering
+export const getActiveDoctors = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT id, first_name, last_name, email
+      FROM users
+      WHERE role = 'doctor' AND is_active = true
+      ORDER BY last_name ASC, first_name ASC
+    `);
+
+    res.json({ doctors: result.rows });
+  } catch (error) {
+    console.error('Get active doctors error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

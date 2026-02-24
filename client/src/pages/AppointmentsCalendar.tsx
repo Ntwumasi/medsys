@@ -171,7 +171,7 @@ const AppointmentsCalendar: React.FC = () => {
     switch (status) {
       case 'scheduled': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'confirmed': return 'bg-green-100 text-green-800 border-green-300';
-      case 'checked_in': return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'checked_in': return 'bg-secondary-100 text-secondary-800 border-secondary-300';
       case 'completed': return 'bg-gray-100 text-gray-800 border-gray-300';
       case 'cancelled': return 'bg-red-100 text-red-800 border-red-300';
       case 'no_show': return 'bg-amber-100 text-amber-800 border-amber-300';
@@ -647,7 +647,7 @@ const AppointmentsCalendar: React.FC = () => {
               <span>Confirmed</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-purple-100 border border-purple-300"></div>
+              <div className="w-4 h-4 rounded bg-secondary-100 border border-secondary-300"></div>
               <span>Checked In</span>
             </div>
             <div className="flex items-center gap-2">

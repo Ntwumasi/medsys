@@ -16,7 +16,7 @@ const ImpersonationBanner: React.FC = () => {
   };
 
   return (
-    <div className="bg-purple-600 text-white py-2 px-4 flex items-center justify-between text-sm sticky top-0 left-0 right-0 z-50 shadow-md">
+    <div className="bg-secondary-600 text-white py-2 px-4 flex items-center justify-between text-sm sticky top-0 left-0 right-0 z-50 shadow-md">
       <div className="flex items-center gap-2">
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -30,7 +30,7 @@ const ImpersonationBanner: React.FC = () => {
       </div>
       <button
         onClick={handleEndImpersonation}
-        className="bg-white text-purple-600 px-4 py-1.5 rounded-lg font-medium hover:bg-purple-50 transition-colors border border-purple-300"
+        className="bg-white text-secondary-600 px-4 py-1.5 rounded-lg font-medium hover:bg-secondary-50 transition-colors border border-secondary-300"
       >
         Return to Admin
       </button>

@@ -731,17 +731,17 @@ const ReceptionistDashboard: React.FC = () => {
   const getWaitTimeColor = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
     // If patient is actively being seen, use a neutral/positive color
     if (workflowStatus === 'with_nurse' || workflowStatus === 'with_doctor') {
-      return 'bg-blue-50 border-blue-400 text-blue-800';
+      return 'bg-primary-50 border-primary-400 text-primary-800';
     }
 
-    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'bg-slate-100 border-slate-400 text-slate-800';
+    if (waitTimeMinutes === null || waitTimeMinutes === undefined) return 'bg-gray-100 border-slate-400 text-gray-800';
 
     if (waitTimeMinutes <= 15) {
-      return 'bg-emerald-100 border-emerald-400 text-emerald-800';
+      return 'bg-success-100 border-success-400 text-success-800';
     } else if (waitTimeMinutes <= 30) {
-      return 'bg-amber-100 border-amber-400 text-amber-800';
+      return 'bg-warning-100 border-warning-400 text-warning-800';
     } else {
-      return 'bg-red-100 border-red-400 text-red-800';
+      return 'bg-danger-100 border-danger-400 text-danger-800';
     }
   };
 
@@ -826,7 +826,7 @@ const ReceptionistDashboard: React.FC = () => {
   console.log('ReceptionistDashboard: Rendering main UI');
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg">
+      <header className="bg-gradient-to-r from-primary-600 to-secondary-600 shadow-lg">
         <div className="max-w-full mx-auto px-6 py-5">
           <div className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-3">
@@ -839,7 +839,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <h1 className="text-2xl font-bold text-white">
                   Receptionist Dashboard
                 </h1>
-                <p className="text-blue-100 text-sm">
+                <p className="text-primary-100 text-sm">
                   Welcome, {user?.first_name} {user?.last_name}
                 </p>
               </div>
@@ -863,7 +863,7 @@ const ReceptionistDashboard: React.FC = () => {
                   logout();
                   navigate('/login');
                 }}
-                className="px-5 py-2.5 bg-white text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
+                className="px-5 py-2.5 bg-white text-primary-600 hover:bg-primary-50 rounded-lg transition-all flex items-center gap-2 font-semibold shadow-md hover:shadow-lg"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -877,7 +877,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       <main className="max-w-full mx-auto px-6 py-6">
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3 shadow-md">
+          <div className="mb-6 bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-xl flex items-start gap-3 shadow-md">
             <svg className="w-5 h-5 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
@@ -917,12 +917,12 @@ const ReceptionistDashboard: React.FC = () => {
           <button
             onClick={() => setActiveView('checkin')}
             className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
-              activeView === 'checkin' ? 'border-emerald-500' : 'border-transparent'
+              activeView === 'checkin' ? 'border-success-500' : 'border-transparent'
             }`}
           >
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-emerald-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex-shrink-0 bg-success-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
@@ -936,12 +936,12 @@ const ReceptionistDashboard: React.FC = () => {
           <button
             onClick={() => setActiveView('new-patient')}
             className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
-              activeView === 'new-patient' ? 'border-blue-500' : 'border-transparent'
+              activeView === 'new-patient' ? 'border-primary-500' : 'border-transparent'
             }`}
           >
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-blue-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex-shrink-0 bg-primary-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
               </div>
@@ -955,18 +955,18 @@ const ReceptionistDashboard: React.FC = () => {
           <button
             onClick={() => setActiveView('appointments')}
             className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
-              activeView === 'appointments' ? 'border-violet-500' : 'border-transparent'
+              activeView === 'appointments' ? 'border-secondary-500' : 'border-transparent'
             }`}
           >
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-violet-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="flex-shrink-0 bg-secondary-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-secondary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </div>
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">Appointments</h2>
-                <p className="text-2xl font-bold text-violet-600">{todayAppointments.length}</p>
+                <p className="text-2xl font-bold text-secondary-600">{todayAppointments.length}</p>
               </div>
             </div>
           </button>
@@ -978,17 +978,17 @@ const ReceptionistDashboard: React.FC = () => {
           <>
             {/* Billing Alerts Banner */}
             {billingAlerts.length > 0 && (
-              <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-4 shadow-md">
+              <div className="mb-6 bg-gradient-to-r from-success-50 to-success-50 border-2 border-success-300 rounded-xl p-4 shadow-md">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="bg-green-500 p-2 rounded-lg">
+                    <div className="bg-success-500 p-2 rounded-lg">
                       <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-green-800">Ready for Billing</h3>
-                      <p className="text-sm text-green-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} ready for checkout</p>
+                      <h3 className="text-lg font-bold text-success-800">Ready for Billing</h3>
+                      <p className="text-sm text-success-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} ready for checkout</p>
                     </div>
                   </div>
                 </div>
@@ -996,12 +996,12 @@ const ReceptionistDashboard: React.FC = () => {
                   {billingAlerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className="flex items-center justify-between bg-white rounded-lg p-3 border border-green-200 hover:border-green-400 transition-colors cursor-pointer"
+                      className="flex items-center justify-between bg-white rounded-lg p-3 border border-success-200 hover:border-success-400 transition-colors cursor-pointer"
                       onClick={() => handleBillingAlertClick(alert)}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="bg-green-100 p-2 rounded-full">
-                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="bg-success-100 p-2 rounded-full">
+                          <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                         </div>
@@ -1029,7 +1029,7 @@ const ReceptionistDashboard: React.FC = () => {
                           </svg>
                         </button>
                         <button
-                          className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                          className="px-4 py-1.5 bg-success-600 text-white text-sm font-medium rounded-lg hover:bg-success-700 transition-colors"
                         >
                           View Invoice
                         </button>
@@ -1047,15 +1047,15 @@ const ReceptionistDashboard: React.FC = () => {
               </h2>
               <div className="flex gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-emerald-500 rounded"></div>
+                  <div className="w-4 h-4 bg-success-500 rounded"></div>
                   <span>0-15 min</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-amber-500 rounded"></div>
+                  <div className="w-4 h-4 bg-warning-500 rounded"></div>
                   <span>15-30 min</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-500 rounded"></div>
+                  <div className="w-4 h-4 bg-danger-500 rounded"></div>
                   <span>30+ min</span>
                 </div>
               </div>
@@ -1124,25 +1124,25 @@ const ReceptionistDashboard: React.FC = () => {
                 // Status badge configuration based on workflow_status
                 const getStatusBadge = () => {
                   if (isCompleted && isPaid) {
-                    return { text: 'Completed & Paid', bg: 'bg-emerald-100', textColor: 'text-emerald-800', icon: '✓' };
+                    return { text: 'Completed & Paid', bg: 'bg-success-100', textColor: 'text-success-800', icon: '✓' };
                   } else if (isCompleted) {
-                    return { text: 'Completed - Awaiting Payment', bg: 'bg-amber-100', textColor: 'text-amber-800', icon: '⏳' };
+                    return { text: 'Completed - Awaiting Payment', bg: 'bg-warning-100', textColor: 'text-warning-800', icon: '⏳' };
                   }
 
                   // Use workflow_status for more detailed status
                   switch (item.workflow_status) {
                     case 'with_doctor':
-                      return { text: 'With Doctor', bg: 'bg-indigo-100', textColor: 'text-indigo-800', icon: '👨‍⚕️' };
+                      return { text: 'With Doctor', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '👨‍⚕️' };
                     case 'with_nurse':
-                      return { text: 'With Nurse', bg: 'bg-blue-100', textColor: 'text-blue-800', icon: '👩‍⚕️' };
+                      return { text: 'With Nurse', bg: 'bg-primary-100', textColor: 'text-primary-800', icon: '👩‍⚕️' };
                     case 'waiting_for_nurse':
                       return { text: 'Waiting for Nurse', bg: 'bg-cyan-100', textColor: 'text-cyan-800', icon: '⏳' };
                     case 'in_room':
                       return { text: 'In Room', bg: 'bg-teal-100', textColor: 'text-teal-800', icon: '🚪' };
                     case 'checked_in':
-                      return { text: 'Checked In', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '✓' };
+                      return { text: 'Checked In', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '✓' };
                     default:
-                      return { text: 'In Progress', bg: 'bg-purple-100', textColor: 'text-purple-800', icon: '🔄' };
+                      return { text: 'In Progress', bg: 'bg-secondary-100', textColor: 'text-secondary-800', icon: '🔄' };
                   }
                 };
 
@@ -1174,7 +1174,7 @@ const ReceptionistDashboard: React.FC = () => {
                           <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')}</span>
                           <span>Checked in: {safeFormatDate(item.check_in_time, 'h:mm a')}</span>
                           {item.billing_amount && (
-                            <span className={`font-semibold ${isPaid ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            <span className={`font-semibold ${isPaid ? 'text-success-700' : 'text-warning-700'}`}>
                               Billing: ${item.billing_amount} {isPaid ? '(Paid)' : '(Pending)'}
                             </span>
                           )}
@@ -1188,17 +1188,17 @@ const ReceptionistDashboard: React.FC = () => {
 
                         <div className="mt-3 flex gap-4 text-sm flex-wrap">
                           {item.room_number && (
-                            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
+                            <span className="bg-primary-100 text-primary-800 px-3 py-1 rounded-full font-medium">
                               Room: {item.room_number}
                             </span>
                           )}
                           {item.nurse_name && (
-                            <span className="bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
+                            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full font-medium flex items-center gap-2">
                               Nurse: {item.nurse_name}
                               {!isCompleted && (
                                 <button
                                   onClick={() => setEditingNurseForEncounter(item.id)}
-                                  className="hover:bg-slate-200 rounded p-1 transition-colors"
+                                  className="hover:bg-gray-200 rounded p-1 transition-colors"
                                   title="Change nurse"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1209,7 +1209,7 @@ const ReceptionistDashboard: React.FC = () => {
                             </span>
                           )}
                           {item.doctor_name && (
-                            <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full font-medium">
+                            <span className="bg-secondary-100 text-secondary-800 px-3 py-1 rounded-full font-medium">
                               Doctor: {item.doctor_name}
                             </span>
                           )}
@@ -1284,7 +1284,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                       <button
                         onClick={() => handleViewInvoice(item.id)}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                        className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -1375,8 +1375,8 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
 
                 {selectedPatient && (
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h3 className="font-semibold text-blue-900 mb-2">Selected Patient</h3>
+                  <div className="bg-primary-50 p-4 rounded-lg border border-primary-200">
+                    <h3 className="font-semibold text-primary-900 mb-2">Selected Patient</h3>
                     <div className="text-sm space-y-1">
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
@@ -1436,8 +1436,8 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <p className="text-sm text-green-800">
+                <div className="bg-success-50 p-4 rounded-lg border border-success-200">
+                  <p className="text-sm text-success-800">
                     <span className="font-semibold">Billing:</span> $50.00 (Returning Patient)
                   </p>
                 </div>
@@ -1462,7 +1462,7 @@ const ReceptionistDashboard: React.FC = () => {
             {selectedPatient && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 {/* PCP Information */}
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="mb-6 p-4 bg-primary-50 rounded-lg border border-primary-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Primary Care Physician (PCP)</h3>
                   <p className="text-gray-700">
                     {selectedPatient.pcp_name || 'Not specified'}
@@ -1487,7 +1487,7 @@ const ReceptionistDashboard: React.FC = () => {
                               {safeFormatDate(encounter.encounter_date, 'MMM dd, yyyy')}
                             </p>
                           </div>
-                          <span className="text-sm font-semibold text-green-700">
+                          <span className="text-sm font-semibold text-success-700">
                             ${encounter.billing_amount}
                           </span>
                         </div>
@@ -1520,15 +1520,15 @@ const ReceptionistDashboard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Register New Patient</h2>
             <form onSubmit={handleNewPatientSubmit} className="space-y-6">
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
-                <p className="text-sm text-blue-800">
+              <div className="bg-primary-50 p-4 rounded-lg border border-primary-200 mb-6">
+                <p className="text-sm text-primary-800">
                   Patient # and Encounter # will be automatically generated upon registration
                 </p>
               </div>
 
               {/* Personal Information */}
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 Personal Information
@@ -1635,7 +1635,7 @@ const ReceptionistDashboard: React.FC = () => {
 
               {/* Contact Information */}
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
-                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 Contact Information
@@ -1724,7 +1724,7 @@ const ReceptionistDashboard: React.FC = () => {
 
               {/* Emergency Contact */}
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
-                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 Emergency Contact
@@ -1776,7 +1776,7 @@ const ReceptionistDashboard: React.FC = () => {
 
               {/* PCP Information */}
               <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mt-6">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Primary Care Physician
@@ -1936,8 +1936,8 @@ const ReceptionistDashboard: React.FC = () => {
                 </select>
               </div>
 
-              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                <p className="text-sm text-green-800">
+              <div className="bg-success-50 p-4 rounded-lg border border-success-200">
+                <p className="text-sm text-success-800">
                   <span className="font-semibold">Billing:</span> $75.00 (New Patient)
                 </p>
               </div>
@@ -1961,7 +1961,7 @@ const ReceptionistDashboard: React.FC = () => {
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-900">Today's Appointments</h3>
-                  <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm font-bold">
+                  <span className="px-3 py-1 bg-secondary-100 text-violet-700 rounded-full text-sm font-bold">
                     {todayAppointments.length}
                   </span>
                 </div>
@@ -1973,10 +1973,10 @@ const ReceptionistDashboard: React.FC = () => {
                       <div
                         key={appt.id}
                         className={`p-3 rounded-lg border-2 ${
-                          appt.status === 'cancelled' ? 'border-red-200 bg-red-50' :
-                          appt.status === 'checked_in' ? 'border-green-200 bg-green-50' :
+                          appt.status === 'cancelled' ? 'border-danger-200 bg-danger-50' :
+                          appt.status === 'checked_in' ? 'border-success-200 bg-success-50' :
                           appt.status === 'completed' ? 'border-gray-200 bg-gray-50' :
-                          'border-violet-200 bg-violet-50'
+                          'border-violet-200 bg-secondary-50'
                         }`}
                       >
                         <div className="flex justify-between items-start">
@@ -1991,18 +1991,18 @@ const ReceptionistDashboard: React.FC = () => {
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                              appt.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                              appt.status === 'checked_in' ? 'bg-green-100 text-green-700' :
+                              appt.status === 'cancelled' ? 'bg-danger-100 text-danger-700' :
+                              appt.status === 'checked_in' ? 'bg-success-100 text-success-700' :
                               appt.status === 'completed' ? 'bg-gray-100 text-gray-700' :
-                              appt.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
-                              'bg-amber-100 text-amber-700'
+                              appt.status === 'confirmed' ? 'bg-primary-100 text-primary-700' :
+                              'bg-warning-100 text-warning-700'
                             }`}>
                               {appt.status.replace('_', ' ').toUpperCase()}
                             </span>
                             {appt.status === 'scheduled' || appt.status === 'confirmed' ? (
                               <button
                                 onClick={() => handleCheckInFromAppointment(appt)}
-                                className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                                className="text-xs text-success-600 hover:text-success-800 font-medium"
                               >
                                 Check In →
                               </button>
@@ -2024,7 +2024,7 @@ const ReceptionistDashboard: React.FC = () => {
                       setSelectedSlot({ start: new Date(), end: new Date(Date.now() + 30 * 60000) });
                       setShowBookingModal(true);
                     }}
-                    className="px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-semibold flex items-center gap-2"
+                    className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-semibold flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2033,14 +2033,14 @@ const ReceptionistDashboard: React.FC = () => {
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-violet-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-violet-600">
+                  <div className="bg-secondary-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-secondary-600">
                       {todayAppointments.filter(a => a.status === 'scheduled' || a.status === 'confirmed').length}
                     </p>
                     <p className="text-sm text-gray-600">Upcoming</p>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-green-600">
+                  <div className="bg-success-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-success-600">
                       {todayAppointments.filter(a => a.status === 'checked_in').length}
                     </p>
                     <p className="text-sm text-gray-600">Checked In</p>
@@ -2051,8 +2051,8 @@ const ReceptionistDashboard: React.FC = () => {
                     </p>
                     <p className="text-sm text-gray-600">Completed</p>
                   </div>
-                  <div className="bg-red-50 p-4 rounded-lg text-center">
-                    <p className="text-3xl font-bold text-red-600">
+                  <div className="bg-danger-50 p-4 rounded-lg text-center">
+                    <p className="text-3xl font-bold text-danger-600">
                       {todayAppointments.filter(a => a.status === 'cancelled' || a.status === 'no_show').length}
                     </p>
                     <p className="text-sm text-gray-600">Cancelled</p>
@@ -2069,7 +2069,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <button
                     onClick={() => setCalendarView('day')}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'day' ? 'bg-violet-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      calendarView === 'day' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     Day
@@ -2077,7 +2077,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <button
                     onClick={() => setCalendarView('week')}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'week' ? 'bg-violet-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      calendarView === 'week' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     Week
@@ -2085,7 +2085,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <button
                     onClick={() => setCalendarView('month')}
                     className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'month' ? 'bg-violet-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      calendarView === 'month' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
                     Month
@@ -2142,7 +2142,7 @@ const ReceptionistDashboard: React.FC = () => {
 
               <div className="space-y-4">
                 {/* Date/Time */}
-                <div className="bg-violet-50 p-4 rounded-lg">
+                <div className="bg-secondary-50 p-4 rounded-lg">
                   <p className="text-sm text-violet-700 font-medium">Selected Time Slot</p>
                   <p className="text-lg font-bold text-violet-900">
                     {safeFormatDate(selectedSlot.start, 'EEEE, MMMM d, yyyy')}
@@ -2156,7 +2156,7 @@ const ReceptionistDashboard: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Patient *</label>
                   {bookingPatient ? (
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-200">
+                    <div className="flex items-center justify-between bg-success-50 p-3 rounded-lg border border-success-200">
                       <div>
                         <p className="font-semibold text-gray-900">{bookingPatient.first_name} {bookingPatient.last_name}</p>
                         <p className="text-sm text-gray-600">{bookingPatient.patient_number}</p>
@@ -2179,7 +2179,7 @@ const ReceptionistDashboard: React.FC = () => {
                         type="text"
                         value={bookingPatientSearch}
                         onChange={(e) => setBookingPatientSearch(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                         placeholder="Search by name or patient number..."
                       />
                       {filteredBookingPatients.length > 0 && (
@@ -2209,7 +2209,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <select
                     value={bookingType}
                     onChange={(e) => setBookingType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   >
                     <option value="follow-up">Follow-up Visit</option>
                     <option value="new-patient">New Patient</option>
@@ -2225,7 +2225,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <select
                     value={bookingClinic}
                     onChange={(e) => setBookingClinic(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   >
                     <option value="">Select a clinic...</option>
                     {clinics.map((clinic) => (
@@ -2240,7 +2240,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <select
                     value={bookingDoctor || ''}
                     onChange={(e) => setBookingDoctor(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   >
                     <option value="">Any available doctor</option>
                     {doctors.map((doctor) => (
@@ -2255,7 +2255,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <select
                     value={bookingDuration}
                     onChange={(e) => setBookingDuration(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   >
                     <option value={15}>15 minutes</option>
                     <option value={30}>30 minutes</option>
@@ -2271,7 +2271,7 @@ const ReceptionistDashboard: React.FC = () => {
                     value={bookingReason}
                     onChange={(e) => setBookingReason(e.target.value)}
                     rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent resize-none"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent resize-none"
                     placeholder="Brief description of the appointment reason..."
                   />
                 </div>
@@ -2287,7 +2287,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <button
                     onClick={handleBookAppointment}
                     disabled={!bookingPatient || savingAppointment}
-                    className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {savingAppointment ? (
                       <>
@@ -2359,11 +2359,11 @@ const ReceptionistDashboard: React.FC = () => {
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
                   <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-                    selectedAppointment.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                    selectedAppointment.status === 'checked_in' ? 'bg-green-100 text-green-700' :
+                    selectedAppointment.status === 'cancelled' ? 'bg-danger-100 text-danger-700' :
+                    selectedAppointment.status === 'checked_in' ? 'bg-success-100 text-success-700' :
                     selectedAppointment.status === 'completed' ? 'bg-gray-100 text-gray-700' :
-                    selectedAppointment.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
-                    'bg-amber-100 text-amber-700'
+                    selectedAppointment.status === 'confirmed' ? 'bg-primary-100 text-primary-700' :
+                    'bg-warning-100 text-warning-700'
                   }`}>
                     {selectedAppointment.status.replace('_', ' ').toUpperCase()}
                   </span>
@@ -2378,13 +2378,13 @@ const ReceptionistDashboard: React.FC = () => {
                           handleCheckInFromAppointment(selectedAppointment);
                           setSelectedAppointment(null);
                         }}
-                        className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                        className="flex-1 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
                       >
                         Check In
                       </button>
                       <button
                         onClick={() => handleCancelAppointment(selectedAppointment.id)}
-                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                        className="flex-1 px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700 transition-colors font-medium"
                       >
                         Cancel
                       </button>

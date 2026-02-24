@@ -53,11 +53,11 @@ const ImagingDashboard: React.FC = () => {
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-warning-100 text-warning-800';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-primary-100 text-primary-800';
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-success-100 text-success-800';
       case 'cancelled':
         return 'bg-gray-100 text-gray-800';
       default:
@@ -85,7 +85,7 @@ const ImagingDashboard: React.FC = () => {
             </div>
             <button
               onClick={logout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+              className="px-4 py-2 text-sm font-medium text-white bg-danger-600 rounded-lg hover:bg-danger-700"
             >
               Logout
             </button>
@@ -99,19 +99,19 @@ const ImagingDashboard: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Pending Studies</div>
-            <div className="text-3xl font-bold text-yellow-600 mt-2">
+            <div className="text-3xl font-bold text-warning-600 mt-2">
               {routingRequests.filter(r => r.status === 'pending').length}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">In Progress</div>
-            <div className="text-3xl font-bold text-blue-600 mt-2">
+            <div className="text-3xl font-bold text-primary-600 mt-2">
               {routingRequests.filter(r => r.status === 'in-progress').length}
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
             <div className="text-sm font-medium text-gray-500">Completed Today</div>
-            <div className="text-3xl font-bold text-green-600 mt-2">
+            <div className="text-3xl font-bold text-success-600 mt-2">
               {routingRequests.filter(r => r.status === 'completed').length}
             </div>
           </div>
@@ -171,7 +171,7 @@ const ImagingDashboard: React.FC = () => {
                       {request.status === 'pending' && (
                         <button
                           onClick={() => updateStatus(request.id, 'in-progress')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                          className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
                         >
                           Start
                         </button>
@@ -179,7 +179,7 @@ const ImagingDashboard: React.FC = () => {
                       {request.status === 'in-progress' && (
                         <button
                           onClick={() => updateStatus(request.id, 'completed')}
-                          className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                          className="px-4 py-2 text-sm font-medium text-white bg-success-600 rounded-lg hover:bg-success-700"
                         >
                           Complete
                         </button>
