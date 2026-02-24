@@ -8,6 +8,7 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
 
     const {
       patient_id,
+      patient_name,
       provider_id,
       appointment_date,
       duration_minutes,
@@ -16,14 +17,16 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
       notes,
     } = req.body;
 
+    // Allow booking without patient_id (for new patients not yet registered)
     const result = await pool.query(
       `INSERT INTO appointments (
-        patient_id, provider_id, appointment_date, duration_minutes,
+        patient_id, patient_name, provider_id, appointment_date, duration_minutes,
         appointment_type, reason, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
-        patient_id,
+        patient_id || null,
+        patient_name || null,
         provider_id,
         appointment_date,
         duration_minutes || 30,
@@ -51,7 +54,7 @@ export const getAppointments = async (req: Request, res: Response): Promise<void
     let query = `
       SELECT a.*,
         p.patient_number,
-        u1.first_name || ' ' || u1.last_name as patient_name,
+        COALESCE(u1.first_name || ' ' || u1.last_name, a.patient_name) as patient_name,
         u2.first_name || ' ' || u2.last_name as provider_name
       FROM appointments a
       LEFT JOIN patients p ON a.patient_id = p.id
@@ -175,7 +178,7 @@ export const getTodayAppointments = async (req: Request, res: Response): Promise
     let query = `
       SELECT a.*,
         p.patient_number,
-        u1.first_name || ' ' || u1.last_name as patient_name,
+        COALESCE(u1.first_name || ' ' || u1.last_name, a.patient_name) as patient_name,
         u1.phone as patient_phone,
         u2.first_name || ' ' || u2.last_name as provider_name
       FROM appointments a

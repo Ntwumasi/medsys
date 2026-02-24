@@ -479,15 +479,20 @@ const ReceptionistDashboard: React.FC = () => {
   }, []);
 
   const handleBookAppointment = async () => {
-    if (!bookingPatient || !selectedSlot) {
-      showToast('Please select a patient', 'warning');
+    const patientName = bookingPatient
+      ? `${bookingPatient.first_name} ${bookingPatient.last_name}`
+      : bookingPatientSearch.trim();
+
+    if (!patientName || !selectedSlot) {
+      showToast('Please enter a patient name', 'warning');
       return;
     }
 
     setSavingAppointment(true);
     try {
       await apiClient.post('/appointments', {
-        patient_id: bookingPatient.id,
+        patient_id: bookingPatient?.id || null,
+        patient_name: patientName,
         provider_id: bookingDoctor || null,
         appointment_date: selectedSlot.start.toISOString(),
         duration_minutes: bookingDuration,
@@ -498,6 +503,8 @@ const ReceptionistDashboard: React.FC = () => {
 
       showToast('Appointment booked successfully', 'success');
       setShowBookingModal(false);
+      setBookingPatientSearch('');
+      setBookingPatient(null);
       loadAppointments();
       loadTodayAppointments();
     } catch (error) {
@@ -1299,7 +1306,7 @@ const ReceptionistDashboard: React.FC = () => {
         )}
 
         {activeView === 'checkin' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Check-In Returning Patient</h2>
               <form onSubmit={handleCheckIn} className="space-y-6">
@@ -2155,9 +2162,9 @@ const ReceptionistDashboard: React.FC = () => {
                         value={bookingPatientSearch}
                         onChange={(e) => setBookingPatientSearch(e.target.value)}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                        placeholder="Search by name or patient number..."
+                        placeholder="Enter patient name or search existing..."
                       />
-                      {filteredBookingPatients.length > 0 && (
+                      {filteredBookingPatients.length > 0 && bookingPatientSearch && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {filteredBookingPatients.slice(0, 5).map((patient) => (
                             <div
@@ -2173,6 +2180,9 @@ const ReceptionistDashboard: React.FC = () => {
                             </div>
                           ))}
                         </div>
+                      )}
+                      {bookingPatientSearch && !bookingPatient && (
+                        <p className="text-xs text-gray-500 mt-1">New patient? Just type their name - they can register at check-in</p>
                       )}
                     </div>
                   )}
@@ -2261,7 +2271,7 @@ const ReceptionistDashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={handleBookAppointment}
-                    disabled={!bookingPatient || savingAppointment}
+                    disabled={(!bookingPatient && !bookingPatientSearch.trim()) || savingAppointment}
                     className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {savingAppointment ? (
