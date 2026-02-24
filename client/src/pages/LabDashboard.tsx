@@ -284,9 +284,13 @@ const LabDashboard: React.FC = () => {
       const url = `/orders/lab${params.toString() ? '?' + params.toString() : ''}`;
       const response = await apiClient.get(url);
       const orders = response.data.lab_orders || [];
+      // Sort by priority first, then by ordered_at descending (LIFO - newest first)
       const sortedOrders = orders.sort((a: LabOrder, b: LabOrder) => {
-        const priorityOrder = { stat: 0, urgent: 1, routine: 2 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
+        const priorityOrder: Record<string, number> = { stat: 0, urgent: 1, routine: 2 };
+        const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+        if (priorityDiff !== 0) return priorityDiff;
+        // Within same priority, sort by newest first (LIFO)
+        return new Date(b.ordered_at).getTime() - new Date(a.ordered_at).getTime();
       });
       setLabOrders(sortedOrders);
     } catch (error) {
