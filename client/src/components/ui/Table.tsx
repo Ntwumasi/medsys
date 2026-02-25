@@ -114,7 +114,8 @@ function Table<T>({
               <tr
                 key={keyExtractor(item, index)}
                 onClick={() => onRowClick?.(item)}
-                className={`${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors duration-150`}
+                className={`${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors duration-150 animate-fade-in-up stagger-item`}
+                style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
               >
                 {columns.map((col) => (
                   <td

@@ -5,6 +5,7 @@ interface CardProps {
   className?: string;
   hover?: boolean;
   padding?: 'none' | 'sm' | 'md' | 'lg';
+  animate?: boolean;
 }
 
 interface CardHeaderProps {
@@ -34,10 +35,10 @@ const Card: React.FC<CardProps> & {
   Header: React.FC<CardHeaderProps>;
   Body: React.FC<CardBodyProps>;
   Footer: React.FC<CardFooterProps>;
-} = ({ children, className = '', hover = false, padding = 'none' }) => {
+} = ({ children, className = '', hover = false, padding = 'none', animate = false }) => {
   return (
     <div
-      className={`bg-white rounded-xl border border-gray-200 shadow-card ${hover ? 'hover:shadow-card-hover transition-shadow duration-200' : ''} ${paddingStyles[padding]} ${className}`}
+      className={`bg-white rounded-xl border border-gray-200 shadow-card ${hover ? 'hover:shadow-card-hover transition-shadow duration-200' : ''} ${paddingStyles[padding]} ${animate ? 'animate-scale-in' : ''} ${className}`}
     >
       {children}
     </div>

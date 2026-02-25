@@ -492,7 +492,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
 
         {/* Page content */}
         <div className="p-4 lg:p-6 pb-20 lg:pb-6">
-          {children}
+          <div className="animate-fade-in">
+            {children}
+          </div>
         </div>
       </main>
 

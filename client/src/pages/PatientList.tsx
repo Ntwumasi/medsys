@@ -5,6 +5,7 @@ import type { Patient } from '../types';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Table, EmptyState, Skeleton } from '../components/ui';
+import { SkeletonTable } from '../components/ui/Skeleton';
 
 const PatientList: React.FC = () => {
   const navigate = useNavigate();
@@ -124,17 +125,7 @@ const PatientList: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="flex gap-4">
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-40" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              ))}
-            </div>
+            <SkeletonTable rows={8} cols={6} />
           ) : patients.length === 0 ? (
             <EmptyState
               title="No patients found"
@@ -147,12 +138,14 @@ const PatientList: React.FC = () => {
               action={!search ? { label: 'Register New Patient', onClick: () => navigate('/patients/new') } : undefined}
             />
           ) : (
-            <Table
-              columns={columns}
-              data={patients}
-              keyExtractor={(patient) => patient.id}
-              onRowClick={(patient) => navigate(`/patients/${patient.id}`)}
-            />
+            <div className="animate-fade-in">
+              <Table
+                columns={columns}
+                data={patients}
+                keyExtractor={(patient) => patient.id}
+                onRowClick={(patient) => navigate(`/patients/${patient.id}`)}
+              />
+            </div>
           )}
         </div>
       </Card>
