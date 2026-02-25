@@ -438,11 +438,15 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
 
     let query = `
       SELECT po.*,
-        u.first_name || ' ' || u.last_name as ordering_provider_name,
-        e.encounter_number
+        u.first_name || ' ' || u.last_name as provider_name,
+        e.encounter_number,
+        p.patient_number,
+        pu.first_name || ' ' || pu.last_name as patient_name
       FROM pharmacy_orders po
       LEFT JOIN users u ON po.ordering_provider = u.id
       LEFT JOIN encounters e ON po.encounter_id = e.id
+      LEFT JOIN patients p ON po.patient_id = p.id
+      LEFT JOIN users pu ON p.user_id = pu.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -461,9 +465,11 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
     }
 
     if (status) {
-      query += ` AND po.status = $${paramCount}`;
-      params.push(status);
-      paramCount++;
+      // Support comma-separated status values
+      const statuses = (status as string).split(',').map(s => s.trim());
+      query += ` AND po.status IN (${statuses.map((_, i) => `$${paramCount + i}`).join(', ')})`;
+      params.push(...statuses);
+      paramCount += statuses.length;
     }
 
     query += ` ORDER BY po.ordered_date DESC`;
@@ -471,7 +477,8 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
     const result = await pool.query(query, params);
 
     res.json({
-      pharmacy_orders: result.rows,
+      orders: result.rows,
+      pharmacy_orders: result.rows, // Keep for backwards compatibility
     });
   } catch (error) {
     console.error('Get pharmacy orders error:', error);
