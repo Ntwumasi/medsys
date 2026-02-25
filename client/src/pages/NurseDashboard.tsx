@@ -1558,9 +1558,12 @@ const NurseDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Tabs Navigation */}
+                {/* Clinical Notes Section */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-50 rounded-t-xl">
+                  <div className="flex justify-between items-center p-6 pb-0 mb-4">
+                    <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
+                  </div>
+                  <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-50 px-6">
                     <nav className="flex -mb-px overflow-x-auto">
                       <button
                         onClick={() => setActiveTab('hp')}
@@ -1649,7 +1652,7 @@ const NurseDashboard: React.FC = () => {
                   <div className="p-6">
                     {/* SOAP Tab */}
                     {activeTab === 'hp' && selectedPatient && (
-                      <div className="-m-6">
+                      <div>
                         <HPAccordion
                           encounterId={selectedPatient.id}
                           patientId={selectedPatient.patient_id}
