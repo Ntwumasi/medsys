@@ -909,16 +909,16 @@ const NurseDashboard: React.FC = () => {
           <div className="xl:col-span-1">
             {/* Doctor Notifications */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-white font-bold flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-warning-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     Doctor Notifications
                   </h3>
                   {doctorNotifications.length > 0 && (
-                    <span className="bg-white bg-opacity-20 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    <span className="bg-warning-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                       {doctorNotifications.filter(n => !n.is_read).length} new
                     </span>
                   )}
@@ -1113,15 +1113,15 @@ const NurseDashboard: React.FC = () => {
 
             {/* Short Stay Unit */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-              <div className="bg-gradient-to-r from-secondary-600 to-secondary-600 px-4 py-3">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                     </svg>
                     <h2 className="text-sm font-semibold text-white">Short Stay Unit</h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-white text-secondary-600 text-xs font-bold rounded-full">
+                  <span className="px-2.5 py-1 bg-secondary-500 text-white text-xs font-bold rounded-full">
                     {shortStayBeds.filter(b => b.is_available).length}/{shortStayBeds.length}
                   </span>
                 </div>
