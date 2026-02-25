@@ -318,8 +318,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
-              <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-text-primary">
+              <div className="hidden md:block text-left min-w-[120px]">
+                <p className="text-sm font-medium text-text-primary truncate">
                   {user?.first_name} {user?.last_name}
                 </p>
                 <p className={`text-xs px-2 py-0.5 rounded-full inline-block ${getRoleColor(user?.role || '')}`}>
