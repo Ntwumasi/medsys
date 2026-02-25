@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { validateAllVitals } from '../utils/vitalSignsValidation';
+import billingService from '../services/billingService';
+import auditService from '../services/auditService';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -781,6 +783,23 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       [encounter_id]
     );
 
+    // Auto-generate final invoice
+    let billingResult = null;
+    try {
+      billingResult = await billingService.generateEncounterInvoice(encounter_id);
+    } catch (billingError) {
+      console.error('Error generating invoice:', billingError);
+    }
+
+    // Audit log for encounter completion
+    await auditService.log({
+      userId: user_id,
+      action: 'complete',
+      entityType: 'encounter',
+      entityId: encounter_id,
+      details: { patient_id, room_id, invoiceTotal: billingResult?.total }
+    });
+
     // Create alert for all receptionists that patient is ready for billing/checkout
     await pool.query(
       `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
@@ -797,6 +816,7 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
 
     res.json({
       message: 'Room released and encounter completed successfully',
+      invoice: billingResult,
     });
   } catch (error) {
     console.error('Release room error:', error);

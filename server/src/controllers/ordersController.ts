@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import notificationService from '../services/notificationService';
+import auditService from '../services/auditService';
 
 // Lab Orders
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
@@ -39,9 +41,25 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       [encounter_id]
     );
 
+    const order = result.rows[0];
+
+    // Audit log
+    await auditService.log({
+      userId: currentUserId,
+      action: 'create',
+      entityType: 'lab_order',
+      entityId: order.id,
+      details: { test_name, test_code, priority, patient_id }
+    });
+
+    // Send STAT notification if high priority
+    if (priority === 'stat' || priority === 'urgent') {
+      await notificationService.notifyStatOrder('lab', order.id, 'lab');
+    }
+
     res.status(201).json({
       message: 'Lab order created successfully',
-      order: result.rows[0],
+      order,
     });
   } catch (error) {
     console.error('Create lab order error:', error);
@@ -248,6 +266,21 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       }
     }
 
+    // Audit log
+    const authReq = req as any;
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'update',
+      entityType: 'lab_order',
+      entityId: parseInt(id),
+      details: updateData
+    });
+
+    // Send notification when lab order is completed
+    if (updateData.status === 'completed') {
+      await notificationService.notifyLabComplete(parseInt(id));
+    }
+
     res.json({
       message: 'Lab order updated successfully',
       order: updatedOrder,
@@ -283,9 +316,25 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
       [encounter_id]
     );
 
+    const order = result.rows[0];
+
+    // Audit log
+    await auditService.log({
+      userId: ordering_provider,
+      action: 'create',
+      entityType: 'imaging_order',
+      entityId: order.id,
+      details: { imaging_type, body_part, priority, patient_id }
+    });
+
+    // Send STAT notification if high priority
+    if (priority === 'stat' || priority === 'urgent') {
+      await notificationService.notifyStatOrder('imaging', order.id, 'imaging');
+    }
+
     res.status(201).json({
       message: 'Imaging order created successfully',
-      order: result.rows[0],
+      order,
     });
   } catch (error) {
     console.error('Create imaging order error:', error);
@@ -363,9 +412,26 @@ export const updateImagingOrder = async (req: Request, res: Response): Promise<v
       return;
     }
 
+    const updatedOrder = result.rows[0];
+
+    // Audit log
+    const authReq = req as any;
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'update',
+      entityType: 'imaging_order',
+      entityId: parseInt(id),
+      details: updateData
+    });
+
+    // Send notification when imaging order is completed
+    if (updateData.status === 'completed') {
+      await notificationService.notifyImagingComplete(parseInt(id));
+    }
+
     res.json({
       message: 'Imaging order updated successfully',
-      order: result.rows[0],
+      order: updatedOrder,
     });
   } catch (error) {
     console.error('Update imaging order error:', error);
@@ -422,9 +488,25 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       [encounter_id]
     );
 
+    const order = result.rows[0];
+
+    // Audit log
+    await auditService.log({
+      userId: ordering_provider,
+      action: 'create',
+      entityType: 'pharmacy_order',
+      entityId: order.id,
+      details: { medication_name, dosage, frequency, priority, patient_id }
+    });
+
+    // Send STAT notification if high priority
+    if (priority === 'stat' || priority === 'urgent') {
+      await notificationService.notifyStatOrder('pharmacy', order.id, 'pharmacy');
+    }
+
     res.status(201).json({
       message: 'Pharmacy order created successfully',
-      order: result.rows[0],
+      order,
     });
   } catch (error) {
     console.error('Create pharmacy order error:', error);
@@ -509,9 +591,26 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       return;
     }
 
+    const updatedOrder = result.rows[0];
+
+    // Audit log
+    const authReq = req as any;
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'update',
+      entityType: 'pharmacy_order',
+      entityId: parseInt(id),
+      details: updateData
+    });
+
+    // Send notification when pharmacy order is dispensed
+    if (updateData.status === 'dispensed') {
+      await notificationService.notifyPharmacyDispensed(parseInt(id));
+    }
+
     res.json({
       message: 'Pharmacy order updated successfully',
-      order: result.rows[0],
+      order: updatedOrder,
     });
   } catch (error) {
     console.error('Update pharmacy order error:', error);

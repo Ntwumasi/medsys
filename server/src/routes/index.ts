@@ -212,6 +212,10 @@ import {
   clearAllNotifications,
 } from '../controllers/notificationsController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import notificationRoutes from './notifications';
+import auditRoutes from './audit';
+import drugInteractionService from '../services/drugInteractionService';
+import labResultsService from '../services/labResultsService';
 
 const router = express.Router();
 
@@ -461,5 +465,84 @@ router.get('/lab/qc/summary', authenticateToken, authorizeRoles('lab', 'admin'),
 router.get('/lab/qc/levey-jennings/:test_code', authenticateToken, authorizeRoles('lab', 'admin'), getLeveyJenningsData);
 router.post('/lab/qc', authenticateToken, authorizeRoles('lab'), recordQCResult);
 router.delete('/lab/qc/:id', authenticateToken, authorizeRoles('lab', 'admin'), deleteQCResult);
+
+// Real-time notification routes (SSE)
+router.use('/notifications', notificationRoutes);
+
+// Audit log routes
+router.use('/audit', auditRoutes);
+
+// Drug Interaction Check routes
+router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy'), async (req, res) => {
+  try {
+    const { patientId, medication } = req.body;
+    const interactions = await drugInteractionService.checkInteractions(patientId, medication);
+    res.json({ interactions, hasSevere: interactions.some(i => i.severity === 'severe' || i.severity === 'contraindicated') });
+  } catch (error) {
+    console.error('Error checking drug interactions:', error);
+    res.status(500).json({ error: 'Failed to check drug interactions' });
+  }
+});
+
+router.post('/drug-interactions/check-multiple', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy'), async (req, res) => {
+  try {
+    const { medications } = req.body;
+    const interactions = await drugInteractionService.checkMultipleInteractions(medications);
+    res.json({ interactions, hasSevere: interactions.some(i => i.severity === 'severe' || i.severity === 'contraindicated') });
+  } catch (error) {
+    console.error('Error checking drug interactions:', error);
+    res.status(500).json({ error: 'Failed to check drug interactions' });
+  }
+});
+
+router.get('/drug-interactions/:drugName', authenticateToken, async (req, res) => {
+  try {
+    const interactions = await drugInteractionService.getDrugInteractions(req.params.drugName);
+    res.json({ interactions });
+  } catch (error) {
+    console.error('Error getting drug interactions:', error);
+    res.status(500).json({ error: 'Failed to get drug interactions' });
+  }
+});
+
+// Lab Results Evaluation routes
+router.post('/lab-results/evaluate', authenticateToken, authorizeRoles('lab', 'doctor', 'nurse'), async (req, res) => {
+  try {
+    const { testName, results, patientGender, patientAge } = req.body;
+    const parsed = await labResultsService.evaluateResults(testName, results, patientGender, patientAge);
+    res.json({
+      ...parsed,
+      formattedResults: labResultsService.formatResultsWithStatus(parsed)
+    });
+  } catch (error) {
+    console.error('Error evaluating lab results:', error);
+    res.status(500).json({ error: 'Failed to evaluate lab results' });
+  }
+});
+
+router.get('/lab-results/reference/:testName', authenticateToken, async (req, res) => {
+  try {
+    const { gender, age } = req.query;
+    const range = await labResultsService.getReferenceRange(
+      req.params.testName,
+      gender as string,
+      age ? parseInt(age as string) : undefined
+    );
+    res.json({ range });
+  } catch (error) {
+    console.error('Error getting reference range:', error);
+    res.status(500).json({ error: 'Failed to get reference range' });
+  }
+});
+
+router.get('/lab-results/critical/:orderId', authenticateToken, authorizeRoles('lab', 'doctor'), async (req, res) => {
+  try {
+    const hasCritical = await labResultsService.checkCriticalResults(parseInt(req.params.orderId));
+    res.json({ hasCritical });
+  } catch (error) {
+    console.error('Error checking critical results:', error);
+    res.status(500).json({ error: 'Failed to check critical results' });
+  }
+});
 
 export default router;
