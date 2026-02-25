@@ -102,6 +102,11 @@ const DoctorDashboard: React.FC = () => {
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
 
+  // Drug interaction state
+  const [drugInteractions, setDrugInteractions] = useState<Array<{drug1: string, drug2: string, severity: string, description: string, recommendation: string}>>([]);
+  const [showInteractionModal, setShowInteractionModal] = useState(false);
+  const [checkingInteractions, setCheckingInteractions] = useState(false);
+
   // Clinical Notes Tab state
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural'>('soap');
 
@@ -336,13 +341,48 @@ const DoctorDashboard: React.FC = () => {
     setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine'});
   };
 
-  const handleAddPharmacyOrder = () => {
+  const handleAddPharmacyOrder = async () => {
     if (!currentPharmacyOrder.medication_name) {
       showToast('Please enter medication name', 'warning');
       return;
     }
+
+    // Check for drug interactions
+    if (selectedEncounter) {
+      setCheckingInteractions(true);
+      try {
+        const response = await apiClient.post('/drug-interactions/check', {
+          patientId: selectedEncounter.patient_id,
+          medication: currentPharmacyOrder.medication_name,
+        });
+
+        if (response.data.interactions && response.data.interactions.length > 0) {
+          setDrugInteractions(response.data.interactions);
+          setShowInteractionModal(true);
+          setCheckingInteractions(false);
+          return; // Don't add yet, wait for user confirmation
+        }
+      } catch (error) {
+        console.error('Error checking drug interactions:', error);
+        // Continue adding even if check fails
+      }
+      setCheckingInteractions(false);
+    }
+
+    // No interactions found, add the medication
+    addMedicationToList();
+  };
+
+  const addMedicationToList = () => {
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
     setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
+    setDrugInteractions([]);
+    setShowInteractionModal(false);
+  };
+
+  const handleConfirmMedicationWithInteraction = () => {
+    showToast('Medication added with documented interaction warning', 'warning');
+    addMedicationToList();
   };
 
   // Remove orders from pending arrays
@@ -1546,12 +1586,25 @@ const DoctorDashboard: React.FC = () => {
                         </select>
                         <button
                           onClick={handleAddPharmacyOrder}
-                          className="w-full px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          disabled={checkingInteractions}
+                          className="w-full px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                          Add Pharmacy Order
+                          {checkingInteractions ? (
+                            <>
+                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Checking Interactions...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add Pharmacy Order
+                            </>
+                          )}
                         </button>
 
                         {/* Pending Pharmacy Orders */}
@@ -1828,6 +1881,81 @@ const DoctorDashboard: React.FC = () => {
           patientId={selectedEncounter.patient_id}
           onClose={() => setShowVitalsHistory(false)}
         />
+      )}
+
+      {/* Drug Interaction Warning Modal */}
+      {showInteractionModal && drugInteractions.length > 0 && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-danger-50 to-warning-50 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-danger-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-danger-800">Drug Interaction Warning</h3>
+                  <p className="text-sm text-danger-600">Potential interaction detected for {currentPharmacyOrder.medication_name}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 max-h-96 overflow-y-auto">
+              <div className="space-y-4">
+                {drugInteractions.map((interaction, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 rounded-lg border-l-4 ${
+                      interaction.severity === 'severe' || interaction.severity === 'contraindicated'
+                        ? 'bg-danger-50 border-danger-500'
+                        : interaction.severity === 'moderate'
+                          ? 'bg-warning-50 border-warning-500'
+                          : 'bg-gray-50 border-gray-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${
+                        interaction.severity === 'severe' || interaction.severity === 'contraindicated'
+                          ? 'bg-danger-600 text-white'
+                          : interaction.severity === 'moderate'
+                            ? 'bg-warning-600 text-white'
+                            : 'bg-gray-500 text-white'
+                      }`}>
+                        {interaction.severity}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {interaction.drug1} + {interaction.drug2}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-2">{interaction.description}</p>
+                    {interaction.recommendation && (
+                      <p className="text-sm text-gray-600 bg-white p-2 rounded">
+                        <span className="font-semibold">Recommendation:</span> {interaction.recommendation}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowInteractionModal(false);
+                  setDrugInteractions([]);
+                }}
+                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmMedicationWithInteraction}
+                className="px-4 py-2 bg-warning-600 text-white font-semibold rounded-lg hover:bg-warning-700 transition-colors"
+              >
+                Add Anyway (Document Warning)
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );

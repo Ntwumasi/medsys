@@ -73,18 +73,69 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   }, []);
 
-  // Fetch notifications on mount and when auth changes
+  // Fetch notifications on mount and set up SSE for real-time updates
   useEffect(() => {
     fetchNotifications();
 
-    // Set up polling every 30 seconds
+    // Set up Server-Sent Events for real-time notifications
+    let eventSource: EventSource | null = null;
+
+    const setupSSE = () => {
+      if (!isLoggedIn()) return;
+
+      const token = localStorage.getItem('token');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+      // Note: EventSource doesn't support custom headers, so we pass token as query param
+      eventSource = new EventSource(`${apiUrl}/notifications/stream?token=${token}`);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'notification') {
+            // Add new notification to the list
+            const notification: Notification = {
+              id: data.id?.toString() || Date.now().toString(),
+              message: data.message,
+              type: data.notificationType || 'info',
+              timestamp: new Date(),
+              is_read: false,
+            };
+
+            setNotifications(prev => [notification, ...prev].slice(0, 50));
+            setUnreadCount(prev => prev + 1);
+
+            // Show toast for important notifications
+            if (data.priority === 'stat' || data.notificationType === 'warning' || data.notificationType === 'error') {
+              setActiveToast(notification);
+            }
+          }
+        } catch (e) {
+          // Ignore parse errors for heartbeat messages
+        }
+      };
+
+      eventSource.onerror = () => {
+        // Reconnect after 5 seconds on error
+        eventSource?.close();
+        setTimeout(setupSSE, 5000);
+      };
+    };
+
+    setupSSE();
+
+    // Fallback: polling every 60 seconds (reduced from 30 since SSE handles real-time)
     const interval = setInterval(() => {
       if (isLoggedIn()) {
         fetchNotifications();
       }
-    }, 30000);
+    }, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      eventSource?.close();
+    };
   }, [fetchNotifications]);
 
   // Listen for storage events (login/logout in other tabs)

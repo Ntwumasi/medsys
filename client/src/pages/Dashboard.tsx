@@ -157,7 +157,22 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs'>('staff');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit'>('staff');
+
+  // Audit logs state
+  const [auditLogs, setAuditLogs] = useState<Array<{
+    id: number;
+    user_id: number;
+    user_name: string;
+    user_role: string;
+    action: string;
+    entity_type: string;
+    entity_id: number;
+    old_values: any;
+    new_values: any;
+    created_at: string;
+  }>>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
@@ -626,6 +641,26 @@ const Dashboard: React.FC = () => {
     }
   }, [activeTab, pastPatientsPage, pastPatientsSearchTerm, pastPatientsDateFrom, pastPatientsDateTo, pastPatientsSortField, pastPatientsSortOrder]);
 
+  // Fetch audit logs
+  const fetchAuditLogs = async () => {
+    setAuditLoading(true);
+    try {
+      const response = await apiClient.get('/audit/recent?limit=100');
+      setAuditLogs(response.data.logs || []);
+    } catch (error) {
+      console.error('Error fetching audit logs:', error);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Load audit logs when tab is active
+  useEffect(() => {
+    if (activeTab === 'audit') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
+
 
   return (
     <AppLayout title="Admin Dashboard">
@@ -712,6 +747,19 @@ const Dashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
               System Updates
+            </button>
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`${
+                activeTab === 'audit'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Audit Logs
             </button>
             <button
               onClick={() => setActiveTab('docs')}
@@ -1970,6 +2018,105 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <SystemUpdates />
+          </div>
+        )}
+
+        {/* Audit Logs Tab */}
+        {activeTab === 'audit' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-gray-200 p-2 rounded-lg">
+                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">Audit Logs</h2>
+                    <p className="text-sm text-gray-500">Track all clinical actions and system changes</p>
+                  </div>
+                </div>
+                <button
+                  onClick={fetchAuditLogs}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {auditLoading ? (
+              <div className="p-12 text-center">
+                <CircularProgress />
+                <p className="text-gray-500 mt-4">Loading audit logs...</p>
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <div className="p-12 text-center">
+                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-gray-500 font-medium">No audit logs found</p>
+                <p className="text-sm text-gray-400 mt-1">Clinical actions will appear here when they occur</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Entity</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                          {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-gray-900">{log.user_name || 'System'}</div>
+                          <div className="text-xs text-gray-500 capitalize">{log.user_role || 'N/A'}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${
+                            log.action === 'create' ? 'bg-success-100 text-success-700' :
+                            log.action === 'update' ? 'bg-primary-100 text-primary-700' :
+                            log.action === 'delete' ? 'bg-danger-100 text-danger-700' :
+                            log.action === 'complete' ? 'bg-secondary-100 text-secondary-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-900 capitalize">{log.entity_type?.replace('_', ' ')}</div>
+                          <div className="text-xs text-gray-500">ID: {log.entity_id}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {log.new_values && (
+                            <button
+                              onClick={() => {
+                                alert(JSON.stringify(log.new_values, null, 2));
+                              }}
+                              className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                            >
+                              View Details
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
