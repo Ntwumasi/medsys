@@ -470,6 +470,7 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
         p.patient_number,
         p.date_of_birth,
         p.gender,
+        p.vip_status,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
         u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name
@@ -479,8 +480,15 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
-      WHERE e.status = 'in-progress' AND e.room_id IS NOT NULL
-      ORDER BY r.room_number`
+      WHERE e.status IN ('in-progress', 'with_doctor', 'with_nurse') AND e.room_id IS NOT NULL
+      ORDER BY
+        CASE
+          WHEN p.vip_status = 'platinum' THEN 1
+          WHEN p.vip_status = 'gold' THEN 2
+          WHEN p.vip_status = 'silver' THEN 3
+          ELSE 4
+        END,
+        r.room_number`
     );
 
     // Fetch latest vital signs for each encounter from vital_signs_history

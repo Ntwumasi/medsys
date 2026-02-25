@@ -22,6 +22,8 @@ interface RoomEncounter {
   nurse_name?: string;
   chief_complaint: string;
   vital_signs?: VitalSigns;
+  status?: string;
+  vip_status?: 'silver' | 'gold' | 'platinum' | null;
 }
 
 interface ClinicalNote {
@@ -470,41 +472,69 @@ const DoctorDashboard: React.FC = () => {
 
               {/* Patient List */}
               <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-                {roomEncounters.map((encounter) => (
+                {roomEncounters.map((encounter) => {
+                  const isWithNurse = encounter.status === 'with_nurse';
+                  return (
                   <div
                     key={encounter.id}
-                    onClick={() => handleSelectEncounter(encounter)}
-                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-primary-50 group ${
-                      selectedEncounter?.id === encounter.id
+                    onClick={() => !isWithNurse && handleSelectEncounter(encounter)}
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-all duration-150 group ${
+                      isWithNurse
+                        ? 'bg-gray-50 opacity-60 cursor-not-allowed'
+                        : 'cursor-pointer hover:bg-primary-50'
+                    } ${
+                      selectedEncounter?.id === encounter.id && !isWithNurse
                         ? 'bg-primary-100 border-l-4 border-primary-600'
                         : 'border-l-4 border-transparent hover:border-l-4 hover:border-primary-300'
                     }`}
                   >
                     {/* Room Number */}
                     <div className="col-span-3">
-                      <span className="inline-flex items-center px-2 py-1 bg-primary-600 text-white text-xs font-bold rounded">
+                      <span className={`inline-flex items-center px-2 py-1 text-white text-xs font-bold rounded ${
+                        isWithNurse ? 'bg-gray-400' : 'bg-primary-600'
+                      }`}>
                         Rm {encounter.room_number}
                       </span>
                     </div>
 
                     {/* Patient Name */}
                     <div className="col-span-5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/patients/${encounter.patient_id}`);
-                        }}
-                        className={`font-semibold text-sm text-left truncate transition-colors ${
-                          selectedEncounter?.id === encounter.id
-                            ? 'text-primary-800'
-                            : 'text-gray-800 group-hover:text-primary-600'
-                        }`}
-                        title={encounter.patient_name}
-                      >
-                        {encounter.patient_name}
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/patients/${encounter.patient_id}`);
+                          }}
+                          className={`font-semibold text-sm text-left truncate transition-colors ${
+                            isWithNurse
+                              ? 'text-gray-500'
+                              : selectedEncounter?.id === encounter.id
+                                ? 'text-primary-800'
+                                : 'text-gray-800 group-hover:text-primary-600'
+                          }`}
+                          title={encounter.patient_name}
+                        >
+                          {encounter.patient_name}
+                        </button>
+                        {encounter.vip_status && (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded whitespace-nowrap ${
+                            encounter.vip_status === 'platinum'
+                              ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800'
+                              : encounter.vip_status === 'gold'
+                                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900'
+                                : 'bg-gradient-to-r from-gray-200 to-slate-300 text-gray-700'
+                          }`}>
+                            {encounter.vip_status === 'platinum' ? '★ VIP' : encounter.vip_status === 'gold' ? '★ VIP' : '★ VIP'}
+                          </span>
+                        )}
+                        {isWithNurse && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded whitespace-nowrap">
+                            With Nurse
+                          </span>
+                        )}
+                      </div>
                       {encounter.nurse_name && (
-                        <div className="text-xs text-gray-500 truncate">
+                        <div className={`text-xs truncate ${isWithNurse ? 'text-gray-400' : 'text-gray-500'}`}>
                           Nurse: {encounter.nurse_name}
                         </div>
                       )}
@@ -512,12 +542,13 @@ const DoctorDashboard: React.FC = () => {
 
                     {/* Patient Number */}
                     <div className="col-span-4 text-right">
-                      <span className="text-xs text-gray-500 font-mono">
+                      <span className={`text-xs font-mono ${isWithNurse ? 'text-gray-400' : 'text-gray-500'}`}>
                         {encounter.patient_number}
                       </span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {roomEncounters.length === 0 && (
                   <div className="text-center py-8 text-gray-400">

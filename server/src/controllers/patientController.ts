@@ -34,6 +34,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       payer_sources, // New field: array of payer sources
       pcp_name, // Primary Care Physician name
       pcp_phone, // Primary Care Physician phone
+      vip_status, // VIP status: silver, gold, platinum
       // Health status fields
       hiv_status,
       hepatitis_b_status,
@@ -95,8 +96,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         region, nationality, gps_address, preferred_clinic,
         emergency_contact_name, emergency_contact_phone, emergency_contact_relationship,
         insurance_provider, insurance_number, marital_status, occupation, pcp_name, pcp_phone,
-        hiv_status, hepatitis_b_status, hepatitis_c_status, tb_status, sickle_cell_status, other_health_conditions
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+        vip_status, hiv_status, hepatitis_b_status, hepatitis_c_status, tb_status, sickle_cell_status, other_health_conditions
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
       RETURNING *`,
       [
         user_id,
@@ -120,6 +121,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         occupation,
         pcp_name || null,
         pcp_phone || null,
+        vip_status || null,
         hiv_status || null,
         hepatitis_b_status || null,
         hepatitis_c_status || null,
@@ -203,7 +205,7 @@ export const getPatients = async (req: Request, res: Response): Promise<void> =>
 
     let query = `
       SELECT p.*, u.email, u.first_name, u.last_name, u.phone,
-             p.pcp_name, p.pcp_phone
+             p.pcp_name, p.pcp_phone, p.vip_status
       FROM patients p
       LEFT JOIN users u ON p.user_id = u.id
     `;
@@ -214,7 +216,16 @@ export const getPatients = async (req: Request, res: Response): Promise<void> =>
       params.push(`%${search}%`);
     }
 
-    query += ` ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    // Sort VIP patients to top (platinum > gold > silver > null), then by created_at
+    query += ` ORDER BY
+      CASE
+        WHEN p.vip_status = 'platinum' THEN 1
+        WHEN p.vip_status = 'gold' THEN 2
+        WHEN p.vip_status = 'silver' THEN 3
+        ELSE 4
+      END,
+      p.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(limit, offset);
 
     const result = await pool.query(query, params);
@@ -235,7 +246,7 @@ export const getPatientById = async (req: Request, res: Response): Promise<void>
 
     const result = await pool.query(
       `SELECT p.*, u.email, u.first_name, u.last_name, u.phone,
-              p.pcp_name, p.pcp_phone
+              p.pcp_name, p.pcp_phone, p.vip_status
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
        WHERE p.id = $1`,
@@ -293,7 +304,7 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
 
     // Get patient info
     const patientResult = await pool.query(
-      `SELECT p.*, u.email, u.first_name, u.last_name, u.phone
+      `SELECT p.*, u.email, u.first_name, u.last_name, u.phone, p.vip_status
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
        WHERE p.id = $1`,

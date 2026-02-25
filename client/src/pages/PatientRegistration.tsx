@@ -27,6 +27,7 @@ const PatientRegistration: React.FC = () => {
     city: '',
     region: '',
     preferred_clinic: '',
+    vip_status: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     emergency_contact_relationship: '',
@@ -122,6 +123,12 @@ const PatientRegistration: React.FC = () => {
     { value: 'Married', label: 'Married' },
     { value: 'Divorced', label: 'Divorced' },
     { value: 'Widowed', label: 'Widowed' },
+  ];
+
+  const vipStatusOptions = [
+    { value: 'silver', label: 'Silver' },
+    { value: 'gold', label: 'Gold' },
+    { value: 'platinum', label: 'Platinum' },
   ];
 
   const relationshipOptions = [
@@ -257,6 +264,14 @@ const PatientRegistration: React.FC = () => {
                     onChange={handleChange}
                     options={clinics}
                     placeholder="Select Clinic"
+                  />
+                  <Select
+                    label="VIP Status"
+                    name="vip_status"
+                    value={formData.vip_status}
+                    onChange={handleChange}
+                    options={vipStatusOptions}
+                    placeholder="None"
                   />
                 </div>
               </div>

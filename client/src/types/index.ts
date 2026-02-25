@@ -29,6 +29,7 @@ export interface Patient {
   insurance_number?: string;
   marital_status?: string;
   occupation?: string;
+  vip_status?: 'silver' | 'gold' | 'platinum' | null;
   created_at: string;
   updated_at: string;
 }
