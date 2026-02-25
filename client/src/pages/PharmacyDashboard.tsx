@@ -114,7 +114,15 @@ interface DrugHistory {
   allergies: Allergy[];
 }
 
-const PharmacyDashboard: React.FC = () => {
+interface PharmacyDashboardProps {
+  showRevenueTab?: boolean;
+  title?: string;
+}
+
+const PharmacyDashboard: React.FC<PharmacyDashboardProps> = ({
+  showRevenueTab = true,
+  title = 'Pharmacy Dashboard'
+}) => {
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'revenue'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
@@ -285,7 +293,7 @@ const PharmacyDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <AppLayout title="Pharmacy Dashboard">
+      <AppLayout title={title}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <SkeletonStatCard />
           <SkeletonStatCard />
@@ -307,29 +315,31 @@ const PharmacyDashboard: React.FC = () => {
     );
   }
 
+  const tabs = [
+    { id: 'orders' as const, label: 'Prescriptions', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      </svg>
+    )},
+    { id: 'inventory' as const, label: 'Inventory', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    )},
+    ...(showRevenueTab ? [{ id: 'revenue' as const, label: 'Revenue', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    )}] : []),
+  ];
+
   return (
-    <AppLayout title="Pharmacy Dashboard">
+    <AppLayout title={title}>
       {/* Navigation Tabs */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-6">
           <nav className="flex space-x-8">
-            {([
-              { id: 'orders', label: 'Prescriptions', icon: (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
-              )},
-              { id: 'inventory', label: 'Inventory', icon: (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-              )},
-              { id: 'revenue', label: 'Revenue', icon: (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              )},
-            ] as const).map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => {
@@ -418,22 +428,33 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Sub-tabs */}
-            <div className="flex gap-4 mb-4">
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => { setOrdersSubTab('pending'); fetchPendingOrders(); }}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'pending' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Pending Orders ({pharmacyOrders.filter(o => o.status === 'ordered').length})
+                </button>
+                <button
+                  onClick={() => setOrdersSubTab('history')}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'history' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Order History
+                </button>
+              </div>
               <button
-                onClick={() => { setOrdersSubTab('pending'); fetchPendingOrders(); }}
-                className={`px-4 py-2 rounded-lg font-medium ${
-                  ordersSubTab === 'pending' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
+                onClick={() => ordersSubTab === 'pending' ? fetchPendingOrders() : fetchOrderHistory()}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
               >
-                Pending Orders
-              </button>
-              <button
-                onClick={() => setOrdersSubTab('history')}
-                className={`px-4 py-2 rounded-lg font-medium ${
-                  ordersSubTab === 'history' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                Order History
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
               </button>
             </div>
 
@@ -800,7 +821,7 @@ const PharmacyDashboard: React.FC = () => {
         )}
 
         {/* REVENUE TAB */}
-        {activeTab === 'revenue' && (
+        {showRevenueTab && activeTab === 'revenue' && (
           <div>
             {/* Date Filter */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
