@@ -17,7 +17,7 @@ export const patientsAPI = {
     return response.data;
   },
 
-  createPatient: async (data: Partial<Patient>) => {
+  createPatient: async (data: Partial<Patient> | Record<string, unknown>) => {
     const response = await apiClient.post('/patients', data);
     return response.data;
   },

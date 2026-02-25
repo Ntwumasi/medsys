@@ -4,7 +4,7 @@ import { patientsAPI } from '../api/patients';
 import type { Patient } from '../types';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
-import { Card, Button, Input, Table, EmptyState, Skeleton } from '../components/ui';
+import { Card, Button, Input, Table, EmptyState } from '../components/ui';
 import { SkeletonTable } from '../components/ui/Skeleton';
 
 const PatientList: React.FC = () => {

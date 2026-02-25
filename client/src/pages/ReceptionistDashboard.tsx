@@ -258,6 +258,7 @@ const ReceptionistDashboard: React.FC = () => {
     city: '',
     region: '',
     preferred_clinic: '',
+    vip_status: '',
     emergency_contact_name: '',
     emergency_contact_phone: '',
     emergency_contact_relationship: '',
@@ -657,6 +658,7 @@ const ReceptionistDashboard: React.FC = () => {
         city: '',
         region: '',
         preferred_clinic: '',
+        vip_status: '',
         emergency_contact_name: '',
         emergency_contact_phone: '',
         emergency_contact_relationship: '',
@@ -1611,6 +1613,22 @@ const ReceptionistDashboard: React.FC = () => {
                     {clinics.map((clinic) => (
                       <option key={clinic} value={clinic}>{clinic}</option>
                     ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    VIP Status
+                  </label>
+                  <select
+                    value={newPatient.vip_status}
+                    onChange={(e) => setNewPatient({ ...newPatient, vip_status: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">None</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
                   </select>
                 </div>
               </div>
