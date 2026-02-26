@@ -794,46 +794,6 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                   )}
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-2">
-                  {/* Sign Button - Only for doctors */}
-                  {userRole === 'doctor' && onSign && (
-                    <button
-                      onClick={onSign}
-                      disabled={isSigned}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 ${
-                        isSigned
-                          ? 'bg-success-100 text-success-700 cursor-not-allowed'
-                          : 'bg-success-600 text-white hover:bg-success-700'
-                      }`}
-                      title={isSigned ? `Signed by ${signedBy || 'Doctor'}` : 'Sign & Lock Note'}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      {isSigned ? 'Signed' : 'Sign Note'}
-                    </button>
-                  )}
-                  {/* Close Button */}
-                  <button
-                    onClick={() => {
-                      // Save any pending changes (use ref to avoid stale closure)
-                      if (autoSaveTimerRef.current) {
-                        clearTimeout(autoSaveTimerRef.current);
-                      }
-                      if (editingContentRef.current !== lastSavedContentRef.current && expandedSection) {
-                        debouncedSave(expandedSection, editingContentRef.current);
-                      }
-                      setExpandedSection(null);
-                      setEditingContent('');
-                      editingContentRef.current = '';
-                      lastSavedContentRef.current = '';
-                    }}
-                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm"
-                  >
-                    Close
-                  </button>
-                </div>
               </div>
             </div>
           </div>
