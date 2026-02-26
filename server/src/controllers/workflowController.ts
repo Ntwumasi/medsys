@@ -128,6 +128,27 @@ export const assignRoom = async (req: Request, res: Response): Promise<void> => 
 
     const oldRoomId = currentEncounter.rows[0]?.room_id;
 
+    // Check if the room is already assigned to another active patient today
+    const roomOccupied = await pool.query(
+      `SELECT e.id, u.first_name || ' ' || u.last_name as patient_name
+       FROM encounters e
+       JOIN patients p ON e.patient_id = p.id
+       JOIN users u ON p.user_id = u.id
+       WHERE e.room_id = $1
+         AND e.id != $2
+         AND e.status NOT IN ('completed', 'discharged')
+         AND DATE(e.encounter_date) = CURRENT_DATE
+       LIMIT 1`,
+      [room_id, encounter_id]
+    );
+
+    if (roomOccupied.rows.length > 0) {
+      res.status(400).json({
+        error: `Room is already occupied by ${roomOccupied.rows[0].patient_name}. Please release that patient first or choose another room.`
+      });
+      return;
+    }
+
     // If patient was in a different room, mark old room as available
     if (oldRoomId && oldRoomId !== room_id) {
       await pool.query(
@@ -369,13 +390,18 @@ export const alertDoctor = async (req: Request, res: Response): Promise<void> =>
       );
       if (doctorResult.rows.length > 0) {
         doctor_id = doctorResult.rows[0].id;
-        // Assign doctor to encounter
-        await pool.query(
-          `UPDATE encounters SET provider_id = $1 WHERE id = $2`,
-          [doctor_id, encounter_id]
-        );
       }
     }
+
+    // Update encounter: assign doctor and set status to ready_for_doctor
+    await pool.query(
+      `UPDATE encounters
+       SET provider_id = COALESCE(provider_id, $1),
+           status = 'ready_for_doctor',
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [doctor_id, encounter_id]
+    );
 
     const result = await pool.query(
       `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
@@ -467,7 +493,8 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
   try {
     // Only show patients that have been explicitly sent to the doctor:
     // - status 'with_doctor' (doctor is seeing them)
-    // - status 'with_nurse' but there's an active alert for the doctor (nurse alerted doctor)
+    // - status 'ready_for_doctor' (nurse has alerted doctor, patient is waiting)
+    // - status 'with_nurse' but there's an active alert for the doctor (legacy support)
     const result = await pool.query(
       `SELECT e.*,
         r.room_number,
@@ -492,8 +519,10 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
       WHERE e.room_id IS NOT NULL
+        AND DATE(e.encounter_date) = CURRENT_DATE
         AND (
           e.status = 'with_doctor'
+          OR e.status = 'ready_for_doctor'
           OR (e.status = 'with_nurse' AND EXISTS(
             SELECT 1 FROM alerts a
             WHERE a.encounter_id = e.id
@@ -628,6 +657,7 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
           WHEN e.status = 'discharged' THEN 'discharged'
           WHEN e.status = 'with_nurse' THEN 'with_nurse'
           WHEN e.status = 'with_doctor' THEN 'with_doctor'
+          WHEN e.status = 'ready_for_doctor' THEN 'ready_for_doctor'
           WHEN EXISTS (SELECT 1 FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.status IN ('pending', 'in_progress')) THEN 'at_lab'
           WHEN EXISTS (SELECT 1 FROM pharmacy_orders po WHERE po.encounter_id = e.id AND po.status IN ('pending', 'in_progress')) THEN 'at_pharmacy'
           WHEN EXISTS (SELECT 1 FROM imaging_orders io WHERE io.encounter_id = e.id AND io.status IN ('pending', 'in_progress')) THEN 'at_imaging'

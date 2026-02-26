@@ -77,7 +77,7 @@ interface QueueItem {
   wait_time_minutes?: number;
   billing_amount?: number;
   status: 'in-progress' | 'with_nurse' | 'with_doctor' | 'completed' | 'discharged';
-  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'with_doctor' | 'at_lab' | 'at_pharmacy' | 'at_imaging' | 'completed' | 'discharged';
+  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'ready_for_doctor' | 'with_doctor' | 'at_lab' | 'at_pharmacy' | 'at_imaging' | 'completed' | 'discharged';
   invoice_status?: 'pending' | 'paid' | 'partial';
   clinic?: string;
   pending_lab_orders?: number;
@@ -1086,6 +1086,7 @@ const ReceptionistDashboard: React.FC = () => {
                     { value: 'in_room', label: 'In Room' },
                     { value: 'waiting_for_nurse', label: 'Waiting for Nurse' },
                     { value: 'with_nurse', label: 'With Nurse' },
+                    { value: 'ready_for_doctor', label: 'Ready for Doctor' },
                     { value: 'with_doctor', label: 'With Doctor' },
                     { value: 'at_lab', label: 'At Lab' },
                     { value: 'at_pharmacy', label: 'At Pharmacy' },
@@ -1131,6 +1132,8 @@ const ReceptionistDashboard: React.FC = () => {
                   switch (item.workflow_status) {
                     case 'with_doctor':
                       return { text: 'With Doctor', variant: 'secondary', icon: '👨‍⚕️' };
+                    case 'ready_for_doctor':
+                      return { text: 'Ready for Doctor', variant: 'warning', icon: '⏳' };
                     case 'with_nurse':
                       return { text: 'With Nurse', variant: 'primary', icon: '👩‍⚕️' };
                     case 'waiting_for_nurse':
