@@ -59,6 +59,7 @@ import {
   getCompletedEncounters,
   getReceptionistAlerts,
   markAlertAsRead,
+  checkoutPatient,
 } from '../controllers/workflowController';
 import {
   createClinicalNote,
@@ -287,6 +288,9 @@ router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor'
 // Workflow routes - Receptionist alerts
 router.get('/workflow/receptionist/alerts', authenticateToken, authorizeRoles('receptionist'), getReceptionistAlerts);
 router.post('/workflow/alerts/:alert_id/read', authenticateToken, markAlertAsRead);
+
+// Workflow routes - Receptionist checkout
+router.post('/workflow/checkout', authenticateToken, authorizeRoles('receptionist'), checkoutPatient);
 
 // Workflow routes - Nurse
 router.post('/workflow/nurse/start', authenticateToken, authorizeRoles('nurse'), nurseStartEncounter);

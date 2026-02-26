@@ -2,7 +2,7 @@ import pool from '../database/db';
 
 export interface AuditLogEntry {
   userId: number;
-  action: 'create' | 'read' | 'update' | 'delete' | 'sign' | 'dispense' | 'complete' | 'cancel';
+  action: 'create' | 'read' | 'update' | 'delete' | 'sign' | 'dispense' | 'complete' | 'cancel' | 'checkout';
   entityType: string;
   entityId?: number;
   oldValues?: Record<string, unknown>;

@@ -76,10 +76,13 @@ interface QueueItem {
   chief_complaint: string;
   wait_time_minutes?: number;
   billing_amount?: number;
-  status: 'in-progress' | 'with_nurse' | 'completed';
-  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'with_doctor' | 'completed';
+  status: 'in-progress' | 'with_nurse' | 'with_doctor' | 'completed' | 'discharged';
+  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'with_doctor' | 'at_lab' | 'at_pharmacy' | 'at_imaging' | 'completed' | 'discharged';
   invoice_status?: 'pending' | 'paid' | 'partial';
   clinic?: string;
+  pending_lab_orders?: number;
+  pending_pharmacy_orders?: number;
+  pending_imaging_orders?: number;
 }
 
 interface Nurse {
@@ -736,6 +739,23 @@ const ReceptionistDashboard: React.FC = () => {
     loadData();
   };
 
+  const handleCheckout = async (encounterId: number, patientName: string) => {
+    if (!confirm(`Are you sure you want to checkout ${patientName}? This will close the entire patient visit.`)) {
+      return;
+    }
+
+    try {
+      await apiClient.post('/workflow/checkout', { encounter_id: encounterId });
+      showToast(`${patientName} has been checked out successfully`, 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Error checking out patient:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to checkout patient';
+      showToast(errorMessage, 'error');
+    }
+  };
+
   const getWaitTimeColor = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
     // If patient is actively being seen, use a neutral/positive color
     if (workflowStatus === 'with_nurse' || workflowStatus === 'with_doctor') {
@@ -1067,7 +1087,11 @@ const ReceptionistDashboard: React.FC = () => {
                     { value: 'waiting_for_nurse', label: 'Waiting for Nurse' },
                     { value: 'with_nurse', label: 'With Nurse' },
                     { value: 'with_doctor', label: 'With Doctor' },
+                    { value: 'at_lab', label: 'At Lab' },
+                    { value: 'at_pharmacy', label: 'At Pharmacy' },
+                    { value: 'at_imaging', label: 'At Imaging' },
                     { value: 'completed', label: 'Completed' },
+                    { value: 'discharged', label: 'Checked Out' },
                   ]}
                 />
                 {(queueSearchTerm || queueClinicFilter || queueStatusFilter) && (
@@ -1094,7 +1118,10 @@ const ReceptionistDashboard: React.FC = () => {
                 const isPaid = item.invoice_status === 'paid';
 
                 // Status badge configuration based on workflow_status
-                const getStatusConfig = (): { text: string; variant: 'success' | 'warning' | 'secondary' | 'primary' | 'info' | 'gray'; icon: string } => {
+                const getStatusConfig = (): { text: string; variant: 'success' | 'warning' | 'secondary' | 'primary' | 'info' | 'gray' | 'danger'; icon: string } => {
+                  if (item.workflow_status === 'discharged' || item.status === 'discharged') {
+                    return { text: 'Checked Out', variant: 'gray', icon: '✓' };
+                  }
                   if (isCompleted && isPaid) {
                     return { text: 'Completed & Paid', variant: 'success', icon: '✓' };
                   } else if (isCompleted) {
@@ -1112,6 +1139,12 @@ const ReceptionistDashboard: React.FC = () => {
                       return { text: 'In Room', variant: 'info', icon: '🚪' };
                     case 'checked_in':
                       return { text: 'Checked In', variant: 'gray', icon: '✓' };
+                    case 'at_lab':
+                      return { text: 'At Lab', variant: 'info', icon: '🧪' };
+                    case 'at_pharmacy':
+                      return { text: 'At Pharmacy', variant: 'info', icon: '💊' };
+                    case 'at_imaging':
+                      return { text: 'At Imaging', variant: 'info', icon: '📷' };
                     default:
                       return { text: 'In Progress', variant: 'gray', icon: '🔄' };
                   }
@@ -1274,6 +1307,22 @@ const ReceptionistDashboard: React.FC = () => {
                       >
                         {isPaid ? 'View Invoice' : 'Print Invoice'}
                       </Button>
+
+                      {/* Checkout button - show for completed and paid patients, or any patient when needed */}
+                      {isCompleted && item.workflow_status !== 'discharged' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleCheckout(item.id, item.patient_name)}
+                          leftIcon={
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                          }
+                        >
+                          Checkout
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );

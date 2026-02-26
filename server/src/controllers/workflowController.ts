@@ -599,6 +599,10 @@ export const getAvailableDoctors = async (req: Request, res: Response): Promise<
 // Get patient queue with color coding - includes all patients for the day
 export const getPatientQueue = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Get patient queue with accurate workflow status that considers:
+    // 1. Encounter status (completed, with_nurse after doctor completes)
+    // 2. Pending lab, pharmacy, imaging orders
+    // 3. Current stage based on timestamps
     const result = await pool.query(
       `SELECT e.*,
         e.checked_in_at as check_in_time,
@@ -615,9 +619,19 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'
           ELSE 'red'
         END as current_priority,
+        -- Count pending orders for each department
+        COALESCE((SELECT COUNT(*) FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.status IN ('pending', 'in_progress')), 0) as pending_lab_orders,
+        COALESCE((SELECT COUNT(*) FROM pharmacy_orders po WHERE po.encounter_id = e.id AND po.status IN ('pending', 'in_progress')), 0) as pending_pharmacy_orders,
+        COALESCE((SELECT COUNT(*) FROM imaging_orders io WHERE io.encounter_id = e.id AND io.status IN ('pending', 'in_progress')), 0) as pending_imaging_orders,
         CASE
           WHEN e.status = 'completed' THEN 'completed'
-          WHEN e.doctor_started_at IS NOT NULL THEN 'with_doctor'
+          WHEN e.status = 'discharged' THEN 'discharged'
+          WHEN e.status = 'with_nurse' THEN 'with_nurse'
+          WHEN e.status = 'with_doctor' THEN 'with_doctor'
+          WHEN EXISTS (SELECT 1 FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.status IN ('pending', 'in_progress')) THEN 'at_lab'
+          WHEN EXISTS (SELECT 1 FROM pharmacy_orders po WHERE po.encounter_id = e.id AND po.status IN ('pending', 'in_progress')) THEN 'at_pharmacy'
+          WHEN EXISTS (SELECT 1 FROM imaging_orders io WHERE io.encounter_id = e.id AND io.status IN ('pending', 'in_progress')) THEN 'at_imaging'
+          WHEN e.doctor_started_at IS NOT NULL AND e.doctor_completed_at IS NULL THEN 'with_doctor'
           WHEN e.nurse_started_at IS NOT NULL THEN 'with_nurse'
           WHEN e.nurse_id IS NOT NULL THEN 'waiting_for_nurse'
           WHEN e.room_id IS NOT NULL THEN 'in_room'
@@ -785,6 +799,12 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
         [room_id]
       );
     }
+
+    // Also clear the room_id from the encounter so the patient no longer shows in that room
+    await pool.query(
+      `UPDATE encounters SET room_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [encounter_id]
+    );
 
     // If release_only is true, just release the room without completing the encounter
     if (release_only) {
@@ -984,5 +1004,87 @@ export const markAlertAsRead = async (req: Request, res: Response): Promise<void
   } catch (error) {
     console.error('Mark alert as read error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Receptionist: Checkout patient - closes the entire flow
+export const checkoutPatient = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
+  try {
+    const authReq = req as any;
+    const user_id = authReq.user?.id;
+    const { encounter_id } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get encounter details including room_id, patient info
+    const encounterResult = await client.query(
+      `SELECT e.id, e.room_id, e.patient_id, e.status,
+              r.room_number,
+              u.first_name || ' ' || u.last_name as patient_name,
+              p.patient_number
+       FROM encounters e
+       LEFT JOIN rooms r ON e.room_id = r.id
+       LEFT JOIN patients p ON e.patient_id = p.id
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE e.id = $1`,
+      [encounter_id]
+    );
+
+    if (encounterResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    const { room_id, patient_id, patient_name, patient_number } = encounterResult.rows[0];
+
+    // Release room if patient is still in one
+    if (room_id) {
+      await client.query(
+        `UPDATE rooms SET is_available = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [room_id]
+      );
+    }
+
+    // Mark the encounter as discharged (fully checked out)
+    await client.query(
+      `UPDATE encounters
+       SET status = 'discharged',
+           room_id = NULL,
+           discharged_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [encounter_id]
+    );
+
+    // Mark all alerts for this encounter as read
+    await client.query(
+      `UPDATE alerts SET is_read = true, read_at = CURRENT_TIMESTAMP
+       WHERE encounter_id = $1 AND is_read = false`,
+      [encounter_id]
+    );
+
+    // Audit log for checkout
+    await auditService.log({
+      userId: user_id,
+      action: 'checkout',
+      entityType: 'encounter',
+      entityId: encounter_id,
+      details: { patient_id, patient_name, patient_number }
+    });
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: `Patient ${patient_name || ''} has been checked out successfully`,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Checkout patient error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
