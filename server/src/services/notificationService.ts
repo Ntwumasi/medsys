@@ -216,6 +216,97 @@ export const notificationService = {
   },
 
   /**
+   * Notify assigned nurse when an order is created
+   */
+  async notifyNurseOrderCreated(orderType: 'lab' | 'imaging' | 'pharmacy', orderId: number): Promise<void> {
+    const tableMap: Record<string, string> = {
+      lab: 'lab_orders',
+      imaging: 'imaging_orders',
+      pharmacy: 'pharmacy_orders',
+    };
+
+    const table = tableMap[orderType];
+    if (!table) return;
+
+    try {
+      const result = await pool.query(
+        `SELECT o.*, e.nurse_id, p.patient_number,
+                u.first_name || ' ' || u.last_name as patient_name
+         FROM ${table} o
+         JOIN encounters e ON o.encounter_id = e.id
+         JOIN patients p ON o.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE o.id = $1`,
+        [orderId]
+      );
+
+      if (result.rows.length > 0 && result.rows[0].nurse_id) {
+        const order = result.rows[0];
+        const orderName = orderType === 'lab' ? order.test_name :
+                         orderType === 'imaging' ? `${order.imaging_type || order.study_type} ${order.body_part || ''}`.trim() :
+                         order.medication_name;
+
+        await this.send({
+          userId: order.nurse_id,
+          type: 'order_created',
+          title: `New ${orderType.charAt(0).toUpperCase() + orderType.slice(1)} Order`,
+          message: `${orderName} ordered for ${order.patient_name} (${order.patient_number})`,
+          entityType: `${orderType}_order`,
+          entityId: orderId,
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to notify nurse of ${orderType} order:`, error);
+    }
+  },
+
+  /**
+   * Auto-route patient back to nurse when department completes work
+   */
+  async autoRouteToNurse(encounterId: number, fromDepartment: string): Promise<void> {
+    try {
+      // Mark the current department routing as completed
+      await pool.query(
+        `UPDATE department_routing
+         SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+         WHERE encounter_id = $1 AND department = $2 AND status = 'pending'`,
+        [encounterId, fromDepartment]
+      );
+
+      // Get encounter info for notification
+      const encounterResult = await pool.query(
+        `SELECT e.nurse_id, p.patient_number, u.first_name || ' ' || u.last_name as patient_name
+         FROM encounters e
+         JOIN patients p ON e.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE e.id = $1`,
+        [encounterId]
+      );
+
+      if (encounterResult.rows.length > 0 && encounterResult.rows[0].nurse_id) {
+        const encounter = encounterResult.rows[0];
+        const departmentNames: Record<string, string> = {
+          lab: 'Lab',
+          imaging: 'Imaging',
+          pharmacy: 'Pharmacy',
+        };
+
+        // Notify nurse that patient is returning
+        await this.send({
+          userId: encounter.nurse_id,
+          type: 'patient_alert',
+          title: 'Patient Returning',
+          message: `${encounter.patient_name} (${encounter.patient_number}) has completed ${departmentNames[fromDepartment] || fromDepartment}`,
+          entityType: 'encounter',
+          entityId: encounterId,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to auto-route to nurse:', error);
+    }
+  },
+
+  /**
    * Notify about STAT orders
    */
   async notifyStatOrder(orderType: string, orderId: number, targetRole: string): Promise<void> {

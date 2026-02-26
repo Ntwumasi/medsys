@@ -655,14 +655,15 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
         CASE
           WHEN e.status = 'completed' THEN 'completed'
           WHEN e.status = 'discharged' THEN 'discharged'
+          -- Check department_routing for physical location (pending = patient is there)
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'lab' AND dr.status = 'pending') THEN 'at_lab'
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'imaging' AND dr.status = 'pending') THEN 'at_imaging'
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'pharmacy' AND dr.status = 'pending') THEN 'at_pharmacy'
           -- Check if routed to receptionist (ready for checkout)
           WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'receptionist' AND dr.status = 'pending') THEN 'ready_for_checkout'
           WHEN e.doctor_completed_at IS NOT NULL THEN 'ready_for_checkout'
           WHEN e.status = 'with_doctor' THEN 'with_doctor'
           WHEN e.status = 'ready_for_doctor' THEN 'ready_for_doctor'
-          WHEN EXISTS (SELECT 1 FROM lab_orders lo WHERE lo.encounter_id = e.id AND lo.status IN ('pending', 'in_progress')) THEN 'at_lab'
-          WHEN EXISTS (SELECT 1 FROM pharmacy_orders po WHERE po.encounter_id = e.id AND po.status IN ('pending', 'in_progress')) THEN 'at_pharmacy'
-          WHEN EXISTS (SELECT 1 FROM imaging_orders io WHERE io.encounter_id = e.id AND io.status IN ('pending', 'in_progress')) THEN 'at_imaging'
           WHEN e.status = 'with_nurse' THEN 'with_nurse'
           WHEN e.doctor_started_at IS NOT NULL AND e.doctor_completed_at IS NULL THEN 'with_doctor'
           WHEN e.nurse_started_at IS NOT NULL THEN 'with_nurse'

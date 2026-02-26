@@ -57,6 +57,9 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       await notificationService.notifyStatOrder('lab', order.id, 'lab');
     }
 
+    // Notify assigned nurse about new order
+    await notificationService.notifyNurseOrderCreated('lab', order.id);
+
     res.status(201).json({
       message: 'Lab order created successfully',
       order,
@@ -282,6 +285,18 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     // Send notification when lab order is completed
     if (updateData.status === 'completed') {
       await notificationService.notifyLabComplete(parseInt(id));
+
+      // Check if all lab orders for this encounter are complete
+      const pendingOrders = await pool.query(
+        `SELECT COUNT(*) FROM lab_orders
+         WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')`,
+        [updatedOrder.encounter_id]
+      );
+
+      // If no more pending lab orders, auto-route patient back to nurse
+      if (parseInt(pendingOrders.rows[0].count) === 0) {
+        await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'lab');
+      }
     }
 
     res.json({
@@ -298,16 +313,28 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
 export const createImagingOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
-    const ordering_provider = authReq.user?.id;
+    const currentUserId = authReq.user?.id;
+    const currentUserRole = authReq.user?.role;
 
-    const { patient_id, encounter_id, imaging_type, body_part, priority, notes } = req.body;
+    const { patient_id, encounter_id, imaging_type, study_type, body_part, priority, clinical_indication, notes, ordering_provider_id } = req.body;
+
+    // Determine the ordering provider:
+    // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
+    // - Otherwise, use current user (doctor ordering for themselves)
+    let orderingProvider = currentUserId;
+    if (currentUserRole === 'nurse' && ordering_provider_id) {
+      orderingProvider = ordering_provider_id;
+    }
+
+    // Support both imaging_type (doctor) and study_type (nurse form)
+    const studyType = imaging_type || study_type;
 
     const result = await pool.query(
       `INSERT INTO imaging_orders (
-        patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority, clinical_indication, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`,
-      [patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority || 'routine', notes]
+      [patient_id, encounter_id, orderingProvider, studyType, body_part, priority || 'routine', clinical_indication, notes]
     );
 
     // Update billing
@@ -323,17 +350,20 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
 
     // Audit log
     await auditService.log({
-      userId: ordering_provider,
+      userId: currentUserId,
       action: 'create',
       entityType: 'imaging_order',
       entityId: order.id,
-      details: { imaging_type, body_part, priority, patient_id }
+      details: { imaging_type: studyType, body_part, priority, patient_id }
     });
 
     // Send STAT notification if high priority
     if (priority === 'stat' || priority === 'urgent') {
       await notificationService.notifyStatOrder('imaging', order.id, 'imaging');
     }
+
+    // Notify assigned nurse about new order
+    await notificationService.notifyNurseOrderCreated('imaging', order.id);
 
     res.status(201).json({
       message: 'Imaging order created successfully',
@@ -435,6 +465,18 @@ export const updateImagingOrder = async (req: Request, res: Response): Promise<v
     // Send notification when imaging order is completed
     if (updateData.status === 'completed') {
       await notificationService.notifyImagingComplete(parseInt(id));
+
+      // Check if all imaging orders for this encounter are complete
+      const pendingOrders = await pool.query(
+        `SELECT COUNT(*) FROM imaging_orders
+         WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')`,
+        [updatedOrder.encounter_id]
+      );
+
+      // If no more pending imaging orders, auto-route patient back to nurse
+      if (parseInt(pendingOrders.rows[0].count) === 0) {
+        await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'imaging');
+      }
     }
 
     res.json({
@@ -511,6 +553,9 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     if (priority === 'stat' || priority === 'urgent') {
       await notificationService.notifyStatOrder('pharmacy', order.id, 'pharmacy');
     }
+
+    // Notify assigned nurse about new order
+    await notificationService.notifyNurseOrderCreated('pharmacy', order.id);
 
     res.status(201).json({
       message: 'Pharmacy order created successfully',
@@ -615,6 +660,18 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     // Send notification when pharmacy order is dispensed
     if (updateData.status === 'dispensed') {
       await notificationService.notifyPharmacyDispensed(parseInt(id));
+
+      // Check if all pharmacy orders for this encounter are complete
+      const pendingOrders = await pool.query(
+        `SELECT COUNT(*) FROM pharmacy_orders
+         WHERE encounter_id = $1 AND status NOT IN ('dispensed', 'cancelled')`,
+        [updatedOrder.encounter_id]
+      );
+
+      // If no more pending pharmacy orders, auto-route patient back to nurse
+      if (parseInt(pendingOrders.rows[0].count) === 0) {
+        await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'pharmacy');
+      }
     }
 
     res.json({
