@@ -517,22 +517,16 @@ const DoctorDashboard: React.FC = () => {
                   return (
                   <div
                     key={encounter.id}
-                    onClick={() => !isWithNurse && handleSelectEncounter(encounter)}
-                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-all duration-150 group ${
-                      isWithNurse
-                        ? 'bg-gray-50 opacity-60 cursor-not-allowed'
-                        : 'cursor-pointer hover:bg-primary-50'
-                    } ${
-                      selectedEncounter?.id === encounter.id && !isWithNurse
+                    onClick={() => handleSelectEncounter(encounter)}
+                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-all duration-150 group cursor-pointer hover:bg-primary-50 ${
+                      selectedEncounter?.id === encounter.id
                         ? 'bg-primary-100 border-l-4 border-primary-600'
                         : 'border-l-4 border-transparent hover:border-l-4 hover:border-primary-300'
                     }`}
                   >
                     {/* Room Number */}
                     <div className="col-span-3">
-                      <span className={`inline-flex items-center px-2 py-1 text-white text-xs font-bold rounded ${
-                        isWithNurse ? 'bg-gray-400' : 'bg-primary-600'
-                      }`}>
+                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-bold rounded bg-primary-600">
                         Rm {encounter.room_number}
                       </span>
                     </div>
@@ -546,11 +540,9 @@ const DoctorDashboard: React.FC = () => {
                             navigate(`/patients/${encounter.patient_id}`);
                           }}
                           className={`font-semibold text-sm text-left truncate transition-colors ${
-                            isWithNurse
-                              ? 'text-gray-500'
-                              : selectedEncounter?.id === encounter.id
-                                ? 'text-primary-800'
-                                : 'text-gray-800 group-hover:text-primary-600'
+                            selectedEncounter?.id === encounter.id
+                              ? 'text-primary-800'
+                              : 'text-gray-800 group-hover:text-primary-600'
                           }`}
                           title={encounter.patient_name}
                         >
@@ -574,7 +566,7 @@ const DoctorDashboard: React.FC = () => {
                         )}
                       </div>
                       {encounter.nurse_name && (
-                        <div className={`text-xs truncate ${isWithNurse ? 'text-gray-400' : 'text-gray-500'}`}>
+                        <div className="text-xs truncate text-gray-500">
                           Nurse: {encounter.nurse_name}
                         </div>
                       )}
@@ -582,7 +574,7 @@ const DoctorDashboard: React.FC = () => {
 
                     {/* Patient Number */}
                     <div className="col-span-4 text-right">
-                      <span className={`text-xs font-mono ${isWithNurse ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <span className="text-xs font-mono text-gray-500">
                         {encounter.patient_number}
                       </span>
                     </div>

@@ -589,7 +589,7 @@ const ReceptionistDashboard: React.FC = () => {
       setActiveView('queue');
 
       // Show success message
-      showToast(`${patientName} checked in successfully! Billing: $${billingAmount}`, 'success');
+      showToast(`${patientName} checked in successfully! Billing: GH₵${billingAmount}`, 'success');
     } catch (error) {
       console.error('Error checking in patient:', error);
 
@@ -686,7 +686,7 @@ const ReceptionistDashboard: React.FC = () => {
       setActiveView('queue');
 
       // Show success message
-      showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}, Billing: $${billingAmount}`, 'success');
+      showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}, Billing: GH₵${billingAmount}`, 'success');
     } catch (error) {
       console.error('Error creating new patient:', error);
 
@@ -1146,7 +1146,7 @@ const ReceptionistDashboard: React.FC = () => {
                           <span>Checked in: {safeFormatDate(item.check_in_time, 'h:mm a')}</span>
                           {item.billing_amount && (
                             <span className={`font-semibold ${isPaid ? 'text-success-700' : 'text-warning-700'}`}>
-                              Billing: ${item.billing_amount} {isPaid ? '(Paid)' : '(Pending)'}
+                              Billing: GH₵{item.billing_amount} {isPaid ? '(Paid)' : '(Pending)'}
                             </span>
                           )}
                         </div>
@@ -1422,7 +1422,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div className="bg-success-50 p-4 rounded-lg border border-success-200">
                   <p className="text-sm text-success-800">
-                    <span className="font-semibold">Billing:</span> $50.00 (Returning Patient)
+                    <span className="font-semibold">Billing:</span> GH₵50.00 (Returning Patient)
                   </p>
                 </div>
 
@@ -1472,7 +1472,7 @@ const ReceptionistDashboard: React.FC = () => {
                             </p>
                           </div>
                           <span className="text-sm font-semibold text-success-700">
-                            ${encounter.billing_amount}
+                            GH₵{encounter.billing_amount}
                           </span>
                         </div>
                         <div className="text-sm space-y-1 text-gray-700">
@@ -1548,13 +1548,65 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Date of Birth *
                   </label>
-                  <input
-                    type="date"
-                    value={newPatient.date_of_birth}
-                    onChange={(e) => setNewPatient({ ...newPatient, date_of_birth: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    required
-                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : ''}
+                      onChange={(e) => {
+                        const day = parseInt(e.target.value);
+                        const month = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : 0;
+                        const year = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : 2000;
+                        if (day) {
+                          const newDate = new Date(year, month, day);
+                          setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      required
+                    >
+                      <option value="">Day</option>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                        <option key={day} value={day}>{day}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : ''}
+                      onChange={(e) => {
+                        const month = parseInt(e.target.value);
+                        const day = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : 1;
+                        const year = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : 2000;
+                        if (!isNaN(month)) {
+                          const newDate = new Date(year, month, day);
+                          setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      required
+                    >
+                      <option value="">Month</option>
+                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => (
+                        <option key={i} value={i}>{month}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : ''}
+                      onChange={(e) => {
+                        const year = parseInt(e.target.value);
+                        const day = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : 1;
+                        const month = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : 0;
+                        if (year) {
+                          const newDate = new Date(year, month, day);
+                          setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      required
+                    >
+                      <option value="">Year</option>
+                      {Array.from({ length: 120 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
@@ -1618,7 +1670,7 @@ const ReceptionistDashboard: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    VIP Status
+                    Concierge
                   </label>
                   <select
                     value={newPatient.vip_status}
@@ -1786,18 +1838,36 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     PCP Name
                   </label>
-                  <select
-                    value={newPatient.pcp_name}
-                    onChange={(e) => setNewPatient({ ...newPatient, pcp_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select Doctor</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={`Dr. ${doctor.first_name} ${doctor.last_name}`}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2">
+                    <select
+                      value={newPatient.pcp_name && !doctors.some(d => `Dr. ${d.first_name} ${d.last_name}` === newPatient.pcp_name) ? '__other__' : newPatient.pcp_name}
+                      onChange={(e) => {
+                        if (e.target.value === '__other__') {
+                          setNewPatient({ ...newPatient, pcp_name: '' });
+                        } else {
+                          setNewPatient({ ...newPatient, pcp_name: e.target.value });
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="">Select Doctor</option>
+                      {doctors.map((doctor) => (
+                        <option key={doctor.id} value={`Dr. ${doctor.first_name} ${doctor.last_name}`}>
+                          Dr. {doctor.first_name} {doctor.last_name}
+                        </option>
+                      ))}
+                      <option value="__other__">-- Enter Other Doctor --</option>
+                    </select>
+                    {(newPatient.pcp_name === '' || (newPatient.pcp_name && !doctors.some(d => `Dr. ${d.first_name} ${d.last_name}` === newPatient.pcp_name))) && (
+                      <input
+                        type="text"
+                        value={newPatient.pcp_name === '__other__' ? '' : newPatient.pcp_name}
+                        onChange={(e) => setNewPatient({ ...newPatient, pcp_name: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        placeholder="Enter doctor name (e.g., Dr. John Smith)"
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -1938,7 +2008,7 @@ const ReceptionistDashboard: React.FC = () => {
 
               <div className="bg-success-50 p-4 rounded-lg border border-success-200">
                 <p className="text-sm text-success-800">
-                  <span className="font-semibold">Billing:</span> $75.00 (New Patient)
+                  <span className="font-semibold">Billing:</span> GH₵75.00 (New Patient)
                 </p>
               </div>
 

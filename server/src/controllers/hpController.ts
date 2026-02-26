@@ -70,6 +70,7 @@ export const getHP = async (req: Request, res: Response): Promise<void> => {
   try {
     const { encounter_id } = req.params;
 
+    // Get H&P sections from hp_sections table
     const result = await pool.query(
       `SELECT section_id, content, completed, updated_by_role, updated_at
        FROM hp_sections
@@ -77,6 +78,16 @@ export const getHP = async (req: Request, res: Response): Promise<void> => {
        ORDER BY updated_at DESC`,
       [encounter_id]
     );
+
+    // Get patient allergies from the patient record
+    const patientResult = await pool.query(
+      `SELECT p.allergies
+       FROM encounters e
+       JOIN patients p ON e.patient_id = p.id
+       WHERE e.id = $1`,
+      [encounter_id]
+    );
+    const patientAllergies = patientResult.rows[0]?.allergies || '';
 
     // Convert database results to lookup object
     const savedData: any = {};
@@ -88,6 +99,16 @@ export const getHP = async (req: Request, res: Response): Promise<void> => {
         updatedAt: row.updated_at,
       };
     });
+
+    // Pre-populate allergies from patient record if not already saved
+    if (!savedData['allergies'] && patientAllergies) {
+      savedData['allergies'] = {
+        content: patientAllergies,
+        completed: true,
+        updatedBy: null,
+        updatedAt: null,
+      };
+    }
 
     // Merge saved data with default sections
     const sections = mergeSavedData(JSON.parse(JSON.stringify(DEFAULT_SECTIONS)), savedData);

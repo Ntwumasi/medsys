@@ -465,6 +465,9 @@ export const doctorStartEncounter = async (req: Request, res: Response): Promise
 // Get encounters by room for doctor view
 export const getEncountersByRoom = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Only show patients that have been explicitly sent to the doctor:
+    // - status 'with_doctor' (doctor is seeing them)
+    // - status 'with_nurse' but there's an active alert for the doctor (nurse alerted doctor)
     const result = await pool.query(
       `SELECT e.*,
         r.room_number,
@@ -475,14 +478,28 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
         p.vip_status,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
-        u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name
+        u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name,
+        EXISTS(
+          SELECT 1 FROM alerts a
+          WHERE a.encounter_id = e.id
+          AND a.alert_type = 'patient_ready'
+          AND a.is_read = false
+        ) as has_nurse_alert
       FROM encounters e
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
-      WHERE e.status IN ('in-progress', 'with_doctor', 'with_nurse') AND e.room_id IS NOT NULL
+      WHERE e.room_id IS NOT NULL
+        AND (
+          e.status = 'with_doctor'
+          OR (e.status = 'with_nurse' AND EXISTS(
+            SELECT 1 FROM alerts a
+            WHERE a.encounter_id = e.id
+            AND a.alert_type = 'patient_ready'
+          ))
+        )
       ORDER BY
         CASE
           WHEN p.vip_status = 'platinum' THEN 1
