@@ -318,8 +318,8 @@ router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse'),
 router.get('/orders/lab', authenticateToken, getLabOrders);
 router.put('/orders/lab/:id', authenticateToken, updateLabOrder);
 
-// Orders routes - Imaging
-router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor'), createImagingOrder);
+// Orders routes - Imaging (nurses can create for verbal orders)
+router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse'), createImagingOrder);
 router.get('/orders/imaging', authenticateToken, getImagingOrders);
 router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
 
