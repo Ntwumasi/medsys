@@ -99,6 +99,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         u_entered.first_name || ' ' || u_entered.last_name as entered_by_name,
         e.encounter_number,
         p.patient_number,
+        p.allergies as patient_allergies,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
@@ -138,13 +139,15 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
     }
 
     if (start_date) {
-      query += ` AND lo.ordered_date >= $${paramCount}`;
+      // Cast to date to ensure comparison starts from beginning of day
+      query += ` AND lo.ordered_date >= $${paramCount}::date`;
       params.push(start_date);
       paramCount++;
     }
 
     if (end_date) {
-      query += ` AND lo.ordered_date <= $${paramCount}`;
+      // Add end of day to include all records from the end date
+      query += ` AND lo.ordered_date <= $${paramCount}::date + interval '1 day' - interval '1 second'`;
       params.push(end_date);
       paramCount++;
     }
@@ -349,10 +352,15 @@ export const getImagingOrders = async (req: Request, res: Response): Promise<voi
     let query = `
       SELECT io.*,
         u.first_name || ' ' || u.last_name as ordering_provider_name,
-        e.encounter_number
+        e.encounter_number,
+        p.patient_number,
+        p.allergies as patient_allergies,
+        pu.first_name || ' ' || pu.last_name as patient_name
       FROM imaging_orders io
       LEFT JOIN users u ON io.ordering_provider = u.id
       LEFT JOIN encounters e ON io.encounter_id = e.id
+      LEFT JOIN patients p ON io.patient_id = p.id
+      LEFT JOIN users pu ON p.user_id = pu.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -523,6 +531,7 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         u.first_name || ' ' || u.last_name as provider_name,
         e.encounter_number,
         p.patient_number,
+        p.allergies as patient_allergies,
         pu.first_name || ' ' || pu.last_name as patient_name
       FROM pharmacy_orders po
       LEFT JOIN users u ON po.ordering_provider = u.id

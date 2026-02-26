@@ -394,15 +394,14 @@ export const alertDoctor = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// Nurse: Get notifications from doctors
+// Nurse: Get notifications from doctors (only patients routed from doctor)
 export const getNurseNotifications = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
     const nurse_id = authReq.user?.id;
 
-    // Get alerts where the nurse is the recipient (doctor completed encounter alerts)
-    // or alerts related to encounters the nurse is assigned to
-    // Using DISTINCT to avoid duplicates when both conditions match
+    // Get alerts where the nurse is the recipient and the sender is a doctor
+    // This only shows patients that doctors have routed back to the nurse
     const result = await pool.query(
       `SELECT DISTINCT ON (a.id)
         a.id,
@@ -417,9 +416,10 @@ export const getNurseNotifications = async (req: Request, res: Response): Promis
        JOIN encounters e ON a.encounter_id = e.id
        JOIN patients pat ON a.patient_id = pat.id
        LEFT JOIN users p_user ON pat.user_id = p_user.id
-       LEFT JOIN users from_user ON a.from_user_id = from_user.id
+       JOIN users from_user ON a.from_user_id = from_user.id
        WHERE (a.to_user_id = $1 OR e.nurse_id = $1)
-         AND a.alert_type IN ('patient_ready', 'vitals_critical', 'urgent', 'general')
+         AND from_user.role = 'doctor'
+         AND a.alert_type = 'patient_ready'
          AND e.status NOT IN ('completed', 'discharged')
        ORDER BY a.id, a.created_at DESC
        LIMIT 20`,

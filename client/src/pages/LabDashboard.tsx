@@ -14,8 +14,10 @@ interface LabOrder {
   priority: 'stat' | 'urgent' | 'routine';
   status: string;
   ordered_at: string;
+  completed_at?: string;
   patient_name: string;
   patient_number: string;
+  patient_allergies?: string;
   encounter_number: string;
   ordering_provider_name: string;
   specimen_collected_at?: string;
@@ -802,7 +804,14 @@ const LabDashboard: React.FC = () => {
     if (ordersSubTab === 'pending') {
       return pendingStatuses.includes(order.status);
     } else {
-      return order.status === 'completed';
+      // For completed tab, only show today's completed orders
+      if (order.status !== 'completed') return false;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const completedDate = order.completed_at ? new Date(order.completed_at) : null;
+      if (!completedDate) return false;
+      completedDate.setHours(0, 0, 0, 0);
+      return completedDate.getTime() === today.getTime();
     }
   });
 
@@ -1112,7 +1121,14 @@ const LabDashboard: React.FC = () => {
                                 className="w-5 h-5 rounded border-gray-300"
                               />
                             )}
-                            <h3 className="text-lg font-semibold text-gray-900">{order.patient_name}</h3>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg font-semibold text-gray-900">{order.patient_name}</h3>
+                              {order.patient_allergies && (
+                                <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300">
+                                  Allergies: {order.patient_allergies}
+                                </span>
+                              )}
+                            </div>
                             <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(order.priority)}`}>
                               {order.priority.toUpperCase()}
                             </span>
