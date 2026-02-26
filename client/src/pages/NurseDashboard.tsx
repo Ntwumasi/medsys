@@ -37,6 +37,8 @@ interface AssignedPatient {
   vital_signs?: VitalSigns;
   from_doctor?: boolean;
   status?: string;
+  workflow_status?: string;
+  current_department?: string;
 }
 
 interface NurseProcedure {
@@ -1311,38 +1313,56 @@ const NurseDashboard: React.FC = () => {
                   {/* Progress Indicator */}
                   <div className="mt-6 mb-4">
                     {(() => {
-                      // Calculate progress
-                      const hasVitals = selectedPatient.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0;
+                      // Calculate progress based on workflow_status
+                      const workflowStatus = selectedPatient.workflow_status || 'checked_in';
                       const hasOrders = labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0;
                       const allOrdersComplete = hasOrders &&
                         [...labOrders, ...imagingOrders, ...pharmacyOrders].every(order => order.status === 'completed');
 
-                      let progress = 15; // Started (checked in + room assigned)
-                      let stage = 'Room Assigned';
+                      // Map workflow_status to stage and progress
+                      const statusMap: Record<string, { stage: string; progress: number; color: string }> = {
+                        'checked_in': { stage: 'Checked In', progress: 10, color: 'bg-gray-500' },
+                        'in_room': { stage: 'In Room', progress: 15, color: 'bg-blue-500' },
+                        'vitals_complete': { stage: 'Vitals Complete', progress: 30, color: 'bg-blue-600' },
+                        'with_nurse': { stage: 'With Nurse', progress: 35, color: 'bg-primary-500' },
+                        'waiting_for_doctor': { stage: 'Waiting for Doctor', progress: 45, color: 'bg-yellow-500' },
+                        'with_doctor': { stage: 'With Doctor', progress: 55, color: 'bg-purple-500' },
+                        'at_lab': { stage: 'At Lab', progress: 65, color: 'bg-teal-500' },
+                        'at_imaging': { stage: 'At Imaging', progress: 65, color: 'bg-indigo-500' },
+                        'at_pharmacy': { stage: 'At Pharmacy', progress: 75, color: 'bg-green-500' },
+                        'ready_for_checkout': { stage: 'Ready for Checkout', progress: 90, color: 'bg-success-500' },
+                      };
 
-                      if (hasVitals) {
-                        progress = 30;
-                        stage = 'Vitals Recorded';
-                      }
-                      if (hasVitals && activeTab === 'hp') {
-                        progress = 45;
-                        stage = 'SOAP In Progress';
-                      }
-                      if (hasOrders) {
-                        progress = 65;
-                        stage = 'Doctor Reviewing';
-                      }
-                      if (allOrdersComplete) {
+                      let { stage, progress, color } = statusMap[workflowStatus] || statusMap['checked_in'];
+
+                      // Adjust for orders completion
+                      if (allOrdersComplete && progress < 85) {
                         progress = 85;
                         stage = 'Orders Complete';
                       }
+
+                      // Get location color for badge
+                      const isAtDepartment = ['at_lab', 'at_imaging', 'at_pharmacy'].includes(workflowStatus);
 
                       return (
                         <div className="bg-gradient-to-br from-gray-50 via-primary-50 to-secondary-50 p-6 rounded-2xl border-2 border-primary-200 shadow-lg">
                           <div className="flex items-center justify-between mb-3">
                             <div>
                               <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Patient Journey</div>
-                              <div className="text-lg font-bold text-gray-900">{stage}</div>
+                              <div className="flex items-center gap-3">
+                                <div className="text-lg font-bold text-gray-900">{stage}</div>
+                                {isAtDepartment && (
+                                  <span className={`px-3 py-1 rounded-full text-xs font-bold text-white animate-pulse ${
+                                    workflowStatus === 'at_lab' ? 'bg-teal-500' :
+                                    workflowStatus === 'at_imaging' ? 'bg-indigo-500' :
+                                    'bg-green-500'
+                                  }`}>
+                                    {workflowStatus === 'at_lab' ? '🔬 Currently at Lab' :
+                                     workflowStatus === 'at_imaging' ? '📷 Currently at Imaging' :
+                                     '💊 Currently at Pharmacy'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="text-right">
                               <div className="text-3xl font-black bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
@@ -1355,7 +1375,9 @@ const NurseDashboard: React.FC = () => {
                           {/* Progress Bar */}
                           <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
                             <div
-                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-primary-500 via-secondary-500 to-secondary-500 rounded-full transition-all duration-1000 ease-out shadow-lg"
+                              className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out shadow-lg ${
+                                isAtDepartment ? color : 'bg-gradient-to-r from-primary-500 via-secondary-500 to-secondary-500'
+                              }`}
                               style={{ width: `${progress}%` }}
                             >
                               <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-transparent animate-pulse"></div>
@@ -2512,44 +2534,106 @@ const NurseDashboard: React.FC = () => {
                     {activeTab === 'routing' && (
                       <div className="space-y-4">
                         <div className="bg-primary-50 border border-primary-200 rounded-lg p-6">
-                          <p className="text-sm text-gray-600 mb-4">
-                            After doctor completes encounter, route patient to appropriate department or discharge:
-                          </p>
+                          {/* Show current location if patient is at a department */}
+                          {(() => {
+                            const workflowStatus = selectedPatient?.workflow_status;
+                            const isAtDepartment = ['at_lab', 'at_imaging', 'at_pharmacy'].includes(workflowStatus || '');
+                            const currentDept = workflowStatus === 'at_lab' ? 'Lab' :
+                                               workflowStatus === 'at_imaging' ? 'Imaging' :
+                                               workflowStatus === 'at_pharmacy' ? 'Pharmacy' : null;
+
+                            if (isAtDepartment && currentDept) {
+                              return (
+                                <div className={`mb-4 p-4 rounded-lg border-2 ${
+                                  workflowStatus === 'at_lab' ? 'bg-teal-50 border-teal-300' :
+                                  workflowStatus === 'at_imaging' ? 'bg-indigo-50 border-indigo-300' :
+                                  'bg-green-50 border-green-300'
+                                }`}>
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-3 h-3 rounded-full animate-pulse ${
+                                      workflowStatus === 'at_lab' ? 'bg-teal-500' :
+                                      workflowStatus === 'at_imaging' ? 'bg-indigo-500' :
+                                      'bg-green-500'
+                                    }`}></div>
+                                    <span className="font-bold text-gray-900">
+                                      Patient is currently at {currentDept}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mt-2">
+                                    Patient must complete {currentDept} and return before being routed to another department.
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return (
+                              <p className="text-sm text-gray-600 mb-4">
+                                Route patient to one department at a time. Patient will return to nurse after completing each department.
+                              </p>
+                            );
+                          })()}
                           <div className="grid grid-cols-2 gap-3">
-                            <button
-                              onClick={() => setShowLabOrderModal(true)}
-                              className="py-3 rounded-lg font-semibold transition-colors bg-primary-600 text-white hover:bg-primary-700"
-                            >
-                              Order Labs
-                            </button>
-                            <button
-                              onClick={() => handleRouteToDepartment('pharmacy')}
-                              disabled={routedDepartments.has(`${selectedPatient?.id}-pharmacy`)}
-                              className={`py-3 rounded-lg font-semibold transition-colors ${
-                                routedDepartments.has(`${selectedPatient?.id}-pharmacy`)
-                                  ? 'bg-success-600 text-white cursor-default'
-                                  : 'bg-primary-600 text-white hover:bg-primary-700'
-                              }`}
-                            >
-                              {routedDepartments.has(`${selectedPatient?.id}-pharmacy`) ? '✓ Sent to Pharmacy' : 'Send to Pharmacy'}
-                            </button>
-                            <button
-                              onClick={() => setShowImagingOrderModal(true)}
-                              className="py-3 rounded-lg font-semibold transition-colors bg-primary-600 text-white hover:bg-primary-700"
-                            >
-                              Order Imaging
-                            </button>
-                            <button
-                              onClick={() => handleRouteToDepartment('receptionist')}
-                              disabled={routedDepartments.has(`${selectedPatient?.id}-receptionist`)}
-                              className={`py-3 rounded-lg font-semibold transition-colors ${
-                                routedDepartments.has(`${selectedPatient?.id}-receptionist`)
-                                  ? 'bg-success-600 text-white cursor-default'
-                                  : 'bg-primary-600 text-white hover:bg-primary-700'
-                              }`}
-                            >
-                              {routedDepartments.has(`${selectedPatient?.id}-receptionist`) ? '✓ Sent to Receptionist' : 'Send to Receptionist'}
-                            </button>
+                            {(() => {
+                              const workflowStatus = selectedPatient?.workflow_status;
+                              const isAtDepartment = ['at_lab', 'at_imaging', 'at_pharmacy'].includes(workflowStatus || '');
+                              const atLab = workflowStatus === 'at_lab';
+                              const atImaging = workflowStatus === 'at_imaging';
+                              const atPharmacy = workflowStatus === 'at_pharmacy';
+
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => handleRouteToDepartment('lab')}
+                                    disabled={atLab || (isAtDepartment && !atLab)}
+                                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                                      atLab
+                                        ? 'bg-teal-600 text-white cursor-default'
+                                        : isAtDepartment
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-primary-600 text-white hover:bg-primary-700'
+                                    }`}
+                                  >
+                                    {atLab ? '🔬 At Lab' : 'Send to Lab'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRouteToDepartment('pharmacy')}
+                                    disabled={atPharmacy || (isAtDepartment && !atPharmacy)}
+                                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                                      atPharmacy
+                                        ? 'bg-green-600 text-white cursor-default'
+                                        : isAtDepartment
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-primary-600 text-white hover:bg-primary-700'
+                                    }`}
+                                  >
+                                    {atPharmacy ? '💊 At Pharmacy' : 'Send to Pharmacy'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRouteToDepartment('imaging')}
+                                    disabled={atImaging || (isAtDepartment && !atImaging)}
+                                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                                      atImaging
+                                        ? 'bg-indigo-600 text-white cursor-default'
+                                        : isAtDepartment
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-primary-600 text-white hover:bg-primary-700'
+                                    }`}
+                                  >
+                                    {atImaging ? '📷 At Imaging' : 'Send to Imaging'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRouteToDepartment('receptionist')}
+                                    disabled={isAtDepartment}
+                                    className={`py-3 rounded-lg font-semibold transition-colors ${
+                                      isAtDepartment
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-primary-600 text-white hover:bg-primary-700'
+                                    }`}
+                                  >
+                                    Send to Receptionist
+                                  </button>
+                                </>
+                              );
+                            })()}
                           </div>
                           <div className="mt-4 pt-4 border-t border-primary-300 grid grid-cols-2 gap-3">
                             <button

@@ -733,12 +733,28 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'
           ELSE 'red'
         END as current_priority,
-        CASE WHEN e.status = 'with_nurse' THEN true ELSE false END as from_doctor
+        CASE WHEN e.status = 'with_nurse' THEN true ELSE false END as from_doctor,
+        -- Get current location based on department routing
+        (SELECT dr.department FROM department_routing dr
+         WHERE dr.encounter_id = e.id AND dr.status = 'pending'
+         ORDER BY dr.created_at DESC LIMIT 1) as current_department,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'lab' AND dr.status = 'pending') THEN 'at_lab'
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'imaging' AND dr.status = 'pending') THEN 'at_imaging'
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'pharmacy' AND dr.status = 'pending') THEN 'at_pharmacy'
+          WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'receptionist' AND dr.status = 'pending') THEN 'ready_for_checkout'
+          WHEN e.status = 'with_doctor' THEN 'with_doctor'
+          WHEN e.status = 'ready_for_doctor' THEN 'waiting_for_doctor'
+          WHEN e.status = 'with_nurse' THEN 'with_nurse'
+          WHEN e.vital_signs IS NOT NULL THEN 'vitals_complete'
+          WHEN e.room_id IS NOT NULL THEN 'in_room'
+          ELSE 'checked_in'
+        END as workflow_status
       FROM encounters e
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
-      WHERE e.nurse_id = $1 AND e.status IN ('in-progress', 'with_nurse')
+      WHERE e.nurse_id = $1 AND e.status IN ('in-progress', 'with_nurse', 'ready_for_doctor', 'with_doctor')
       ORDER BY
         CASE WHEN e.status = 'with_nurse' THEN 0 ELSE 1 END,
         e.doctor_completed_at DESC NULLS LAST,
