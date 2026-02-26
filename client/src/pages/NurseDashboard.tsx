@@ -143,6 +143,15 @@ interface LabOrderForm {
   notes: string;
 }
 
+interface ImagingOrderForm {
+  study_type: string;
+  body_part: string;
+  priority: 'stat' | 'urgent' | 'routine';
+  ordering_provider_id: number | null;
+  clinical_indication: string;
+  notes: string;
+}
+
 // Safe date formatting helper
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = ''): string => {
   if (!dateValue) return fallback;
@@ -229,6 +238,18 @@ const NurseDashboard: React.FC = () => {
     notes: '',
   });
   const [creatingLabOrder, setCreatingLabOrder] = useState(false);
+
+  // Imaging Order Creation state
+  const [showImagingOrderModal, setShowImagingOrderModal] = useState(false);
+  const [imagingOrderForm, setImagingOrderForm] = useState<ImagingOrderForm>({
+    study_type: '',
+    body_part: '',
+    priority: 'routine',
+    ordering_provider_id: null,
+    clinical_indication: '',
+    notes: '',
+  });
+  const [creatingImagingOrder, setCreatingImagingOrder] = useState(false);
 
   useEffect(() => {
     loadAssignedPatients();
@@ -389,6 +410,55 @@ const NurseDashboard: React.FC = () => {
       showToast(apiError.response?.data?.error || 'Failed to create lab order', 'error');
     } finally {
       setCreatingLabOrder(false);
+    }
+  };
+
+  const handleCreateImagingOrder = async () => {
+    if (!selectedPatient) {
+      showToast('Please select a patient first', 'warning');
+      return;
+    }
+
+    if (!imagingOrderForm.study_type.trim()) {
+      showToast('Please enter a study type', 'warning');
+      return;
+    }
+
+    if (!imagingOrderForm.ordering_provider_id) {
+      showToast('Please select a doctor', 'warning');
+      return;
+    }
+
+    setCreatingImagingOrder(true);
+    try {
+      await apiClient.post('/orders/imaging', {
+        encounter_id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        study_type: imagingOrderForm.study_type.trim(),
+        body_part: imagingOrderForm.body_part.trim() || null,
+        priority: imagingOrderForm.priority,
+        ordering_provider_id: imagingOrderForm.ordering_provider_id,
+        clinical_indication: imagingOrderForm.clinical_indication.trim() || null,
+        notes: imagingOrderForm.notes.trim() || null,
+      });
+
+      showToast('Imaging order created successfully', 'success');
+      setShowImagingOrderModal(false);
+      setImagingOrderForm({
+        study_type: '',
+        body_part: '',
+        priority: 'routine',
+        ordering_provider_id: null,
+        clinical_indication: '',
+        notes: '',
+      });
+      loadOrders();
+    } catch (error) {
+      const apiError = error as ApiError;
+      console.error('Error creating imaging order:', error);
+      showToast(apiError.response?.data?.error || 'Failed to create imaging order', 'error');
+    } finally {
+      setCreatingImagingOrder(false);
     }
   };
 
@@ -1515,32 +1585,22 @@ const NurseDashboard: React.FC = () => {
                   {/* Quick Action Buttons - Lab, Imaging, Documents */}
                   <div className="grid grid-cols-3 gap-4 mt-4">
                     <button
-                      onClick={() => handleRouteToDepartment('lab')}
-                      disabled={routedDepartments.has(`${selectedPatient.id}-lab`)}
-                      className={`p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                        routedDepartments.has(`${selectedPatient.id}-lab`)
-                          ? 'bg-success-100 text-success-700 border-2 border-success-300'
-                          : 'bg-primary-50 text-primary-700 border-2 border-primary-200 hover:bg-primary-100 hover:border-primary-300'
-                      }`}
+                      onClick={() => setShowLabOrderModal(true)}
+                      className="p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-primary-50 text-primary-700 border-2 border-primary-200 hover:bg-primary-100 hover:border-primary-300"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                       </svg>
-                      {routedDepartments.has(`${selectedPatient.id}-lab`) ? '✓ Sent to Lab' : 'Send to Lab'}
+                      Order Labs
                     </button>
                     <button
-                      onClick={() => handleRouteToDepartment('imaging')}
-                      disabled={routedDepartments.has(`${selectedPatient.id}-imaging`)}
-                      className={`p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-                        routedDepartments.has(`${selectedPatient.id}-imaging`)
-                          ? 'bg-success-100 text-success-700 border-2 border-success-300'
-                          : 'bg-secondary-50 text-secondary-700 border-2 border-secondary-200 hover:bg-secondary-100 hover:border-secondary-300'
-                      }`}
+                      onClick={() => setShowImagingOrderModal(true)}
+                      className="p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-secondary-50 text-secondary-700 border-2 border-secondary-200 hover:bg-secondary-100 hover:border-secondary-300"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                       </svg>
-                      {routedDepartments.has(`${selectedPatient.id}-imaging`) ? '✓ Sent to Imaging' : 'Send to Imaging'}
+                      Order Imaging
                     </button>
                     <button
                       onClick={() => setActiveTab('documents')}
@@ -2457,15 +2517,10 @@ const NurseDashboard: React.FC = () => {
                           </p>
                           <div className="grid grid-cols-2 gap-3">
                             <button
-                              onClick={() => handleRouteToDepartment('lab')}
-                              disabled={routedDepartments.has(`${selectedPatient?.id}-lab`)}
-                              className={`py-3 rounded-lg font-semibold transition-colors ${
-                                routedDepartments.has(`${selectedPatient?.id}-lab`)
-                                  ? 'bg-success-600 text-white cursor-default'
-                                  : 'bg-primary-600 text-white hover:bg-primary-700'
-                              }`}
+                              onClick={() => setShowLabOrderModal(true)}
+                              className="py-3 rounded-lg font-semibold transition-colors bg-primary-600 text-white hover:bg-primary-700"
                             >
-                              {routedDepartments.has(`${selectedPatient?.id}-lab`) ? '✓ Sent to Lab' : 'Send to Lab'}
+                              Order Labs
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('pharmacy')}
@@ -2479,15 +2534,10 @@ const NurseDashboard: React.FC = () => {
                               {routedDepartments.has(`${selectedPatient?.id}-pharmacy`) ? '✓ Sent to Pharmacy' : 'Send to Pharmacy'}
                             </button>
                             <button
-                              onClick={() => handleRouteToDepartment('imaging')}
-                              disabled={routedDepartments.has(`${selectedPatient?.id}-imaging`)}
-                              className={`py-3 rounded-lg font-semibold transition-colors ${
-                                routedDepartments.has(`${selectedPatient?.id}-imaging`)
-                                  ? 'bg-success-600 text-white cursor-default'
-                                  : 'bg-primary-600 text-white hover:bg-primary-700'
-                              }`}
+                              onClick={() => setShowImagingOrderModal(true)}
+                              className="py-3 rounded-lg font-semibold transition-colors bg-primary-600 text-white hover:bg-primary-700"
                             >
-                              {routedDepartments.has(`${selectedPatient?.id}-imaging`) ? '✓ Sent to Imaging' : 'Send to Imaging'}
+                              Order Imaging
                             </button>
                             <button
                               onClick={() => handleRouteToDepartment('receptionist')}
@@ -2757,6 +2807,161 @@ const NurseDashboard: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-primary-400 disabled:cursor-not-allowed"
                 >
                   {creatingLabOrder ? 'Creating...' : 'Create Order'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Imaging Order Modal */}
+      {showImagingOrderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Create Imaging Order</h2>
+                <button
+                  onClick={() => setShowImagingOrderModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Select Doctor */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ordering Doctor <span className="text-danger-500">*</span>
+                  </label>
+                  <select
+                    value={imagingOrderForm.ordering_provider_id || ''}
+                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, ordering_provider_id: Number(e.target.value) || null })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
+                  >
+                    <option value="">Select a doctor...</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={doctor.id}>
+                        Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Study Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Study Type <span className="text-danger-500">*</span>
+                  </label>
+                  <select
+                    value={imagingOrderForm.study_type}
+                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, study_type: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
+                  >
+                    <option value="">Select study type...</option>
+                    <option value="X-Ray">X-Ray</option>
+                    <option value="CT Scan">CT Scan</option>
+                    <option value="MRI">MRI</option>
+                    <option value="Ultrasound">Ultrasound</option>
+                    <option value="Mammogram">Mammogram</option>
+                    <option value="Fluoroscopy">Fluoroscopy</option>
+                    <option value="PET Scan">PET Scan</option>
+                    <option value="Nuclear Medicine">Nuclear Medicine</option>
+                  </select>
+                </div>
+
+                {/* Body Part */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Body Part / Region
+                  </label>
+                  <input
+                    type="text"
+                    value={imagingOrderForm.body_part}
+                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, body_part: e.target.value })}
+                    placeholder="e.g., Chest, Abdomen, Left Knee"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
+                  />
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Priority
+                  </label>
+                  <div className="flex gap-3">
+                    {(['routine', 'urgent', 'stat'] as const).map((priority) => (
+                      <label
+                        key={priority}
+                        className={`flex-1 text-center px-3 py-2 rounded-lg cursor-pointer border-2 transition-colors ${
+                          imagingOrderForm.priority === priority
+                            ? priority === 'stat'
+                              ? 'bg-danger-100 border-danger-500 text-danger-800'
+                              : priority === 'urgent'
+                              ? 'bg-warning-100 border-warning-500 text-warning-800'
+                              : 'bg-success-100 border-success-500 text-success-800'
+                            : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="imaging-priority"
+                          value={priority}
+                          checked={imagingOrderForm.priority === priority}
+                          onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, priority: e.target.value as 'stat' | 'urgent' | 'routine' })}
+                          className="sr-only"
+                        />
+                        {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clinical Indication */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Clinical Indication
+                  </label>
+                  <input
+                    type="text"
+                    value={imagingOrderForm.clinical_indication}
+                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, clinical_indication: e.target.value })}
+                    placeholder="e.g., Rule out fracture, Chest pain"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={imagingOrderForm.notes}
+                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, notes: e.target.value })}
+                    placeholder="Additional instructions or clinical notes..."
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowImagingOrderModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateImagingOrder}
+                  disabled={creatingImagingOrder}
+                  className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 disabled:bg-secondary-400 disabled:cursor-not-allowed"
+                >
+                  {creatingImagingOrder ? 'Creating...' : 'Create Order'}
                 </button>
               </div>
             </div>
