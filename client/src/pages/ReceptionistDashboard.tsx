@@ -77,7 +77,7 @@ interface QueueItem {
   wait_time_minutes?: number;
   billing_amount?: number;
   status: 'in-progress' | 'with_nurse' | 'with_doctor' | 'completed' | 'discharged';
-  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'ready_for_doctor' | 'with_doctor' | 'at_lab' | 'at_pharmacy' | 'at_imaging' | 'completed' | 'discharged';
+  workflow_status: 'checked_in' | 'in_room' | 'waiting_for_nurse' | 'with_nurse' | 'ready_for_doctor' | 'with_doctor' | 'at_lab' | 'at_pharmacy' | 'at_imaging' | 'ready_for_checkout' | 'completed' | 'discharged';
   invoice_status?: 'pending' | 'paid' | 'partial';
   clinic?: string;
   pending_lab_orders?: number;
@@ -1091,6 +1091,7 @@ const ReceptionistDashboard: React.FC = () => {
                     { value: 'at_lab', label: 'At Lab' },
                     { value: 'at_pharmacy', label: 'At Pharmacy' },
                     { value: 'at_imaging', label: 'At Imaging' },
+                    { value: 'ready_for_checkout', label: 'Ready for Checkout' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'discharged', label: 'Checked Out' },
                   ]}
@@ -1148,6 +1149,8 @@ const ReceptionistDashboard: React.FC = () => {
                       return { text: 'At Pharmacy', variant: 'info', icon: '💊' };
                     case 'at_imaging':
                       return { text: 'At Imaging', variant: 'info', icon: '📷' };
+                    case 'ready_for_checkout':
+                      return { text: 'Ready for Checkout', variant: 'success', icon: '✓' };
                     default:
                       return { text: 'In Progress', variant: 'gray', icon: '🔄' };
                   }
@@ -1311,8 +1314,8 @@ const ReceptionistDashboard: React.FC = () => {
                         {isPaid ? 'View Invoice' : 'Print Invoice'}
                       </Button>
 
-                      {/* Checkout button - show for completed and paid patients, or any patient when needed */}
-                      {isCompleted && item.workflow_status !== 'discharged' && (
+                      {/* Checkout button - show for completed patients or those ready for checkout */}
+                      {(isCompleted || item.workflow_status === 'ready_for_checkout') && item.workflow_status !== 'discharged' && (
                         <Button
                           variant="primary"
                           size="sm"
