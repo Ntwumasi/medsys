@@ -3,6 +3,7 @@ import pool from '../database/db';
 import { validateAllVitals } from '../utils/vitalSignsValidation';
 import billingService from '../services/billingService';
 import auditService from '../services/auditService';
+import notificationService from '../services/notificationService';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -100,6 +101,21 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     );
 
     await client.query('COMMIT');
+
+    // Get patient info for notification
+    const patientResult = await pool.query(
+      `SELECT u.first_name || ' ' || u.last_name as patient_name, p.patient_number
+       FROM patients p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [patient_id]
+    );
+
+    // Notify all nurses that a new patient has checked in
+    if (patientResult.rows.length > 0) {
+      const { patient_name, patient_number } = patientResult.rows[0];
+      await notificationService.notifyPatientCheckedIn(patient_name, patient_number, encounter.id);
+    }
 
     res.status(201).json({
       message: 'Patient checked in successfully',
@@ -885,6 +901,9 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       ]
     );
 
+    // Send real-time notification to all receptionists
+    await notificationService.notifyReadyForCheckout(patient_name || '', patient_number || '', encounter_id);
+
     res.json({
       message: 'Room released and encounter completed successfully',
       invoice: billingResult,
@@ -1110,6 +1129,9 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
     });
 
     await client.query('COMMIT');
+
+    // Notify all receptionists that patient has been checked out
+    await notificationService.notifyPatientCheckedOut(patient_name || '', patient_number || '');
 
     res.json({
       message: `Patient ${patient_name || ''} has been checked out successfully`,
