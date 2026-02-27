@@ -100,10 +100,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       ]
     );
 
-    await client.query('COMMIT');
-
-    // Get patient info for notification
-    const patientResult = await pool.query(
+    // Get patient info for appointment and notification
+    const patientInfoResult = await client.query(
       `SELECT u.first_name || ' ' || u.last_name as patient_name, p.patient_number
        FROM patients p
        JOIN users u ON p.user_id = u.id
@@ -111,10 +109,89 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id]
     );
 
+    const patientInfo = patientInfoResult.rows[0] || {};
+
+    // Create a 30-minute appointment slot for walk-in patients
+    const appointmentTime = new Date();
+    const appointmentDuration = 30;
+    const appointmentEnd = new Date(appointmentTime.getTime() + appointmentDuration * 60 * 1000);
+
+    // Find a doctor to assign appointment to
+    let appointmentProviderId = assigned_provider_id;
+
+    // If no provider assigned, find an available doctor
+    if (!appointmentProviderId) {
+      // Find a doctor who doesn't have a conflicting appointment at this time
+      const availableDoctorResult = await client.query(
+        `SELECT u.id FROM users u
+         WHERE u.role = 'doctor' AND u.is_active = true
+         AND NOT EXISTS (
+           SELECT 1 FROM appointments a
+           WHERE a.provider_id = u.id
+             AND a.status NOT IN ('cancelled', 'no-show')
+             AND (
+               (a.appointment_date <= $1 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $1)
+               OR (a.appointment_date < $2 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $1)
+               OR (a.appointment_date >= $1 AND a.appointment_date < $2)
+             )
+         )
+         ORDER BY u.first_name
+         LIMIT 1`,
+        [appointmentTime, appointmentEnd]
+      );
+
+      if (availableDoctorResult.rows.length > 0) {
+        appointmentProviderId = availableDoctorResult.rows[0].id;
+
+        // Also update the encounter with this provider
+        await client.query(
+          `UPDATE encounters SET provider_id = $1 WHERE id = $2`,
+          [appointmentProviderId, encounter.id]
+        );
+      }
+    }
+
+    // Create appointment if we found an available provider
+    if (appointmentProviderId) {
+      // Double-check for conflicts with assigned provider
+      const conflictCheck = await client.query(
+        `SELECT id FROM appointments
+         WHERE provider_id = $1
+           AND status NOT IN ('cancelled', 'no-show')
+           AND (
+             (appointment_date <= $2 AND appointment_date + (duration_minutes || ' minutes')::interval > $2)
+             OR (appointment_date < $3 AND appointment_date + (duration_minutes || ' minutes')::interval > $2)
+             OR (appointment_date >= $2 AND appointment_date < $3)
+           )`,
+        [appointmentProviderId, appointmentTime, appointmentEnd]
+      );
+
+      // Only create appointment if no conflict
+      if (conflictCheck.rows.length === 0) {
+        await client.query(
+          `INSERT INTO appointments (
+            patient_id, patient_name, provider_id, appointment_date, duration_minutes,
+            appointment_type, status, reason, created_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'checked-in', $7, $8)`,
+          [
+            patient_id,
+            patientInfo.patient_name || null,
+            appointmentProviderId,
+            appointmentTime,
+            appointmentDuration,
+            encounter_type || 'walk-in',
+            chief_complaint || 'Walk-in visit',
+            receptionist_id,
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
     // Notify all nurses that a new patient has checked in
-    if (patientResult.rows.length > 0) {
-      const { patient_name, patient_number } = patientResult.rows[0];
-      await notificationService.notifyPatientCheckedIn(patient_name, patient_number, encounter.id);
+    if (patientInfo.patient_name) {
+      await notificationService.notifyPatientCheckedIn(patientInfo.patient_name, patientInfo.patient_number, encounter.id);
     }
 
     res.status(201).json({

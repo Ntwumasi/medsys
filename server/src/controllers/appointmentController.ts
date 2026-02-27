@@ -17,6 +17,42 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
       notes,
     } = req.body;
 
+    const slotDuration = duration_minutes || 30;
+    const appointmentStart = new Date(appointment_date);
+    const appointmentEnd = new Date(appointmentStart.getTime() + slotDuration * 60 * 1000);
+
+    // Check for double-booking - ensure doctor doesn't have overlapping appointments
+    const conflictCheck = await pool.query(
+      `SELECT a.id, a.appointment_date, a.duration_minutes,
+              COALESCE(u.first_name || ' ' || u.last_name, a.patient_name) as patient_name
+       FROM appointments a
+       LEFT JOIN patients p ON a.patient_id = p.id
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE a.provider_id = $1
+         AND a.status NOT IN ('cancelled', 'no-show')
+         AND (
+           (a.appointment_date <= $2 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $2)
+           OR (a.appointment_date < $3 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $2)
+           OR (a.appointment_date >= $2 AND a.appointment_date < $3)
+         )`,
+      [provider_id, appointmentStart, appointmentEnd]
+    );
+
+    if (conflictCheck.rows.length > 0) {
+      const conflict = conflictCheck.rows[0];
+      const conflictTime = new Date(conflict.appointment_date).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      res.status(409).json({
+        error: 'Double booking conflict',
+        message: `This doctor already has an appointment at ${conflictTime} with ${conflict.patient_name || 'another patient'}. Please select a different time slot.`,
+        conflictingAppointment: conflict
+      });
+      return;
+    }
+
     // Allow booking without patient_id (for new patients not yet registered)
     const result = await pool.query(
       `INSERT INTO appointments (
