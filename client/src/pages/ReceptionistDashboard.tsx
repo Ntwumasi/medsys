@@ -83,6 +83,7 @@ interface QueueItem {
   pending_lab_orders?: number;
   pending_pharmacy_orders?: number;
   pending_imaging_orders?: number;
+  doctor_started_at?: string;
 }
 
 interface Nurse {
@@ -790,12 +791,14 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const calculateWaitTime = (checkInTime: string | null | undefined): number | null => {
+  const calculateWaitTime = (checkInTime: string | null | undefined, doctorStartedAt?: string | null): number | null => {
     if (!checkInTime) return null;
     const checkIn = new Date(checkInTime);
     if (isNaN(checkIn.getTime())) return null;
-    const now = new Date();
-    const diffMs = now.getTime() - checkIn.getTime();
+    // If doctor has started seeing the patient, use that as the end time
+    const endTime = doctorStartedAt ? new Date(doctorStartedAt) : new Date();
+    if (isNaN(endTime.getTime())) return null;
+    const diffMs = endTime.getTime() - checkIn.getTime();
     return Math.floor(diffMs / (1000 * 60)); // Convert to minutes
   };
 
@@ -956,8 +959,8 @@ const ReceptionistDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className="ml-4">
-                <h2 className="text-lg font-bold text-gray-900">Appointments</h2>
-                <p className="text-2xl font-bold text-secondary-600">{todayAppointments.length}</p>
+                <h2 className="text-lg font-bold text-gray-900">Today's Visits</h2>
+                <p className="text-2xl font-bold text-secondary-600">{queue.filter(q => q.status !== 'completed' && q.status !== 'discharged').length}</p>
               </div>
             </div>
           </button>
@@ -1115,7 +1118,7 @@ const ReceptionistDashboard: React.FC = () => {
 
             <div className="space-y-4">
               {filteredQueue.map((item) => {
-                const waitTime = calculateWaitTime(item.check_in_time);
+                const waitTime = calculateWaitTime(item.check_in_time, item.doctor_started_at);
                 const isCompleted = item.status === 'completed';
                 const isPaid = item.invoice_status === 'paid';
 
@@ -2231,7 +2234,7 @@ const ReceptionistDashboard: React.FC = () => {
                   onSelectSlot={handleSlotSelect}
                   onSelectEvent={handleEventSelect}
                   min={new Date(2020, 0, 1, 8, 0)} // 8 AM
-                  max={new Date(2020, 0, 1, 18, 0)} // 6 PM
+                  max={new Date(2020, 0, 1, 20, 0)} // 8 PM
                   step={30}
                   timeslots={1}
                   eventPropGetter={(event: CalendarEvent) => {

@@ -694,7 +694,7 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
       LEFT JOIN invoices i ON i.encounter_id = e.id
-      WHERE DATE(e.encounter_date) = CURRENT_DATE
+      WHERE DATE(e.checked_in_at) = CURRENT_DATE
       ORDER BY
         CASE e.status
           WHEN 'in-progress' THEN 1
