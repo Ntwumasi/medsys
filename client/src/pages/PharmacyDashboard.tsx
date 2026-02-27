@@ -197,7 +197,7 @@ const PharmacyDashboard: React.FC = () => {
 
   const fetchInProgressOrders = async () => {
     try {
-      const response = await apiClient.get('/orders/pharmacy?status=in-progress');
+      const response = await apiClient.get('/orders/pharmacy?status=in_progress');
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error fetching in-progress orders:', error);
@@ -207,7 +207,7 @@ const PharmacyDashboard: React.FC = () => {
   const startProcessingOrder = async (orderId: number) => {
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
-        status: 'in-progress'
+        status: 'in_progress'
       });
       showToast('Order moved to In Progress', 'success');
       fetchPendingOrders();
