@@ -619,7 +619,7 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const handleNewPatientSubmit = async (e: React.FormEvent) => {
+  const handleNewPatientSubmit = async (e: React.FormEvent, checkInAfter: boolean = true) => {
     e.preventDefault();
 
     try {
@@ -651,15 +651,19 @@ const ReceptionistDashboard: React.FC = () => {
       });
       const newPatientData = patientResponse.data.patient;
 
-      // Immediately check in the new patient
-      const billingAmount = 75; // $75 for new patients
+      let billingAmount = 0;
 
-      await apiClient.post('/workflow/check-in', {
-        patient_id: newPatientData.id,
-        chief_complaint: '', // Now entered by nurse
-        encounter_type: encounterType,
-        billing_amount: billingAmount,
-      });
+      // Only check in if requested
+      if (checkInAfter) {
+        billingAmount = 75; // $75 for new patients
+
+        await apiClient.post('/workflow/check-in', {
+          patient_id: newPatientData.id,
+          chief_complaint: '', // Now entered by nurse
+          encounter_type: encounterType,
+          billing_amount: billingAmount,
+        });
+      }
 
       // Reset form
       setNewPatient({
@@ -689,14 +693,17 @@ const ReceptionistDashboard: React.FC = () => {
       setSelectedCorporateClient(null);
       setSelectedInsuranceProvider(null);
 
-      // Reload data first to get the new patient in the queue
+      // Reload data
       await loadData();
 
-      // Then switch to queue view to show the patient
-      setActiveView('queue');
-
-      // Show success message
-      showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}, Billing: GH₵${billingAmount}`, 'success');
+      if (checkInAfter) {
+        // Switch to queue view to show the patient
+        setActiveView('queue');
+        showToast(`Patient registered & checked in! Patient #: ${newPatientData.patient_number}, Billing: GH₵${billingAmount}`, 'success');
+      } else {
+        // Stay on current view or go to patients list
+        showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}`, 'success');
+      }
     } catch (error) {
       console.error('Error creating new patient:', error);
 
@@ -2072,16 +2079,25 @@ const ReceptionistDashboard: React.FC = () => {
 
               <div className="bg-success-50 p-4 rounded-lg border border-success-200">
                 <p className="text-sm text-success-800">
-                  <span className="font-semibold">Billing:</span> GH₵75.00 (New Patient)
+                  <span className="font-semibold">Billing:</span> GH₵75.00 (New Patient) - Applied on check-in
                 </p>
               </div>
 
-              <button
-                type="submit"
-                className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
-              >
-                Register & Check In Patient
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => handleNewPatientSubmit(e, false)}
+                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-colors border border-gray-300"
+                >
+                  Register Only
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+                >
+                  Register & Check In
+                </button>
+              </div>
             </form>
           </div>
         )}
