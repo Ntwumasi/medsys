@@ -11,9 +11,17 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
   try {
     const authReq = req as any;
-    const receptionist_id = authReq.user?.id;
+    let receptionist_id = authReq.user?.id || null;
 
     const { patient_id, chief_complaint, encounter_type, billing_amount, clinic } = req.body;
+
+    // Verify receptionist_id exists in users table (to avoid FK constraint violation)
+    if (receptionist_id) {
+      const userCheck = await client.query('SELECT id FROM users WHERE id = $1', [receptionist_id]);
+      if (userCheck.rows.length === 0) {
+        receptionist_id = null; // User doesn't exist, use NULL
+      }
+    }
 
     await client.query('BEGIN');
 
