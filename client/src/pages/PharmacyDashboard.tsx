@@ -132,6 +132,7 @@ const PharmacyDashboard: React.FC = () => {
   // Orders state
   const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  const [orderStats, setOrderStats] = useState({ pending: 0, in_progress: 0, dispensed: 0 });
   const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
@@ -172,6 +173,7 @@ const PharmacyDashboard: React.FC = () => {
     await Promise.all([
       fetchRoutingRequests(),
       fetchPendingOrders(),
+      fetchOrderStats(),
       fetchInventory(),
     ]);
     setLoading(false);
@@ -183,6 +185,23 @@ const PharmacyDashboard: React.FC = () => {
       setRoutingRequests(response.data.queue || []);
     } catch (error) {
       console.error('Error fetching routing requests:', error);
+    }
+  };
+
+  const fetchOrderStats = async () => {
+    try {
+      const [pendingRes, inProgressRes, dispensedRes] = await Promise.all([
+        apiClient.get('/orders/pharmacy?status=ordered'),
+        apiClient.get('/orders/pharmacy?status=in_progress'),
+        apiClient.get('/orders/pharmacy?status=dispensed'),
+      ]);
+      setOrderStats({
+        pending: (pendingRes.data.orders || []).length,
+        in_progress: (inProgressRes.data.orders || []).length,
+        dispensed: (dispensedRes.data.orders || []).length,
+      });
+    } catch (error) {
+      console.error('Error fetching order stats:', error);
     }
   };
 
@@ -211,6 +230,7 @@ const PharmacyDashboard: React.FC = () => {
       });
       showToast('Order moved to In Progress', 'success');
       fetchPendingOrders();
+      fetchOrderStats();
     } catch (error) {
       console.error('Error starting order:', error);
       showToast('Failed to start processing order', 'error');
@@ -293,9 +313,10 @@ const PharmacyDashboard: React.FC = () => {
         dispensed_date: new Date().toISOString()
       });
       showToast('Medication dispensed successfully', 'success');
-      // Refresh the appropriate tab
+      // Refresh the appropriate tab and stats
       if (ordersSubTab === 'pending') fetchPendingOrders();
       else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+      fetchOrderStats();
     } catch (error) {
       console.error('Error dispensing medication:', error);
       showToast('Failed to dispense medication', 'error');
@@ -403,7 +424,7 @@ const PharmacyDashboard: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Pending Orders</p>
                     <p className="text-2xl font-bold text-warning-600">
-                      {pharmacyOrders.filter(o => o.status === 'ordered').length}
+                      {orderStats.pending}
                     </p>
                   </div>
                 </div>
@@ -412,28 +433,28 @@ const PharmacyDashboard: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Routing Requests</p>
+                    <p className="text-sm font-medium text-gray-500">In Progress</p>
                     <p className="text-2xl font-bold text-primary-600">
-                      {routingRequests.filter(r => r.status === 'pending').length}
+                      {orderStats.in_progress}
                     </p>
                   </div>
                 </div>
               </div>
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-secondary-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-secondary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">In Progress</p>
-                    <p className="text-2xl font-bold text-secondary-600">
-                      {routingRequests.filter(r => r.status === 'in-progress').length}
+                    <p className="text-sm font-medium text-gray-500">Dispensed Today</p>
+                    <p className="text-2xl font-bold text-success-600">
+                      {orderStats.dispensed}
                     </p>
                   </div>
                 </div>
@@ -480,7 +501,7 @@ const PharmacyDashboard: React.FC = () => {
                     ordersSubTab === 'history' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  Order History
+                  Dispensed
                 </button>
               </div>
               <button
@@ -540,13 +561,13 @@ const PharmacyDashboard: React.FC = () => {
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">
                     {ordersSubTab === 'pending' ? 'Pending Prescriptions' :
-                     ordersSubTab === 'in_progress' ? 'In Progress Orders' : 'Order History'}
+                     ordersSubTab === 'in_progress' ? 'In Progress Orders' : 'Dispensed Orders'}
                   </h2>
                 </div>
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {pharmacyOrders.length === 0 ? (
                     <div className="px-6 py-12 text-center text-gray-500">
-                      No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : ''} orders found
+                      No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : 'dispensed'} orders found
                     </div>
                   ) : (
                     pharmacyOrders.map((order) => (

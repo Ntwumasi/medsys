@@ -184,7 +184,7 @@ export const notificationService = {
   },
 
   /**
-   * Notify all nurses when medication is dispensed (role-based)
+   * Notify nurses and doctors when medication is dispensed (role-based)
    */
   async notifyPharmacyDispensed(orderId: number): Promise<void> {
     const result = await pool.query(
@@ -203,6 +203,15 @@ export const notificationService = {
       await this.sendToRole('nurse', {
         type: 'pharmacy_dispensed',
         title: 'Medication Ready',
+        message: `${order.medication_name} dispensed for ${order.patient_name} (${order.patient_number})`,
+        entityType: 'pharmacy_order',
+        entityId: orderId,
+      });
+
+      // Notify all doctors that medication has been dispensed
+      await this.sendToRole('doctor', {
+        type: 'pharmacy_dispensed',
+        title: 'Medication Dispensed',
         message: `${order.medication_name} dispensed for ${order.patient_name} (${order.patient_number})`,
         entityType: 'pharmacy_order',
         entityId: orderId,
