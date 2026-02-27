@@ -462,6 +462,7 @@ export const getNurseNotifications = async (req: Request, res: Response): Promis
        WHERE (a.to_user_id = $1 OR e.nurse_id = $1)
          AND from_user.role = 'doctor'
          AND a.alert_type = 'patient_ready'
+         AND a.is_read = false
          AND e.status NOT IN ('completed', 'discharged')
        ORDER BY a.id, a.created_at DESC
        LIMIT 20`,

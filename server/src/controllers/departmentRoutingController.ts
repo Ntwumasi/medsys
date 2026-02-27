@@ -38,6 +38,16 @@ export const routePatientToDepartment = async (req: Request, res: Response): Pro
       [encounter_id]
     );
 
+    // Mark doctor notifications as read for this encounter (nurse completed the task)
+    await pool.query(
+      `UPDATE alerts
+       SET is_read = true
+       WHERE encounter_id = $1
+         AND alert_type = 'patient_ready'
+         AND is_read = false`,
+      [encounter_id]
+    );
+
     res.status(201).json({
       message: `Patient routed to ${department} successfully`,
       routing: result.rows[0],
