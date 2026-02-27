@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import type { ApiError } from '../types';
 import AppLayout from '../components/AppLayout';
-import { Card, Button, Input, Select, Textarea } from '../components/ui';
+import { Card, Button, Input, Select } from '../components/ui';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
@@ -138,22 +138,6 @@ const PatientRegistration: React.FC = () => {
     { value: 'Sibling', label: 'Sibling' },
     { value: 'Friend', label: 'Friend' },
     { value: 'Other', label: 'Other' },
-  ];
-
-  const healthStatusOptions = [
-    { value: '', label: 'Unknown' },
-    { value: 'Negative', label: 'Negative' },
-    { value: 'Positive', label: 'Positive' },
-    { value: 'Not Tested', label: 'Not Tested' },
-  ];
-
-  const sickleCellOptions = [
-    { value: '', label: 'Unknown' },
-    { value: 'AA', label: 'AA (Normal)' },
-    { value: 'AS', label: 'AS (Carrier/Trait)' },
-    { value: 'SS', label: 'SS (Sickle Cell Disease)' },
-    { value: 'SC', label: 'SC (Sickle Cell Disease)' },
-    { value: 'Not Tested', label: 'Not Tested' },
   ];
 
   return (
@@ -365,64 +349,6 @@ const PatientRegistration: React.FC = () => {
                     options={relationshipOptions}
                     placeholder="Select Relationship"
                   />
-                </div>
-              </div>
-
-              {/* Health Status */}
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  Health Status
-                </h2>
-                <p className="text-sm text-gray-500 mb-4">This information is confidential and used for clinical care only.</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select
-                    label="HIV Status"
-                    name="hiv_status"
-                    value={formData.hiv_status}
-                    onChange={handleChange}
-                    options={healthStatusOptions}
-                  />
-                  <Select
-                    label="Hepatitis B Status"
-                    name="hepatitis_b_status"
-                    value={formData.hepatitis_b_status}
-                    onChange={handleChange}
-                    options={healthStatusOptions}
-                  />
-                  <Select
-                    label="Hepatitis C Status"
-                    name="hepatitis_c_status"
-                    value={formData.hepatitis_c_status}
-                    onChange={handleChange}
-                    options={healthStatusOptions}
-                  />
-                  <Select
-                    label="TB Status"
-                    name="tb_status"
-                    value={formData.tb_status}
-                    onChange={handleChange}
-                    options={healthStatusOptions}
-                  />
-                  <Select
-                    label="Sickle Cell Status"
-                    name="sickle_cell_status"
-                    value={formData.sickle_cell_status}
-                    onChange={handleChange}
-                    options={sickleCellOptions}
-                  />
-                  <div className="md:col-span-3">
-                    <Textarea
-                      label="Other Health Conditions"
-                      name="other_health_conditions"
-                      value={formData.other_health_conditions}
-                      onChange={handleChange}
-                      rows={3}
-                      placeholder="List any other relevant health conditions..."
-                    />
-                  </div>
                 </div>
               </div>
 

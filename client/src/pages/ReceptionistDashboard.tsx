@@ -271,13 +271,6 @@ const ReceptionistDashboard: React.FC = () => {
     pcp_phone: '',
     allergies: '',
     nationality: '',
-    // Health status (doctors only can see detailed info)
-    hiv_status: '',
-    hepatitis_b_status: '',
-    hepatitis_c_status: '',
-    tb_status: '',
-    sickle_cell_status: '',
-    other_health_conditions: '',
   });
 
   // Payer source state
@@ -689,12 +682,6 @@ const ReceptionistDashboard: React.FC = () => {
         pcp_phone: '',
         allergies: '',
         nationality: '',
-        hiv_status: '',
-        hepatitis_b_status: '',
-        hepatitis_c_status: '',
-        tb_status: '',
-        sickle_cell_status: '',
-        other_health_conditions: '',
       });
       setChiefComplaint('');
       setEncounterType('walk-in');
