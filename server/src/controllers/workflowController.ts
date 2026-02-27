@@ -32,6 +32,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     if (activeEncounterCheck.rows.length > 0) {
       await client.query('ROLLBACK');
+      client.release(); // Release connection before returning
       const existing = activeEncounterCheck.rows[0];
       const checkedInTime = new Date(existing.checked_in_at).toLocaleTimeString('en-US', {
         hour: 'numeric',
