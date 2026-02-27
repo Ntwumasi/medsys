@@ -202,11 +202,12 @@ const ReceptionistDashboard: React.FC = () => {
   const [editingNurseForEncounter, setEditingNurseForEncounter] = useState<number | null>(null);
 
   // Appointments state
-  const [, setAppointments] = useState<Appointment[]>([]);
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('week');
   const [calendarDate, setCalendarDate] = useState(new Date());
+  const [calendarDoctorFilter, setCalendarDoctorFilter] = useState<number | ''>('');
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [bookingPatient, setBookingPatient] = useState<Patient | null>(null);
@@ -433,24 +434,13 @@ const ReceptionistDashboard: React.FC = () => {
       });
 
       const appts = response.data.appointments || [];
-      setAppointments(appts);
+      setAllAppointments(appts);
 
-      // Convert to calendar events
-      const events: CalendarEvent[] = appts.map((appt: Appointment) => {
-        const startDate = new Date(appt.appointment_date);
-        const endDate = new Date(startDate.getTime() + (appt.duration_minutes || 30) * 60000);
-        return {
-          id: appt.id,
-          title: `${appt.patient_name || 'Unknown'} - ${appt.appointment_type}`,
-          start: startDate,
-          end: endDate,
-          resource: appt,
-        };
-      });
-      setCalendarEvents(events);
+      // Convert to calendar events (filtering will be applied separately)
+      updateCalendarEvents(appts, calendarDoctorFilter);
     } catch (error) {
       console.error('Error loading appointments:', error);
-      setAppointments([]);
+      setAllAppointments([]);
       setCalendarEvents([]);
     }
   };
@@ -463,6 +453,35 @@ const ReceptionistDashboard: React.FC = () => {
       console.error('Error loading today appointments:', error);
       setTodayAppointments([]);
     }
+  };
+
+  // Update calendar events when filter changes
+  const updateCalendarEvents = (appts: Appointment[], doctorFilter: number | '') => {
+    // Filter by doctor if selected
+    const filteredAppts = doctorFilter
+      ? appts.filter(appt => appt.provider_id === doctorFilter)
+      : appts;
+
+    // Convert to calendar events with patient name + doctor name (no times)
+    const events: CalendarEvent[] = filteredAppts.map((appt: Appointment) => {
+      const startDate = new Date(appt.appointment_date);
+      const endDate = new Date(startDate.getTime() + (appt.duration_minutes || 30) * 60000);
+      const doctorName = appt.provider_name ? `Dr. ${appt.provider_name.split(' ').pop()}` : '';
+      return {
+        id: appt.id,
+        title: `${appt.patient_name || 'Unknown'}${doctorName ? ` - ${doctorName}` : ''}`,
+        start: startDate,
+        end: endDate,
+        resource: appt,
+      };
+    });
+    setCalendarEvents(events);
+  };
+
+  // Handle doctor filter change
+  const handleDoctorFilterChange = (doctorId: number | '') => {
+    setCalendarDoctorFilter(doctorId);
+    updateCalendarEvents(allAppointments, doctorId);
   };
 
   const handleSlotSelect = useCallback(({ start, end }: { start: Date; end: Date }) => {
@@ -2193,31 +2212,47 @@ const ReceptionistDashboard: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Appointment Calendar</h3>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setCalendarView('day')}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'day' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
+                <div className="flex items-center gap-4">
+                  {/* Doctor Filter */}
+                  <select
+                    value={calendarDoctorFilter}
+                    onChange={(e) => handleDoctorFilterChange(e.target.value ? parseInt(e.target.value) : '')}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500"
                   >
-                    Day
-                  </button>
-                  <button
-                    onClick={() => setCalendarView('week')}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'week' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Week
-                  </button>
-                  <button
-                    onClick={() => setCalendarView('month')}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      calendarView === 'month' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Month
-                  </button>
+                    <option value="">All Doctors</option>
+                    {doctors.map(doctor => (
+                      <option key={doctor.id} value={doctor.id}>
+                        Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
+                    ))}
+                  </select>
+                  {/* View Toggle */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCalendarView('day')}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        calendarView === 'day' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Day
+                    </button>
+                    <button
+                      onClick={() => setCalendarView('week')}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        calendarView === 'week' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Week
+                    </button>
+                    <button
+                      onClick={() => setCalendarView('month')}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        calendarView === 'month' ? 'bg-secondary-100 text-violet-700' : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Month
+                    </button>
+                  </div>
                 </div>
               </div>
               <div style={{ height: 600 }}>
@@ -2238,11 +2273,14 @@ const ReceptionistDashboard: React.FC = () => {
                   scrollToTime={new Date()}
                   step={30}
                   timeslots={1}
+                  formats={{
+                    eventTimeRangeFormat: () => '', // Hide time range in events
+                  }}
                   eventPropGetter={(event: CalendarEvent) => {
-                    const status = event.resource.status;
+                    const status = event.resource.status as string;
                     let backgroundColor = '#7c3aed'; // violet
                     if (status === 'cancelled') backgroundColor = '#ef4444';
-                    else if (status === 'checked_in') backgroundColor = '#22c55e';
+                    else if (status === 'checked_in' || status === 'checked-in') backgroundColor = '#22c55e';
                     else if (status === 'completed') backgroundColor = '#6b7280';
                     else if (status === 'confirmed') backgroundColor = '#3b82f6';
                     return { style: { backgroundColor, borderRadius: '4px' } };

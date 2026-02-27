@@ -130,7 +130,7 @@ const PharmacyDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   // Orders state
-  const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
+  const [, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
   const [orderStats, setOrderStats] = useState({ pending: 0, in_progress: 0, dispensed: 0 });
   const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
