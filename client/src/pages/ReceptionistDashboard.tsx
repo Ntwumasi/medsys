@@ -2235,6 +2235,7 @@ const ReceptionistDashboard: React.FC = () => {
                   onSelectEvent={handleEventSelect}
                   min={new Date(2020, 0, 1, 8, 0)} // 8 AM
                   max={new Date(2020, 0, 1, 20, 0)} // 8 PM
+                  scrollToTime={new Date()}
                   step={30}
                   timeslots={1}
                   eventPropGetter={(event: CalendarEvent) => {
