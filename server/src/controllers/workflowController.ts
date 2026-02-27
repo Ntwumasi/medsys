@@ -17,6 +17,36 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
+    // Check if patient already has an active encounter today (prevent duplicate check-ins)
+    const activeEncounterCheck = await client.query(
+      `SELECT e.id, e.encounter_number, e.checked_in_at,
+              u.first_name || ' ' || u.last_name as patient_name
+       FROM encounters e
+       JOIN patients p ON e.patient_id = p.id
+       JOIN users u ON p.user_id = u.id
+       WHERE e.patient_id = $1
+         AND DATE(e.checked_in_at) = CURRENT_DATE
+         AND e.status NOT IN ('completed', 'discharged', 'cancelled')`,
+      [patient_id]
+    );
+
+    if (activeEncounterCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      const existing = activeEncounterCheck.rows[0];
+      const checkedInTime = new Date(existing.checked_in_at).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+      res.status(409).json({
+        error: 'Patient already checked in',
+        message: `${existing.patient_name} is already checked in today (${existing.encounter_number} at ${checkedInTime}). Please use the existing encounter or complete/discharge it first.`,
+        existingEncounterId: existing.id,
+        existingEncounterNumber: existing.encounter_number
+      });
+      return;
+    }
+
     // Check if patient has a corporate payer source and get assigned doctor
     const payerSourceResult = await client.query(
       `SELECT pps.payer_type, cc.assigned_doctor_id
