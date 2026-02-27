@@ -97,10 +97,10 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     );
     const isNewPatient = parseInt(encounterCountResult.rows[0].count) === 1;
 
-    // Create invoice with proper billing
-    const countResult = await client.query('SELECT COUNT(*) FROM invoices');
-    const invoiceCount = parseInt(countResult.rows[0].count) + 1;
-    const invoiceNumber = `INV${String(invoiceCount).padStart(6, '0')}`;
+    // Create invoice with proper billing - use MAX(id) to avoid collisions
+    const maxIdResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
+    const nextInvoiceId = parseInt(maxIdResult.rows[0].next_id);
+    const invoiceNumber = `INV${String(nextInvoiceId).padStart(6, '0')}`;
 
     // Get consultation charge from charge master
     const consultationCode = isNewPatient ? 'CONS-NEW' : 'CONS-FU';
