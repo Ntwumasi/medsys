@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 interface RoutingRequest {
   id: number;
@@ -116,16 +117,14 @@ interface DrugHistory {
   allergies: Allergy[];
 }
 
-interface PharmacyDashboardProps {
-  showRevenueTab?: boolean;
-  title?: string;
-}
-
-const PharmacyDashboard: React.FC<PharmacyDashboardProps> = ({
-  showRevenueTab = true,
-  title = 'Pharmacy Dashboard'
-}) => {
+const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
+  const { user } = useAuth();
+
+  // Pharmacy techs don't see revenue tab
+  const isPharmacyTech = user?.role === 'pharmacy_tech';
+  const showRevenueTab = !isPharmacyTech;
+  const title = isPharmacyTech ? 'Pharmacy Tech Dashboard' : 'Pharmacy Dashboard';
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'revenue'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'history'>('pending');
   const [loading, setLoading] = useState(true);

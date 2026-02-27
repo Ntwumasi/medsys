@@ -11,7 +11,6 @@ import NurseDashboard from './pages/NurseDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import LabDashboard from './pages/LabDashboard';
 import PharmacyDashboard from './pages/PharmacyDashboard';
-import PharmacyTechDashboard from './pages/PharmacyTechDashboard';
 import ImagingDashboard from './pages/ImagingDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
@@ -61,9 +60,8 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><LabDashboard /></ErrorBoundary>;
       case 'pharmacy':
       case 'pharmacist':
-        return <ErrorBoundary><PharmacyDashboard /></ErrorBoundary>;
       case 'pharmacy_tech':
-        return <ErrorBoundary><PharmacyTechDashboard /></ErrorBoundary>;
+        return <ErrorBoundary><PharmacyDashboard /></ErrorBoundary>;
       case 'imaging':
         return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
       case 'admin':
