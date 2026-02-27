@@ -325,8 +325,8 @@ router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
 
 // Orders routes - Pharmacy
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor'), createPharmacyOrder);
-router.get('/orders/pharmacy', authenticateToken, getPharmacyOrders);
-router.put('/orders/pharmacy/:id', authenticateToken, updatePharmacyOrder);
+router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
+router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), updatePharmacyOrder);
 
 // Get all orders for an encounter
 router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);
@@ -407,23 +407,23 @@ router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('do
 router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
 
 // Pharmacy Inventory routes
-router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventory);
-router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventoryCategories);
-router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'admin'), getLowStockAlerts);
-router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 'admin'), getExpiringMedications);
-router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'admin'), getInventoryItem);
-router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'admin'), createInventoryItem);
-router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'admin'), updateInventoryItem);
-router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy', 'admin'), adjustStock);
-router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy'), dispenseMedication);
+router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);
+router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryCategories);
+router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getLowStockAlerts);
+router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiringMedications);
+router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItem);
+router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), createInventoryItem);
+router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateInventoryItem);
+router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), adjustStock);
+router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
 
 // Payer Pricing routes
-router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'admin'), getPayerPricingRules);
-router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 'admin', 'receptionist'), calculatePrice);
+router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPayerPricingRules);
+router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'receptionist'), calculatePrice);
 
 // Pharmacy Revenue & Drug History routes
-router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'admin'), getRevenueSummary);
-router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'doctor', 'nurse'), getPatientDrugHistory);
+router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getRevenueSummary);
+router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse'), getPatientDrugHistory);
 
 // Lab Inventory routes
 router.get('/lab-inventory', authenticateToken, authorizeRoles('lab', 'admin'), getLabInventory);
@@ -477,7 +477,7 @@ router.use('/notifications', notificationRoutes);
 router.use('/audit', auditRoutes);
 
 // Drug Interaction Check routes
-router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy'), async (req, res) => {
+router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {
   try {
     const { patientId, medication } = req.body;
     const interactions = await drugInteractionService.checkInteractions(patientId, medication);
@@ -488,7 +488,7 @@ router.post('/drug-interactions/check', authenticateToken, authorizeRoles('docto
   }
 });
 
-router.post('/drug-interactions/check-multiple', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy'), async (req, res) => {
+router.post('/drug-interactions/check-multiple', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {
   try {
     const { medications } = req.body;
     const interactions = await drugInteractionService.checkMultipleInteractions(medications);
