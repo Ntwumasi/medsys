@@ -752,13 +752,12 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
     // Record the purchase transaction
     await client.query(
       `INSERT INTO inventory_transactions
-        (inventory_id, transaction_type, quantity, unit_cost, reference_type, notes, created_by)
-       VALUES ($1, 'purchase', $2, $3, 'procurement', $4, $5)`,
+        (inventory_id, transaction_type, quantity, reference_type, notes, performed_by)
+       VALUES ($1, 'purchase', $2, 'procurement', $3, $4)`,
       [
         inventory_id,
         quantity,
-        unit_cost,
-        `Batch: ${generatedBatchNumber}, Discount: ${discount_percent || 0}%`,
+        `Batch: ${generatedBatchNumber}, Cost: ${unit_cost}, Discount: ${discount_percent || 0}%`,
         userId
       ]
     );
