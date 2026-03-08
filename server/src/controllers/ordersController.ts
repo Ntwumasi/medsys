@@ -735,14 +735,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
           await client.query(
             `INSERT INTO inventory_transactions
-              (inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by)
-             VALUES ($1, 'dispense', $2, $3, 'pharmacy_order', $4, $5, $6)`,
+              (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
+             VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5)`,
             [
               inventoryItem.id,
               -quantity,
-              unitPrice,
               parseInt(id),
-              `Dispensed for ${updatedOrder.patient_name || 'patient'}. Batches: ${batchInfo}`,
+              `Dispensed for ${updatedOrder.patient_name || 'patient'}. Price: ${unitPrice}. Batches: ${batchInfo}`,
               authReq.user?.id
             ]
           );
