@@ -1828,8 +1828,9 @@ const PharmacyDashboard: React.FC = () => {
                     value={procurementForm.batch_number}
                     onChange={(e) => setProcurementForm({ ...procurementForm, batch_number: e.target.value })}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    placeholder="Optional"
+                    placeholder="Auto-generated (e.g., AMX-202603-001)"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Leave blank to auto-generate based on medication name</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>

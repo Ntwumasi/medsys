@@ -732,8 +732,29 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
-    // Create a batch record for FEFO tracking
-    const generatedBatchNumber = batch_number || `BATCH-${Date.now()}`;
+    // Get medication info for batch number generation
+    const medResult = await client.query(
+      `SELECT medication_name FROM pharmacy_inventory WHERE id = $1`,
+      [inventory_id]
+    );
+
+    // Auto-generate batch number: MED-YYYYMM-XXX
+    let generatedBatchNumber = batch_number;
+    if (!batch_number) {
+      const medName = medResult.rows[0]?.medication_name || 'MED';
+      // Create abbreviation from first 3 letters of first word (uppercase)
+      const abbrev = medName.split(' ')[0].substring(0, 3).toUpperCase();
+      const yearMonth = new Date().toISOString().slice(0, 7).replace('-', '');
+
+      // Get next sequence number for this medication this month
+      const seqResult = await client.query(
+        `SELECT COUNT(*) + 1 as next_seq FROM inventory_batches
+         WHERE inventory_id = $1 AND batch_number LIKE $2`,
+        [inventory_id, `${abbrev}-${yearMonth}%`]
+      );
+      const seqNum = String(seqResult.rows[0].next_seq).padStart(3, '0');
+      generatedBatchNumber = `${abbrev}-${yearMonth}-${seqNum}`;
+    }
     await client.query(
       `INSERT INTO inventory_batches
         (inventory_id, batch_number, quantity, unit_cost, expiry_date, supplier_id, notes)
