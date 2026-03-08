@@ -183,6 +183,20 @@ const PharmacyDashboard: React.FC = () => {
   const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null);
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low_stock' | 'expiring'>('all');
   const [inventorySearch, setInventorySearch] = useState('');
+  const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
+  const [newInventoryForm, setNewInventoryForm] = useState({
+    medication_name: '',
+    generic_name: '',
+    category: '',
+    unit: 'tablet',
+    quantity_on_hand: 0,
+    reorder_level: 10,
+    unit_cost: 0,
+    selling_price: 0,
+    expiry_date: ''
+  });
 
   // Date range state
   const [startDate, setStartDate] = useState('');
@@ -251,8 +265,56 @@ const PharmacyDashboard: React.FC = () => {
       fetchInventory(),
       fetchSuppliers(),
       fetchWalkIns(),
+      fetchInventoryCategories(),
     ]);
     setLoading(false);
+  };
+
+  const fetchInventoryCategories = async () => {
+    try {
+      const response = await apiClient.get('/inventory/categories');
+      setInventoryCategories(response.data.categories || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const createInventoryItem = async () => {
+    const { medication_name, category, unit, quantity_on_hand, reorder_level, unit_cost, selling_price } = newInventoryForm;
+
+    if (!medication_name || !category || !unit) {
+      showToast('Please fill in medication name, category, and unit', 'error');
+      return;
+    }
+
+    try {
+      await apiClient.post('/inventory', {
+        ...newInventoryForm,
+        quantity_on_hand: parseInt(String(quantity_on_hand)) || 0,
+        reorder_level: parseInt(String(reorder_level)) || 10,
+        unit_cost: parseFloat(String(unit_cost)) || 0,
+        selling_price: parseFloat(String(selling_price)) || 0,
+      });
+      showToast('Inventory item created successfully', 'success');
+      setShowAddInventoryModal(false);
+      setNewInventoryForm({
+        medication_name: '',
+        generic_name: '',
+        category: '',
+        unit: 'tablet',
+        quantity_on_hand: 0,
+        reorder_level: 10,
+        unit_cost: 0,
+        selling_price: 0,
+        expiry_date: ''
+      });
+      fetchInventory();
+      fetchInventoryCategories();
+    } catch (error: any) {
+      console.error('Error creating inventory item:', error);
+      const message = error.response?.data?.error || 'Failed to create inventory item';
+      showToast(message, 'error');
+    }
   };
 
   const fetchSuppliers = async () => {
@@ -1346,19 +1408,32 @@ const PharmacyDashboard: React.FC = () => {
                 className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
               />
               <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+              >
+                <option value="">All Categories</option>
+                {inventoryCategories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <select
                 value={inventoryFilter}
                 onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low_stock' | 'expiring')}
                 className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
               >
-                <option value="all">All Items</option>
-                <option value="low_stock">Low Stock Only</option>
+                <option value="all">All Status</option>
+                <option value="low_stock">Low Stock</option>
                 <option value="expiring">Expiring Soon</option>
               </select>
               <button
-                onClick={fetchInventory}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
+                onClick={() => setShowAddInventoryModal(true)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
               >
-                Search
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Item
               </button>
             </div>
 
@@ -1379,7 +1454,16 @@ const PharmacyDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {inventory.map((item) => (
+                  {inventory
+                    .filter(item => {
+                      // Filter by category
+                      if (categoryFilter && item.category !== categoryFilter) return false;
+                      // Filter by search
+                      if (inventorySearch && !item.medication_name.toLowerCase().includes(inventorySearch.toLowerCase()) &&
+                          !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
+                      return true;
+                    })
+                    .map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900">{item.medication_name}</div>
@@ -1438,9 +1522,14 @@ const PharmacyDashboard: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-              {inventory.length === 0 && (
+              {inventory.filter(item => {
+                if (categoryFilter && item.category !== categoryFilter) return false;
+                if (inventorySearch && !item.medication_name.toLowerCase().includes(inventorySearch.toLowerCase()) &&
+                    !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
+                return true;
+              }).length === 0 && (
                 <div className="py-12 text-center text-gray-500">
-                  No inventory items found
+                  {inventory.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </div>
               )}
             </div>
@@ -2082,6 +2171,138 @@ const PharmacyDashboard: React.FC = () => {
               className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
             >
               {editingSupplier ? 'Update' : 'Create'} Supplier
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Add Inventory Modal */}
+      <Modal
+        isOpen={showAddInventoryModal}
+        onClose={() => setShowAddInventoryModal(false)}
+        title="Add New Inventory Item"
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Medication Name *</label>
+              <input
+                type="text"
+                value={newInventoryForm.medication_name}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, medication_name: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="e.g., Paracetamol 500mg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Generic Name</label>
+              <input
+                type="text"
+                value={newInventoryForm.generic_name}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, generic_name: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="e.g., Acetaminophen"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <input
+                type="text"
+                value={newInventoryForm.category}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                placeholder="e.g., Analgesic"
+                list="category-suggestions"
+              />
+              <datalist id="category-suggestions">
+                {inventoryCategories.map((cat) => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+              <select
+                value={newInventoryForm.unit}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              >
+                <option value="tablet">Tablet</option>
+                <option value="capsule">Capsule</option>
+                <option value="bottle">Bottle</option>
+                <option value="vial">Vial</option>
+                <option value="ampoule">Ampoule</option>
+                <option value="pack">Pack</option>
+                <option value="tube">Tube</option>
+                <option value="sachet">Sachet</option>
+                <option value="box">Box</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
+              <input
+                type="number"
+                min="0"
+                value={newInventoryForm.quantity_on_hand}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, quantity_on_hand: parseInt(e.target.value) || 0 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+              <input
+                type="number"
+                min="0"
+                value={newInventoryForm.reorder_level}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, reorder_level: parseInt(e.target.value) || 0 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={newInventoryForm.unit_cost}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit_cost: parseFloat(e.target.value) || 0 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (GH₵)</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={newInventoryForm.selling_price}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, selling_price: parseFloat(e.target.value) || 0 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+              <input
+                type="date"
+                value={newInventoryForm.expiry_date}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, expiry_date: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => setShowAddInventoryModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={createInventoryItem}
+              className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+            >
+              Add Item
             </button>
           </div>
         </div>
