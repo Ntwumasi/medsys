@@ -2166,19 +2166,6 @@ const PharmacyDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                <select
-                  value={editingInventory.supplier_id || ''}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, supplier_id: parseInt(e.target.value) || undefined })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select supplier...</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
                 <input
                   type="date"
