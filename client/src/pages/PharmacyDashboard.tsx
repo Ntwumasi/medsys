@@ -200,6 +200,7 @@ const PharmacyDashboard: React.FC = () => {
   // Medication pricing state
   const [pricingSearch, setPricingSearch] = useState('');
   const [editingPrice, setEditingPrice] = useState<InventoryItem | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
   useEffect(() => {
     fetchData();
@@ -1634,11 +1635,12 @@ const PharmacyDashboard: React.FC = () => {
                                 <input
                                   type="number"
                                   step="0.01"
-                                  defaultValue={item.selling_price}
+                                  value={editingPriceValue}
+                                  onChange={(e) => setEditingPriceValue(e.target.value)}
                                   className="w-24 border border-gray-300 rounded px-2 py-1 text-right"
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
-                                      updateMedicationPrice(item.id, parseFloat((e.target as HTMLInputElement).value));
+                                      updateMedicationPrice(item.id, parseFloat(editingPriceValue));
                                     } else if (e.key === 'Escape') {
                                       setEditingPrice(null);
                                     }
@@ -1664,6 +1666,14 @@ const PharmacyDashboard: React.FC = () => {
                               {editingPrice?.id === item.id ? (
                                 <div className="flex justify-center gap-2">
                                   <button
+                                    onClick={() => {
+                                      updateMedicationPrice(item.id, parseFloat(editingPriceValue));
+                                    }}
+                                    className="text-success-600 hover:text-success-800 font-medium"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
                                     onClick={() => setEditingPrice(null)}
                                     className="text-gray-500 hover:text-gray-700"
                                   >
@@ -1672,7 +1682,10 @@ const PharmacyDashboard: React.FC = () => {
                                 </div>
                               ) : (
                                 <button
-                                  onClick={() => setEditingPrice(item)}
+                                  onClick={() => {
+                                    setEditingPrice(item);
+                                    setEditingPriceValue(String(item.selling_price || 0));
+                                  }}
                                   className="text-primary-600 hover:text-primary-800 font-medium"
                                 >
                                   Edit Price
