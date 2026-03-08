@@ -139,13 +139,11 @@ interface DrugHistory {
 
 const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const { user } = useAuth();
+  useAuth(); // Ensure user is authenticated
 
-  // Pharmacy techs don't see revenue tab
-  const isPharmacyTech = user?.role === 'pharmacy_tech';
-  const showRevenueTab = !isPharmacyTech;
-  const title = isPharmacyTech ? 'Pharmacy Tech Dashboard' : 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue'>('orders');
+  // All pharmacy roles see the same dashboard - RBAC will be added later
+  const title = 'Pharmacy Dashboard';
+  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'refills' | 'revenue'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
@@ -198,6 +196,14 @@ const PharmacyDashboard: React.FC = () => {
 
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
+
+  // Refills calendar state
+  const [refillsData, setRefillsData] = useState<any[]>([]);
+  const [refillsMonth, setRefillsMonth] = useState(new Date());
+
+  // Medication pricing state
+  const [pricingSearch, setPricingSearch] = useState('');
+  const [editingPrice, setEditingPrice] = useState<InventoryItem | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -456,6 +462,30 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  const fetchRefillsCalendar = async () => {
+    try {
+      const year = refillsMonth.getFullYear();
+      const month = refillsMonth.getMonth() + 1;
+      const response = await apiClient.get(`/pharmacy/refills?year=${year}&month=${month}`);
+      setRefillsData(response.data.refills || []);
+    } catch (error) {
+      console.error('Error fetching refills:', error);
+      setRefillsData([]);
+    }
+  };
+
+  const updateMedicationPrice = async (itemId: number, newPrice: number) => {
+    try {
+      await apiClient.put(`/inventory/${itemId}`, { selling_price: newPrice });
+      showToast('Price updated successfully', 'success');
+      setEditingPrice(null);
+      fetchInventory();
+    } catch (error) {
+      console.error('Error updating price:', error);
+      showToast('Failed to update price', 'error');
+    }
+  };
+
   const dispenseMedication = async (orderId: number) => {
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
@@ -545,11 +575,16 @@ const PharmacyDashboard: React.FC = () => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
       </svg>
     )},
-    ...(showRevenueTab ? [{ id: 'revenue' as const, label: 'Revenue', icon: (
+    { id: 'refills' as const, label: 'Refills Calendar', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    )},
+    { id: 'revenue' as const, label: 'Revenue', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
-    )}] : []),
+    )},
   ];
 
   return (
@@ -1294,7 +1329,7 @@ const PharmacyDashboard: React.FC = () => {
         )}
 
         {/* REVENUE TAB */}
-        {showRevenueTab && activeTab === 'revenue' && (
+        {activeTab === 'revenue' && (
           <div>
             {/* Date Filter */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
@@ -1563,51 +1598,266 @@ const PharmacyDashboard: React.FC = () => {
         {/* PRICING TAB */}
         {activeTab === 'pricing' && (
           <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-              <h2 className="text-lg font-semibold mb-4">Pricing Rules</h2>
-              <p className="text-gray-500 mb-4">Configure discounts by payer type</p>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <span className="font-medium">Self Pay</span>
-                    <p className="text-sm text-gray-500">Regular cash patients</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <label className="text-sm text-gray-500">Discount %</label>
-                      <input type="number" defaultValue={0} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
-                    </div>
-                  </div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold">Medication Pricing</h2>
+                  <p className="text-gray-500 text-sm">Set and manage prices for each medication</p>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <span className="font-medium">Corporate</span>
-                    <p className="text-sm text-gray-500">Company-sponsored patients</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <label className="text-sm text-gray-500">Discount %</label>
-                      <input type="number" defaultValue={10} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <span className="font-medium">Insurance</span>
-                    <p className="text-sm text-gray-500">Insurance-covered patients</p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <label className="text-sm text-gray-500">Discount %</label>
-                      <input type="number" defaultValue={15} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
-                    </div>
-                  </div>
+                <div className="flex gap-4">
+                  <input
+                    type="text"
+                    placeholder="Search medications..."
+                    value={pricingSearch}
+                    onChange={(e) => setPricingSearch(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  />
                 </div>
               </div>
-              <div className="mt-4">
-                <button className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium">
-                  Save Pricing Rules
-                </button>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medication</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Price</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Selling Price</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {inventory
+                      .filter(item =>
+                        pricingSearch === '' ||
+                        item.medication_name.toLowerCase().includes(pricingSearch.toLowerCase()) ||
+                        item.generic_name?.toLowerCase().includes(pricingSearch.toLowerCase())
+                      )
+                      .map((item) => {
+                        const margin = item.selling_price && item.unit_cost
+                          ? (((item.selling_price - item.unit_cost) / item.unit_cost) * 100).toFixed(1)
+                          : '0';
+                        return (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-gray-900">{item.medication_name}</div>
+                              <div className="text-sm text-gray-500">{item.generic_name}</div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">{item.category}</td>
+                            <td className="px-6 py-4 text-sm text-gray-500">{item.unit}</td>
+                            <td className="px-6 py-4 text-right text-sm text-gray-500">
+                              GH₵ {parseFloat(String(item.unit_cost || 0)).toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {editingPrice?.id === item.id ? (
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  defaultValue={item.selling_price}
+                                  className="w-24 border border-gray-300 rounded px-2 py-1 text-right"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateMedicationPrice(item.id, parseFloat((e.target as HTMLInputElement).value));
+                                    } else if (e.key === 'Escape') {
+                                      setEditingPrice(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                              ) : (
+                                <span className="font-medium text-gray-900">
+                                  GH₵ {parseFloat(String(item.selling_price || 0)).toFixed(2)}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <span className={`text-sm font-medium ${
+                                parseFloat(margin) >= 30 ? 'text-success-600' :
+                                parseFloat(margin) >= 15 ? 'text-warning-600' :
+                                'text-danger-600'
+                              }`}>
+                                {margin}%
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {editingPrice?.id === item.id ? (
+                                <div className="flex justify-center gap-2">
+                                  <button
+                                    onClick={() => setEditingPrice(null)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setEditingPrice(item)}
+                                  className="text-primary-600 hover:text-primary-800 font-medium"
+                                >
+                                  Edit Price
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+
+              {inventory.filter(item =>
+                pricingSearch === '' ||
+                item.medication_name.toLowerCase().includes(pricingSearch.toLowerCase())
+              ).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No medications found matching your search
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* REFILLS CALENDAR TAB */}
+        {activeTab === 'refills' && (
+          <div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold">Refills Calendar</h2>
+                  <p className="text-gray-500 text-sm">Track upcoming medication refills for patients</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => {
+                      const newDate = new Date(refillsMonth);
+                      newDate.setMonth(newDate.getMonth() - 1);
+                      setRefillsMonth(newDate);
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <span className="font-medium text-lg">
+                    {format(refillsMonth, 'MMMM yyyy')}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const newDate = new Date(refillsMonth);
+                      newDate.setMonth(newDate.getMonth() + 1);
+                      setRefillsMonth(newDate);
+                    }}
+                    className="p-2 hover:bg-gray-100 rounded-lg"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={fetchRefillsCalendar}
+                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium"
+                  >
+                    Load Refills
+                  </button>
+                </div>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1 mb-4">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center py-2 font-medium text-gray-500 text-sm">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-1">
+                {(() => {
+                  const year = refillsMonth.getFullYear();
+                  const month = refillsMonth.getMonth();
+                  const firstDay = new Date(year, month, 1).getDay();
+                  const daysInMonth = new Date(year, month + 1, 0).getDate();
+                  const today = new Date();
+
+                  const days = [];
+
+                  // Empty cells for days before the first of the month
+                  for (let i = 0; i < firstDay; i++) {
+                    days.push(<div key={`empty-${i}`} className="min-h-24 bg-gray-50 rounded-lg"></div>);
+                  }
+
+                  // Days of the month
+                  for (let day = 1; day <= daysInMonth; day++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const dayRefills = refillsData.filter(r => r.refill_date?.startsWith(dateStr));
+                    const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+
+                    days.push(
+                      <div
+                        key={day}
+                        className={`min-h-24 p-2 rounded-lg border ${
+                          isToday ? 'border-success-500 bg-success-50' : 'border-gray-200 bg-white'
+                        } hover:shadow-md transition-shadow`}
+                      >
+                        <div className={`text-sm font-medium ${isToday ? 'text-success-700' : 'text-gray-700'}`}>
+                          {day}
+                        </div>
+                        <div className="mt-1 space-y-1 max-h-16 overflow-y-auto">
+                          {dayRefills.map((refill, idx) => (
+                            <div
+                              key={idx}
+                              className="text-xs bg-primary-100 text-primary-800 rounded px-1 py-0.5 truncate"
+                              title={`${refill.patient_name}: ${refill.medication_name}`}
+                            >
+                              {refill.patient_name?.split(' ')[0]}: {refill.medication_name}
+                            </div>
+                          ))}
+                        </div>
+                        {dayRefills.length > 2 && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            +{dayRefills.length - 2} more
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  return days;
+                })()}
+              </div>
+
+              {/* Upcoming Refills List */}
+              <div className="mt-8">
+                <h3 className="font-semibold text-gray-900 mb-4">Upcoming Refills This Month</h3>
+                {refillsData.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {refillsData.map((refill, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <span className="font-medium">{refill.patient_name}</span>
+                          <span className="text-gray-500 ml-2">({refill.patient_number})</span>
+                        </div>
+                        <div className="text-sm text-gray-600">{refill.medication_name}</div>
+                        <div className="text-sm font-medium text-primary-600">
+                          {refill.refill_date ? format(new Date(refill.refill_date), 'MMM dd, yyyy') : 'N/A'}
+                        </div>
+                        <Badge variant={refill.refills_remaining > 0 ? 'success' : 'warning'}>
+                          {refill.refills_remaining} refills left
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p>Click "Load Refills" to see scheduled refills for this month</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

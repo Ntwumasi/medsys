@@ -640,3 +640,52 @@ export const getPatientDrugHistory = async (req: Request, res: Response): Promis
     res.status(500).json({ error: 'Failed to fetch patient drug history' });
   }
 };
+
+// Get refills calendar data for a specific month
+export const getRefillsCalendar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { year, month } = req.query;
+
+    if (!year || !month) {
+      res.status(400).json({ error: 'Year and month are required' });
+      return;
+    }
+
+    // Calculate refill dates based on dispensed orders with refills remaining
+    // Estimate refill date based on quantity and frequency
+    const result = await pool.query(
+      `SELECT
+        po.id,
+        po.medication_name,
+        po.quantity,
+        po.refills,
+        po.dispensed_date,
+        po.frequency,
+        p.patient_number,
+        u.first_name || ' ' || u.last_name as patient_name,
+        -- Estimate refill date (quantity days after dispensed)
+        (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
+        po.refills as refills_remaining
+       FROM pharmacy_orders po
+       JOIN patients p ON po.patient_id = p.id
+       JOIN users u ON p.user_id = u.id
+       WHERE po.status = 'dispensed'
+         AND po.refills > 0
+         AND EXTRACT(YEAR FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $1
+         AND EXTRACT(MONTH FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $2
+       ORDER BY estimated_refill_date ASC`,
+      [year, month]
+    );
+
+    // Transform the data for calendar display
+    const refills = result.rows.map(row => ({
+      ...row,
+      refill_date: row.estimated_refill_date
+    }));
+
+    res.json({ refills });
+  } catch (error) {
+    console.error('Get refills calendar error:', error);
+    res.status(500).json({ error: 'Failed to fetch refills calendar' });
+  }
+};
