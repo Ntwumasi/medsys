@@ -117,6 +117,7 @@ import {
   updateRoutingStatus,
   getPatientRoutingHistory,
   cancelRouting,
+  getPharmacyWalkIns,
 } from '../controllers/departmentRoutingController';
 import {
   searchPatients,
@@ -166,6 +167,14 @@ import {
   getRevenueSummary,
   getPatientDrugHistory,
 } from '../controllers/inventoryController';
+import {
+  getSuppliers,
+  getSupplierById,
+  createSupplier,
+  updateSupplier,
+  deleteSupplier,
+  getSupplierProducts,
+} from '../controllers/supplierController';
 import {
   getLabInventory,
   getLabInventoryItem,
@@ -367,11 +376,12 @@ router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse
 router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
 
 // Department Routing routes
-router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor'), routePatientToDepartment);
+router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist'), routePatientToDepartment);
 router.get('/department-routing/:department/queue', authenticateToken, getDepartmentQueue);
 router.put('/department-routing/:id/status', authenticateToken, updateRoutingStatus);
 router.get('/department-routing/encounter/:encounter_id', authenticateToken, getPatientRoutingHistory);
 router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles('nurse', 'doctor'), cancelRouting);
+router.get('/pharmacy/walk-ins', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), getPharmacyWalkIns);
 
 // Search routes
 router.get('/search/patients', authenticateToken, searchPatients);
@@ -424,6 +434,14 @@ router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 
 // Pharmacy Revenue & Drug History routes
 router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getRevenueSummary);
 router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse'), getPatientDrugHistory);
+
+// Supplier routes
+router.get('/suppliers', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getSuppliers);
+router.get('/suppliers/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getSupplierById);
+router.get('/suppliers/:id/products', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getSupplierProducts);
+router.post('/suppliers', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), createSupplier);
+router.put('/suppliers/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateSupplier);
+router.delete('/suppliers/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), deleteSupplier);
 
 // Lab Inventory routes
 router.get('/lab-inventory', authenticateToken, authorizeRoles('lab', 'admin'), getLabInventory);

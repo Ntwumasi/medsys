@@ -7,7 +7,7 @@ export const routePatientToDepartment = async (req: Request, res: Response): Pro
     const authReq = req as any;
     const routed_by = authReq.user?.id;
 
-    const { encounter_id, patient_id, department, priority, notes } = req.body;
+    const { encounter_id, patient_id, department, priority, notes, is_walk_in } = req.body;
 
     if (!encounter_id || !patient_id || !department) {
       res.status(400).json({ error: 'Missing required fields' });
@@ -21,13 +21,13 @@ export const routePatientToDepartment = async (req: Request, res: Response): Pro
       return;
     }
 
-    // Create routing entry
+    // Create routing entry with optional is_walk_in flag
     const result = await pool.query(
       `INSERT INTO department_routing (
-        encounter_id, patient_id, department, priority, notes, routed_by
-      ) VALUES ($1, $2, $3, $4, $5, $6)
+        encounter_id, patient_id, department, priority, notes, routed_by, is_walk_in
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *`,
-      [encounter_id, patient_id, department, priority || 'routine', notes, routed_by]
+      [encounter_id, patient_id, department, priority || 'routine', notes, routed_by, is_walk_in || false]
     );
 
     // Update encounter routing status
@@ -54,6 +54,42 @@ export const routePatientToDepartment = async (req: Request, res: Response): Pro
     });
   } catch (error) {
     console.error('Route patient to department error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get OTC/Walk-in patients for pharmacy
+export const getPharmacyWalkIns = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT dr.*,
+        p.patient_number,
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        e.encounter_number,
+        e.chief_complaint,
+        u_routed.first_name || ' ' || u_routed.last_name as routed_by_name,
+        COALESCE(
+          (SELECT pps.payer_type FROM patient_payer_sources pps
+           WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
+          'self_pay'
+        ) as payer_type
+      FROM department_routing dr
+      LEFT JOIN patients p ON dr.patient_id = p.id
+      LEFT JOIN users u_patient ON p.user_id = u_patient.id
+      LEFT JOIN encounters e ON dr.encounter_id = e.id
+      LEFT JOIN users u_routed ON dr.routed_by = u_routed.id
+      WHERE dr.department = 'pharmacy'
+        AND dr.is_walk_in = true
+        AND dr.status IN ('pending', 'in-progress')
+      ORDER BY dr.routed_at ASC
+    `);
+
+    res.json({
+      walk_ins: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error('Get pharmacy walk-ins error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

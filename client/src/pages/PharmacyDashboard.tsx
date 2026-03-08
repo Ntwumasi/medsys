@@ -39,7 +39,13 @@ interface PharmacyOrder {
   patient_number?: string;
   patient_allergies?: string;
   encounter_number?: string;
+  chief_complaint?: string;
+  primary_diagnosis?: string;
   provider_name?: string;
+  dispensed_by?: string;
+  dispensed_by_name?: string;
+  payer_type?: string;
+  payer_name?: string;
 }
 
 interface InventoryItem {
@@ -54,9 +60,23 @@ interface InventoryItem {
   selling_price: number;
   expiry_date: string;
   supplier: string;
+  supplier_id?: number;
+  supplier_name?: string;
   location: string;
   is_low_stock: boolean;
   is_expiring_soon: boolean;
+}
+
+interface Supplier {
+  id: number;
+  name: string;
+  contact_person: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  notes: string;
+  is_active: boolean;
 }
 
 interface InventoryStats {
@@ -125,9 +145,32 @@ const PharmacyDashboard: React.FC = () => {
   const isPharmacyTech = user?.role === 'pharmacy_tech';
   const showRevenueTab = !isPharmacyTech;
   const title = isPharmacyTech ? 'Pharmacy Tech Dashboard' : 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'revenue'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
+
+  // Suppliers state
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [supplierForm, setSupplierForm] = useState({
+    name: '', contact_person: '', phone: '', email: '', address: '', city: '', notes: ''
+  });
+
+  // Inventory edit modal
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [editingInventory, setEditingInventory] = useState<InventoryItem | null>(null);
+
+  // Prescription edit modal
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<PharmacyOrder | null>(null);
+
+  // Print label modal
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
+
+  // OTC walk-in patients
+  const [walkInPatients, setWalkInPatients] = useState<any[]>([]);
 
   // Orders state
   const [, setRoutingRequests] = useState<RoutingRequest[]>([]);
@@ -175,8 +218,115 @@ const PharmacyDashboard: React.FC = () => {
       fetchPendingOrders(),
       fetchOrderStats(),
       fetchInventory(),
+      fetchSuppliers(),
+      fetchWalkIns(),
     ]);
     setLoading(false);
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await apiClient.get('/suppliers?active_only=true');
+      setSuppliers(response.data.suppliers || []);
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    }
+  };
+
+  const fetchWalkIns = async () => {
+    try {
+      const response = await apiClient.get('/pharmacy/walk-ins');
+      setWalkInPatients(response.data.walk_ins || []);
+    } catch (error) {
+      console.error('Error fetching walk-in patients:', error);
+    }
+  };
+
+  const saveSupplier = async () => {
+    try {
+      if (editingSupplier) {
+        await apiClient.put(`/suppliers/${editingSupplier.id}`, supplierForm);
+        showToast('Supplier updated successfully', 'success');
+      } else {
+        await apiClient.post('/suppliers', supplierForm);
+        showToast('Supplier created successfully', 'success');
+      }
+      setShowSupplierModal(false);
+      setEditingSupplier(null);
+      setSupplierForm({ name: '', contact_person: '', phone: '', email: '', address: '', city: '', notes: '' });
+      fetchSuppliers();
+    } catch (error) {
+      console.error('Error saving supplier:', error);
+      showToast('Failed to save supplier', 'error');
+    }
+  };
+
+  const deleteSupplier = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this supplier?')) return;
+    try {
+      await apiClient.delete(`/suppliers/${id}`);
+      showToast('Supplier deleted', 'success');
+      fetchSuppliers();
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      showToast('Failed to delete supplier', 'error');
+    }
+  };
+
+  const updateInventoryItem = async (item: InventoryItem) => {
+    try {
+      await apiClient.put(`/inventory/${item.id}`, item);
+      showToast('Inventory updated successfully', 'success');
+      setShowInventoryModal(false);
+      setEditingInventory(null);
+      fetchInventory();
+    } catch (error) {
+      console.error('Error updating inventory:', error);
+      showToast('Failed to update inventory', 'error');
+    }
+  };
+
+  const deleteInventoryItem = async (id: number) => {
+    if (!confirm('Are you sure you want to deactivate this inventory item?')) return;
+    try {
+      await apiClient.put(`/inventory/${id}`, { is_active: false });
+      showToast('Inventory item deactivated', 'success');
+      fetchInventory();
+    } catch (error) {
+      console.error('Error deactivating inventory:', error);
+      showToast('Failed to deactivate item', 'error');
+    }
+  };
+
+  const updatePharmacyOrderDetails = async () => {
+    if (!editingOrder) return;
+    try {
+      await apiClient.put(`/orders/pharmacy/${editingOrder.id}`, {
+        medication_name: editingOrder.medication_name,
+        dosage: editingOrder.dosage,
+        frequency: editingOrder.frequency,
+        route: editingOrder.route,
+        quantity: editingOrder.quantity,
+        notes: editingOrder.notes
+      });
+      showToast('Prescription updated', 'success');
+      setShowEditOrderModal(false);
+      setEditingOrder(null);
+      if (ordersSubTab === 'pending') fetchPendingOrders();
+      else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+    } catch (error) {
+      console.error('Error updating order:', error);
+      showToast('Failed to update prescription', 'error');
+    }
+  };
+
+  const printLabel = (order: PharmacyOrder) => {
+    setLabelOrder(order);
+    setShowLabelModal(true);
+  };
+
+  const handlePrintLabel = () => {
+    window.print();
   };
 
   const fetchRoutingRequests = async () => {
@@ -370,9 +520,29 @@ const PharmacyDashboard: React.FC = () => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
       </svg>
     )},
+    { id: 'otc' as const, label: 'OTC / Walk-ins', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    )},
     { id: 'inventory' as const, label: 'Inventory', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    )},
+    { id: 'procurement' as const, label: 'Procurement', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+      </svg>
+    )},
+    { id: 'suppliers' as const, label: 'Suppliers', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      </svg>
+    )},
+    { id: 'pricing' as const, label: 'Pricing', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
       </svg>
     )},
     ...(showRevenueTab ? [{ id: 'revenue' as const, label: 'Revenue', icon: (
@@ -596,14 +766,31 @@ const PharmacyDashboard: React.FC = () => {
                             </div>
                             <div className="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
                               <span>Patient: <span className="font-medium">{order.patient_name || `ID: ${order.patient_id}`}</span></span>
+                              {order.payer_type && (
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                  order.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
+                                  order.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {order.payer_name || order.payer_type}
+                                </span>
+                              )}
                               {order.patient_allergies && (
                                 <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300 animate-pulse">
                                   ⚠️ ALLERGIES: {order.patient_allergies}
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400 mt-1">
-                              Ordered: {format(new Date(order.ordered_date), 'MMM dd, yyyy HH:mm')}
+                            {order.primary_diagnosis && (
+                              <div className="text-xs text-primary-600 mt-1">
+                                <span className="font-medium">Dx:</span> {order.primary_diagnosis}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
+                              <span>Ordered: {format(new Date(order.ordered_date), 'MMM dd, yyyy HH:mm')}</span>
+                              {order.dispensed_by_name && (
+                                <span className="text-success-600">• Dispensed by: {order.dispensed_by_name}</span>
+                              )}
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-2">
@@ -632,15 +819,38 @@ const PharmacyDashboard: React.FC = () => {
                                 Dispense
                               </button>
                             )}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                fetchDrugHistory(order.patient_id, order.patient_name || `Patient ${order.patient_id}`);
-                              }}
-                              className="px-3 py-1 bg-primary-100 text-primary-700 text-sm rounded-lg hover:bg-primary-200"
-                            >
-                              Drug History
-                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingOrder(order);
+                                  setShowEditOrderModal(true);
+                                }}
+                                className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200"
+                                title="Edit"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  printLabel(order);
+                                }}
+                                className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200"
+                                title="Print Label"
+                              >
+                                Label
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fetchDrugHistory(order.patient_id, order.patient_name || `Patient ${order.patient_id}`);
+                                }}
+                                className="px-2 py-1 bg-primary-100 text-primary-700 text-sm rounded hover:bg-primary-200"
+                              >
+                                History
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -725,6 +935,166 @@ const PharmacyDashboard: React.FC = () => {
                 ) : (
                   <div className="p-6 text-center text-gray-500">
                     Select an order to view patient details
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* OTC / WALK-INS TAB */}
+        {activeTab === 'otc' && (
+          <div>
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Walk-in Patients</p>
+                    <p className="text-2xl font-bold text-purple-600">{walkInPatients.length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-warning-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Pending</p>
+                    <p className="text-2xl font-bold text-warning-600">
+                      {walkInPatients.filter(p => p.status === 'pending').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
+                    <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">In Progress</p>
+                    <p className="text-2xl font-bold text-primary-600">
+                      {walkInPatients.filter(p => p.status === 'in-progress').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Walk-in Patients List */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="px-6 py-4 border-b flex justify-between items-center">
+                <h2 className="text-lg font-semibold">OTC / Walk-in Patients</h2>
+                <button
+                  onClick={fetchWalkIns}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+              <div className="p-6">
+                {walkInPatients.length === 0 ? (
+                  <EmptyState
+                    icon={
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    }
+                    title="No walk-in patients"
+                    description="When receptionist routes a patient for OTC/walk-in pharmacy service, they will appear here."
+                  />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payer</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chief Complaint</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Routed At</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {walkInPatients.map((patient) => (
+                          <tr key={patient.id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="font-medium text-gray-900">{patient.patient_name || 'Unknown'}</div>
+                              <div className="text-sm text-gray-500">{patient.patient_number}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                patient.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
+                                patient.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {patient.payer_type === 'self_pay' ? 'Self Pay' : patient.payer_type || 'Self Pay'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="text-sm text-gray-900">{patient.chief_complaint || 'OTC Purchase'}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {format(new Date(patient.routed_at), 'MMM dd, HH:mm')}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <Badge variant={patient.status === 'pending' ? 'warning' : patient.status === 'in-progress' ? 'info' : 'success'}>
+                                {patient.status}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                              {patient.status === 'pending' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'in-progress' });
+                                      showToast('Started attending to patient', 'success');
+                                      fetchWalkIns();
+                                    } catch (error) {
+                                      showToast('Failed to update status', 'error');
+                                    }
+                                  }}
+                                  className="text-primary-600 hover:text-primary-900"
+                                >
+                                  Start
+                                </button>
+                              )}
+                              {patient.status === 'in-progress' && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'completed' });
+                                      showToast('Patient service completed', 'success');
+                                      fetchWalkIns();
+                                    } catch (error) {
+                                      showToast('Failed to update status', 'error');
+                                    }
+                                  }}
+                                  className="text-success-600 hover:text-success-900"
+                                >
+                                  Complete
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -848,8 +1218,10 @@ const PharmacyDashboard: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Level</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -870,6 +1242,7 @@ const PharmacyDashboard: React.FC = () => {
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         GH₵ {parseFloat(item.selling_price.toString()).toFixed(2)}
                       </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{item.supplier_name || item.supplier || '-'}</td>
                       <td className="px-6 py-4 text-sm">
                         {item.expiry_date ? (
                           <span className={item.is_expiring_soon ? 'text-orange-600 font-medium' : 'text-gray-600'}>
@@ -884,6 +1257,28 @@ const PharmacyDashboard: React.FC = () => {
                         {item.is_expiring_soon && (
                           <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full ml-1">Expiring</span>
                         )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setEditingInventory(item); setShowInventoryModal(true); }}
+                            className="p-1 text-primary-600 hover:text-primary-800"
+                            title="Edit"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => deleteInventoryItem(item.id)}
+                            className="p-1 text-danger-600 hover:text-danger-800"
+                            title="Delete"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1023,14 +1418,560 @@ const PharmacyDashboard: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* PROCUREMENT TAB */}
+        {activeTab === 'procurement' && (
+          <div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-4">Record Purchase</h2>
+              <p className="text-gray-500 mb-4">Add stock from supplier purchases</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Medication</label>
+                  <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Select medication...</option>
+                    {inventory.map((item) => (
+                      <option key={item.id} value={item.id}>{item.medication_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Select supplier...</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                  <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Enter quantity" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
+                  <input type="number" step="0.01" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Batch/Lot Number</label>
+                  <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Optional" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                  <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium">
+                  Record Purchase
+                </button>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-lg font-semibold">Recent Purchases</h2>
+              </div>
+              <div className="p-6 text-center text-gray-500">
+                Purchase history will appear here
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SUPPLIERS TAB */}
+        {activeTab === 'suppliers' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Supplier Management</h2>
+              <button
+                onClick={() => {
+                  setEditingSupplier(null);
+                  setSupplierForm({ name: '', contact_person: '', phone: '', email: '', address: '', city: '', notes: '' });
+                  setShowSupplierModal(true);
+                }}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Supplier
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">City</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {suppliers.map((supplier) => (
+                    <tr key={supplier.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.contact_person}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.phone}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.email}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.city}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingSupplier(supplier);
+                              setSupplierForm({
+                                name: supplier.name,
+                                contact_person: supplier.contact_person || '',
+                                phone: supplier.phone || '',
+                                email: supplier.email || '',
+                                address: supplier.address || '',
+                                city: supplier.city || '',
+                                notes: supplier.notes || ''
+                              });
+                              setShowSupplierModal(true);
+                            }}
+                            className="p-1 text-primary-600 hover:text-primary-800"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => deleteSupplier(supplier.id)}
+                            className="p-1 text-danger-600 hover:text-danger-800"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {suppliers.length === 0 && (
+                <div className="py-12 text-center text-gray-500">No suppliers found</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* PRICING TAB */}
+        {activeTab === 'pricing' && (
+          <div>
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+              <h2 className="text-lg font-semibold mb-4">Pricing Rules</h2>
+              <p className="text-gray-500 mb-4">Configure discounts by payer type</p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <span className="font-medium">Self Pay</span>
+                    <p className="text-sm text-gray-500">Regular cash patients</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="text-sm text-gray-500">Discount %</label>
+                      <input type="number" defaultValue={0} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <span className="font-medium">Corporate</span>
+                    <p className="text-sm text-gray-500">Company-sponsored patients</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="text-sm text-gray-500">Discount %</label>
+                      <input type="number" defaultValue={10} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <span className="font-medium">Insurance</span>
+                    <p className="text-sm text-gray-500">Insurance-covered patients</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="text-sm text-gray-500">Discount %</label>
+                      <input type="number" defaultValue={15} className="w-20 ml-2 border border-gray-300 rounded px-2 py-1" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4">
+                <button className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium">
+                  Save Pricing Rules
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Supplier Modal */}
+      <Modal
+        isOpen={showSupplierModal}
+        onClose={() => { setShowSupplierModal(false); setEditingSupplier(null); }}
+        title={editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+        size="lg"
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+              <input
+                type="text"
+                value={supplierForm.name}
+                onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+              <input
+                type="text"
+                value={supplierForm.contact_person}
+                onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <input
+                type="text"
+                value={supplierForm.phone}
+                onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={supplierForm.email}
+                onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <input
+                type="text"
+                value={supplierForm.city}
+                onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <textarea
+              value={supplierForm.address}
+              onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <textarea
+              value={supplierForm.notes}
+              onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              rows={2}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              onClick={() => { setShowSupplierModal(false); setEditingSupplier(null); }}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveSupplier}
+              className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+            >
+              {editingSupplier ? 'Update' : 'Create'} Supplier
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Inventory Edit Modal */}
+      <Modal
+        isOpen={showInventoryModal}
+        onClose={() => { setShowInventoryModal(false); setEditingInventory(null); }}
+        title="Edit Inventory Item"
+        size="lg"
+      >
+        {editingInventory && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Medication Name</label>
+                <input
+                  type="text"
+                  value={editingInventory.medication_name}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, medication_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Generic Name</label>
+                <input
+                  type="text"
+                  value={editingInventory.generic_name || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, generic_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input
+                  type="text"
+                  value={editingInventory.category || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, category: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <input
+                  type="text"
+                  value={editingInventory.unit}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, unit: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                <input
+                  type="number"
+                  value={editingInventory.reorder_level}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, reorder_level: parseInt(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (GH₵)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingInventory.selling_price}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: parseFloat(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <select
+                  value={editingInventory.supplier_id || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, supplier_id: parseInt(e.target.value) || undefined })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="">Select supplier...</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  value={editingInventory.expiry_date ? editingInventory.expiry_date.split('T')[0] : ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, expiry_date: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => updateInventoryItem(editingInventory)}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Prescription Modal */}
+      <Modal
+        isOpen={showEditOrderModal}
+        onClose={() => { setShowEditOrderModal(false); setEditingOrder(null); }}
+        title="Edit Prescription"
+        size="lg"
+      >
+        {editingOrder && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Medication</label>
+                <input
+                  type="text"
+                  value={editingOrder.medication_name}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, medication_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dosage</label>
+                <input
+                  type="text"
+                  value={editingOrder.dosage}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, dosage: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                <input
+                  type="text"
+                  value={editingOrder.frequency}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, frequency: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Route</label>
+                <input
+                  type="text"
+                  value={editingOrder.route}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, route: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <input
+                  type="text"
+                  value={editingOrder.quantity}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, quantity: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <textarea
+                value={editingOrder.notes || ''}
+                onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                rows={3}
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                onClick={() => { setShowEditOrderModal(false); setEditingOrder(null); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={updatePharmacyOrderDetails}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Print Label Modal */}
+      <Modal
+        isOpen={showLabelModal}
+        onClose={() => { setShowLabelModal(false); setLabelOrder(null); }}
+        title="Prescription Label"
+        size="md"
+      >
+        {labelOrder && (
+          <div>
+            <div className="border-2 border-dashed border-gray-300 p-6 mb-4 print:border-solid" id="prescription-label">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-bold">MEDSYS PHARMACY</h3>
+                <p className="text-sm text-gray-500">Patient Prescription Label</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="font-medium">Patient:</span>
+                  <span>{labelOrder.patient_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Patient #:</span>
+                  <span>{labelOrder.patient_number}</span>
+                </div>
+                <hr className="my-2" />
+                <div className="text-center">
+                  <p className="text-lg font-bold">{labelOrder.medication_name}</p>
+                  <p className="text-base">{labelOrder.dosage}</p>
+                </div>
+                <hr className="my-2" />
+                <div className="flex justify-between">
+                  <span className="font-medium">Take:</span>
+                  <span>{labelOrder.frequency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Route:</span>
+                  <span>{labelOrder.route}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Quantity:</span>
+                  <span>{labelOrder.quantity}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Refills:</span>
+                  <span>{labelOrder.refills || 0}</span>
+                </div>
+                <hr className="my-2" />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Dispensed:</span>
+                  <span>{format(new Date(), 'MMM dd, yyyy')}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowLabelModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={handlePrintLabel}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Label
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Drug History Modal */}
       <Modal
         isOpen={showDrugHistory}
         onClose={() => setShowDrugHistory(false)}
         title={`Drug History - ${drugHistoryPatientName}`}
-        size="lg"
+        size="xl"
       >
         {loadingDrugHistory ? (
           <div className="py-12 text-center">
@@ -1039,87 +1980,129 @@ const PharmacyDashboard: React.FC = () => {
           </div>
         ) : drugHistory ? (
           <div className="space-y-6">
-            {/* Allergies */}
+            {/* Summary Stats */}
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="bg-danger-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-danger-600">{drugHistory.allergies.length}</p>
+                <p className="text-xs text-danger-700">Allergies</p>
+              </div>
+              <div className="bg-success-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-success-600">{drugHistory.active_medications.length}</p>
+                <p className="text-xs text-success-700">Active Meds</p>
+              </div>
+              <div className="bg-primary-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-primary-600">{drugHistory.orders.length}</p>
+                <p className="text-xs text-primary-700">Total Orders</p>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-gray-600">
+                  {drugHistory.orders.filter(o => o.status === 'dispensed').length}
+                </p>
+                <p className="text-xs text-gray-700">Dispensed</p>
+              </div>
+            </div>
+
+            {/* Allergies - Always prominent at top */}
             {drugHistory.allergies.length > 0 && (
-              <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
-                <h3 className="font-bold text-danger-700 mb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <div className="bg-danger-50 border-2 border-danger-300 rounded-xl p-4 shadow-sm">
+                <h3 className="font-bold text-danger-700 mb-3 flex items-center gap-2 text-lg">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
-                  Known Allergies
+                  ⚠️ Known Allergies - VERIFY BEFORE DISPENSING
                 </h3>
-                <div className="space-y-2">
+                <div className="grid gap-2">
                   {drugHistory.allergies.map((allergy) => (
-                    <div key={allergy.id} className="flex items-center gap-2">
-                      <Badge variant={allergy.severity === 'severe' ? 'danger' : allergy.severity === 'moderate' ? 'warning' : 'gray'} size="sm">
-                        {allergy.severity}
+                    <div key={allergy.id} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-danger-200">
+                      <Badge variant={allergy.severity === 'severe' ? 'danger' : allergy.severity === 'moderate' ? 'warning' : 'gray'}>
+                        {allergy.severity?.toUpperCase()}
                       </Badge>
-                      <span className="font-medium">{allergy.allergen}</span>
-                      <span className="text-sm text-gray-600">- {allergy.reaction}</span>
+                      <div>
+                        <span className="font-bold text-danger-800">{allergy.allergen}</span>
+                        <span className="text-danger-600 ml-2">→ {allergy.reaction}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Active Medications */}
-            <div>
-              <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                Active Medications
-              </h3>
-              {drugHistory.active_medications.length > 0 ? (
-                <div className="space-y-2">
-                  {drugHistory.active_medications.map((med) => (
-                    <div key={med.id} className="p-3 bg-success-50 border border-success-200 rounded-lg">
-                      <div className="font-medium">{med.medication_name}</div>
-                      <div className="text-sm text-gray-600">
-                        {med.dosage} | {med.frequency} | {med.route}
+            <div className="grid grid-cols-2 gap-6">
+              {/* Active Medications */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2 border-b pb-2">
+                  <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Active Medications ({drugHistory.active_medications.length})
+                </h3>
+                {drugHistory.active_medications.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {drugHistory.active_medications.map((med) => (
+                      <div key={med.id} className="p-3 bg-success-50 border border-success-200 rounded-lg">
+                        <div className="font-semibold text-success-800">{med.medication_name}</div>
+                        <div className="text-sm text-success-700">
+                          {med.dosage} • {med.frequency} • {med.route}
+                        </div>
+                        <div className="text-xs text-success-600 mt-1 flex justify-between">
+                          <span>Since: {format(new Date(med.start_date), 'MMM dd, yyyy')}</span>
+                          {med.doctor_first_name && <span>Dr. {med.doctor_first_name} {med.doctor_last_name}</span>}
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Started: {format(new Date(med.start_date), 'MMM dd, yyyy')}
-                        {med.doctor_first_name && ` | By Dr. ${med.doctor_first_name} ${med.doctor_last_name}`}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">No active medications</p>
-              )}
-            </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <p className="text-sm">No active medications</p>
+                  </div>
+                )}
+              </div>
 
-            {/* Order History */}
-            <div>
-              <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                Prescription History
-              </h3>
-              {drugHistory.orders.length > 0 ? (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {drugHistory.orders.map((order) => (
-                    <div key={order.id} className="p-3 bg-gray-50 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">{order.medication_name}</span>
-                        <Badge variant={order.status === 'dispensed' ? 'success' : 'gray'} size="sm">
-                          {order.status}
-                        </Badge>
+              {/* Order History */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2 border-b pb-2">
+                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Prescription History ({drugHistory.orders.length})
+                </h3>
+                {drugHistory.orders.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {drugHistory.orders.map((order) => (
+                      <div key={order.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <span className="font-medium text-gray-900">{order.medication_name}</span>
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {order.dosage} • {order.frequency} • {order.route}
+                            </div>
+                          </div>
+                          <Badge variant={order.status === 'dispensed' ? 'success' : order.status === 'ordered' ? 'warning' : 'gray'} size="sm">
+                            {order.status}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
+                          <span>Qty: <span className="font-medium">{order.quantity}</span> {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
+                          <span>{format(new Date(order.ordered_date), 'MMM dd, yyyy')}</span>
+                        </div>
+                        {order.provider_name && (
+                          <div className="text-xs text-gray-400 mt-1">By: {order.provider_name}</div>
+                        )}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        {order.dosage} | Qty: {order.quantity}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {format(new Date(order.ordered_date), 'MMM dd, yyyy')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 italic">No prescription history</p>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p className="text-sm">No prescription history</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : (

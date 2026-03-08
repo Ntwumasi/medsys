@@ -47,17 +47,26 @@ export const notificationService = {
    */
   async send(notification: NotificationPayload): Promise<void> {
     try {
-      // Save to database
+      // Save to database - use user_notifications table (used by frontend)
+      // Combine title and message for the message field
+      const fullMessage = notification.title !== notification.message
+        ? `${notification.title}: ${notification.message}`
+        : notification.message;
+
       await pool.query(
-        `INSERT INTO notifications (user_id, type, title, message, entity_type, entity_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
+        `INSERT INTO user_notifications (user_id, type, message, metadata)
+         VALUES ($1, $2, $3, $4)`,
         [
           notification.userId,
-          notification.type,
-          notification.title,
-          notification.message,
-          notification.entityType || null,
-          notification.entityId || null,
+          notification.type === 'stat_order' ? 'warning' :
+          notification.type === 'order_created' ? 'info' :
+          notification.type.includes('complete') ? 'success' : 'info',
+          fullMessage,
+          JSON.stringify({
+            entityType: notification.entityType || null,
+            entityId: notification.entityId || null,
+            originalType: notification.type,
+          }),
         ]
       );
 
@@ -356,6 +365,45 @@ export const notificationService = {
       });
     } catch (error) {
       console.error('Failed to notify patient checkout:', error);
+    }
+  },
+
+  /**
+   * Notify pharmacy staff when a new order is created
+   */
+  async notifyPharmacyNewOrder(orderId: number): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT po.*, p.patient_number,
+                u.first_name || ' ' || u.last_name as patient_name,
+                d.first_name || ' ' || d.last_name as doctor_name
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         LEFT JOIN users d ON po.ordering_provider = d.id
+         WHERE po.id = $1`,
+        [orderId]
+      );
+
+      if (result.rows.length > 0) {
+        const order = result.rows[0];
+        const notification = {
+          type: 'order_created' as const,
+          title: 'New Prescription Order',
+          message: `${order.medication_name} (${order.dosage}) ordered for ${order.patient_name} by Dr. ${order.doctor_name || 'Unknown'}`,
+          entityType: 'pharmacy_order',
+          entityId: orderId,
+        };
+
+        // Notify pharmacists
+        await this.sendToRole('pharmacist', notification);
+        // Notify pharmacy role (legacy)
+        await this.sendToRole('pharmacy', notification);
+        // Notify pharmacy techs
+        await this.sendToRole('pharmacy_tech', notification);
+      }
+    } catch (error) {
+      console.error('Failed to notify pharmacy of new order:', error);
     }
   },
 

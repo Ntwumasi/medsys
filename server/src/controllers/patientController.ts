@@ -258,7 +258,21 @@ export const getPatientById = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    res.json({ patient: result.rows[0] });
+    // Fetch allergies from allergies table
+    const allergiesResult = await pool.query(
+      `SELECT id, allergen, reaction, severity, onset_date
+       FROM allergies
+       WHERE patient_id = $1
+       ORDER BY severity DESC, created_at DESC`,
+      [id]
+    );
+
+    res.json({
+      patient: {
+        ...result.rows[0],
+        allergies: allergiesResult.rows // Return allergies as array of objects
+      }
+    });
   } catch (error) {
     console.error('Get patient error:', error);
     res.status(500).json({ error: 'Internal server error' });

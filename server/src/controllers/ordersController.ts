@@ -557,6 +557,9 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     // Notify assigned nurse about new order
     await notificationService.notifyNurseOrderCreated('pharmacy', order.id);
 
+    // Notify pharmacy staff about new order
+    await notificationService.notifyPharmacyNewOrder(order.id);
+
     res.status(201).json({
       message: 'Pharmacy order created successfully',
       order,
@@ -575,14 +578,45 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
       SELECT po.*,
         u.first_name || ' ' || u.last_name as provider_name,
         e.encounter_number,
+        e.chief_complaint,
         p.patient_number,
         p.allergies as patient_allergies,
-        pu.first_name || ' ' || pu.last_name as patient_name
+        pu.first_name || ' ' || pu.last_name as patient_name,
+        du.first_name || ' ' || du.last_name as dispensed_by_name,
+        COALESCE(
+          (SELECT pps.payer_type FROM patient_payer_sources pps
+           WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
+          'self_pay'
+        ) as payer_type,
+        COALESCE(
+          (SELECT CASE
+            WHEN pps.payer_type = 'corporate' THEN cc.company_name
+            WHEN pps.payer_type = 'insurance' THEN ip.name
+            ELSE 'Self Pay'
+          END
+          FROM patient_payer_sources pps
+          LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+          LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+          WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
+          'Self Pay'
+        ) as payer_name,
+        COALESCE(
+          (SELECT d.diagnosis_code || ' - ' || d.diagnosis_description
+           FROM diagnoses d
+           WHERE d.encounter_id = po.encounter_id AND d.type = 'primary'
+           LIMIT 1),
+          (SELECT d.diagnosis_code || ' - ' || d.diagnosis_description
+           FROM diagnoses d
+           WHERE d.encounter_id = po.encounter_id
+           ORDER BY d.created_at
+           LIMIT 1)
+        ) as primary_diagnosis
       FROM pharmacy_orders po
       LEFT JOIN users u ON po.ordering_provider = u.id
       LEFT JOIN encounters e ON po.encounter_id = e.id
       LEFT JOIN patients p ON po.patient_id = p.id
       LEFT JOIN users pu ON p.user_id = pu.id
+      LEFT JOIN users du ON po.dispensed_by = du.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -626,6 +660,12 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
   try {
     const { id } = req.params;
     const updateData = req.body;
+    const authReq = req as any;
+
+    // If dispensing, track who dispensed
+    if (updateData.status === 'dispensed' && authReq.user?.id) {
+      updateData.dispensed_by = authReq.user.id;
+    }
 
     const fields = Object.keys(updateData)
       .map((key, index) => `${key} = $${index + 2}`)
@@ -648,7 +688,6 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     const updatedOrder = result.rows[0];
 
     // Audit log
-    const authReq = req as any;
     await auditService.log({
       userId: authReq.user?.id,
       action: 'update',
@@ -660,6 +699,51 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     // Send notification when pharmacy order is dispensed
     if (updateData.status === 'dispensed') {
       await notificationService.notifyPharmacyDispensed(parseInt(id));
+
+      // Add medication cost to patient invoice
+      try {
+        // Get medication price from inventory
+        const inventoryResult = await pool.query(
+          `SELECT selling_price FROM pharmacy_inventory
+           WHERE medication_name ILIKE $1 LIMIT 1`,
+          [updatedOrder.medication_name]
+        );
+
+        if (inventoryResult.rows.length > 0) {
+          const unitPrice = parseFloat(inventoryResult.rows[0].selling_price);
+          const quantity = parseInt(updatedOrder.quantity) || 1;
+          const totalPrice = unitPrice * quantity;
+
+          // Get or create invoice for the encounter
+          const invoiceResult = await pool.query(
+            `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+            [updatedOrder.encounter_id]
+          );
+
+          if (invoiceResult.rows.length > 0) {
+            const invoiceId = invoiceResult.rows[0].id;
+
+            // Add medication as invoice item
+            await pool.query(
+              `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+               VALUES ($1, $2, $3, $4, $5, 'medication')`,
+              [invoiceId, `${updatedOrder.medication_name} (${updatedOrder.dosage})`, quantity, unitPrice, totalPrice]
+            );
+
+            // Update invoice total
+            await pool.query(
+              `UPDATE invoices SET
+                total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+                updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [invoiceId]
+            );
+          }
+        }
+      } catch (invoiceError) {
+        console.error('Error adding medication to invoice:', invoiceError);
+        // Don't fail the dispense if invoice update fails
+      }
 
       // Check if all pharmacy orders for this encounter are complete
       const pendingOrders = await pool.query(

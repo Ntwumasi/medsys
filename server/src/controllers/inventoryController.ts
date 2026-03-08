@@ -9,9 +9,13 @@ export const getInventory = async (req: Request, res: Response): Promise<void> =
     let query = `
       SELECT
         i.*,
+        COALESCE(s.name, i.supplier) as supplier_name,
+        s.contact_person as supplier_contact,
+        s.phone as supplier_phone,
         CASE WHEN i.quantity_on_hand <= i.reorder_level THEN true ELSE false END as is_low_stock,
         CASE WHEN i.expiry_date <= CURRENT_DATE + INTERVAL '90 days' THEN true ELSE false END as is_expiring_soon
       FROM pharmacy_inventory i
+      LEFT JOIN suppliers s ON i.supplier_id = s.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -117,6 +121,7 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
       selling_price,
       expiry_date,
       supplier,
+      supplier_id,
       location,
       requires_prescription
     } = req.body;
@@ -124,11 +129,11 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
     const result = await pool.query(
       `INSERT INTO pharmacy_inventory
        (medication_name, generic_name, category, unit, quantity_on_hand, reorder_level,
-        unit_cost, selling_price, expiry_date, supplier, location, requires_prescription)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        unit_cost, selling_price, expiry_date, supplier, supplier_id, location, requires_prescription)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [medication_name, generic_name, category, unit, quantity_on_hand || 0, reorder_level || 10,
-       unit_cost || 0, selling_price || 0, expiry_date, supplier, location || 'Main Pharmacy', requires_prescription ?? true]
+       unit_cost || 0, selling_price || 0, expiry_date, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
     );
 
     // Log the initial stock as a purchase transaction
@@ -166,6 +171,7 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
       selling_price,
       expiry_date,
       supplier,
+      supplier_id,
       location,
       requires_prescription,
       is_active
@@ -182,14 +188,15 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
         selling_price = COALESCE($7, selling_price),
         expiry_date = COALESCE($8, expiry_date),
         supplier = COALESCE($9, supplier),
-        location = COALESCE($10, location),
-        requires_prescription = COALESCE($11, requires_prescription),
-        is_active = COALESCE($12, is_active),
+        supplier_id = COALESCE($10, supplier_id),
+        location = COALESCE($11, location),
+        requires_prescription = COALESCE($12, requires_prescription),
+        is_active = COALESCE($13, is_active),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $13
+       WHERE id = $14
        RETURNING *`,
       [medication_name, generic_name, category, unit, reorder_level, unit_cost,
-       selling_price, expiry_date, supplier, location, requires_prescription, is_active, id]
+       selling_price, expiry_date, supplier, supplier_id, location, requires_prescription, is_active, id]
     );
 
     if (result.rows.length === 0) {
