@@ -170,6 +170,8 @@ import {
   recordPurchase,
   getPurchaseHistory,
   getInventoryBatches,
+  updateBatchQuantity,
+  updateBatchQuantities,
 } from '../controllers/inventoryController';
 import {
   getSuppliers,
@@ -433,6 +435,8 @@ router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy',
 router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
 router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPurchaseHistory);
 router.get('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryBatches);
+router.put('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantities);
+router.put('/inventory/:id/batches/:batchId', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantity);
 
 // Payer Pricing routes
 router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPayerPricingRules);

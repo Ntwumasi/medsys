@@ -938,3 +938,196 @@ export const getPurchaseHistory = async (req: Request, res: Response): Promise<v
     res.status(500).json({ error: 'Failed to fetch purchase history' });
   }
 };
+
+// Update batch quantity (for stock adjustments)
+export const updateBatchQuantity = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id, batchId } = req.params;
+    const { quantity, reason } = req.body;
+    const authReq = req as any;
+
+    if (quantity === undefined || quantity < 0) {
+      res.status(400).json({ error: 'Valid quantity is required' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    // Get current batch info
+    const batchResult = await client.query(
+      `SELECT ib.*, pi.medication_name
+       FROM inventory_batches ib
+       JOIN pharmacy_inventory pi ON ib.inventory_id = pi.id
+       WHERE ib.id = $1 AND ib.inventory_id = $2`,
+      [batchId, id]
+    );
+
+    if (batchResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Batch not found' });
+      return;
+    }
+
+    const batch = batchResult.rows[0];
+    const quantityDiff = quantity - batch.quantity;
+
+    // Update batch quantity
+    await client.query(
+      `UPDATE inventory_batches
+       SET quantity = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [quantity, batchId]
+    );
+
+    // Update main inventory quantity
+    await client.query(
+      `UPDATE pharmacy_inventory
+       SET quantity_on_hand = quantity_on_hand + $1,
+           expiry_date = (
+             SELECT MIN(expiry_date)
+             FROM inventory_batches
+             WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+           ),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [quantityDiff, id]
+    );
+
+    // Log the adjustment transaction
+    const adjustmentDirection = quantityDiff > 0 ? 'increased' : 'decreased';
+    await client.query(
+      `INSERT INTO inventory_transactions
+       (inventory_id, transaction_type, quantity, notes, performed_by)
+       VALUES ($1, 'adjustment', $2, $3, $4)`,
+      [
+        id,
+        Math.abs(quantityDiff),
+        `Batch ${batch.batch_number} ${adjustmentDirection}: ${batch.quantity} → ${quantity}. ${reason || 'Stock adjustment'}`,
+        authReq.user?.id
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Batch quantity updated successfully',
+      batch: {
+        id: parseInt(batchId),
+        previous_quantity: batch.quantity,
+        new_quantity: quantity,
+        difference: quantityDiff
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update batch quantity error:', error);
+    res.status(500).json({ error: 'Failed to update batch quantity' });
+  } finally {
+    client.release();
+  }
+};
+
+// Update multiple batch quantities at once
+export const updateBatchQuantities = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { batches, reason } = req.body; // batches: [{ batchId, quantity }]
+    const authReq = req as any;
+
+    if (!batches || !Array.isArray(batches) || batches.length === 0) {
+      res.status(400).json({ error: 'Batches array is required' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    let totalQuantityDiff = 0;
+    const updatedBatches: any[] = [];
+
+    for (const batchUpdate of batches) {
+      const { batchId, quantity } = batchUpdate;
+
+      if (quantity === undefined || quantity < 0) continue;
+
+      // Get current batch info
+      const batchResult = await client.query(
+        `SELECT ib.*, pi.medication_name
+         FROM inventory_batches ib
+         JOIN pharmacy_inventory pi ON ib.inventory_id = pi.id
+         WHERE ib.id = $1 AND ib.inventory_id = $2`,
+        [batchId, id]
+      );
+
+      if (batchResult.rows.length === 0) continue;
+
+      const batch = batchResult.rows[0];
+      const quantityDiff = quantity - batch.quantity;
+
+      if (quantityDiff === 0) continue; // No change
+
+      // Update batch quantity
+      await client.query(
+        `UPDATE inventory_batches
+         SET quantity = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [quantity, batchId]
+      );
+
+      totalQuantityDiff += quantityDiff;
+
+      // Log individual batch adjustment
+      const adjustmentDirection = quantityDiff > 0 ? 'increased' : 'decreased';
+      await client.query(
+        `INSERT INTO inventory_transactions
+         (inventory_id, transaction_type, quantity, notes, performed_by)
+         VALUES ($1, 'adjustment', $2, $3, $4)`,
+        [
+          id,
+          Math.abs(quantityDiff),
+          `Batch ${batch.batch_number} ${adjustmentDirection}: ${batch.quantity} → ${quantity}. ${reason || 'Stock adjustment'}`,
+          authReq.user?.id
+        ]
+      );
+
+      updatedBatches.push({
+        batchId,
+        batch_number: batch.batch_number,
+        previous_quantity: batch.quantity,
+        new_quantity: quantity,
+        difference: quantityDiff
+      });
+    }
+
+    // Update main inventory quantity
+    if (totalQuantityDiff !== 0) {
+      await client.query(
+        `UPDATE pharmacy_inventory
+         SET quantity_on_hand = quantity_on_hand + $1,
+             expiry_date = (
+               SELECT MIN(expiry_date)
+               FROM inventory_batches
+               WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+             ),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [totalQuantityDiff, id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Batch quantities updated successfully',
+      updatedBatches,
+      totalQuantityChange: totalQuantityDiff
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update batch quantities error:', error);
+    res.status(500).json({ error: 'Failed to update batch quantities' });
+  } finally {
+    client.release();
+  }
+};

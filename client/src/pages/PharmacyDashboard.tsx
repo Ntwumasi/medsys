@@ -188,6 +188,7 @@ const PharmacyDashboard: React.FC = () => {
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
   const [inventoryBatches, setInventoryBatches] = useState<any[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
+  const [batchQuantityEdits, setBatchQuantityEdits] = useState<Record<number, number>>({});
   const [newInventoryForm, setNewInventoryForm] = useState({
     medication_name: '',
     generic_name: '',
@@ -387,9 +388,26 @@ const PharmacyDashboard: React.FC = () => {
         supplier_id: item.supplier_id || undefined,
       };
       await apiClient.put(`/inventory/${item.id}`, updateData);
+
+      // Save batch quantity changes if any
+      const batchChanges = Object.entries(batchQuantityEdits)
+        .filter(([batchId, qty]) => {
+          const batch = inventoryBatches.find(b => b.id === parseInt(batchId));
+          return batch && batch.quantity !== qty;
+        })
+        .map(([batchId, quantity]) => ({ batchId: parseInt(batchId), quantity }));
+
+      if (batchChanges.length > 0) {
+        await apiClient.put(`/inventory/${item.id}/batches`, {
+          batches: batchChanges,
+          reason: 'Stock adjustment from inventory edit'
+        });
+      }
+
       showToast('Inventory updated successfully', 'success');
       setShowInventoryModal(false);
       setEditingInventory(null);
+      setBatchQuantityEdits({});
       fetchInventory();
     } catch (error: any) {
       console.error('Error updating inventory:', error);
@@ -2375,7 +2393,7 @@ const PharmacyDashboard: React.FC = () => {
       {/* Inventory Edit Modal */}
       <Modal
         isOpen={showInventoryModal}
-        onClose={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); }}
+        onClose={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); }}
         title="Edit Inventory Item"
         size="lg"
       >
@@ -2485,10 +2503,29 @@ const PharmacyDashboard: React.FC = () => {
                         const isExpired = batch.expiry_date && new Date(batch.expiry_date) < new Date();
                         const isExpiringSoon = batch.expiry_date &&
                           new Date(batch.expiry_date) <= new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+                        const editedQty = batchQuantityEdits[batch.id];
+                        const currentQty = editedQty !== undefined ? editedQty : batch.quantity;
+                        const hasChanged = editedQty !== undefined && editedQty !== batch.quantity;
                         return (
                           <tr key={batch.id || idx} className={isExpired ? 'bg-red-50' : isExpiringSoon ? 'bg-yellow-50' : ''}>
                             <td className="px-2 py-1 text-gray-900">{batch.batch_number || '-'}</td>
-                            <td className="px-2 py-1 text-right font-medium">{batch.quantity}</td>
+                            <td className="px-2 py-1 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentQty}
+                                onChange={(e) => {
+                                  const newQty = parseInt(e.target.value) || 0;
+                                  setBatchQuantityEdits(prev => ({
+                                    ...prev,
+                                    [batch.id]: newQty
+                                  }));
+                                }}
+                                className={`w-16 px-1 py-0.5 text-right border rounded text-sm font-medium ${
+                                  hasChanged ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                                }`}
+                              />
+                            </td>
                             <td className="px-2 py-1 text-center">
                               {batch.expiry_date ? (
                                 <span className={isExpired ? 'text-red-600 font-semibold' : isExpiringSoon ? 'text-yellow-600' : ''}>
@@ -2507,7 +2544,10 @@ const PharmacyDashboard: React.FC = () => {
                       <tr>
                         <td className="px-2 py-1 font-semibold text-gray-700">Total</td>
                         <td className="px-2 py-1 text-right font-bold text-gray-900">
-                          {inventoryBatches.reduce((sum, b) => sum + (parseInt(b.quantity) || 0), 0)}
+                          {inventoryBatches.reduce((sum, b) => {
+                            const editedQty = batchQuantityEdits[b.id];
+                            return sum + (editedQty !== undefined ? editedQty : parseInt(b.quantity) || 0);
+                          }, 0)}
                         </td>
                         <td colSpan={2}></td>
                       </tr>
