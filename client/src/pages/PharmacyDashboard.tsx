@@ -143,7 +143,7 @@ const PharmacyDashboard: React.FC = () => {
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'refills' | 'revenue'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
@@ -196,10 +196,6 @@ const PharmacyDashboard: React.FC = () => {
 
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
-
-  // Refills calendar state
-  const [refillsData, setRefillsData] = useState<any[]>([]);
-  const [refillsMonth, setRefillsMonth] = useState(new Date());
 
   // Medication pricing state
   const [pricingSearch, setPricingSearch] = useState('');
@@ -462,18 +458,6 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  const fetchRefillsCalendar = async () => {
-    try {
-      const year = refillsMonth.getFullYear();
-      const month = refillsMonth.getMonth() + 1;
-      const response = await apiClient.get(`/pharmacy/refills?year=${year}&month=${month}`);
-      setRefillsData(response.data.refills || []);
-    } catch (error) {
-      console.error('Error fetching refills:', error);
-      setRefillsData([]);
-    }
-  };
-
   const updateMedicationPrice = async (itemId: number, newPrice: number) => {
     try {
       await apiClient.put(`/inventory/${itemId}`, { selling_price: newPrice });
@@ -573,11 +557,6 @@ const PharmacyDashboard: React.FC = () => {
     { id: 'pricing' as const, label: 'Pricing', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
-      </svg>
-    )},
-    { id: 'refills' as const, label: 'Refills Calendar', icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     )},
     { id: 'revenue' as const, label: 'Revenue', icon: (
@@ -1719,149 +1698,6 @@ const PharmacyDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* REFILLS CALENDAR TAB */}
-        {activeTab === 'refills' && (
-          <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-lg font-semibold">Refills Calendar</h2>
-                  <p className="text-gray-500 text-sm">Track upcoming medication refills for patients</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => {
-                      const newDate = new Date(refillsMonth);
-                      newDate.setMonth(newDate.getMonth() - 1);
-                      setRefillsMonth(newDate);
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
-                  </button>
-                  <span className="font-medium text-lg">
-                    {format(refillsMonth, 'MMMM yyyy')}
-                  </span>
-                  <button
-                    onClick={() => {
-                      const newDate = new Date(refillsMonth);
-                      newDate.setMonth(newDate.getMonth() + 1);
-                      setRefillsMonth(newDate);
-                    }}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={fetchRefillsCalendar}
-                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium"
-                  >
-                    Load Refills
-                  </button>
-                </div>
-              </div>
-
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1 mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="text-center py-2 font-medium text-gray-500 text-sm">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {(() => {
-                  const year = refillsMonth.getFullYear();
-                  const month = refillsMonth.getMonth();
-                  const firstDay = new Date(year, month, 1).getDay();
-                  const daysInMonth = new Date(year, month + 1, 0).getDate();
-                  const today = new Date();
-
-                  const days = [];
-
-                  // Empty cells for days before the first of the month
-                  for (let i = 0; i < firstDay; i++) {
-                    days.push(<div key={`empty-${i}`} className="min-h-24 bg-gray-50 rounded-lg"></div>);
-                  }
-
-                  // Days of the month
-                  for (let day = 1; day <= daysInMonth; day++) {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const dayRefills = refillsData.filter(r => r.refill_date?.startsWith(dateStr));
-                    const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
-
-                    days.push(
-                      <div
-                        key={day}
-                        className={`min-h-24 p-2 rounded-lg border ${
-                          isToday ? 'border-success-500 bg-success-50' : 'border-gray-200 bg-white'
-                        } hover:shadow-md transition-shadow`}
-                      >
-                        <div className={`text-sm font-medium ${isToday ? 'text-success-700' : 'text-gray-700'}`}>
-                          {day}
-                        </div>
-                        <div className="mt-1 space-y-1 max-h-16 overflow-y-auto">
-                          {dayRefills.map((refill, idx) => (
-                            <div
-                              key={idx}
-                              className="text-xs bg-primary-100 text-primary-800 rounded px-1 py-0.5 truncate"
-                              title={`${refill.patient_name}: ${refill.medication_name}`}
-                            >
-                              {refill.patient_name?.split(' ')[0]}: {refill.medication_name}
-                            </div>
-                          ))}
-                        </div>
-                        {dayRefills.length > 2 && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            +{dayRefills.length - 2} more
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  return days;
-                })()}
-              </div>
-
-              {/* Upcoming Refills List */}
-              <div className="mt-8">
-                <h3 className="font-semibold text-gray-900 mb-4">Upcoming Refills This Month</h3>
-                {refillsData.length > 0 ? (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {refillsData.map((refill, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <span className="font-medium">{refill.patient_name}</span>
-                          <span className="text-gray-500 ml-2">({refill.patient_number})</span>
-                        </div>
-                        <div className="text-sm text-gray-600">{refill.medication_name}</div>
-                        <div className="text-sm font-medium text-primary-600">
-                          {refill.refill_date ? format(new Date(refill.refill_date), 'MMM dd, yyyy') : 'N/A'}
-                        </div>
-                        <Badge variant={refill.refills_remaining > 0 ? 'success' : 'warning'}>
-                          {refill.refills_remaining} refills left
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <p>Click "Load Refills" to see scheduled refills for this month</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </main>
 
       {/* Supplier Modal */}

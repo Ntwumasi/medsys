@@ -11,6 +11,7 @@ import NurseDashboard from './pages/NurseDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
 import LabDashboard from './pages/LabDashboard';
 import PharmacyDashboard from './pages/PharmacyDashboard';
+import RefillsCalendar from './pages/RefillsCalendar';
 import ImagingDashboard from './pages/ImagingDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
@@ -88,6 +89,7 @@ const AppContent: React.FC = () => {
         <Route path="/updates" element={<PublicUpdates />} />
 
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
+        <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
 
         <Route
           path="/"
