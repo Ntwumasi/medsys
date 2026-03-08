@@ -706,7 +706,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
   }
 };
 
-// Record a purchase (procurement)
+// Record a purchase (procurement) - with batch tracking
 export const recordPurchase = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
 
@@ -732,6 +732,23 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
+    // Create a batch record for FEFO tracking
+    const generatedBatchNumber = batch_number || `BATCH-${Date.now()}`;
+    await client.query(
+      `INSERT INTO inventory_batches
+        (inventory_id, batch_number, quantity, unit_cost, expiry_date, supplier_id, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        inventory_id,
+        generatedBatchNumber,
+        quantity,
+        unit_cost,
+        expiry_date || null,
+        supplier_id || null,
+        `Discount: ${discount_percent || 0}%, Original cost: ${original_unit_cost || unit_cost}`
+      ]
+    );
+
     // Record the purchase transaction
     await client.query(
       `INSERT INTO inventory_transactions
@@ -741,21 +758,25 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
         inventory_id,
         quantity,
         unit_cost,
-        `Batch: ${batch_number || 'N/A'}, Discount: ${discount_percent || 0}%, Original cost: ${original_unit_cost || unit_cost}`,
+        `Batch: ${generatedBatchNumber}, Discount: ${discount_percent || 0}%`,
         userId
       ]
     );
 
-    // Update inventory quantity
+    // Update inventory total quantity and earliest expiry
     await client.query(
       `UPDATE pharmacy_inventory
        SET quantity_on_hand = quantity_on_hand + $1,
            unit_cost = $2,
            supplier_id = COALESCE($3, supplier_id),
-           expiry_date = COALESCE($4, expiry_date),
+           expiry_date = (
+             SELECT MIN(expiry_date)
+             FROM inventory_batches
+             WHERE inventory_id = $4 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+           ),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $5`,
-      [quantity, unit_cost, supplier_id, expiry_date, inventory_id]
+       WHERE id = $4`,
+      [quantity, unit_cost, supplier_id, inventory_id]
     );
 
     // Update selling price if provided
@@ -768,7 +789,7 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
 
     await client.query('COMMIT');
 
-    res.json({ message: 'Purchase recorded successfully' });
+    res.json({ message: 'Purchase recorded successfully', batch_number: generatedBatchNumber });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Record purchase error:', error);
@@ -776,6 +797,88 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
   } finally {
     client.release();
   }
+};
+
+// Get batches for an inventory item
+export const getInventoryBatches = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+        ib.*,
+        s.name as supplier_name
+       FROM inventory_batches ib
+       LEFT JOIN suppliers s ON ib.supplier_id = s.id
+       WHERE ib.inventory_id = $1 AND ib.is_active = true AND ib.quantity > 0
+       ORDER BY ib.expiry_date ASC NULLS LAST, ib.received_date ASC`,
+      [id]
+    );
+
+    res.json({ batches: result.rows });
+  } catch (error) {
+    console.error('Get inventory batches error:', error);
+    res.status(500).json({ error: 'Failed to fetch batches' });
+  }
+};
+
+// Dispense from batches using FEFO (First Expired, First Out)
+export const dispenseFromBatches = async (
+  client: any,
+  inventoryId: number,
+  quantityToDispense: number,
+  userId: number | null
+): Promise<{ success: boolean; dispensedBatches: any[] }> => {
+  const dispensedBatches: any[] = [];
+  let remainingQty = quantityToDispense;
+
+  // Get batches ordered by expiry date (FEFO)
+  const batches = await client.query(
+    `SELECT id, batch_number, quantity, expiry_date
+     FROM inventory_batches
+     WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+     ORDER BY expiry_date ASC NULLS LAST, received_date ASC`,
+    [inventoryId]
+  );
+
+  for (const batch of batches.rows) {
+    if (remainingQty <= 0) break;
+
+    const dispenseFromThisBatch = Math.min(batch.quantity, remainingQty);
+
+    // Reduce batch quantity
+    await client.query(
+      `UPDATE inventory_batches
+       SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [dispenseFromThisBatch, batch.id]
+    );
+
+    dispensedBatches.push({
+      batch_id: batch.id,
+      batch_number: batch.batch_number,
+      quantity_dispensed: dispenseFromThisBatch,
+      expiry_date: batch.expiry_date
+    });
+
+    remainingQty -= dispenseFromThisBatch;
+  }
+
+  // Update the main inventory quantity
+  await client.query(
+    `UPDATE pharmacy_inventory
+     SET quantity_on_hand = quantity_on_hand - $1,
+         expiry_date = (
+           SELECT MIN(expiry_date)
+           FROM inventory_batches
+           WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+         ),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $2`,
+    [quantityToDispense, inventoryId]
+  );
+
+  return { success: remainingQty === 0, dispensedBatches };
 };
 
 // Get purchase history

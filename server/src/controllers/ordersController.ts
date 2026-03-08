@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
+import { dispenseFromBatches } from './inventoryController';
 
 // Lab Orders
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
@@ -702,10 +703,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
       const quantity = parseInt(updatedOrder.quantity) || 1;
 
-      // Add medication cost to patient invoice AND deduct from inventory
+      // Add medication cost to patient invoice AND deduct from inventory using FEFO
+      const client = await pool.connect();
       try {
+        await client.query('BEGIN');
+
         // Get medication from inventory
-        const inventoryResult = await pool.query(
+        const inventoryResult = await client.query(
           `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
            WHERE medication_name ILIKE $1 LIMIT 1`,
           [updatedOrder.medication_name]
@@ -716,32 +720,35 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           const unitPrice = parseFloat(inventoryItem.selling_price);
           const totalPrice = unitPrice * quantity;
 
-          // Deduct from inventory
-          await pool.query(
-            `UPDATE pharmacy_inventory
-             SET quantity_on_hand = quantity_on_hand - $1,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [quantity, inventoryItem.id]
+          // Use FEFO (First Expired, First Out) to dispense from batches
+          const dispenseResult = await dispenseFromBatches(
+            client,
+            inventoryItem.id,
+            quantity,
+            authReq.user?.id
           );
 
           // Record inventory transaction for the dispense
-          await pool.query(
+          const batchInfo = dispenseResult.dispensedBatches
+            .map(b => `${b.batch_number}(${b.quantity_dispensed})`)
+            .join(', ');
+
+          await client.query(
             `INSERT INTO inventory_transactions
               (inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by)
              VALUES ($1, 'dispense', $2, $3, 'pharmacy_order', $4, $5, $6)`,
             [
               inventoryItem.id,
-              -quantity, // Negative because it's a deduction
+              -quantity,
               unitPrice,
               parseInt(id),
-              `Dispensed for ${updatedOrder.patient_name || 'patient'}`,
+              `Dispensed for ${updatedOrder.patient_name || 'patient'}. Batches: ${batchInfo}`,
               authReq.user?.id
             ]
           );
 
           // Get or create invoice for the encounter
-          const invoiceResult = await pool.query(
+          const invoiceResult = await client.query(
             `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
             [updatedOrder.encounter_id]
           );
@@ -750,14 +757,14 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             const invoiceId = invoiceResult.rows[0].id;
 
             // Add medication as invoice item
-            await pool.query(
+            await client.query(
               `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
                VALUES ($1, $2, $3, $4, $5, 'medication')`,
               [invoiceId, `${updatedOrder.medication_name} (${updatedOrder.dosage})`, quantity, unitPrice, totalPrice]
             );
 
             // Update invoice total
-            await pool.query(
+            await client.query(
               `UPDATE invoices SET
                 total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
                 updated_at = CURRENT_TIMESTAMP
@@ -765,12 +772,18 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
               [invoiceId]
             );
           }
+
+          await client.query('COMMIT');
         } else {
+          await client.query('ROLLBACK');
           console.warn(`Medication not found in inventory: ${updatedOrder.medication_name}`);
         }
       } catch (invoiceError) {
+        await client.query('ROLLBACK');
         console.error('Error processing dispense (invoice/inventory):', invoiceError);
         // Don't fail the dispense if invoice/inventory update fails, but log it
+      } finally {
+        client.release();
       }
 
       // Check if all pharmacy orders for this encounter are complete

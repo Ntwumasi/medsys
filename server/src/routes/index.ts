@@ -169,6 +169,7 @@ import {
   getRefillsCalendar,
   recordPurchase,
   getPurchaseHistory,
+  getInventoryBatches,
 } from '../controllers/inventoryController';
 import {
   getSuppliers,
@@ -431,6 +432,7 @@ router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy
 router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
 router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
 router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPurchaseHistory);
+router.get('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryBatches);
 
 // Payer Pricing routes
 router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPayerPricingRules);
