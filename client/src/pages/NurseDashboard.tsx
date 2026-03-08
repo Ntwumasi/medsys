@@ -808,6 +808,24 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  // Confirm medication pickup (changes status from 'ready' to 'dispensed')
+  const confirmMedicationPickup = async (orderId: number) => {
+    try {
+      await apiClient.put(`/orders/pharmacy/${orderId}`, {
+        status: 'dispensed'
+      });
+      showToast('Medication pickup confirmed', 'success');
+      // Refresh pharmacy orders
+      if (selectedPatient) {
+        const res = await apiClient.get(`/orders/patient/${selectedPatient.patient_id}?encounter_id=${selectedPatient.id}`);
+        setPharmacyOrders(res.data.pharmacy_orders || []);
+      }
+    } catch (error) {
+      console.error('Error confirming pickup:', error);
+      showToast('Failed to confirm pickup', 'error');
+    }
+  };
+
   const handleRouteToDepartment = async (department: string) => {
     if (!selectedPatient) return;
 
@@ -2323,7 +2341,11 @@ const NurseDashboard: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-primary-700 mb-2">Pharmacy Orders</h3>
                                 <div className="space-y-2">
                                   {pharmacyOrders.map((order) => (
-                                    <div key={order.id} className="border border-primary-200 rounded-lg p-3 bg-primary-50">
+                                    <div key={order.id} className={`border rounded-lg p-3 ${
+                                      order.status === 'ready' ? 'border-orange-300 bg-orange-50' :
+                                      order.status === 'dispensed' ? 'border-success-200 bg-success-50' :
+                                      'border-primary-200 bg-primary-50'
+                                    }`}>
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                           <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
@@ -2337,7 +2359,7 @@ const NurseDashboard: React.FC = () => {
                                             {safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a')}
                                           </p>
                                         </div>
-                                        <div className="ml-4 text-right">
+                                        <div className="ml-4 text-right flex flex-col items-end gap-2">
                                           <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                             order.priority === 'stat' ? 'bg-danger-100 text-danger-800' :
                                             order.priority === 'urgent' ? 'bg-warning-100 text-warning-800' :
@@ -2345,7 +2367,25 @@ const NurseDashboard: React.FC = () => {
                                           }`}>
                                             {order.priority.toUpperCase()}
                                           </span>
-                                          <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                            order.status === 'ready' ? 'bg-orange-100 text-orange-800' :
+                                            order.status === 'dispensed' ? 'bg-success-100 text-success-800' :
+                                            order.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
+                                            'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {order.status === 'ready' ? '📦 Ready for Pickup' :
+                                             order.status === 'dispensed' ? '✓ Dispensed' :
+                                             order.status === 'in_progress' ? 'Preparing' :
+                                             order.status}
+                                          </span>
+                                          {order.status === 'ready' && (
+                                            <button
+                                              onClick={() => confirmMedicationPickup(order.id)}
+                                              className="px-3 py-1 bg-success-600 text-white text-xs rounded-lg hover:bg-success-700"
+                                            >
+                                              Confirm Pickup
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
                                     </div>

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
+import drugInteractionService from '../services/drugInteractionService';
 import { dispenseFromBatches } from './inventoryController';
 
 // Lab Orders
@@ -668,6 +669,11 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       updateData.dispensed_by = authReq.user.id;
     }
 
+    // If marking as ready, track who prepared it
+    if (updateData.status === 'ready' && authReq.user?.id) {
+      updateData.prepared_by = authReq.user.id;
+    }
+
     const fields = Object.keys(updateData)
       .map((key, index) => `${key} = $${index + 2}`)
       .join(', ');
@@ -696,6 +702,63 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       entityId: parseInt(id),
       details: updateData
     });
+
+    // Sync department_routing status with pharmacy order status
+    if (updateData.status) {
+      const routingStatus = updateData.status === 'dispensed' ? 'completed' :
+                           updateData.status === 'ready' ? 'in-progress' :
+                           updateData.status === 'in_progress' ? 'in-progress' : 'pending';
+
+      await pool.query(
+        `UPDATE department_routing
+         SET status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE encounter_id = $2 AND department = 'pharmacy' AND status != 'completed'`,
+        [routingStatus, updatedOrder.encounter_id]
+      );
+    }
+
+    // Notify nurses when medication is READY for pickup
+    if (updateData.status === 'ready') {
+      await notificationService.notifyPharmacyReady(parseInt(id));
+
+      // Check for drug interactions with patient's current medications
+      if (updatedOrder.patient_id && updatedOrder.medication_name) {
+        try {
+          const interactions = await drugInteractionService.checkInteractions(
+            updatedOrder.patient_id,
+            updatedOrder.medication_name
+          );
+
+          // If there are interactions, notify pharmacist and optionally the ordering doctor
+          for (const interaction of interactions) {
+            if (interaction.severity === 'severe' || interaction.severity === 'contraindicated') {
+              await notificationService.notifyDrugInteraction(parseInt(id), {
+                severity: interaction.severity,
+                drugs: [interaction.drug1, interaction.drug2],
+                description: interaction.description,
+              });
+
+              // Log the interaction alert
+              await pool.query(
+                `INSERT INTO medication_alerts (pharmacy_order_id, patient_id, alert_type, severity, details, created_by)
+                 VALUES ($1, $2, 'drug_interaction', $3, $4, $5)
+                 ON CONFLICT DO NOTHING`,
+                [
+                  parseInt(id),
+                  updatedOrder.patient_id,
+                  interaction.severity,
+                  JSON.stringify(interaction),
+                  authReq.user?.id
+                ]
+              );
+            }
+          }
+        } catch (interactionError) {
+          console.error('Error checking drug interactions:', interactionError);
+          // Don't fail the ready status if interaction check fails
+        }
+      }
+    }
 
     // Send notification when pharmacy order is dispensed
     if (updateData.status === 'dispensed') {
@@ -795,6 +858,9 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       // If no more pending pharmacy orders, auto-route patient back to nurse
       if (parseInt(pendingOrders.rows[0].count) === 0) {
         await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'pharmacy');
+
+        // Check if ALL orders (lab, imaging, pharmacy) are complete for discharge
+        await notificationService.notifyReadyForDischarge(updatedOrder.encounter_id);
       }
     }
 

@@ -144,7 +144,7 @@ const PharmacyDashboard: React.FC = () => {
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
   const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue'>('orders');
-  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'history'>('pending');
+  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
   // Suppliers state
@@ -482,6 +482,29 @@ const PharmacyDashboard: React.FC = () => {
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error fetching in-progress orders:', error);
+    }
+  };
+
+  const fetchReadyOrders = async () => {
+    try {
+      const response = await apiClient.get('/orders/pharmacy?status=ready');
+      setPharmacyOrders(response.data.orders || []);
+    } catch (error) {
+      console.error('Error fetching ready orders:', error);
+    }
+  };
+
+  const markReadyForPickup = async (orderId: number) => {
+    try {
+      await apiClient.put(`/orders/pharmacy/${orderId}`, {
+        status: 'ready'
+      });
+      showToast('Medication marked ready for pickup - Nurse notified', 'success');
+      fetchInProgressOrders();
+      fetchOrderStats();
+    } catch (error) {
+      console.error('Error marking order ready:', error);
+      showToast('Failed to mark medication ready', 'error');
     }
   };
 
@@ -901,6 +924,14 @@ const PharmacyDashboard: React.FC = () => {
                   In Progress
                 </button>
                 <button
+                  onClick={() => { setOrdersSubTab('ready'); fetchReadyOrders(); }}
+                  className={`px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'ready' ? 'bg-orange-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Ready for Pickup
+                </button>
+                <button
                   onClick={() => { setOrdersSubTab('history'); fetchOrderHistory(); }}
                   className={`px-4 py-2 rounded-lg font-medium ${
                     ordersSubTab === 'history' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -913,6 +944,7 @@ const PharmacyDashboard: React.FC = () => {
                 onClick={() => {
                   if (ordersSubTab === 'pending') fetchPendingOrders();
                   else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+                  else if (ordersSubTab === 'ready') fetchReadyOrders();
                   else fetchOrderHistory();
                 }}
                 className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
@@ -966,13 +998,14 @@ const PharmacyDashboard: React.FC = () => {
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">
                     {ordersSubTab === 'pending' ? 'Pending Prescriptions' :
-                     ordersSubTab === 'in_progress' ? 'In Progress Orders' : 'Dispensed Orders'}
+                     ordersSubTab === 'in_progress' ? 'In Progress Orders' :
+                     ordersSubTab === 'ready' ? 'Ready for Pickup' : 'Dispensed Orders'}
                   </h2>
                 </div>
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {pharmacyOrders.length === 0 ? (
                     <div className="px-6 py-12 text-center text-gray-500">
-                      No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : 'dispensed'} orders found
+                      No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : ordersSubTab === 'ready' ? 'ready for pickup' : 'dispensed'} orders found
                     </div>
                   ) : (
                     pharmacyOrders.map((order) => (
@@ -1044,6 +1077,17 @@ const PharmacyDashboard: React.FC = () => {
                               </button>
                             )}
                             {ordersSubTab === 'in_progress' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markReadyForPickup(order.id);
+                                }}
+                                className="px-3 py-1 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600"
+                              >
+                                Mark Ready
+                              </button>
+                            )}
+                            {ordersSubTab === 'ready' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

@@ -6,7 +6,7 @@ const sseConnections: Map<number, Response[]> = new Map();
 
 export interface NotificationPayload {
   userId: number;
-  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order';
+  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert';
   title: string;
   message: string;
   entityType?: string;
@@ -442,6 +442,126 @@ export const notificationService = {
         entityType: `${orderType}_order`,
         entityId: orderId,
       });
+    }
+  },
+
+  /**
+   * Notify nurses when medication is READY for pickup (before dispense)
+   */
+  async notifyPharmacyReady(orderId: number): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT po.*, p.patient_number,
+                u.first_name || ' ' || u.last_name as patient_name
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE po.id = $1`,
+        [orderId]
+      );
+
+      if (result.rows.length > 0) {
+        const order = result.rows[0];
+        // Notify all nurses that medication is ready for pickup
+        await this.sendToRole('nurse', {
+          type: 'pharmacy_ready',
+          title: 'Medication Ready for Pickup',
+          message: `${order.medication_name} ready for ${order.patient_name} (${order.patient_number}) - Please collect from pharmacy`,
+          entityType: 'pharmacy_order',
+          entityId: orderId,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to notify pharmacy ready:', error);
+    }
+  },
+
+  /**
+   * Notify receptionist when patient is ready for discharge (all orders complete)
+   */
+  async notifyReadyForDischarge(encounterId: number): Promise<void> {
+    try {
+      // Check if ALL orders (lab, imaging, pharmacy) are complete for this encounter
+      const pendingOrders = await pool.query(
+        `SELECT
+          (SELECT COUNT(*) FROM lab_orders WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')) as pending_lab,
+          (SELECT COUNT(*) FROM imaging_orders WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')) as pending_imaging,
+          (SELECT COUNT(*) FROM pharmacy_orders WHERE encounter_id = $1 AND status NOT IN ('dispensed', 'cancelled')) as pending_pharmacy`,
+        [encounterId]
+      );
+
+      const pending = pendingOrders.rows[0];
+      const totalPending = parseInt(pending.pending_lab) + parseInt(pending.pending_imaging) + parseInt(pending.pending_pharmacy);
+
+      if (totalPending === 0) {
+        // All orders complete - notify receptionist
+        const encounterResult = await pool.query(
+          `SELECT p.patient_number, u.first_name || ' ' || u.last_name as patient_name
+           FROM encounters e
+           JOIN patients p ON e.patient_id = p.id
+           JOIN users u ON p.user_id = u.id
+           WHERE e.id = $1`,
+          [encounterId]
+        );
+
+        if (encounterResult.rows.length > 0) {
+          const encounter = encounterResult.rows[0];
+          await this.sendToRole('receptionist', {
+            type: 'ready_for_discharge',
+            title: 'Patient Ready for Discharge',
+            message: `${encounter.patient_name} (${encounter.patient_number}) has completed all services and is ready for billing/discharge`,
+            entityType: 'encounter',
+            entityId: encounterId,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify ready for discharge:', error);
+    }
+  },
+
+  /**
+   * Notify about drug interaction alerts
+   */
+  async notifyDrugInteraction(orderId: number, interactionDetails: { severity: string; drugs: string[]; description: string }): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT po.*, p.patient_number,
+                u.first_name || ' ' || u.last_name as patient_name
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE po.id = $1`,
+        [orderId]
+      );
+
+      if (result.rows.length > 0) {
+        const order = result.rows[0];
+        const severityEmoji = interactionDetails.severity === 'severe' ? '🚨' :
+                              interactionDetails.severity === 'moderate' ? '⚠️' : 'ℹ️';
+
+        const notification = {
+          type: 'drug_interaction_alert' as const,
+          title: `${severityEmoji} Drug Interaction Alert`,
+          message: `${interactionDetails.drugs.join(' + ')}: ${interactionDetails.description} - Patient: ${order.patient_name}`,
+          entityType: 'pharmacy_order',
+          entityId: orderId,
+        };
+
+        // Notify pharmacists
+        await this.sendToRole('pharmacist', notification);
+        await this.sendToRole('pharmacy', notification);
+
+        // For severe interactions, also notify the ordering doctor
+        if (interactionDetails.severity === 'severe' && order.ordering_provider) {
+          await this.send({
+            userId: order.ordering_provider,
+            ...notification,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to notify drug interaction:', error);
     }
   },
 };
