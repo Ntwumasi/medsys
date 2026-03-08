@@ -140,6 +140,14 @@ import {
 } from '../controllers/hpController';
 import { parseDictation } from '../controllers/smartDictationController';
 import {
+  explainDrugInteraction,
+  verifyDosage,
+  suggestSubstitutions,
+  generateCounseling,
+  parseVoiceCommand,
+  getAIStatus,
+} from '../controllers/aiController';
+import {
   getSystemUpdates,
   createSystemUpdate,
   updateSystemUpdate,
@@ -172,6 +180,9 @@ import {
   getInventoryBatches,
   updateBatchQuantity,
   updateBatchQuantities,
+  getDispensingAnalytics,
+  getExpiryCalendar,
+  getPatientMedicationTimeline,
 } from '../controllers/inventoryController';
 import {
   getSuppliers,
@@ -437,6 +448,19 @@ router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy',
 router.get('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryBatches);
 router.put('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantities);
 router.put('/inventory/:id/batches/:batchId', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantity);
+
+// Analytics routes
+router.get('/analytics/dispensing', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getDispensingAnalytics);
+
+// AI routes for pharmacy
+router.get('/ai/status', authenticateToken, getAIStatus);
+router.post('/ai/drug-interactions', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'doctor', 'admin'), explainDrugInteraction);
+router.post('/ai/dosage-verify', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'doctor', 'admin'), verifyDosage);
+router.post('/ai/substitutions', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'doctor', 'admin'), suggestSubstitutions);
+router.post('/ai/counseling', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), generateCounseling);
+router.post('/ai/voice-command', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), parseVoiceCommand);
+router.get('/inventory/expiry-calendar', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiryCalendar);
+router.get('/patients/:patientId/medication-timeline', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor', 'nurse'), getPatientMedicationTimeline);
 
 // Payer Pricing routes
 router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPayerPricingRules);

@@ -6,7 +6,7 @@ const sseConnections: Map<number, Response[]> = new Map();
 
 export interface NotificationPayload {
   userId: number;
-  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert';
+  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert';
   title: string;
   message: string;
   entityType?: string;
@@ -562,6 +562,114 @@ export const notificationService = {
       }
     } catch (error) {
       console.error('Failed to notify drug interaction:', error);
+    }
+  },
+
+  /**
+   * Notify pharmacists about low stock items
+   */
+  async notifyLowStock(inventoryId: number, medicationName: string, currentQty: number, reorderLevel: number): Promise<void> {
+    try {
+      const notification = {
+        type: 'low_stock_alert' as const,
+        title: 'Low Stock Alert',
+        message: `${medicationName} is low on stock (${currentQty} remaining, reorder at ${reorderLevel})`,
+        entityType: 'inventory',
+        entityId: inventoryId,
+      };
+
+      await this.sendToRole('pharmacist', notification);
+      await this.sendToRole('pharmacy', notification);
+      await this.sendToRole('admin', notification);
+    } catch (error) {
+      console.error('Failed to notify low stock:', error);
+    }
+  },
+
+  /**
+   * Notify pharmacists about expiring batches
+   */
+  async notifyExpiringBatch(batchId: number, medicationName: string, batchNumber: string, expiryDate: Date, daysUntilExpiry: number): Promise<void> {
+    try {
+      const severity = daysUntilExpiry <= 0 ? 'EXPIRED' : daysUntilExpiry <= 7 ? 'CRITICAL' : 'WARNING';
+      const emoji = daysUntilExpiry <= 0 ? '🚫' : daysUntilExpiry <= 7 ? '🔴' : '🟠';
+
+      const notification = {
+        type: 'expiry_alert' as const,
+        title: `${emoji} ${severity}: Batch Expiry Alert`,
+        message: daysUntilExpiry <= 0
+          ? `${medicationName} (Batch: ${batchNumber}) has EXPIRED!`
+          : `${medicationName} (Batch: ${batchNumber}) expires in ${daysUntilExpiry} days`,
+        entityType: 'inventory_batch',
+        entityId: batchId,
+      };
+
+      await this.sendToRole('pharmacist', notification);
+      await this.sendToRole('pharmacy', notification);
+    } catch (error) {
+      console.error('Failed to notify expiring batch:', error);
+    }
+  },
+
+  /**
+   * Check and notify all low stock items (can be called periodically)
+   */
+  async checkAndNotifyLowStock(): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT id, medication_name, quantity_on_hand, reorder_level
+         FROM pharmacy_inventory
+         WHERE is_active = true
+           AND quantity_on_hand <= reorder_level
+           AND quantity_on_hand > 0`
+      );
+
+      for (const item of result.rows) {
+        await this.notifyLowStock(
+          item.id,
+          item.medication_name,
+          item.quantity_on_hand,
+          item.reorder_level
+        );
+      }
+
+      console.log(`Low stock check complete: ${result.rows.length} items below reorder level`);
+    } catch (error) {
+      console.error('Failed to check low stock:', error);
+    }
+  },
+
+  /**
+   * Check and notify expiring batches (can be called periodically)
+   */
+  async checkAndNotifyExpiringBatches(): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT ib.id, ib.batch_number, ib.expiry_date, ib.quantity,
+                pi.medication_name,
+                EXTRACT(DAY FROM ib.expiry_date - CURRENT_DATE) as days_until_expiry
+         FROM inventory_batches ib
+         JOIN pharmacy_inventory pi ON ib.inventory_id = pi.id
+         WHERE ib.is_active = true
+           AND ib.quantity > 0
+           AND ib.expiry_date IS NOT NULL
+           AND ib.expiry_date <= CURRENT_DATE + INTERVAL '30 days'
+         ORDER BY ib.expiry_date ASC`
+      );
+
+      for (const batch of result.rows) {
+        await this.notifyExpiringBatch(
+          batch.id,
+          batch.medication_name,
+          batch.batch_number,
+          new Date(batch.expiry_date),
+          parseInt(batch.days_until_expiry)
+        );
+      }
+
+      console.log(`Expiry check complete: ${result.rows.length} batches expiring within 30 days`);
+    } catch (error) {
+      console.error('Failed to check expiring batches:', error);
     }
   },
 };

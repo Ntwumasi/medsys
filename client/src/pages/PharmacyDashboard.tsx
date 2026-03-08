@@ -5,6 +5,11 @@ import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
+import { DispensingAnalytics } from '../components/pharmacy';
+// TODO: Integrate these components:
+// - ExpiryCalendar: Add to inventory tab for visual batch expiry view
+// - MedicationTimeline: Add to patient details panel in orders
+// - BatchExpiryWarning: Show during dispense when near-expiry batches selected
 
 interface RoutingRequest {
   id: number;
@@ -143,7 +148,7 @@ const PharmacyDashboard: React.FC = () => {
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
@@ -181,7 +186,7 @@ const PharmacyDashboard: React.FC = () => {
   // Inventory state
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null);
-  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low_stock' | 'expiring'>('all');
+  const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low_stock' | 'expiring' | 'expired'>('all');
   const [inventorySearch, setInventorySearch] = useState('');
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -258,6 +263,13 @@ const PharmacyDashboard: React.FC = () => {
     // Clear selected order when switching main tabs
     setSelectedOrder(null);
   }, [activeTab]);
+
+  // Refetch inventory when filter or search changes
+  useEffect(() => {
+    if (activeTab === 'inventory') {
+      fetchInventory();
+    }
+  }, [inventoryFilter, inventorySearch]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -557,6 +569,7 @@ const PharmacyDashboard: React.FC = () => {
       let url = '/inventory';
       if (inventoryFilter === 'low_stock') url += '?low_stock=true';
       else if (inventoryFilter === 'expiring') url += '?expiring_soon=true';
+      else if (inventoryFilter === 'expired') url += '?expired=true';
       if (inventorySearch) url += `${url.includes('?') ? '&' : '?'}search=${inventorySearch}`;
 
       const response = await apiClient.get(url);
@@ -824,6 +837,11 @@ const PharmacyDashboard: React.FC = () => {
     { id: 'revenue' as const, label: 'Revenue', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    )},
+    { id: 'analytics' as const, label: 'Analytics', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     )},
   ];
@@ -1404,7 +1422,10 @@ const PharmacyDashboard: React.FC = () => {
           <div>
             {/* Inventory Stats */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-gray-400"
+                onClick={() => setInventoryFilter('all')}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2164,6 +2185,11 @@ const PharmacyDashboard: React.FC = () => {
               )}
             </div>
           </div>
+        )}
+
+        {/* ANALYTICS TAB */}
+        {activeTab === 'analytics' && (
+          <DispensingAnalytics />
         )}
 
       </main>

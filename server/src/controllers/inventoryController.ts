@@ -4,7 +4,7 @@ import pool from '../database/db';
 // Get all inventory items with optional filters
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, low_stock, expiring_soon, search, include_inactive } = req.query;
+    const { category, low_stock, expiring_soon, expired, search, include_inactive } = req.query;
 
     let query = `
       SELECT
@@ -36,7 +36,11 @@ export const getInventory = async (req: Request, res: Response): Promise<void> =
     }
 
     if (expiring_soon === 'true') {
-      query += ` AND i.expiry_date <= CURRENT_DATE + INTERVAL '90 days'`;
+      query += ` AND i.expiry_date <= CURRENT_DATE + INTERVAL '90 days' AND i.expiry_date >= CURRENT_DATE`;
+    }
+
+    if (expired === 'true') {
+      query += ` AND i.expiry_date < CURRENT_DATE`;
     }
 
     if (search) {
@@ -1129,5 +1133,212 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
     res.status(500).json({ error: 'Failed to update batch quantities' });
   } finally {
     client.release();
+  }
+};
+
+// Get dispensing analytics for charts
+export const getDispensingAnalytics = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { from_date, to_date } = req.query;
+    const fromDate = from_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const toDate = to_date || new Date().toISOString().split('T')[0];
+
+    // Hourly dispensing volume (last 24 hours)
+    const hourlyResult = await pool.query(`
+      SELECT
+        EXTRACT(HOUR FROM po.dispensed_date) as hour,
+        COUNT(*) as count,
+        SUM(CAST(po.quantity AS INTEGER)) as total_quantity
+      FROM pharmacy_orders po
+      WHERE po.status = 'dispensed'
+        AND po.dispensed_date >= NOW() - INTERVAL '24 hours'
+      GROUP BY EXTRACT(HOUR FROM po.dispensed_date)
+      ORDER BY hour
+    `);
+
+    // Daily dispensing trends
+    const dailyResult = await pool.query(`
+      SELECT
+        DATE(po.dispensed_date) as date,
+        COUNT(*) as orders_count,
+        COUNT(DISTINCT po.patient_id) as unique_patients,
+        SUM(CAST(po.quantity AS INTEGER)) as total_units
+      FROM pharmacy_orders po
+      WHERE po.status = 'dispensed'
+        AND po.dispensed_date >= $1
+        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+      GROUP BY DATE(po.dispensed_date)
+      ORDER BY date
+    `, [fromDate, toDate]);
+
+    // Top 10 medications by volume
+    const topMedsResult = await pool.query(`
+      SELECT
+        po.medication_name,
+        COUNT(*) as order_count,
+        SUM(CAST(po.quantity AS INTEGER)) as total_units
+      FROM pharmacy_orders po
+      WHERE po.status = 'dispensed'
+        AND po.dispensed_date >= $1
+        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+      GROUP BY po.medication_name
+      ORDER BY total_units DESC
+      LIMIT 10
+    `, [fromDate, toDate]);
+
+    // Dispensing by priority
+    const priorityResult = await pool.query(`
+      SELECT
+        po.priority,
+        COUNT(*) as count
+      FROM pharmacy_orders po
+      WHERE po.status = 'dispensed'
+        AND po.dispensed_date >= $1
+        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+      GROUP BY po.priority
+    `, [fromDate, toDate]);
+
+    // Summary stats
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(*) as total_dispensed,
+        COUNT(DISTINCT po.patient_id) as unique_patients,
+        SUM(CAST(po.quantity AS INTEGER)) as total_units,
+        ROUND(AVG(EXTRACT(EPOCH FROM (po.dispensed_date - po.ordered_date)) / 60), 1) as avg_turnaround_minutes
+      FROM pharmacy_orders po
+      WHERE po.status = 'dispensed'
+        AND po.dispensed_date >= $1
+        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+    `, [fromDate, toDate]);
+
+    res.json({
+      hourly: hourlyResult.rows,
+      daily: dailyResult.rows,
+      topMedications: topMedsResult.rows,
+      byPriority: priorityResult.rows,
+      summary: summaryResult.rows[0] || {
+        total_dispensed: 0,
+        unique_patients: 0,
+        total_units: 0,
+        avg_turnaround_minutes: null
+      }
+    });
+  } catch (error) {
+    console.error('Get dispensing analytics error:', error);
+    res.status(500).json({ error: 'Failed to fetch dispensing analytics' });
+  }
+};
+
+// Get expiry calendar data
+export const getExpiryCalendar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { year, month } = req.query;
+    const targetYear = parseInt(year as string) || new Date().getFullYear();
+    const targetMonth = parseInt(month as string) || new Date().getMonth() + 1;
+
+    // Get all batch expirations for the month
+    const result = await pool.query(`
+      SELECT
+        ib.id,
+        ib.batch_number,
+        ib.quantity,
+        ib.expiry_date,
+        pi.medication_name,
+        pi.id as inventory_id,
+        CASE
+          WHEN ib.expiry_date < CURRENT_DATE THEN 'expired'
+          WHEN ib.expiry_date <= CURRENT_DATE + INTERVAL '30 days' THEN 'critical'
+          WHEN ib.expiry_date <= CURRENT_DATE + INTERVAL '90 days' THEN 'warning'
+          ELSE 'ok'
+        END as status
+      FROM inventory_batches ib
+      JOIN pharmacy_inventory pi ON ib.inventory_id = pi.id
+      WHERE ib.is_active = true
+        AND ib.quantity > 0
+        AND ib.expiry_date IS NOT NULL
+        AND EXTRACT(YEAR FROM ib.expiry_date) = $1
+        AND EXTRACT(MONTH FROM ib.expiry_date) = $2
+      ORDER BY ib.expiry_date ASC
+    `, [targetYear, targetMonth]);
+
+    // Group by date for calendar display
+    const byDate: Record<string, any[]> = {};
+    result.rows.forEach(batch => {
+      const dateKey = batch.expiry_date.toISOString().split('T')[0];
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = [];
+      }
+      byDate[dateKey].push(batch);
+    });
+
+    // Get summary counts
+    const summaryResult = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE ib.expiry_date < CURRENT_DATE) as expired_count,
+        COUNT(*) FILTER (WHERE ib.expiry_date >= CURRENT_DATE AND ib.expiry_date <= CURRENT_DATE + INTERVAL '30 days') as critical_count,
+        COUNT(*) FILTER (WHERE ib.expiry_date > CURRENT_DATE + INTERVAL '30 days' AND ib.expiry_date <= CURRENT_DATE + INTERVAL '90 days') as warning_count
+      FROM inventory_batches ib
+      WHERE ib.is_active = true AND ib.quantity > 0 AND ib.expiry_date IS NOT NULL
+    `);
+
+    res.json({
+      batches: result.rows,
+      byDate,
+      summary: summaryResult.rows[0],
+      year: targetYear,
+      month: targetMonth
+    });
+  } catch (error) {
+    console.error('Get expiry calendar error:', error);
+    res.status(500).json({ error: 'Failed to fetch expiry calendar' });
+  }
+};
+
+// Get patient medication timeline
+export const getPatientMedicationTimeline = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patientId } = req.params;
+
+    // Get all dispensed medications for the patient
+    const result = await pool.query(`
+      SELECT
+        po.id,
+        po.medication_name,
+        po.dosage,
+        po.frequency,
+        po.quantity,
+        po.ordered_date as start_date,
+        po.dispensed_date,
+        po.status,
+        po.notes,
+        u.first_name || ' ' || u.last_name as prescriber_name
+      FROM pharmacy_orders po
+      LEFT JOIN users u ON po.ordering_provider = u.id
+      WHERE po.patient_id = $1
+      ORDER BY po.ordered_date DESC
+      LIMIT 50
+    `, [patientId]);
+
+    // Get active medications (dispensed in last 30 days)
+    const activeResult = await pool.query(`
+      SELECT DISTINCT ON (po.medication_name)
+        po.medication_name,
+        po.dosage,
+        po.frequency,
+        po.dispensed_date as last_dispensed
+      FROM pharmacy_orders po
+      WHERE po.patient_id = $1
+        AND po.status = 'dispensed'
+        AND po.dispensed_date >= NOW() - INTERVAL '30 days'
+      ORDER BY po.medication_name, po.dispensed_date DESC
+    `, [patientId]);
+
+    res.json({
+      timeline: result.rows,
+      activeMedications: activeResult.rows
+    });
+  } catch (error) {
+    console.error('Get patient medication timeline error:', error);
+    res.status(500).json({ error: 'Failed to fetch medication timeline' });
   }
 };
