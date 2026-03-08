@@ -700,19 +700,45 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     if (updateData.status === 'dispensed') {
       await notificationService.notifyPharmacyDispensed(parseInt(id));
 
-      // Add medication cost to patient invoice
+      const quantity = parseInt(updatedOrder.quantity) || 1;
+
+      // Add medication cost to patient invoice AND deduct from inventory
       try {
-        // Get medication price from inventory
+        // Get medication from inventory
         const inventoryResult = await pool.query(
-          `SELECT selling_price FROM pharmacy_inventory
+          `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
            WHERE medication_name ILIKE $1 LIMIT 1`,
           [updatedOrder.medication_name]
         );
 
         if (inventoryResult.rows.length > 0) {
-          const unitPrice = parseFloat(inventoryResult.rows[0].selling_price);
-          const quantity = parseInt(updatedOrder.quantity) || 1;
+          const inventoryItem = inventoryResult.rows[0];
+          const unitPrice = parseFloat(inventoryItem.selling_price);
           const totalPrice = unitPrice * quantity;
+
+          // Deduct from inventory
+          await pool.query(
+            `UPDATE pharmacy_inventory
+             SET quantity_on_hand = quantity_on_hand - $1,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $2`,
+            [quantity, inventoryItem.id]
+          );
+
+          // Record inventory transaction for the dispense
+          await pool.query(
+            `INSERT INTO inventory_transactions
+              (inventory_id, transaction_type, quantity, unit_cost, reference_type, reference_id, notes, created_by)
+             VALUES ($1, 'dispense', $2, $3, 'pharmacy_order', $4, $5, $6)`,
+            [
+              inventoryItem.id,
+              -quantity, // Negative because it's a deduction
+              unitPrice,
+              parseInt(id),
+              `Dispensed for ${updatedOrder.patient_name || 'patient'}`,
+              authReq.user?.id
+            ]
+          );
 
           // Get or create invoice for the encounter
           const invoiceResult = await pool.query(
@@ -739,10 +765,12 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
               [invoiceId]
             );
           }
+        } else {
+          console.warn(`Medication not found in inventory: ${updatedOrder.medication_name}`);
         }
       } catch (invoiceError) {
-        console.error('Error adding medication to invoice:', invoiceError);
-        // Don't fail the dispense if invoice update fails
+        console.error('Error processing dispense (invoice/inventory):', invoiceError);
+        // Don't fail the dispense if invoice/inventory update fails, but log it
       }
 
       // Check if all pharmacy orders for this encounter are complete

@@ -512,36 +512,38 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     const { start_date, end_date } = req.query;
 
     let dateFilter = '';
+    let transactionDateFilter = '';
     const params: any[] = [];
 
     if (start_date && end_date) {
       dateFilter = `AND po.dispensed_date >= $1 AND po.dispensed_date <= $2`;
+      transactionDateFilter = `AND it.created_at >= $1 AND it.created_at <= $2`;
       params.push(start_date, end_date);
     } else if (start_date) {
       dateFilter = `AND po.dispensed_date >= $1`;
+      transactionDateFilter = `AND it.created_at >= $1`;
       params.push(start_date);
     } else if (end_date) {
       dateFilter = `AND po.dispensed_date <= $1`;
+      transactionDateFilter = `AND it.created_at <= $1`;
       params.push(end_date);
     }
 
-    // Get revenue by day
+    // Get revenue by day - using inventory transactions for accurate tracking
     const dailyRevenue = await pool.query(
       `SELECT
-        DATE(po.dispensed_date) as date,
+        DATE(it.created_at) as date,
         COUNT(*) as orders_count,
-        COUNT(DISTINCT po.patient_id) as unique_patients,
-        SUM(COALESCE(ii.total_price, 0)) as revenue
-       FROM pharmacy_orders po
-       LEFT JOIN invoice_items ii ON ii.description ILIKE '%' || po.medication_name || '%'
-       WHERE po.status = 'dispensed' ${dateFilter}
-       GROUP BY DATE(po.dispensed_date)
+        SUM(ABS(it.quantity) * it.unit_cost) as revenue
+       FROM inventory_transactions it
+       WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
+       GROUP BY DATE(it.created_at)
        ORDER BY date DESC
        LIMIT 30`,
       params
     );
 
-    // Get totals
+    // Get totals from pharmacy orders
     const totals = await pool.query(
       `SELECT
         COUNT(*) as total_orders,
@@ -553,23 +555,37 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
       params
     );
 
-    // Get top medications
+    // Get total revenue from dispense transactions
+    const revenueTotal = await pool.query(
+      `SELECT
+        COALESCE(SUM(ABS(it.quantity) * it.unit_cost), 0) as total_revenue
+       FROM inventory_transactions it
+       WHERE it.transaction_type = 'dispense' ${transactionDateFilter}`,
+      params
+    );
+
+    // Get top medications by dispensed quantity
     const topMedications = await pool.query(
       `SELECT
-        medication_name,
+        pi.medication_name,
         COUNT(*) as order_count,
-        SUM(CAST(quantity AS INTEGER)) as total_quantity
-       FROM pharmacy_orders
-       WHERE status = 'dispensed' ${dateFilter}
-       GROUP BY medication_name
-       ORDER BY order_count DESC
+        SUM(ABS(it.quantity)) as total_quantity,
+        SUM(ABS(it.quantity) * it.unit_cost) as total_revenue
+       FROM inventory_transactions it
+       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
+       GROUP BY pi.medication_name
+       ORDER BY total_revenue DESC
        LIMIT 10`,
       params
     );
 
     res.json({
       daily_revenue: dailyRevenue.rows,
-      totals: totals.rows[0],
+      totals: {
+        ...totals.rows[0],
+        total_revenue: revenueTotal.rows[0]?.total_revenue || 0
+      },
       top_medications: topMedications.rows
     });
   } catch (error) {
@@ -687,5 +703,115 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error('Get refills calendar error:', error);
     res.status(500).json({ error: 'Failed to fetch refills calendar' });
+  }
+};
+
+// Record a purchase (procurement)
+export const recordPurchase = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
+  try {
+    const {
+      inventory_id,
+      supplier_id,
+      quantity,
+      unit_cost,
+      discount_percent,
+      original_unit_cost,
+      new_selling_price,
+      batch_number,
+      expiry_date
+    } = req.body;
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+
+    if (!inventory_id || !quantity || quantity <= 0) {
+      res.status(400).json({ error: 'Invalid inventory item or quantity' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    // Record the purchase transaction
+    await client.query(
+      `INSERT INTO inventory_transactions
+        (inventory_id, transaction_type, quantity, unit_cost, reference_type, notes, created_by)
+       VALUES ($1, 'purchase', $2, $3, 'procurement', $4, $5)`,
+      [
+        inventory_id,
+        quantity,
+        unit_cost,
+        `Batch: ${batch_number || 'N/A'}, Discount: ${discount_percent || 0}%, Original cost: ${original_unit_cost || unit_cost}`,
+        userId
+      ]
+    );
+
+    // Update inventory quantity
+    await client.query(
+      `UPDATE pharmacy_inventory
+       SET quantity_on_hand = quantity_on_hand + $1,
+           unit_cost = $2,
+           supplier_id = COALESCE($3, supplier_id),
+           expiry_date = COALESCE($4, expiry_date),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [quantity, unit_cost, supplier_id, expiry_date, inventory_id]
+    );
+
+    // Update selling price if provided
+    if (new_selling_price && new_selling_price > 0) {
+      await client.query(
+        `UPDATE pharmacy_inventory SET selling_price = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [new_selling_price, inventory_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({ message: 'Purchase recorded successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Record purchase error:', error);
+    res.status(500).json({ error: 'Failed to record purchase' });
+  } finally {
+    client.release();
+  }
+};
+
+// Get purchase history
+export const getPurchaseHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(
+      `SELECT
+        it.id,
+        it.inventory_id,
+        it.quantity,
+        it.unit_cost,
+        it.notes,
+        it.created_at,
+        pi.medication_name,
+        s.name as supplier_name,
+        CASE
+          WHEN it.notes LIKE '%Discount: %'
+          THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
+          ELSE NULL
+        END as discount_percent,
+        CASE
+          WHEN it.notes LIKE '%Batch: %'
+          THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+          ELSE NULL
+        END as batch_number
+       FROM inventory_transactions it
+       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       LEFT JOIN suppliers s ON pi.supplier_id = s.id
+       WHERE it.transaction_type = 'purchase'
+       ORDER BY it.created_at DESC
+       LIMIT 50`
+    );
+
+    res.json({ purchases: result.rows });
+  } catch (error) {
+    console.error('Get purchase history error:', error);
+    res.status(500).json({ error: 'Failed to fetch purchase history' });
   }
 };

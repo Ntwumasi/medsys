@@ -167,6 +167,8 @@ import {
   getRevenueSummary,
   getPatientDrugHistory,
   getRefillsCalendar,
+  recordPurchase,
+  getPurchaseHistory,
 } from '../controllers/inventoryController';
 import {
   getSuppliers,
@@ -427,6 +429,8 @@ router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmac
 router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateInventoryItem);
 router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), adjustStock);
 router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
+router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
+router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPurchaseHistory);
 
 // Payer Pricing routes
 router.get('/pricing-rules', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPayerPricingRules);

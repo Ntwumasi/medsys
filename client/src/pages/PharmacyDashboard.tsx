@@ -202,6 +202,23 @@ const PharmacyDashboard: React.FC = () => {
   const [editingPrice, setEditingPrice] = useState<InventoryItem | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState<string>('');
 
+  // Procurement state
+  const [procurementForm, setProcurementForm] = useState({
+    inventory_id: '',
+    supplier_id: '',
+    quantity: '',
+    unit_cost: '',
+    discount_percent: '',
+    new_selling_price: '',
+    batch_number: '',
+    expiry_date: ''
+  });
+  const [purchaseHistory, setPurchaseHistory] = useState<any[]>([]);
+  const [submittingProcurement, setSubmittingProcurement] = useState(false);
+
+  // Get selected medication's current price for procurement form
+  const selectedProcurementMed = inventory.find(i => i.id === parseInt(procurementForm.inventory_id));
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchRoutingRequests, 30000);
@@ -213,6 +230,17 @@ const PharmacyDashboard: React.FC = () => {
       fetchOrderHistory();
     }
   }, [ordersSubTab, startDate, endDate]);
+
+  useEffect(() => {
+    if (activeTab === 'procurement') {
+      fetchPurchaseHistory();
+    }
+    if (activeTab === 'revenue') {
+      fetchRevenueSummary();
+    }
+    // Clear selected order when switching main tabs
+    setSelectedOrder(null);
+  }, [activeTab]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -278,14 +306,27 @@ const PharmacyDashboard: React.FC = () => {
 
   const updateInventoryItem = async (item: InventoryItem) => {
     try {
-      await apiClient.put(`/inventory/${item.id}`, item);
+      // Send only the editable fields with proper null handling
+      const updateData = {
+        medication_name: item.medication_name || undefined,
+        generic_name: item.generic_name || undefined,
+        category: item.category || undefined,
+        unit: item.unit || undefined,
+        reorder_level: isNaN(item.reorder_level) ? undefined : item.reorder_level,
+        unit_cost: isNaN(item.unit_cost) ? undefined : item.unit_cost,
+        selling_price: isNaN(item.selling_price) ? undefined : item.selling_price,
+        expiry_date: item.expiry_date || undefined,
+        supplier_id: item.supplier_id || undefined,
+      };
+      await apiClient.put(`/inventory/${item.id}`, updateData);
       showToast('Inventory updated successfully', 'success');
       setShowInventoryModal(false);
       setEditingInventory(null);
       fetchInventory();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating inventory:', error);
-      showToast('Failed to update inventory', 'error');
+      const message = error.response?.data?.error || 'Failed to update inventory';
+      showToast(message, 'error');
     }
   };
 
@@ -460,18 +501,116 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const updateMedicationPrice = async (itemId: number, newPrice: number) => {
+    if (isNaN(newPrice) || newPrice < 0) {
+      showToast('Please enter a valid price', 'error');
+      return;
+    }
     try {
       await apiClient.put(`/inventory/${itemId}`, { selling_price: newPrice });
       showToast('Price updated successfully', 'success');
       setEditingPrice(null);
       fetchInventory();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating price:', error);
-      showToast('Failed to update price', 'error');
+      const message = error.response?.data?.error || 'Failed to update price';
+      showToast(message, 'error');
     }
   };
 
-  const dispenseMedication = async (orderId: number) => {
+  // Procurement functions
+  const fetchPurchaseHistory = async () => {
+    try {
+      const response = await apiClient.get('/inventory/purchases');
+      setPurchaseHistory(response.data.purchases || []);
+    } catch (error) {
+      console.error('Error fetching purchase history:', error);
+    }
+  };
+
+  const submitProcurement = async () => {
+    const { inventory_id, supplier_id, quantity, unit_cost, discount_percent, new_selling_price, batch_number, expiry_date } = procurementForm;
+
+    if (!inventory_id || !quantity || !unit_cost) {
+      showToast('Please fill in medication, quantity, and unit cost', 'error');
+      return;
+    }
+
+    const qty = parseInt(quantity);
+    const cost = parseFloat(unit_cost);
+    const discount = parseFloat(discount_percent) || 0;
+    const newPrice = parseFloat(new_selling_price);
+
+    if (isNaN(qty) || qty <= 0) {
+      showToast('Please enter a valid quantity', 'error');
+      return;
+    }
+    if (isNaN(cost) || cost < 0) {
+      showToast('Please enter a valid unit cost', 'error');
+      return;
+    }
+
+    setSubmittingProcurement(true);
+    try {
+      // Calculate effective cost after discount
+      const effectiveCost = cost * (1 - discount / 100);
+
+      await apiClient.post('/inventory/purchase', {
+        inventory_id: parseInt(inventory_id),
+        supplier_id: supplier_id ? parseInt(supplier_id) : null,
+        quantity: qty,
+        unit_cost: effectiveCost,
+        discount_percent: discount,
+        original_unit_cost: cost,
+        new_selling_price: !isNaN(newPrice) && newPrice > 0 ? newPrice : undefined,
+        batch_number: batch_number || null,
+        expiry_date: expiry_date || null
+      });
+
+      showToast('Purchase recorded successfully', 'success');
+      setProcurementForm({
+        inventory_id: '',
+        supplier_id: '',
+        quantity: '',
+        unit_cost: '',
+        discount_percent: '',
+        new_selling_price: '',
+        batch_number: '',
+        expiry_date: ''
+      });
+      fetchInventory();
+      fetchPurchaseHistory();
+    } catch (error: any) {
+      console.error('Error recording purchase:', error);
+      const message = error.response?.data?.error || 'Failed to record purchase';
+      showToast(message, 'error');
+    } finally {
+      setSubmittingProcurement(false);
+    }
+  };
+
+  const dispenseMedication = async (orderId: number, medicationName?: string) => {
+    // Check for allergy warnings if we have allergy data and medication name
+    if (medicationName && patientAllergies.length > 0) {
+      const medLower = medicationName.toLowerCase();
+      const allergyWarnings = patientAllergies.filter(allergy => {
+        const allergenLower = allergy.allergen?.toLowerCase() || '';
+        // Check if medication name contains allergen or vice versa
+        return medLower.includes(allergenLower) || allergenLower.includes(medLower);
+      });
+
+      if (allergyWarnings.length > 0) {
+        const allergenNames = allergyWarnings.map(a => a.allergen).join(', ');
+        const confirmed = window.confirm(
+          `WARNING: Patient has allergies that may be related to this medication!\n\n` +
+          `Allergies: ${allergenNames}\n\n` +
+          `Are you sure you want to dispense ${medicationName}?`
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+    }
+
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
         status: 'dispensed',
@@ -827,7 +966,7 @@ const PharmacyDashboard: React.FC = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  dispenseMedication(order.id);
+                                  dispenseMedication(order.id, order.medication_name);
                                 }}
                                 className="px-3 py-1 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
                               >
@@ -1439,20 +1578,42 @@ const PharmacyDashboard: React.FC = () => {
           <div>
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
               <h2 className="text-lg font-semibold mb-4">Record Purchase</h2>
-              <p className="text-gray-500 mb-4">Add stock from supplier purchases</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
+              <p className="text-gray-500 mb-4">Add stock from supplier purchases and adjust pricing</p>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Medication</label>
-                  <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                  <select
+                    value={procurementForm.inventory_id}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, inventory_id: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
                     <option value="">Select medication...</option>
                     {inventory.map((item) => (
-                      <option key={item.id} value={item.id}>{item.medication_name}</option>
+                      <option key={item.id} value={item.id}>{item.medication_name} ({item.quantity_on_hand} in stock)</option>
                     ))}
                   </select>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Selling Price</label>
+                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-gray-700 font-medium">
+                    {selectedProcurementMed ? `GH₵ ${parseFloat(String(selectedProcurementMed.selling_price || 0)).toFixed(2)}` : '—'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Current Unit Cost</label>
+                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-gray-700 font-medium">
+                    {selectedProcurementMed ? `GH₵ ${parseFloat(String(selectedProcurementMed.unit_cost || 0)).toFixed(2)}` : '—'}
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                  <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
+                  <select
+                    value={procurementForm.supplier_id}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, supplier_id: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
                     <option value="">Select supplier...</option>
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
@@ -1460,35 +1621,155 @@ const PharmacyDashboard: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                  <input type="number" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Enter quantity" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity Received</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={procurementForm.quantity}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, quantity: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Enter quantity"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
-                  <input type="number" step="0.01" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="0.00" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={procurementForm.unit_cost}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, unit_cost: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={procurementForm.discount_percent}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, discount_percent: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">New Selling Price (GH₵)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={procurementForm.new_selling_price}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, new_selling_price: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Leave blank to keep current"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Batch/Lot Number</label>
-                  <input type="text" className="w-full border border-gray-300 rounded-lg px-3 py-2" placeholder="Optional" />
+                  <input
+                    type="text"
+                    value={procurementForm.batch_number}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, batch_number: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Optional"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
-                  <input type="date" className="w-full border border-gray-300 rounded-lg px-3 py-2" />
+                  <input
+                    type="date"
+                    value={procurementForm.expiry_date}
+                    onChange={(e) => setProcurementForm({ ...procurementForm, expiry_date: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
                 </div>
               </div>
+
+              {/* Effective cost calculation */}
+              {procurementForm.unit_cost && (
+                <div className="mt-4 p-3 bg-primary-50 rounded-lg">
+                  <div className="flex items-center gap-6 text-sm">
+                    <span className="text-gray-600">
+                      Effective Unit Cost: <span className="font-bold text-primary-700">
+                        GH₵ {(parseFloat(procurementForm.unit_cost) * (1 - (parseFloat(procurementForm.discount_percent) || 0) / 100)).toFixed(2)}
+                      </span>
+                    </span>
+                    {procurementForm.quantity && (
+                      <span className="text-gray-600">
+                        Total Purchase: <span className="font-bold text-primary-700">
+                          GH₵ {(parseFloat(procurementForm.quantity) * parseFloat(procurementForm.unit_cost) * (1 - (parseFloat(procurementForm.discount_percent) || 0) / 100)).toFixed(2)}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="mt-4">
-                <button className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium">
-                  Record Purchase
+                <button
+                  onClick={submitProcurement}
+                  disabled={submittingProcurement}
+                  className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submittingProcurement ? 'Recording...' : 'Record Purchase'}
                 </button>
               </div>
             </div>
+
+            {/* Purchase History */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200">
               <div className="px-6 py-4 border-b">
                 <h2 className="text-lg font-semibold">Recent Purchases</h2>
               </div>
-              <div className="p-6 text-center text-gray-500">
-                Purchase history will appear here
-              </div>
+              {purchaseHistory.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Discount</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {purchaseHistory.map((purchase, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {format(new Date(purchase.created_at), 'MMM dd, yyyy')}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{purchase.medication_name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.supplier_name || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900">{purchase.quantity}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600">
+                            GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-600">
+                            {purchase.discount_percent ? `${purchase.discount_percent}%` : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                            GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.batch_number || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-6 text-center text-gray-500">
+                  No purchase history yet. Record your first purchase above.
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1616,9 +1897,12 @@ const PharmacyDashboard: React.FC = () => {
                         item.generic_name?.toLowerCase().includes(pricingSearch.toLowerCase())
                       )
                       .map((item) => {
-                        const margin = item.selling_price && item.unit_cost
-                          ? (((item.selling_price - item.unit_cost) / item.unit_cost) * 100).toFixed(1)
-                          : '0';
+                        // Safe margin calculation - handle zero/null costs
+                        const cost = parseFloat(String(item.unit_cost)) || 0;
+                        const price = parseFloat(String(item.selling_price)) || 0;
+                        const margin = cost > 0
+                          ? (((price - cost) / cost) * 100).toFixed(1)
+                          : price > 0 ? '100+' : '0';
                         return (
                           <tr key={item.id} className="hover:bg-gray-50">
                             <td className="px-6 py-4">
@@ -1853,8 +2137,20 @@ const PharmacyDashboard: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
                 <input
                   type="number"
-                  value={editingInventory.reorder_level}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, reorder_level: parseInt(e.target.value) })}
+                  min="0"
+                  value={editingInventory.reorder_level || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, reorder_level: e.target.value ? parseInt(e.target.value) : 0 })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editingInventory.unit_cost || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, unit_cost: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1863,8 +2159,9 @@ const PharmacyDashboard: React.FC = () => {
                 <input
                   type="number"
                   step="0.01"
-                  value={editingInventory.selling_price}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: parseFloat(e.target.value) })}
+                  min="0"
+                  value={editingInventory.selling_price || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
