@@ -950,6 +950,7 @@ const PharmacyDashboard: React.FC = () => {
       // Refresh the appropriate tab and stats
       if (ordersSubTab === 'pending') fetchPendingOrders();
       else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+      else if (ordersSubTab === 'ready') fetchReadyOrders();
       fetchOrderStats();
     } catch (error) {
       console.error('Error dispensing medication:', error);
@@ -3347,7 +3348,7 @@ const PharmacyDashboard: React.FC = () => {
                           <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-medium text-success-600">GH₵{item.selling_price.toFixed(2)}</p>
+                          <p className="text-sm font-medium text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
                           <p className="text-xs text-gray-400">Stock: {item.quantity_on_hand}</p>
                         </div>
                       </button>
