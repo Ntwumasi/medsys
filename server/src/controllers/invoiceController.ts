@@ -1,6 +1,95 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 
+// Get all invoices with filters
+export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { status, start_date, end_date, search, limit = 50, offset = 0 } = req.query;
+
+    let query = `
+      SELECT i.*,
+             p.patient_number,
+             u.first_name || ' ' || u.last_name as patient_name,
+             e.encounter_number,
+             e.chief_complaint
+      FROM invoices i
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN encounters e ON i.encounter_id = e.id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let paramCount = 0;
+
+    if (status && status !== 'all') {
+      paramCount++;
+      query += ` AND i.status = $${paramCount}`;
+      params.push(status);
+    }
+
+    if (start_date) {
+      paramCount++;
+      query += ` AND i.invoice_date >= $${paramCount}`;
+      params.push(start_date);
+    }
+
+    if (end_date) {
+      paramCount++;
+      query += ` AND i.invoice_date <= $${paramCount}`;
+      params.push(end_date);
+    }
+
+    if (search) {
+      paramCount++;
+      query += ` AND (
+        i.invoice_number ILIKE $${paramCount} OR
+        p.patient_number ILIKE $${paramCount} OR
+        u.first_name ILIKE $${paramCount} OR
+        u.last_name ILIKE $${paramCount}
+      )`;
+      params.push(`%${search}%`);
+    }
+
+    // Get total count
+    const countQuery = query.replace(/SELECT i\.\*[\s\S]*?FROM/, 'SELECT COUNT(*) FROM');
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+
+    // Add ordering and pagination
+    query += ` ORDER BY i.invoice_date DESC, i.id DESC`;
+    paramCount++;
+    query += ` LIMIT $${paramCount}`;
+    params.push(limit);
+    paramCount++;
+    query += ` OFFSET $${paramCount}`;
+    params.push(offset);
+
+    const result = await pool.query(query, params);
+
+    // Get summary stats
+    const statsResult = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+        COUNT(*) FILTER (WHERE status = 'paid') as paid_count,
+        COUNT(*) FILTER (WHERE status = 'partial') as partial_count,
+        COALESCE(SUM(total_amount) FILTER (WHERE status = 'pending'), 0) as pending_amount,
+        COALESCE(SUM(total_amount) FILTER (WHERE status = 'paid'), 0) as paid_amount,
+        COALESCE(SUM(amount_paid), 0) as total_collected
+      FROM invoices
+      WHERE invoice_date >= CURRENT_DATE - INTERVAL '30 days'
+    `);
+
+    res.json({
+      invoices: result.rows,
+      total,
+      stats: statsResult.rows[0],
+    });
+  } catch (error) {
+    console.error('Get all invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+};
+
 // Get invoice by ID
 export const getInvoiceById = async (req: Request, res: Response): Promise<void> => {
   try {

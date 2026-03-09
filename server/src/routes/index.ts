@@ -98,6 +98,7 @@ import {
   getPatientPayerSources,
 } from '../controllers/payerSourcesController';
 import {
+  getAllInvoices,
   getInvoiceById,
   getInvoicesByPatient,
   getInvoiceByEncounter,
@@ -378,6 +379,7 @@ router.delete('/payer-sources/insurance-providers/:id', authenticateToken, autho
 router.get('/payer-sources/patient/:patient_id', authenticateToken, getPatientPayerSources);
 
 // Invoice routes
+router.get('/invoices', authenticateToken, getAllInvoices);
 router.get('/invoices/:id', authenticateToken, getInvoiceById);
 router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
