@@ -79,6 +79,7 @@ import {
   createPharmacyOrder,
   getPharmacyOrders,
   updatePharmacyOrder,
+  processRefill,
   getAllEncounterOrders,
   getDoctorAlerts,
   getCriticalResultAlerts,
@@ -356,6 +357,7 @@ router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor'), createPharmacyOrder);
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
 router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), updatePharmacyOrder);
+router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin'), processRefill);
 
 // Get all orders for an encounter
 router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);

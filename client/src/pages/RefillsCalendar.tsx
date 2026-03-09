@@ -3,22 +3,27 @@ import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import { Badge } from '../components/ui';
 import apiClient from '../api/client';
+import { useToast } from '../context/ToastContext';
 
 interface RefillData {
   id: number;
   medication_name: string;
   patient_name: string;
   patient_number: string;
+  patient_phone?: string;
   refill_date: string;
   refills_remaining: number;
   quantity: number;
+  days_supply?: number;
   frequency: string;
 }
 
 const RefillsCalendar: React.FC = () => {
+  const { showToast } = useToast();
   const [refillsData, setRefillsData] = useState<RefillData[]>([]);
   const [refillsMonth, setRefillsMonth] = useState(new Date());
   const [loading, setLoading] = useState(false);
+  const [processingRefill, setProcessingRefill] = useState<number | null>(null);
 
   useEffect(() => {
     fetchRefillsCalendar();
@@ -36,6 +41,27 @@ const RefillsCalendar: React.FC = () => {
       setRefillsData([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleProcessRefill = async (orderId: number, medicationName: string, patientName: string) => {
+    if (!confirm(`Process refill for ${medicationName} for ${patientName}?\n\nThis will create a new pharmacy order and decrement the refills remaining.`)) {
+      return;
+    }
+
+    setProcessingRefill(orderId);
+    try {
+      const response = await apiClient.post(`/orders/pharmacy/${orderId}/refill`);
+      showToast(`Refill processed successfully! New order #${response.data.new_order.id} created. ${response.data.refills_remaining} refills remaining.`, 'success');
+
+      // Refresh the calendar to show updated refills count
+      fetchRefillsCalendar();
+    } catch (error: any) {
+      console.error('Error processing refill:', error);
+      const message = error.response?.data?.error || 'Failed to process refill';
+      showToast(message, 'error');
+    } finally {
+      setProcessingRefill(null);
     }
   };
 
@@ -213,6 +239,7 @@ const RefillsCalendar: React.FC = () => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Refill Date</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Refills Left</th>
                         <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -248,6 +275,30 @@ const RefillsCalendar: React.FC = () => {
                               ) : (
                                 <Badge variant="gray">Upcoming</Badge>
                               )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleProcessRefill(refill.id, refill.medication_name, refill.patient_name)}
+                                disabled={processingRefill === refill.id}
+                                className="px-3 py-1.5 bg-success-600 text-white text-xs font-medium rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 mx-auto"
+                              >
+                                {processingRefill === refill.id ? (
+                                  <>
+                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Process Refill
+                                  </>
+                                )}
+                              </button>
                             </td>
                           </tr>
                         );

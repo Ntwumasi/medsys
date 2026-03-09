@@ -506,6 +506,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       route,
       quantity,
       refills,
+      days_supply,
       priority,
       notes,
     } = req.body;
@@ -513,8 +514,8 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     const result = await pool.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, priority, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        dosage, frequency, route, quantity, refills, days_supply, priority, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING *`,
       [
         patient_id,
@@ -526,6 +527,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
         route,
         quantity,
         refills || 0,
+        days_supply || null,
         priority || 'routine',
         notes,
       ]
@@ -871,6 +873,118 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
   } catch (error) {
     console.error('Update pharmacy order error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Process a refill - creates a new order from an existing prescription and decrements refills
+export const processRefill = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params; // Original order ID
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+
+    await client.query('BEGIN');
+
+    // Get the original order
+    const originalResult = await client.query(
+      `SELECT * FROM pharmacy_orders WHERE id = $1`,
+      [id]
+    );
+
+    if (originalResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Original prescription not found' });
+      return;
+    }
+
+    const original = originalResult.rows[0];
+
+    // Check if refills are available
+    if (original.refills <= 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'No refills remaining for this prescription' });
+      return;
+    }
+
+    // Create a new order as the refill (copies the prescription)
+    const newOrderResult = await client.query(
+      `INSERT INTO pharmacy_orders (
+        patient_id, encounter_id, ordering_provider, medication_name,
+        dosage, frequency, route, quantity, refills, days_supply, priority,
+        status, parent_order_id, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        original.patient_id,
+        original.encounter_id,
+        original.ordering_provider,
+        original.medication_name,
+        original.dosage,
+        original.frequency,
+        original.route,
+        original.quantity,
+        0, // Refill order has no refills of its own
+        original.days_supply,
+        'routine', // Refills are typically routine priority
+        'ordered',
+        parseInt(id), // Link to parent order
+        `Refill of prescription #${id}`,
+      ]
+    );
+
+    // Decrement refills on the original order
+    await client.query(
+      `UPDATE pharmacy_orders
+       SET refills = refills - 1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+
+    const newOrder = newOrderResult.rows[0];
+
+    // Get patient info for the response
+    const patientInfo = await pool.query(
+      `SELECT u.first_name, u.last_name, p.patient_number
+       FROM patients p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [original.patient_id]
+    );
+
+    // Audit log
+    await auditService.log({
+      userId,
+      action: 'create',
+      entityType: 'pharmacy_order_refill',
+      entityId: newOrder.id,
+      details: {
+        parent_order_id: parseInt(id),
+        medication: original.medication_name,
+        refills_remaining: original.refills - 1,
+      }
+    });
+
+    res.json({
+      message: 'Refill processed successfully',
+      new_order: {
+        ...newOrder,
+        patient_name: patientInfo.rows[0] ?
+          `${patientInfo.rows[0].first_name} ${patientInfo.rows[0].last_name}` : null,
+        patient_number: patientInfo.rows[0]?.patient_number,
+      },
+      original_order_id: parseInt(id),
+      refills_remaining: original.refills - 1,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Process refill error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 

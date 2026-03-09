@@ -110,12 +110,12 @@ const DoctorDashboard: React.FC = () => {
   // Multi-order state - arrays to hold pending orders
   const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string}>>([]);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, priority: string}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', priority: 'routine'});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
 
   // Drug interaction state
   const [drugInteractions, setDrugInteractions] = useState<Array<{drug1: string, drug2: string, severity: string, description: string, recommendation: string}>>([]);
@@ -392,7 +392,7 @@ const DoctorDashboard: React.FC = () => {
 
   const addMedicationToList = () => {
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', priority: 'routine'});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -1591,6 +1591,14 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Refills"
                           />
+                          <input
+                            type="number"
+                            min="1"
+                            value={currentPharmacyOrder.days_supply}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, days_supply: e.target.value})}
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            placeholder="Days Supply"
+                          />
                         </div>
                         <select
                           value={currentPharmacyOrder.priority}
@@ -1635,9 +1643,10 @@ const DoctorDashboard: React.FC = () => {
                                     {order.dosage} {order.frequency && `• ${order.frequency}`}
                                   </div>
                                   {order.route && <div className="text-sm text-gray-600">{order.route} • Qty: {order.quantity}</div>}
-                                  {parseInt(order.refills) > 0 && (
-                                    <div className="text-sm text-primary-600">{order.refills} refill(s)</div>
-                                  )}
+                                  <div className="text-sm text-gray-600">
+                                    {parseInt(order.refills) > 0 && <span className="text-primary-600">{order.refills} refill(s)</span>}
+                                    {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
+                                  </div>
                                   <div className="text-xs text-success-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button

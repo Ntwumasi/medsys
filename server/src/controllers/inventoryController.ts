@@ -670,55 +670,59 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
 
     if (from_date && to_date) {
       // Date range query (for appointment calendar integration)
+      // Uses days_supply if set, otherwise falls back to quantity as days
       result = await pool.query(
         `SELECT
           po.id,
           po.medication_name,
           po.quantity,
           po.refills,
+          po.days_supply,
           po.dispensed_date,
           po.frequency,
           p.id as patient_id,
           p.patient_number,
           u.first_name || ' ' || u.last_name as patient_name,
           u.phone as patient_phone,
-          -- Estimate refill date (quantity days after dispensed)
-          (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
+          -- Estimate refill date: use days_supply if available, otherwise use quantity
+          (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
           po.refills as refills_remaining
          FROM pharmacy_orders po
          JOIN patients p ON po.patient_id = p.id
          JOIN users u ON p.user_id = u.id
          WHERE po.status = 'dispensed'
            AND po.refills > 0
-           AND (po.dispensed_date + (po.quantity::int || ' days')::interval)::date >= $1::date
-           AND (po.dispensed_date + (po.quantity::int || ' days')::interval)::date <= $2::date
+           AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
+           AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
          ORDER BY estimated_refill_date ASC`,
         [from_date, to_date]
       );
     } else if (year && month) {
       // Year/month query (original behavior)
+      // Uses days_supply if set, otherwise falls back to quantity as days
       result = await pool.query(
         `SELECT
           po.id,
           po.medication_name,
           po.quantity,
           po.refills,
+          po.days_supply,
           po.dispensed_date,
           po.frequency,
           p.id as patient_id,
           p.patient_number,
           u.first_name || ' ' || u.last_name as patient_name,
           u.phone as patient_phone,
-          -- Estimate refill date (quantity days after dispensed)
-          (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
+          -- Estimate refill date: use days_supply if available, otherwise use quantity
+          (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
           po.refills as refills_remaining
          FROM pharmacy_orders po
          JOIN patients p ON po.patient_id = p.id
          JOIN users u ON p.user_id = u.id
          WHERE po.status = 'dispensed'
            AND po.refills > 0
-           AND EXTRACT(YEAR FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $1
-           AND EXTRACT(MONTH FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $2
+           AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
+           AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2
          ORDER BY estimated_refill_date ASC`,
         [year, month]
       );
