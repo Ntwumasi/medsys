@@ -1215,7 +1215,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       totalAmount += itemTotal;
     }
 
-    // Check if invoice exists for this encounter, if not create one
+    // Get or create invoice for this encounter
+    let invoiceId: number;
     const invoiceCheck = await client.query(
       `SELECT id FROM invoices WHERE encounter_id = $1`,
       [encounter_id]
@@ -1223,28 +1224,70 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
 
     if (invoiceCheck.rows.length === 0) {
       // Create invoice for OTC purchase
-      await client.query(
+      const invoiceResult = await client.query(
         `INSERT INTO invoices (encounter_id, patient_id, subtotal, total_amount, status)
-         VALUES ($1, $2, $3, $3, 'pending')`,
-        [encounter_id, patient_id, totalAmount]
+         VALUES ($1, $2, 0, 0, 'pending')
+         RETURNING id`,
+        [encounter_id, patient_id]
       );
+      invoiceId = invoiceResult.rows[0].id;
     } else {
-      // Update existing invoice
+      invoiceId = invoiceCheck.rows[0].id;
+    }
+
+    // Add each medication as an invoice line item
+    for (const order of createdOrders) {
+      const med = medicationList.find((m: any) => m.medication_name === order.medication_name || m.inventory_id);
+      const unitPrice = med?.unit_price || 0;
+      const quantity = order.quantity;
+      const itemTotal = unitPrice * quantity;
+
       await client.query(
-        `UPDATE invoices
-         SET subtotal = subtotal + $1, total_amount = total_amount + $1, updated_at = CURRENT_TIMESTAMP
-         WHERE encounter_id = $2`,
-        [totalAmount, encounter_id]
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+         VALUES ($1, $2, $3, $4, $5, 'medication')`,
+        [invoiceId, `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''}`, quantity, unitPrice, itemTotal]
       );
     }
 
-    // Update routing status to completed
+    // Update invoice totals
+    await client.query(
+      `UPDATE invoices SET
+        subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+        total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [invoiceId]
+    );
+
+    // Update pharmacy routing status to completed
     await client.query(
       `UPDATE department_routing
        SET status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [routing_id]
     );
+
+    // Route patient to receptionist for checkout
+    await client.query(
+      `INSERT INTO department_routing (encounter_id, patient_id, department, priority, notes, routed_by, status)
+       VALUES ($1, $2, 'receptionist', 'routine', 'Ready for checkout - OTC purchase complete', $3, 'pending')`,
+      [encounter_id, patient_id, dispensed_by]
+    );
+
+    // Get patient info for notification
+    const patientInfo = await client.query(
+      `SELECT u.first_name || ' ' || u.last_name as patient_name, p.patient_number
+       FROM patients p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [patient_id]
+    );
+
+    // Send notification to receptionist
+    if (patientInfo.rows.length > 0) {
+      const { patient_name, patient_number } = patientInfo.rows[0];
+      await notificationService.notifyReadyForCheckout(patient_name, patient_number, encounter_id);
+    }
 
     // Audit log
     await auditService.log({
