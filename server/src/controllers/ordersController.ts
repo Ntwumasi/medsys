@@ -592,7 +592,7 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         ) as payer_type,
         COALESCE(
           (SELECT CASE
-            WHEN pps.payer_type = 'corporate' THEN cc.company_name
+            WHEN pps.payer_type = 'corporate' THEN cc.name
             WHEN pps.payer_type = 'insurance' THEN ip.name
             ELSE 'Self Pay'
           END
