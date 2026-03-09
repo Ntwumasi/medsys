@@ -148,7 +148,8 @@ const LabDashboard: React.FC = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins'>('orders');
+  const [walkIns, setWalkIns] = useState<any[]>([]);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
 
   // Loading states
@@ -302,6 +303,16 @@ const LabDashboard: React.FC = () => {
     }
   }, [startDate, endDate, priorityFilter]);
 
+  // Fetch walk-in patients
+  const fetchWalkIns = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/department-routing/lab/walk-ins');
+      setWalkIns(response.data.walk_ins || []);
+    } catch (error) {
+      console.error('Error fetching lab walk-ins:', error);
+    }
+  }, []);
+
   // Fetch inventory
   const fetchInventory = useCallback(async () => {
     try {
@@ -434,6 +445,16 @@ const LabDashboard: React.FC = () => {
       fetchQCData();
     }
   }, [activeTab, fetchQCData]);
+
+  useEffect(() => {
+    if (activeTab === 'walkins') {
+      fetchWalkIns();
+    }
+    const interval = setInterval(() => {
+      if (activeTab === 'walkins') fetchWalkIns();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [activeTab, fetchWalkIns]);
 
   useEffect(() => {
     if (selectedQCTest) {
@@ -949,6 +970,7 @@ const LabDashboard: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
           <div className="flex border-b border-gray-200 overflow-x-auto">
             {[
+              { id: 'walkins', label: 'Walk-ins', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', count: walkIns.length },
               { id: 'orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', count: labOrders.filter(o => o.status !== 'completed').length },
               { id: 'inventory', label: 'Inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', count: inventory.length },
               { id: 'catalog', label: 'Test Catalog', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
@@ -982,6 +1004,81 @@ const LabDashboard: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Walk-ins Tab */}
+        {activeTab === 'walkins' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-lg font-semibold">Walk-in Patients</h2>
+              <button
+                onClick={fetchWalkIns}
+                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+            {walkIns.length === 0 ? (
+              <div className="p-12 text-center text-gray-500">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <p className="text-lg font-medium">No walk-in patients</p>
+                <p className="text-sm mt-1">When receptionist routes a patient for lab walk-in service, they will appear here.</p>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Encounter</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Arrived</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {walkIns.map((walkin) => (
+                    <tr key={walkin.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{walkin.patient_name}</div>
+                        <div className="text-sm text-gray-500">{walkin.patient_number}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.encounter_number}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.notes || walkin.chief_complaint || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {new Date(walkin.routed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          walkin.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          walkin.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {walkin.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          onClick={() => {
+                            setSelectedPatientId(walkin.patient_id);
+                            setShowPatientQuickView(true);
+                          }}
+                          className="text-primary-600 hover:text-primary-800 font-medium text-sm"
+                        >
+                          View Patient
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (

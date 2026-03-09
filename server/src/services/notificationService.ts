@@ -335,27 +335,42 @@ export const notificationService = {
   },
 
   /**
-   * Notify pharmacy of new walk-in patient (OTC/Walk-in)
+   * Notify department of new walk-in patient
    */
-  async notifyPharmacyWalkIn(patientName: string, patientNumber: string, encounterId: number): Promise<void> {
+  async notifyDepartmentWalkIn(department: string, patientName: string, patientNumber: string, encounterId: number): Promise<void> {
+    const departmentConfig: Record<string, { roles: string[]; title: string }> = {
+      pharmacy: {
+        roles: ['pharmacist', 'pharmacy'],
+        title: 'New OTC/Walk-in Patient',
+      },
+      lab: {
+        roles: ['lab_tech', 'lab'],
+        title: 'New Lab Walk-in Patient',
+      },
+      imaging: {
+        roles: ['imaging_tech', 'imaging'],
+        title: 'New Imaging Walk-in Patient',
+      },
+    };
+
+    const config = departmentConfig[department];
+    if (!config) {
+      console.error(`Unknown department for walk-in notification: ${department}`);
+      return;
+    }
+
     try {
-      await this.sendToRole('pharmacist', {
-        type: 'patient_alert',
-        title: 'New OTC/Walk-in Patient',
-        message: `${patientName} (${patientNumber}) has arrived for OTC/Walk-in service`,
-        entityType: 'encounter',
-        entityId: encounterId,
-      });
-      // Also notify pharmacy role
-      await this.sendToRole('pharmacy', {
-        type: 'patient_alert',
-        title: 'New OTC/Walk-in Patient',
-        message: `${patientName} (${patientNumber}) has arrived for OTC/Walk-in service`,
-        entityType: 'encounter',
-        entityId: encounterId,
-      });
+      for (const role of config.roles) {
+        await this.sendToRole(role, {
+          type: 'patient_alert',
+          title: config.title,
+          message: `${patientName} (${patientNumber}) has arrived for walk-in service`,
+          entityType: 'encounter',
+          entityId: encounterId,
+        });
+      }
     } catch (error) {
-      console.error('Failed to notify pharmacy walk-in:', error);
+      console.error(`Failed to notify ${department} walk-in:`, error);
     }
   },
 

@@ -114,6 +114,7 @@ import {
 import {
   routePatientToDepartment,
   getDepartmentQueue,
+  getDepartmentWalkIns,
   updateRoutingStatus,
   getPatientRoutingHistory,
   cancelRouting,
@@ -395,6 +396,7 @@ router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('reception
 // Department Routing routes
 router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist'), routePatientToDepartment);
 router.get('/department-routing/:department/queue', authenticateToken, getDepartmentQueue);
+router.get('/department-routing/:department/walk-ins', authenticateToken, getDepartmentWalkIns);
 router.put('/department-routing/:id/status', authenticateToken, updateRoutingStatus);
 router.get('/department-routing/encounter/:encounter_id', authenticateToken, getPatientRoutingHistory);
 router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles('nurse', 'doctor'), cancelRouting);

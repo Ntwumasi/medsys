@@ -94,6 +94,50 @@ export const getPharmacyWalkIns = async (req: Request, res: Response): Promise<v
   }
 };
 
+// Get walk-in patients for any department (lab, imaging, etc.)
+export const getDepartmentWalkIns = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { department } = req.params;
+
+    const validDepartments = ['lab', 'imaging', 'pharmacy'];
+    if (!validDepartments.includes(department)) {
+      res.status(400).json({ error: 'Invalid department' });
+      return;
+    }
+
+    const result = await pool.query(`
+      SELECT dr.*,
+        p.patient_number,
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        e.encounter_number,
+        e.chief_complaint,
+        u_routed.first_name || ' ' || u_routed.last_name as routed_by_name,
+        COALESCE(
+          (SELECT pps.payer_type FROM patient_payer_sources pps
+           WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
+          'self_pay'
+        ) as payer_type
+      FROM department_routing dr
+      LEFT JOIN patients p ON dr.patient_id = p.id
+      LEFT JOIN users u_patient ON p.user_id = u_patient.id
+      LEFT JOIN encounters e ON dr.encounter_id = e.id
+      LEFT JOIN users u_routed ON dr.routed_by = u_routed.id
+      WHERE dr.department = $1
+        AND dr.is_walk_in = true
+        AND dr.status IN ('pending', 'in-progress')
+      ORDER BY dr.routed_at ASC
+    `, [department]);
+
+    res.json({
+      walk_ins: result.rows,
+      count: result.rows.length
+    });
+  } catch (error) {
+    console.error(`Get ${req.params.department} walk-ins error:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get department queue
 export const getDepartmentQueue = async (req: Request, res: Response): Promise<void> => {
   try {

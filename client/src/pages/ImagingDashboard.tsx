@@ -19,11 +19,17 @@ interface RoutingRequest {
 
 const ImagingDashboard: React.FC = () => {
   const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
+  const [walkIns, setWalkIns] = useState<RoutingRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'walkins' | 'orders'>('walkins');
 
   useEffect(() => {
     fetchRoutingRequests();
-    const interval = setInterval(fetchRoutingRequests, 30000);
+    fetchWalkIns();
+    const interval = setInterval(() => {
+      fetchRoutingRequests();
+      fetchWalkIns();
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -35,6 +41,15 @@ const ImagingDashboard: React.FC = () => {
       console.error('Error fetching routing requests:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchWalkIns = async () => {
+    try {
+      const response = await apiClient.get('/department-routing/imaging/walk-ins');
+      setWalkIns(response.data.walk_ins || []);
+    } catch (error) {
+      console.error('Error fetching imaging walk-ins:', error);
     }
   };
 
@@ -99,7 +114,140 @@ const ImagingDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Imaging Requests */}
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('walkins')}
+            className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
+              activeTab === 'walkins'
+                ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Walk-ins
+              {walkIns.length > 0 && (
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-primary-500 text-white">
+                  {walkIns.length}
+                </span>
+              )}
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
+              activeTab === 'orders'
+                ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Imaging Orders
+              {routingRequests.filter(r => r.status !== 'completed').length > 0 && (
+                <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-700">
+                  {routingRequests.filter(r => r.status !== 'completed').length}
+                </span>
+              )}
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Walk-ins Tab */}
+      {activeTab === 'walkins' && (
+        <Card>
+          <Card.Header>
+            <div className="flex justify-between items-center">
+              <span>Walk-in Patients</span>
+              <button
+                onClick={fetchWalkIns}
+                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+          </Card.Header>
+          <div className="divide-y divide-gray-100">
+            {walkIns.length === 0 ? (
+              <EmptyState
+                title="No walk-in patients"
+                description="When receptionist routes a patient for imaging walk-in service, they will appear here."
+                icon={
+                  <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                }
+              />
+            ) : (
+              walkIns.map((walkin) => (
+                <div key={walkin.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {walkin.patient_name}
+                        </h3>
+                        <StatusBadge status={walkin.status} />
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Patient #:</span>
+                          <span className="ml-2 text-gray-900 font-medium">{walkin.patient_number}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Arrived:</span>
+                          <span className="ml-2 text-gray-900 font-medium">
+                            {new Date(walkin.routed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {walkin.notes && (
+                          <div>
+                            <span className="text-gray-500">Reason:</span>
+                            <span className="ml-2 text-gray-900">{walkin.notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="ml-4 flex gap-2">
+                      {walkin.status === 'pending' && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => updateStatus(walkin.id, 'in-progress')}
+                        >
+                          Start
+                        </Button>
+                      )}
+                      {walkin.status === 'in-progress' && (
+                        <Button
+                          variant="success"
+                          size="sm"
+                          onClick={() => updateStatus(walkin.id, 'completed')}
+                        >
+                          Complete
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* Imaging Orders Tab */}
+      {activeTab === 'orders' && (
       <Card>
         <Card.Header>Imaging Requests</Card.Header>
         <div className="divide-y divide-gray-100">
@@ -186,6 +334,7 @@ const ImagingDashboard: React.FC = () => {
           )}
         </div>
       </Card>
+      )}
     </AppLayout>
   );
 };
