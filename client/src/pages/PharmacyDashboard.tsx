@@ -1456,6 +1456,48 @@ const PharmacyDashboard: React.FC = () => {
                 </div>
                 {selectedOrder ? (
                   <div className="p-6 space-y-6">
+                    {/* Patient Info */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Patient
+                      </h3>
+                      <div className="bg-gray-50 rounded p-3 space-y-2">
+                        <div className="font-semibold text-gray-900">{selectedOrder.patient_name}</div>
+                        <div className="text-sm text-gray-600">{selectedOrder.patient_number}</div>
+                      </div>
+                    </div>
+
+                    {/* Billing/Payer Info */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        Billing
+                      </h3>
+                      <div className={`p-3 rounded border ${
+                        selectedOrder.payer_type === 'insurance' ? 'bg-primary-50 border-primary-200' :
+                        selectedOrder.payer_type === 'corporate' ? 'bg-purple-50 border-purple-200' :
+                        'bg-gray-50 border-gray-200'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-bold rounded ${
+                            selectedOrder.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
+                            selectedOrder.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
+                            'bg-gray-200 text-gray-700'
+                          }`}>
+                            {selectedOrder.payer_type === 'insurance' ? 'INSURANCE' :
+                             selectedOrder.payer_type === 'corporate' ? 'CORPORATE' : 'SELF PAY'}
+                          </span>
+                        </div>
+                        {selectedOrder.payer_name && selectedOrder.payer_name !== 'Self Pay' && (
+                          <div className="mt-2 text-sm font-medium text-gray-700">
+                            {selectedOrder.payer_name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Allergies/Sensitivities */}
                     <div>
                       <h3 className="text-sm font-semibold text-danger-600 uppercase tracking-wider mb-2 flex items-center gap-1">
@@ -1476,6 +1518,10 @@ const PharmacyDashboard: React.FC = () => {
                               <span className="text-xs font-semibold uppercase">{allergy.severity}</span>
                             </div>
                           ))}
+                        </div>
+                      ) : selectedOrder.patient_allergies ? (
+                        <div className="p-2 rounded border bg-danger-50 border-danger-200">
+                          <div className="font-medium text-danger-700">{selectedOrder.patient_allergies}</div>
                         </div>
                       ) : (
                         <p className="text-sm text-gray-500 italic">No known allergies</p>
