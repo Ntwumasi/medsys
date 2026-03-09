@@ -247,7 +247,7 @@ const ReceptionistDashboard: React.FC = () => {
     'General Practice', 'ENT (Ear, Nose & Throat)', 'Urology', 'Cardiology',
     'Dermatology', 'Gastroenterology', 'Neurology', 'Obstetrics & Gynecology',
     'Ophthalmology', 'Orthopedics', 'Pediatrics', 'Psychiatry', 'Pulmonology',
-    'Rheumatology', 'Endocrinology',
+    'Rheumatology', 'Endocrinology', 'Pharmacy (OTC/Walk-in)',
   ];
 
   // New patient form state

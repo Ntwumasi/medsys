@@ -150,6 +150,36 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     const patientInfo = patientInfoResult.rows[0] || {};
 
+    // Check if this is a pharmacy walk-in
+    const isPharmacyWalkIn = clinic === 'Pharmacy (OTC/Walk-in)';
+
+    if (isPharmacyWalkIn) {
+      // Route directly to pharmacy as walk-in (no doctor/appointment needed)
+      await client.query(
+        `INSERT INTO department_routing (
+          encounter_id, patient_id, department, priority, notes, routed_by, is_walk_in
+        ) VALUES ($1, $2, 'pharmacy', 'routine', $3, $4, true)`,
+        [encounter.id, patient_id, chief_complaint || 'OTC/Walk-in', receptionist_id]
+      );
+
+      await client.query('COMMIT');
+
+      // Notify pharmacy of new walk-in
+      if (patientInfo.patient_name) {
+        await notificationService.notifyPharmacyWalkIn(patientInfo.patient_name, patientInfo.patient_number, encounter.id);
+      }
+
+      res.status(201).json({
+        message: 'Patient checked in and routed to pharmacy',
+        encounter_id: encounter.id,
+        encounter_number: encounter.encounter_number,
+        invoice_number: invoiceResult.rows[0].invoice_number,
+        billing_amount: consultationFee,
+        routed_to: 'pharmacy'
+      });
+      return;
+    }
+
     // Create a 30-minute appointment slot for walk-in patients
     const appointmentTime = new Date();
     const appointmentDuration = 30;
