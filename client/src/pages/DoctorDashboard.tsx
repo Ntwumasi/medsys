@@ -58,6 +58,21 @@ interface ImagingOrder {
   completed_at?: string;
 }
 
+interface PharmacyOrder {
+  id: number;
+  medication_name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  quantity: number;
+  refills: number;
+  priority: string;
+  status: string;
+  ordered_date: string;
+  dispensed_date?: string;
+  dispensed_by_name?: string;
+}
+
 interface DoctorAlert {
   id: number;
   patient_name: string;
@@ -95,12 +110,12 @@ const DoctorDashboard: React.FC = () => {
   // Multi-order state - arrays to hold pending orders
   const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string}>>([]);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, priority: string}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, priority: string}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', priority: 'routine'});
 
   // Drug interaction state
   const [drugInteractions, setDrugInteractions] = useState<Array<{drug1: string, drug2: string, severity: string, description: string, recommendation: string}>>([]);
@@ -110,10 +125,11 @@ const DoctorDashboard: React.FC = () => {
   // Clinical Notes Tab state
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural'>('soap');
 
-  // Lab and Imaging results state
+  // Lab, Imaging and Pharmacy results state
   const [encounterLabOrders, setEncounterLabOrders] = useState<LabOrder[]>([]);
   const [encounterImagingOrders, setEncounterImagingOrders] = useState<ImagingOrder[]>([]);
-  const [resultsTab, setResultsTab] = useState<'lab' | 'imaging'>('lab');
+  const [encounterPharmacyOrders, setEncounterPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  const [resultsTab, setResultsTab] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
 
   // Doctor Alerts state
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
@@ -172,6 +188,7 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get(`/orders/encounter/${encounterId}`);
       setEncounterLabOrders(res.data.lab_orders || []);
       setEncounterImagingOrders(res.data.imaging_orders || []);
+      setEncounterPharmacyOrders(res.data.pharmacy_orders || []);
     } catch (error) {
       console.error('Error loading orders:', error);
     }
@@ -375,7 +392,7 @@ const DoctorDashboard: React.FC = () => {
 
   const addMedicationToList = () => {
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', priority: 'routine'});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', priority: 'routine'});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -1566,6 +1583,14 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Quantity"
                           />
+                          <input
+                            type="number"
+                            min="0"
+                            value={currentPharmacyOrder.refills}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, refills: e.target.value})}
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            placeholder="Refills"
+                          />
                         </div>
                         <select
                           value={currentPharmacyOrder.priority}
@@ -1609,7 +1634,10 @@ const DoctorDashboard: React.FC = () => {
                                   <div className="text-sm text-gray-600">
                                     {order.dosage} {order.frequency && `• ${order.frequency}`}
                                   </div>
-                                  {order.route && <div className="text-sm text-gray-600">{order.route} • {order.quantity}</div>}
+                                  {order.route && <div className="text-sm text-gray-600">{order.route} • Qty: {order.quantity}</div>}
+                                  {parseInt(order.refills) > 0 && (
+                                    <div className="text-sm text-primary-600">{order.refills} refill(s)</div>
+                                  )}
                                   <div className="text-xs text-success-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
@@ -1652,7 +1680,7 @@ const DoctorDashboard: React.FC = () => {
                       <svg className="w-6 h-6 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Lab & Imaging Results
+                      Lab, Imaging & Pharmacy
                     </h2>
                     <button
                       onClick={() => selectedEncounter && loadEncounterOrders(selectedEncounter.id)}
@@ -1704,6 +1732,26 @@ const DoctorDashboard: React.FC = () => {
                           {encounterImagingOrders.length > 0 && (
                             <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">
                               {encounterImagingOrders.length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setResultsTab('pharmacy')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+                          resultsTab === 'pharmacy'
+                            ? 'border-success-600 text-success-600 bg-success-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          Pharmacy
+                          {encounterPharmacyOrders.length > 0 && (
+                            <span className="bg-success-600 text-white text-xs px-2 py-0.5 rounded-full">
+                              {encounterPharmacyOrders.length}
                             </span>
                           )}
                         </div>
@@ -1843,6 +1891,95 @@ const DoctorDashboard: React.FC = () => {
                                           Resulted: {new Date(order.completed_at).toLocaleString()}
                                         </div>
                                       )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Pharmacy Tab */}
+                  {resultsTab === 'pharmacy' && (
+                    <div>
+                      {encounterPharmacyOrders.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400">
+                          <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          <p className="text-lg font-medium">No pharmacy orders for this encounter</p>
+                          <p className="text-sm mt-1">Pharmacy orders and dispensing status will appear here</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {encounterPharmacyOrders.map((order) => (
+                            <div
+                              key={order.id}
+                              className={`p-4 rounded-xl border-2 ${
+                                order.status === 'dispensed'
+                                  ? 'border-success-200 bg-success-50'
+                                  : order.status === 'ready'
+                                  ? 'border-primary-200 bg-primary-50'
+                                  : order.status === 'processing'
+                                  ? 'border-warning-200 bg-warning-50'
+                                  : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <h4 className="font-bold text-gray-900 text-lg">{order.medication_name}</h4>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      order.status === 'dispensed'
+                                        ? 'bg-success-200 text-success-800'
+                                        : order.status === 'ready'
+                                        ? 'bg-primary-200 text-primary-800'
+                                        : order.status === 'processing'
+                                        ? 'bg-warning-200 text-warning-800'
+                                        : 'bg-gray-200 text-gray-800'
+                                    }`}>
+                                      {order.status === 'dispensed' ? 'DISPENSED' :
+                                       order.status === 'ready' ? 'READY FOR PICKUP' :
+                                       order.status === 'processing' ? 'PROCESSING' : 'ORDERED'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                      order.priority === 'stat'
+                                        ? 'bg-danger-100 text-danger-700'
+                                        : order.priority === 'urgent'
+                                        ? 'bg-orange-100 text-orange-700'
+                                        : 'bg-primary-100 text-primary-700'
+                                    }`}>
+                                      {order.priority.toUpperCase()}
+                                    </span>
+                                  </div>
+                                  <div className="text-sm text-gray-600 mt-2">
+                                    <span className="font-medium">Dosage:</span> {order.dosage} |
+                                    <span className="font-medium ml-2">Frequency:</span> {order.frequency} |
+                                    <span className="font-medium ml-2">Route:</span> {order.route}
+                                  </div>
+                                  <div className="text-sm text-gray-600 mt-1">
+                                    <span className="font-medium">Quantity:</span> {order.quantity}
+                                    {order.refills > 0 && (
+                                      <span className="ml-3 text-primary-600">
+                                        <span className="font-medium">Refills:</span> {order.refills}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-gray-500 mt-2">
+                                    Ordered: {new Date(order.ordered_date).toLocaleString()}
+                                  </div>
+                                  {order.status === 'dispensed' && order.dispensed_date && (
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
+                                      <div className="text-sm font-semibold text-success-800 mb-1">Dispensed</div>
+                                      <div className="text-sm text-gray-600">
+                                        {new Date(order.dispensed_date).toLocaleString()}
+                                        {order.dispensed_by_name && (
+                                          <span className="ml-2">by {order.dispensed_by_name}</span>
+                                        )}
+                                      </div>
                                     </div>
                                   )}
                                 </div>
