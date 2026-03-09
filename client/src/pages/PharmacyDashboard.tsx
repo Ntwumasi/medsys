@@ -142,6 +142,28 @@ interface DrugHistory {
   allergies: Allergy[];
 }
 
+interface WalkInMedication {
+  inventory_id: number;
+  medication_name: string;
+  quantity: number;
+  unit_price: number;
+  dosage: string;
+  frequency: string;
+  instructions: string;
+}
+
+interface WalkInPatient {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_number: string;
+  payer_type: string;
+  chief_complaint: string;
+  status: string;
+  routed_at: string;
+}
+
 const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
   useAuth(); // Ensure user is authenticated
@@ -173,7 +195,16 @@ const PharmacyDashboard: React.FC = () => {
   const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
 
   // OTC walk-in patients
-  const [walkInPatients, setWalkInPatients] = useState<any[]>([]);
+  const [walkInPatients, setWalkInPatients] = useState<WalkInPatient[]>([]);
+
+  // Walk-in serve modal state
+  const [showServeWalkInModal, setShowServeWalkInModal] = useState(false);
+  const [servingWalkIn, setServingWalkIn] = useState<WalkInPatient | null>(null);
+  const [walkInMedications, setWalkInMedications] = useState<WalkInMedication[]>([]);
+  const [walkInMedSearch, setWalkInMedSearch] = useState('');
+  const [walkInPrescriptionFiles, setWalkInPrescriptionFiles] = useState<File[]>([]);
+  const [walkInPrescriptionPreviews, setWalkInPrescriptionPreviews] = useState<string[]>([]);
+  const [submittingWalkIn, setSubmittingWalkIn] = useState(false);
 
   // Orders state
   const [, setRoutingRequests] = useState<RoutingRequest[]>([]);
@@ -353,6 +384,129 @@ const PharmacyDashboard: React.FC = () => {
       console.error('Error fetching walk-in patients:', error);
     }
   };
+
+  // Walk-in serve functions
+  const openServeWalkInModal = (patient: WalkInPatient) => {
+    setServingWalkIn(patient);
+    setWalkInMedications([]);
+    setWalkInMedSearch('');
+    setWalkInPrescriptionFiles([]);
+    setWalkInPrescriptionPreviews([]);
+    setShowServeWalkInModal(true);
+  };
+
+  const closeServeWalkInModal = () => {
+    setShowServeWalkInModal(false);
+    setServingWalkIn(null);
+    setWalkInMedications([]);
+    setWalkInMedSearch('');
+    setWalkInPrescriptionFiles([]);
+    setWalkInPrescriptionPreviews([]);
+  };
+
+  const addWalkInMedication = (item: InventoryItem) => {
+    // Check if already added
+    if (walkInMedications.some(m => m.inventory_id === item.id)) {
+      showToast('Medication already added', 'warning');
+      return;
+    }
+    setWalkInMedications([...walkInMedications, {
+      inventory_id: item.id,
+      medication_name: item.medication_name,
+      quantity: 1,
+      unit_price: item.selling_price,
+      dosage: '',
+      frequency: '',
+      instructions: ''
+    }]);
+    setWalkInMedSearch('');
+  };
+
+  const updateWalkInMedication = (index: number, field: keyof WalkInMedication, value: string | number) => {
+    const updated = [...walkInMedications];
+    updated[index] = { ...updated[index], [field]: value };
+    setWalkInMedications(updated);
+  };
+
+  const removeWalkInMedication = (index: number) => {
+    setWalkInMedications(walkInMedications.filter((_, i) => i !== index));
+  };
+
+  const handlePrescriptionUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newFiles = Array.from(files);
+    const validFiles = newFiles.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
+
+    if (validFiles.length !== newFiles.length) {
+      showToast('Only images and PDFs are allowed', 'warning');
+    }
+
+    // Create previews for images
+    const newPreviews: string[] = [];
+    validFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setWalkInPrescriptionPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        newPreviews.push('pdf'); // Placeholder for PDF
+      }
+    });
+
+    setWalkInPrescriptionFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removePrescriptionFile = (index: number) => {
+    setWalkInPrescriptionFiles(prev => prev.filter((_, i) => i !== index));
+    setWalkInPrescriptionPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const submitWalkInOrder = async () => {
+    if (!servingWalkIn) return;
+
+    if (walkInMedications.length === 0) {
+      showToast('Please add at least one medication', 'error');
+      return;
+    }
+
+    setSubmittingWalkIn(true);
+    try {
+      // Send as JSON - prescription file upload can be added later
+      await apiClient.post('/pharmacy/walk-in-dispense', {
+        patient_id: servingWalkIn.patient_id,
+        encounter_id: servingWalkIn.encounter_id,
+        routing_id: servingWalkIn.id,
+        medications: walkInMedications,
+      });
+
+      // Show success with prescription upload note if files were selected
+      if (walkInPrescriptionFiles.length > 0) {
+        showToast('Walk-in order completed. Note: Prescription upload will be available soon.', 'success');
+      } else {
+        showToast('Walk-in order completed successfully', 'success');
+      }
+      closeServeWalkInModal();
+      fetchWalkIns();
+      fetchInventory(); // Refresh inventory counts
+    } catch (error: any) {
+      console.error('Error submitting walk-in order:', error);
+      showToast(error.response?.data?.error || 'Failed to complete order', 'error');
+    } finally {
+      setSubmittingWalkIn(false);
+    }
+  };
+
+  // Filter inventory for walk-in medication search
+  const filteredWalkInInventory = walkInMedSearch.length >= 2
+    ? inventory.filter(item =>
+        item.medication_name.toLowerCase().includes(walkInMedSearch.toLowerCase()) &&
+        item.quantity_on_hand > 0
+      ).slice(0, 10)
+    : [];
 
   const saveSupplier = async () => {
     try {
@@ -1375,35 +1529,35 @@ const PharmacyDashboard: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                               {patient.status === 'pending' && (
                                 <button
-                                  onClick={async () => {
-                                    try {
-                                      await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'in-progress' });
-                                      showToast('Started attending to patient', 'success');
-                                      fetchWalkIns();
-                                    } catch (error) {
-                                      showToast('Failed to update status', 'error');
-                                    }
-                                  }}
-                                  className="text-primary-600 hover:text-primary-900"
+                                  onClick={() => openServeWalkInModal(patient)}
+                                  className="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                                 >
-                                  Start
+                                  Serve
                                 </button>
                               )}
                               {patient.status === 'in-progress' && (
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'completed' });
-                                      showToast('Patient service completed', 'success');
-                                      fetchWalkIns();
-                                    } catch (error) {
-                                      showToast('Failed to update status', 'error');
-                                    }
-                                  }}
-                                  className="text-success-600 hover:text-success-900"
-                                >
-                                  Complete
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => openServeWalkInModal(patient)}
+                                    className="px-3 py-1 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                                  >
+                                    Add Items
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'completed' });
+                                        showToast('Patient service completed', 'success');
+                                        fetchWalkIns();
+                                      } catch (error) {
+                                        showToast('Failed to update status', 'error');
+                                      }
+                                    }}
+                                    className="px-3 py-1 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
+                                  >
+                                    Complete
+                                  </button>
+                                </>
                               )}
                             </td>
                           </tr>
@@ -2905,6 +3059,249 @@ const PharmacyDashboard: React.FC = () => {
             title="Failed to load"
             description="Unable to load drug history. Please try again."
           />
+        )}
+      </Modal>
+
+      {/* Serve Walk-In Patient Modal */}
+      <Modal
+        isOpen={showServeWalkInModal}
+        onClose={closeServeWalkInModal}
+        title={`Serve Walk-In Patient - ${servingWalkIn?.patient_name || ''}`}
+        size="xl"
+      >
+        {servingWalkIn && (
+          <div className="space-y-6">
+            {/* Patient Info Header */}
+            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500">Patient</p>
+                  <p className="font-semibold text-gray-900">{servingWalkIn.patient_name}</p>
+                  <p className="text-sm text-gray-600">{servingWalkIn.patient_number}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Payer Type</p>
+                  <span className={`inline-block mt-1 px-2 py-1 text-xs font-medium rounded-full ${
+                    servingWalkIn.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
+                    servingWalkIn.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {servingWalkIn.payer_type === 'self_pay' ? 'Self Pay' : servingWalkIn.payer_type || 'Self Pay'}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Chief Complaint</p>
+                  <p className="text-sm text-gray-900">{servingWalkIn.chief_complaint || 'OTC Purchase'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Prescription Upload Section */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Upload Prescription (Optional)
+              </h3>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary-400 transition-colors">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf"
+                  onChange={handlePrescriptionUpload}
+                  className="hidden"
+                  id="prescription-upload"
+                />
+                <label htmlFor="prescription-upload" className="cursor-pointer">
+                  <svg className="w-10 h-10 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm text-gray-600">Click to upload prescription images or PDFs</p>
+                  <p className="text-xs text-gray-400 mt-1">Supports: JPG, PNG, PDF</p>
+                </label>
+              </div>
+              {walkInPrescriptionFiles.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {walkInPrescriptionFiles.map((file, index) => (
+                    <div key={index} className="relative group">
+                      {file.type.startsWith('image/') && walkInPrescriptionPreviews[index] ? (
+                        <img
+                          src={walkInPrescriptionPreviews[index]}
+                          alt={`Prescription ${index + 1}`}
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => removePrescriptionFile(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                      <p className="text-xs text-gray-500 truncate w-20 mt-1">{file.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Medication Search and Add */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Add Medications
+              </h3>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search medications by name..."
+                  value={walkInMedSearch}
+                  onChange={(e) => setWalkInMedSearch(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                {filteredWalkInInventory.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {filteredWalkInInventory.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => addWalkInMedication(item)}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-50 flex justify-between items-center"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{item.medication_name}</p>
+                          <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium text-success-600">GH₵{item.selling_price.toFixed(2)}</p>
+                          <p className="text-xs text-gray-400">Stock: {item.quantity_on_hand}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Added Medications List */}
+              {walkInMedications.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {walkInMedications.map((med, index) => (
+                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-medium text-gray-900">{med.medication_name}</p>
+                          <p className="text-sm text-success-600">GH₵{med.unit_price.toFixed(2)} each</p>
+                        </div>
+                        <button
+                          onClick={() => removeWalkInMedication(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="text-xs text-gray-500">Quantity</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={med.quantity}
+                            onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 1)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Dosage</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., 500mg"
+                            value={med.dosage}
+                            onChange={(e) => updateWalkInMedication(index, 'dosage', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Frequency</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., TDS"
+                            value={med.frequency}
+                            onChange={(e) => updateWalkInMedication(index, 'frequency', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Subtotal</label>
+                          <p className="px-2 py-1 text-sm font-medium text-success-600">
+                            GH₵{(med.unit_price * med.quantity).toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2">
+                        <label className="text-xs text-gray-500">Instructions (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Take after meals"
+                          value={med.instructions}
+                          onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Total */}
+                  <div className="bg-success-50 rounded-lg p-4 border border-success-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-success-800">Total Amount</span>
+                      <span className="text-2xl font-bold text-success-600">
+                        GH₵{walkInMedications.reduce((sum, med) => sum + (med.unit_price * med.quantity), 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-success-600 mt-1">{walkInMedications.length} item(s)</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeServeWalkInModal}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitWalkInOrder}
+                disabled={submittingWalkIn || walkInMedications.length === 0}
+                className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {submittingWalkIn ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Complete & Dispense
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         )}
       </Modal>
     </AppLayout>

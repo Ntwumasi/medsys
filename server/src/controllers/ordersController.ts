@@ -1132,3 +1132,147 @@ export const createCriticalResultAlert = async (req: Request, res: Response): Pr
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Dispense medications for walk-in patient (OTC)
+export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
+  try {
+    const authReq = req as any;
+    const dispensed_by = authReq.user?.id;
+
+    const { patient_id, encounter_id, routing_id, medications } = req.body;
+
+    // Parse medications if it's a string (from FormData)
+    const medicationList = typeof medications === 'string' ? JSON.parse(medications) : medications;
+
+    if (!patient_id || !encounter_id || !routing_id) {
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    if (!medicationList || medicationList.length === 0) {
+      res.status(400).json({ error: 'No medications provided' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    const createdOrders: any[] = [];
+    let totalAmount = 0;
+
+    // Process each medication
+    for (const med of medicationList) {
+      // Verify stock availability
+      const stockCheck = await client.query(
+        `SELECT id, medication_name, quantity_on_hand, selling_price
+         FROM pharmacy_inventory WHERE id = $1`,
+        [med.inventory_id]
+      );
+
+      if (stockCheck.rows.length === 0) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: `Medication not found: ${med.medication_name}` });
+        return;
+      }
+
+      const inventoryItem = stockCheck.rows[0];
+      if (inventoryItem.quantity_on_hand < med.quantity) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          error: `Insufficient stock for ${inventoryItem.medication_name}. Available: ${inventoryItem.quantity_on_hand}`
+        });
+        return;
+      }
+
+      // Create pharmacy order for this medication (already dispensed)
+      const orderResult = await client.query(
+        `INSERT INTO pharmacy_orders (
+          patient_id, encounter_id, ordering_provider, medication_name,
+          dosage, frequency, route, quantity, priority, notes, status, dispensed_by, dispensed_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, 'routine', $8, 'dispensed', $9, CURRENT_TIMESTAMP)
+        RETURNING *`,
+        [
+          patient_id,
+          encounter_id,
+          dispensed_by, // Pharmacist is the ordering provider for OTC
+          inventoryItem.medication_name,
+          med.dosage || '',
+          med.frequency || '',
+          med.quantity,
+          med.instructions || 'OTC Walk-in',
+          dispensed_by
+        ]
+      );
+
+      createdOrders.push(orderResult.rows[0]);
+
+      // Dispense from batches (FEFO)
+      await dispenseFromBatches(client, med.inventory_id, med.quantity, dispensed_by);
+
+      // Calculate amount
+      const itemTotal = (med.unit_price || inventoryItem.selling_price) * med.quantity;
+      totalAmount += itemTotal;
+    }
+
+    // Check if invoice exists for this encounter, if not create one
+    const invoiceCheck = await client.query(
+      `SELECT id FROM invoices WHERE encounter_id = $1`,
+      [encounter_id]
+    );
+
+    if (invoiceCheck.rows.length === 0) {
+      // Create invoice for OTC purchase
+      await client.query(
+        `INSERT INTO invoices (encounter_id, patient_id, subtotal, total_amount, status)
+         VALUES ($1, $2, $3, $3, 'pending')`,
+        [encounter_id, patient_id, totalAmount]
+      );
+    } else {
+      // Update existing invoice
+      await client.query(
+        `UPDATE invoices
+         SET subtotal = subtotal + $1, total_amount = total_amount + $1, updated_at = CURRENT_TIMESTAMP
+         WHERE encounter_id = $2`,
+        [totalAmount, encounter_id]
+      );
+    }
+
+    // Update routing status to completed
+    await client.query(
+      `UPDATE department_routing
+       SET status = 'completed', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [routing_id]
+    );
+
+    // Audit log
+    await auditService.log({
+      userId: dispensed_by,
+      action: 'dispense',
+      entityType: 'pharmacy_order',
+      entityId: createdOrders[0]?.id,
+      details: {
+        type: 'walk_in',
+        patient_id,
+        encounter_id,
+        medications: medicationList.map((m: any) => ({ name: m.medication_name, qty: m.quantity })),
+        total_amount: totalAmount
+      }
+    });
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      message: 'Walk-in order completed successfully',
+      orders: createdOrders,
+      total_amount: totalAmount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Dispense walk-in order error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};

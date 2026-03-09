@@ -84,6 +84,7 @@ import {
   getCriticalResultAlerts,
   acknowledgeCriticalResult,
   createCriticalResultAlert,
+  dispenseWalkInOrder,
 } from '../controllers/ordersController';
 import {
   getCorporateClients,
@@ -401,6 +402,7 @@ router.put('/department-routing/:id/status', authenticateToken, updateRoutingSta
 router.get('/department-routing/encounter/:encounter_id', authenticateToken, getPatientRoutingHistory);
 router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles('nurse', 'doctor'), cancelRouting);
 router.get('/pharmacy/walk-ins', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), getPharmacyWalkIns);
+router.post('/pharmacy/walk-in-dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseWalkInOrder);
 
 // Search routes
 router.get('/search/patients', authenticateToken, searchPatients);
