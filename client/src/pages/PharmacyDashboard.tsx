@@ -213,6 +213,47 @@ const PharmacyDashboard: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
+  const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
+
+  // Group orders by patient
+  interface GroupedPatientOrders {
+    patient_id: number;
+    patient_name: string;
+    patient_number: string;
+    patient_allergies: string | null;
+    payer_type: string;
+    payer_name: string;
+    encounter_id: number;
+    ordered_date: string;
+    orders: PharmacyOrder[];
+  }
+
+  const groupedOrders: GroupedPatientOrders[] = React.useMemo(() => {
+    const groups: Record<string, GroupedPatientOrders> = {};
+
+    pharmacyOrders.forEach(order => {
+      const key = `${order.patient_id}-${order.encounter_id}`;
+      if (!groups[key]) {
+        groups[key] = {
+          patient_id: order.patient_id,
+          patient_name: order.patient_name || `Patient ${order.patient_id}`,
+          patient_number: order.patient_number || '',
+          patient_allergies: order.patient_allergies || null,
+          payer_type: order.payer_type || 'self_pay',
+          payer_name: order.payer_name || 'Self Pay',
+          encounter_id: order.encounter_id,
+          ordered_date: order.ordered_date,
+          orders: []
+        };
+      }
+      groups[key].orders.push(order);
+    });
+
+    // Sort by ordered_date descending
+    return Object.values(groups).sort((a, b) =>
+      new Date(b.ordered_date).getTime() - new Date(a.ordered_date).getTime()
+    );
+  }, [pharmacyOrders]);
 
   // Inventory state
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -1193,134 +1234,214 @@ const PharmacyDashboard: React.FC = () => {
                   </h2>
                 </div>
                 <div className="divide-y max-h-[600px] overflow-y-auto">
-                  {pharmacyOrders.length === 0 ? (
+                  {groupedOrders.length === 0 ? (
                     <div className="px-6 py-12 text-center text-gray-500">
                       No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : ordersSubTab === 'ready' ? 'ready for pickup' : 'dispensed'} orders found
                     </div>
                   ) : (
-                    pharmacyOrders.map((order) => (
+                    groupedOrders.map((group) => (
                       <div
-                        key={order.id}
-                        className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${
-                          selectedOrder?.id === order.id ? 'bg-success-50 border-l-4 border-success-500' : ''
-                        }`}
-                        onClick={() => {
-                          setSelectedOrder(order);
-                          fetchPatientDetails(order.patient_id, order.encounter_id);
-                        }}
+                        key={`${group.patient_id}-${group.encounter_id}`}
+                        className="px-6 py-4"
                       >
-                        <div className="flex justify-between items-start">
+                        {/* Patient Header */}
+                        <div
+                          className="flex justify-between items-start cursor-pointer"
+                          onClick={() => {
+                            setSelectedOrder(group.orders[0]);
+                            fetchPatientDetails(group.patient_id, group.encounter_id);
+                          }}
+                        >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-lg text-gray-900">
-                                {order.medication_name}
+                                {group.patient_name}
                               </span>
-                              <span className={`px-2 py-0.5 text-xs font-semibold rounded ${getPriorityColor(order.priority)}`}>
-                                {order.priority?.toUpperCase() || 'ROUTINE'}
+                              <span className="text-sm text-gray-500">{group.patient_number}</span>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                group.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
+                                group.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {group.payer_name}
                               </span>
-                            </div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              {order.dosage} | {order.frequency} | {order.route}
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap">
-                              <span>Patient: <span className="font-medium">{order.patient_name || `ID: ${order.patient_id}`}</span></span>
-                              {order.payer_type && (
-                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                  order.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
-                                  order.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {order.payer_name || order.payer_type}
-                                </span>
-                              )}
-                              {order.patient_allergies && (
-                                <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300 animate-pulse">
-                                  ⚠️ ALLERGIES: {order.patient_allergies}
+                              {group.patient_allergies && (
+                                <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300">
+                                  ⚠️ ALLERGIES: {group.patient_allergies}
                                 </span>
                               )}
                             </div>
-                            {order.primary_diagnosis && (
-                              <div className="text-xs text-primary-600 mt-1">
-                                <span className="font-medium">Dx:</span> {order.primary_diagnosis}
-                              </div>
-                            )}
-                            <div className="text-xs text-gray-400 mt-1 flex items-center gap-2">
-                              <span>Ordered: {format(new Date(order.ordered_date), 'MMM dd, yyyy HH:mm')}</span>
-                              {order.dispensed_by_name && (
-                                <span className="text-success-600">• Dispensed by: {order.dispensed_by_name}</span>
-                              )}
+                            <div className="text-xs text-gray-400 mt-1">
+                              Ordered: {format(new Date(group.ordered_date), 'MMM dd, yyyy HH:mm')}
+                              <span className="ml-2 text-gray-500">• {group.orders.length} medication{group.orders.length > 1 ? 's' : ''}</span>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <span className="text-lg font-bold text-gray-900">
-                              Qty: {order.quantity}
-                            </span>
+                          <div className="flex items-center gap-2">
                             {ordersSubTab === 'pending' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  startProcessingOrder(order.id);
+                                  // Start processing all orders for this patient
+                                  group.orders.forEach(o => startProcessingOrder(o.id));
                                 }}
-                                className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
                               >
-                                Start Processing
+                                Start All
                               </button>
                             )}
                             {ordersSubTab === 'in_progress' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  markReadyForPickup(order.id);
+                                  group.orders.forEach(o => markReadyForPickup(o.id));
                                 }}
-                                className="px-3 py-1 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600"
+                                className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600"
                               >
-                                Mark Ready
+                                All Ready
                               </button>
                             )}
                             {ordersSubTab === 'ready' && (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  dispenseMedication(order.id, order.medication_name);
+                                  group.orders.forEach(o => dispenseMedication(o.id, o.medication_name));
                                 }}
-                                className="px-3 py-1 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
+                                className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
                               >
-                                Dispense
+                                Dispense All
                               </button>
                             )}
-                            <div className="flex gap-1">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingOrder(order);
-                                  setShowEditOrderModal(true);
-                                }}
-                                className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200"
-                                title="Edit"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  printLabel(order);
-                                }}
-                                className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200"
-                                title="Print Label"
-                              >
-                                Label
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  fetchDrugHistory(order.patient_id, order.patient_name || `Patient ${order.patient_id}`);
-                                }}
-                                className="px-2 py-1 bg-primary-100 text-primary-700 text-sm rounded hover:bg-primary-200"
-                              >
-                                History
-                              </button>
-                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                fetchDrugHistory(group.patient_id, group.patient_name);
+                              }}
+                              className="px-2 py-1.5 bg-primary-100 text-primary-700 text-sm rounded-lg hover:bg-primary-200"
+                            >
+                              History
+                            </button>
                           </div>
+                        </div>
+
+                        {/* Medications List */}
+                        <div className="mt-3 space-y-2">
+                          {group.orders.map((order) => (
+                            <div
+                              key={order.id}
+                              className={`rounded-lg border transition-all ${
+                                selectedOrder?.id === order.id
+                                  ? 'border-success-400 bg-success-50'
+                                  : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                              }`}
+                            >
+                              <div
+                                className="px-4 py-2 cursor-pointer flex justify-between items-center"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setExpandedMedication(expandedMedication === order.id ? null : order.id);
+                                  fetchPatientDetails(order.patient_id, order.encounter_id);
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    order.priority === 'stat' ? 'bg-danger-500' :
+                                    order.priority === 'urgent' ? 'bg-orange-500' :
+                                    'bg-gray-400'
+                                  }`} />
+                                  <div>
+                                    <span className="font-medium text-gray-900">{order.medication_name}</span>
+                                    <span className="text-sm text-gray-500 ml-2">
+                                      {order.dosage} | {order.frequency} | {order.route}
+                                    </span>
+                                  </div>
+                                  <span className={`px-2 py-0.5 text-xs font-semibold rounded ${getPriorityColor(order.priority)}`}>
+                                    {order.priority?.toUpperCase() || 'ROUTINE'}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="font-semibold text-gray-700">Qty: {order.quantity}</span>
+                                  <svg
+                                    className={`w-4 h-4 text-gray-400 transition-transform ${
+                                      expandedMedication === order.id ? 'rotate-180' : ''
+                                    }`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              {/* Expanded Actions */}
+                              {expandedMedication === order.id && (
+                                <div className="px-4 py-3 border-t border-gray-200 bg-white rounded-b-lg flex items-center justify-between">
+                                  <div className="text-sm text-gray-600">
+                                    {order.primary_diagnosis && (
+                                      <span className="text-primary-600"><span className="font-medium">Dx:</span> {order.primary_diagnosis}</span>
+                                    )}
+                                    {order.notes && (
+                                      <span className="ml-3 text-gray-500">Notes: {order.notes}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {ordersSubTab === 'pending' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          startProcessingOrder(order.id);
+                                        }}
+                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
+                                      >
+                                        Start
+                                      </button>
+                                    )}
+                                    {ordersSubTab === 'in_progress' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          markReadyForPickup(order.id);
+                                        }}
+                                        className="px-3 py-1 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                                      >
+                                        Ready
+                                      </button>
+                                    )}
+                                    {ordersSubTab === 'ready' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          dispenseMedication(order.id, order.medication_name);
+                                        }}
+                                        className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700"
+                                      >
+                                        Dispense
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingOrder(order);
+                                        setShowEditOrderModal(true);
+                                      }}
+                                      className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        printLabel(order);
+                                      }}
+                                      className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                    >
+                                      Label
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))
