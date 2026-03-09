@@ -475,7 +475,7 @@ router.post('/pricing/calculate', authenticateToken, authorizeRoles('pharmacy', 
 // Pharmacy Revenue & Drug History routes
 router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getRevenueSummary);
 router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse'), getPatientDrugHistory);
-router.get('/pharmacy/refills', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), getRefillsCalendar);
+router.get('/pharmacy/refills', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin'), getRefillsCalendar);
 
 // Supplier routes
 router.get('/suppliers', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getSuppliers);

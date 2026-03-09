@@ -177,12 +177,26 @@ interface Appointment {
   provider_name?: string;
 }
 
-interface CalendarEvent {
+interface RefillEvent {
   id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_number: string;
+  patient_phone?: string;
+  medication_name: string;
+  quantity: number;
+  refills_remaining: number;
+  estimated_refill_date: string;
+  frequency?: string;
+}
+
+interface CalendarEvent {
+  id: number | string;
   title: string;
   start: Date;
   end: Date;
-  resource: Appointment;
+  resource: Appointment | RefillEvent;
+  isRefill?: boolean;
 }
 
 const ReceptionistDashboard: React.FC = () => {
@@ -203,6 +217,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   // Appointments state
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
+  const [allRefills, setAllRefills] = useState<RefillEvent[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day'>('week');
@@ -220,6 +235,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [bookingDuration, setBookingDuration] = useState(30);
   const [savingAppointment, setSavingAppointment] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [selectedRefill, setSelectedRefill] = useState<RefillEvent | null>(null);
 
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
@@ -418,22 +434,35 @@ const ReceptionistDashboard: React.FC = () => {
         toDate.setHours(23, 59, 59, 999);
       }
 
-      const response = await apiClient.get('/appointments', {
-        params: {
-          from_date: fromDate.toISOString(),
-          to_date: toDate.toISOString(),
-          limit: 500,
-        },
-      });
+      // Fetch appointments and refills in parallel
+      const [appointmentsResponse, refillsResponse] = await Promise.all([
+        apiClient.get('/appointments', {
+          params: {
+            from_date: fromDate.toISOString(),
+            to_date: toDate.toISOString(),
+            limit: 500,
+          },
+        }),
+        apiClient.get('/pharmacy/refills', {
+          params: {
+            from_date: format(fromDate, 'yyyy-MM-dd'),
+            to_date: format(toDate, 'yyyy-MM-dd'),
+          },
+        }).catch(() => ({ data: { refills: [] } })), // Gracefully handle if no access
+      ]);
 
-      const appts = response.data.appointments || [];
+      const appts = appointmentsResponse.data.appointments || [];
+      const refills = refillsResponse.data.refills || [];
+
       setAllAppointments(appts);
+      setAllRefills(refills);
 
       // Convert to calendar events (filtering will be applied separately)
-      updateCalendarEvents(appts, calendarDoctorFilter);
+      updateCalendarEvents(appts, refills, calendarDoctorFilter);
     } catch (error) {
       console.error('Error loading appointments:', error);
       setAllAppointments([]);
+      setAllRefills([]);
       setCalendarEvents([]);
     }
   };
@@ -449,14 +478,14 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   // Update calendar events when filter changes
-  const updateCalendarEvents = (appts: Appointment[], doctorFilter: number | '') => {
-    // Filter by doctor if selected
+  const updateCalendarEvents = (appts: Appointment[], refills: RefillEvent[], doctorFilter: number | '') => {
+    // Filter appointments by doctor if selected
     const filteredAppts = doctorFilter
       ? appts.filter(appt => appt.provider_id === doctorFilter)
       : appts;
 
-    // Convert to calendar events with patient name + doctor name (no times)
-    const events: CalendarEvent[] = filteredAppts.map((appt: Appointment) => {
+    // Convert appointments to calendar events
+    const appointmentEvents: CalendarEvent[] = filteredAppts.map((appt: Appointment) => {
       const startDate = new Date(appt.appointment_date);
       const endDate = new Date(startDate.getTime() + (appt.duration_minutes || 30) * 60000);
       const doctorName = appt.provider_name ? `Dr. ${appt.provider_name.split(' ').pop()}` : '';
@@ -466,15 +495,33 @@ const ReceptionistDashboard: React.FC = () => {
         start: startDate,
         end: endDate,
         resource: appt,
+        isRefill: false,
       };
     });
-    setCalendarEvents(events);
+
+    // Convert refills to calendar events (show as all-day events at 9 AM)
+    const refillEvents: CalendarEvent[] = refills.map((refill: RefillEvent) => {
+      const refillDate = new Date(refill.estimated_refill_date);
+      refillDate.setHours(9, 0, 0, 0); // Set to 9 AM
+      const endDate = new Date(refillDate.getTime() + 30 * 60000); // 30 min slot
+      return {
+        id: `refill-${refill.id}`,
+        title: `💊 ${refill.patient_name} - ${refill.medication_name} Refill`,
+        start: refillDate,
+        end: endDate,
+        resource: refill,
+        isRefill: true,
+      };
+    });
+
+    // Combine and set events
+    setCalendarEvents([...appointmentEvents, ...refillEvents]);
   };
 
   // Handle doctor filter change
   const handleDoctorFilterChange = (doctorId: number | '') => {
     setCalendarDoctorFilter(doctorId);
-    updateCalendarEvents(allAppointments, doctorId);
+    updateCalendarEvents(allAppointments, allRefills, doctorId);
   };
 
   const handleSlotSelect = useCallback(({ start, end }: { start: Date; end: Date }) => {
@@ -492,7 +539,13 @@ const ReceptionistDashboard: React.FC = () => {
   }, []);
 
   const handleEventSelect = useCallback((event: CalendarEvent) => {
-    setSelectedAppointment(event.resource);
+    if (event.isRefill) {
+      setSelectedRefill(event.resource as RefillEvent);
+      setSelectedAppointment(null);
+    } else {
+      setSelectedAppointment(event.resource as Appointment);
+      setSelectedRefill(null);
+    }
   }, []);
 
   const handleBookAppointment = async () => {
@@ -2280,10 +2333,21 @@ const ReceptionistDashboard: React.FC = () => {
                     eventTimeRangeFormat: () => '', // Hide time range in events
                   }}
                   eventPropGetter={(event: CalendarEvent) => {
-                    const status = event.resource.status as string;
+                    // Refill events have distinct orange color
+                    if (event.isRefill) {
+                      return {
+                        style: {
+                          backgroundColor: '#f97316', // orange for refills
+                          borderRadius: '4px',
+                          borderLeft: '3px solid #ea580c',
+                        }
+                      };
+                    }
+                    // Regular appointments
+                    const status = (event.resource as Appointment).status;
                     let backgroundColor = '#7c3aed'; // violet
                     if (status === 'cancelled') backgroundColor = '#ef4444';
-                    else if (status === 'checked_in' || status === 'checked-in') backgroundColor = '#22c55e';
+                    else if (status === 'checked_in') backgroundColor = '#22c55e';
                     else if (status === 'completed') backgroundColor = '#6b7280';
                     else if (status === 'confirmed') backgroundColor = '#3b82f6';
                     return { style: { backgroundColor, borderRadius: '4px' } };
@@ -2565,6 +2629,89 @@ const ReceptionistDashboard: React.FC = () => {
                   )}
                   <button
                     onClick={() => setSelectedAppointment(null)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Refill Details Modal */}
+        {selectedRefill && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">
+                  <span className="mr-2">💊</span>
+                  Medication Refill
+                </h3>
+                <button
+                  onClick={() => setSelectedRefill(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <p className="text-sm text-orange-600 font-medium">Estimated Refill Date</p>
+                  <p className="text-lg font-bold text-orange-800">
+                    {safeFormatDate(selectedRefill.estimated_refill_date, 'EEEE, MMMM d, yyyy')}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Patient</p>
+                  <p className="font-semibold text-gray-900">{selectedRefill.patient_name}</p>
+                  <p className="text-sm text-gray-600">{selectedRefill.patient_number}</p>
+                  {selectedRefill.patient_phone && (
+                    <p className="text-sm text-gray-600">📞 {selectedRefill.patient_phone}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Medication</p>
+                  <p className="font-semibold text-gray-900">{selectedRefill.medication_name}</p>
+                  <p className="text-sm text-gray-600">Quantity: {selectedRefill.quantity}</p>
+                  {selectedRefill.frequency && (
+                    <p className="text-sm text-gray-600">Frequency: {selectedRefill.frequency}</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-500">Refills Remaining</p>
+                  <span className="inline-block px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm font-medium">
+                    {selectedRefill.refills_remaining} refill{selectedRefill.refills_remaining !== 1 ? 's' : ''} remaining
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t">
+                  <button
+                    onClick={() => {
+                      // Pre-fill check-in with refill info
+                      const patient = patients.find(p => p.id === selectedRefill.patient_id);
+                      if (patient) {
+                        setSelectedPatient(patient);
+                        setChiefComplaint(`Medication refill: ${selectedRefill.medication_name}`);
+                        setEncounterType('walk-in');
+                        setSelectedClinic('Pharmacy (OTC/Walk-in)');
+                        setActiveView('checkin');
+                      }
+                      setSelectedRefill(null);
+                    }}
+                    className="flex-1 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
+                  >
+                    Check In Patient
+                  </button>
+                  <button
+                    onClick={() => setSelectedRefill(null)}
                     className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                   >
                     Close

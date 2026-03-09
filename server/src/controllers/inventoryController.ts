@@ -661,41 +661,71 @@ export const getPatientDrugHistory = async (req: Request, res: Response): Promis
   }
 };
 
-// Get refills calendar data for a specific month
+// Get refills calendar data - supports year/month OR from_date/to_date
 export const getRefillsCalendar = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { year, month } = req.query;
+    const { year, month, from_date, to_date } = req.query;
 
-    if (!year || !month) {
-      res.status(400).json({ error: 'Year and month are required' });
+    let result;
+
+    if (from_date && to_date) {
+      // Date range query (for appointment calendar integration)
+      result = await pool.query(
+        `SELECT
+          po.id,
+          po.medication_name,
+          po.quantity,
+          po.refills,
+          po.dispensed_date,
+          po.frequency,
+          p.id as patient_id,
+          p.patient_number,
+          u.first_name || ' ' || u.last_name as patient_name,
+          u.phone as patient_phone,
+          -- Estimate refill date (quantity days after dispensed)
+          (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
+          po.refills as refills_remaining
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE po.status = 'dispensed'
+           AND po.refills > 0
+           AND (po.dispensed_date + (po.quantity::int || ' days')::interval)::date >= $1::date
+           AND (po.dispensed_date + (po.quantity::int || ' days')::interval)::date <= $2::date
+         ORDER BY estimated_refill_date ASC`,
+        [from_date, to_date]
+      );
+    } else if (year && month) {
+      // Year/month query (original behavior)
+      result = await pool.query(
+        `SELECT
+          po.id,
+          po.medication_name,
+          po.quantity,
+          po.refills,
+          po.dispensed_date,
+          po.frequency,
+          p.id as patient_id,
+          p.patient_number,
+          u.first_name || ' ' || u.last_name as patient_name,
+          u.phone as patient_phone,
+          -- Estimate refill date (quantity days after dispensed)
+          (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
+          po.refills as refills_remaining
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE po.status = 'dispensed'
+           AND po.refills > 0
+           AND EXTRACT(YEAR FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $1
+           AND EXTRACT(MONTH FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $2
+         ORDER BY estimated_refill_date ASC`,
+        [year, month]
+      );
+    } else {
+      res.status(400).json({ error: 'Either year/month or from_date/to_date are required' });
       return;
     }
-
-    // Calculate refill dates based on dispensed orders with refills remaining
-    // Estimate refill date based on quantity and frequency
-    const result = await pool.query(
-      `SELECT
-        po.id,
-        po.medication_name,
-        po.quantity,
-        po.refills,
-        po.dispensed_date,
-        po.frequency,
-        p.patient_number,
-        u.first_name || ' ' || u.last_name as patient_name,
-        -- Estimate refill date (quantity days after dispensed)
-        (po.dispensed_date + (po.quantity::int || ' days')::interval)::date as estimated_refill_date,
-        po.refills as refills_remaining
-       FROM pharmacy_orders po
-       JOIN patients p ON po.patient_id = p.id
-       JOIN users u ON p.user_id = u.id
-       WHERE po.status = 'dispensed'
-         AND po.refills > 0
-         AND EXTRACT(YEAR FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $1
-         AND EXTRACT(MONTH FROM (po.dispensed_date + (po.quantity::int || ' days')::interval)) = $2
-       ORDER BY estimated_refill_date ASC`,
-      [year, month]
-    );
 
     // Transform the data for calendar display
     const refills = result.rows.map(row => ({
