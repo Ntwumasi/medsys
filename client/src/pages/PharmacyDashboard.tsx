@@ -1470,7 +1470,10 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-danger-400"
+                onClick={() => setInventoryFilter('expired')}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-danger-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-danger-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1521,12 +1524,13 @@ const PharmacyDashboard: React.FC = () => {
               </select>
               <select
                 value={inventoryFilter}
-                onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low_stock' | 'expiring')}
+                onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low_stock' | 'expiring' | 'expired')}
                 className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
               >
                 <option value="all">All Status</option>
                 <option value="low_stock">Low Stock</option>
                 <option value="expiring">Expiring Soon</option>
+                <option value="expired">Expired</option>
               </select>
               <button
                 onClick={() => setShowAddInventoryModal(true)}
