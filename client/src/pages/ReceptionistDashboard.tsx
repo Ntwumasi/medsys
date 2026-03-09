@@ -1066,7 +1066,7 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               }
             >
-              <span className="text-xl">Current Patient Queue</span>
+              <span className="text-xl">Today's Patients</span>
               <Badge variant="primary" size="lg" className="ml-3">
                 {filteredQueue.length}{filteredQueue.length !== queue.length && ` of ${queue.length}`}
               </Badge>
@@ -1132,7 +1132,7 @@ const ReceptionistDashboard: React.FC = () => {
             <div className="space-y-4">
               {filteredQueue.map((item) => {
                 const waitTime = calculateWaitTime(item.check_in_time, item.doctor_started_at);
-                const isCompleted = item.status === 'completed';
+                const isCompleted = item.status === 'completed' || item.status === 'discharged' || item.workflow_status === 'discharged';
                 const isPaid = item.invoice_status === 'paid';
 
                 // Status badge configuration based on workflow_status

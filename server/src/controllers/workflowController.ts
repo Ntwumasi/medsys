@@ -853,13 +853,16 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
       LEFT JOIN invoices i ON i.encounter_id = e.id
       WHERE DATE(e.checked_in_at) = CURRENT_DATE
-        AND e.status NOT IN ('discharged', 'completed', 'cancelled')
+        AND e.status != 'cancelled'
       ORDER BY
         CASE e.status
           WHEN 'in-progress' THEN 1
           WHEN 'with_nurse' THEN 2
-          WHEN 'completed' THEN 3
-          ELSE 4
+          WHEN 'with_doctor' THEN 3
+          WHEN 'ready_for_doctor' THEN 4
+          WHEN 'completed' THEN 8
+          WHEN 'discharged' THEN 9
+          ELSE 5
         END,
         e.triage_time`
     );
