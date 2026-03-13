@@ -42,6 +42,7 @@ import {
   checkInPatient,
   assignRoom,
   assignNurse,
+  assignDoctor,
   nurseStartEncounter,
   addVitalSigns,
   getVitalSignsHistory,
@@ -308,6 +309,7 @@ router.post('/medications/check-allergies', authenticateToken, authorizeRoles('d
 router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist'), checkInPatient);
 router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
+router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('receptionist'), assignDoctor);
 router.get('/workflow/queue', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getPatientQueue);
 router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('receptionist', 'nurse', 'doctor'), getCompletedEncounters);
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);

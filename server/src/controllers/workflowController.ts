@@ -395,6 +395,42 @@ export const assignNurse = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Receptionist: Assign doctor to encounter
+export const assignDoctor = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounter_id, doctor_id } = req.body;
+
+    const result = await pool.query(
+      `UPDATE encounters SET provider_id = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [doctor_id, encounter_id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    // Create alert for doctor
+    await pool.query(
+      `INSERT INTO alerts (encounter_id, patient_id, to_user_id, alert_type, message)
+       SELECT $1, patient_id, $2, 'patient_assigned',
+         'Patient assigned to you' || COALESCE(' in room ' || (SELECT room_number FROM rooms WHERE id = room_id), '')
+       FROM encounters WHERE id = $1`,
+      [encounter_id, doctor_id]
+    );
+
+    res.json({
+      message: 'Doctor assigned successfully',
+      encounter: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Assign doctor error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Nurse: Start seeing patient
 export const nurseStartEncounter = async (req: Request, res: Response): Promise<void> => {
   try {
