@@ -280,35 +280,87 @@ export const getPatientById = async (req: Request, res: Response): Promise<void>
 };
 
 export const updatePatient = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
   try {
     const { id } = req.params;
     const updateData = req.body;
 
-    const fields = Object.keys(updateData)
-      .map((key, index) => `${key} = $${index + 2}`)
-      .join(', ');
+    // Separate user fields from patient fields
+    const userFields = ['first_name', 'last_name', 'email', 'phone'];
+    const userData: Record<string, unknown> = {};
+    const patientData: Record<string, unknown> = {};
 
-    const values = Object.values(updateData);
+    for (const [key, value] of Object.entries(updateData)) {
+      if (userFields.includes(key)) {
+        userData[key] = value;
+      } else {
+        patientData[key] = value;
+      }
+    }
 
-    const result = await pool.query(
-      `UPDATE patients SET ${fields}, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1
-       RETURNING *`,
-      [id, ...values]
+    await client.query('BEGIN');
+
+    // Get the user_id for this patient
+    const patientResult = await client.query(
+      'SELECT user_id FROM patients WHERE id = $1',
+      [id]
     );
 
-    if (result.rows.length === 0) {
+    if (patientResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Patient not found' });
       return;
     }
 
+    const userId = patientResult.rows[0].user_id;
+
+    // Update user table if there are user fields
+    if (Object.keys(userData).length > 0 && userId) {
+      const userFieldsList = Object.keys(userData)
+        .map((key, index) => `${key} = $${index + 2}`)
+        .join(', ');
+      const userValues = Object.values(userData);
+
+      await client.query(
+        `UPDATE users SET ${userFieldsList} WHERE id = $1`,
+        [userId, ...userValues]
+      );
+    }
+
+    // Update patient table if there are patient fields
+    let updatedPatient;
+    if (Object.keys(patientData).length > 0) {
+      const patientFieldsList = Object.keys(patientData)
+        .map((key, index) => `${key} = $${index + 2}`)
+        .join(', ');
+      const patientValues = Object.values(patientData);
+
+      const result = await client.query(
+        `UPDATE patients SET ${patientFieldsList}, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [id, ...patientValues]
+      );
+      updatedPatient = result.rows[0];
+    } else {
+      // Just fetch the patient if no patient fields to update
+      const result = await client.query('SELECT * FROM patients WHERE id = $1', [id]);
+      updatedPatient = result.rows[0];
+    }
+
+    await client.query('COMMIT');
+
     res.json({
       message: 'Patient updated successfully',
-      patient: result.rows[0],
+      patient: updatedPatient,
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Update patient error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 
