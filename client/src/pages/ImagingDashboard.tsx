@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
+import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } from '../components/ui';
 
@@ -17,32 +18,53 @@ interface RoutingRequest {
   room_number: string;
 }
 
+interface ImagingOrder {
+  id: number;
+  encounter_id: number;
+  patient_id: number;
+  imaging_type: string;
+  body_part: string;
+  priority: 'stat' | 'urgent' | 'routine';
+  status: string;
+  ordered_date: string;
+  completed_date?: string;
+  clinical_indication?: string;
+  notes?: string;
+  results?: string;
+  patient_name: string;
+  patient_number: string;
+  patient_allergies?: string;
+  encounter_number: string;
+  ordering_provider_name: string;
+}
+
 const ImagingDashboard: React.FC = () => {
-  const [routingRequests, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [walkIns, setWalkIns] = useState<RoutingRequest[]>([]);
+  const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'walkins' | 'orders'>('walkins');
+  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'completed'>('pending');
+
+  // Patient Details panel state
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<ImagingOrder | null>(null);
+  const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
+  const [patientAllergies, setPatientAllergies] = useState<any[]>([]);
+  const [patientImagingHistory, setPatientImagingHistory] = useState<any[]>([]);
+
+  // Patient Quick View modal
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [showPatientQuickView, setShowPatientQuickView] = useState(false);
 
   useEffect(() => {
-    fetchRoutingRequests();
     fetchWalkIns();
+    fetchImagingOrders();
     const interval = setInterval(() => {
-      fetchRoutingRequests();
       fetchWalkIns();
+      fetchImagingOrders();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
-
-  const fetchRoutingRequests = async () => {
-    try {
-      const response = await apiClient.get('/department-routing/imaging/queue');
-      setRoutingRequests(response.data.queue || []);
-    } catch (error) {
-      console.error('Error fetching routing requests:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchWalkIns = async () => {
     try {
@@ -50,6 +72,38 @@ const ImagingDashboard: React.FC = () => {
       setWalkIns(response.data.walk_ins || []);
     } catch (error) {
       console.error('Error fetching imaging walk-ins:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchImagingOrders = async () => {
+    try {
+      setOrdersLoading(true);
+      const response = await apiClient.get('/orders/imaging');
+      setImagingOrders(response.data.imaging_orders || []);
+    } catch (error) {
+      console.error('Error fetching imaging orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
+    try {
+      // Fetch diagnoses from encounter
+      const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      setPatientDiagnoses(encounterRes.data.diagnoses || []);
+
+      // Fetch allergies from patient record
+      const patientRes = await apiClient.get(`/patients/${patientId}`);
+      setPatientAllergies(patientRes.data.patient?.allergies || []);
+
+      // Fetch recent imaging history for this patient
+      const imagingHistoryRes = await apiClient.get(`/orders/imaging?patient_id=${patientId}&limit=10`);
+      setPatientImagingHistory(imagingHistoryRes.data.imaging_orders || []);
+    } catch (error) {
+      console.error('Error fetching patient details for panel:', error);
     }
   };
 
@@ -58,15 +112,33 @@ const ImagingDashboard: React.FC = () => {
       await apiClient.put(`/department-routing/${routingId}/status`, {
         status: status,
       });
-      fetchRoutingRequests();
+      fetchWalkIns();
     } catch (error) {
       console.error('Error updating status:', error);
     }
   };
 
-  const pendingCount = routingRequests.filter(r => r.status === 'pending').length;
-  const inProgressCount = routingRequests.filter(r => r.status === 'in-progress').length;
-  const completedCount = routingRequests.filter(r => r.status === 'completed').length;
+  const updateOrderStatus = async (orderId: number, status: string) => {
+    try {
+      await apiClient.put(`/orders/imaging/${orderId}`, { status });
+      fetchImagingOrders();
+      // If completed, may auto-route patient back to nurse
+    } catch (error) {
+      console.error('Error updating order status:', error);
+    }
+  };
+
+  const pendingCount = imagingOrders.filter(o => o.status === 'pending' || o.status === 'ordered').length;
+  const inProgressCount = imagingOrders.filter(o => o.status === 'in_progress').length;
+  const completedCount = imagingOrders.filter(o => o.status === 'completed').length;
+
+  // Filter orders by sub-tab
+  const filteredOrders = imagingOrders.filter(order => {
+    if (ordersSubTab === 'pending') return order.status === 'pending' || order.status === 'ordered';
+    if (ordersSubTab === 'in_progress') return order.status === 'in_progress';
+    if (ordersSubTab === 'completed') return order.status === 'completed';
+    return true;
+  });
 
   return (
     <AppLayout title="Imaging Dashboard">
@@ -150,9 +222,9 @@ const ImagingDashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
               Imaging Orders
-              {routingRequests.filter(r => r.status !== 'completed').length > 0 && (
+              {pendingCount + inProgressCount > 0 && (
                 <span className="text-xs font-bold px-2 py-1 rounded-full bg-gray-200 text-gray-700">
-                  {routingRequests.filter(r => r.status !== 'completed').length}
+                  {pendingCount + inProgressCount}
                 </span>
               )}
             </div>
@@ -248,92 +320,335 @@ const ImagingDashboard: React.FC = () => {
 
       {/* Imaging Orders Tab */}
       {activeTab === 'orders' && (
-      <Card>
-        <Card.Header>Imaging Requests</Card.Header>
-        <div className="divide-y divide-gray-100">
-          {loading ? (
-            <div className="p-6 space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
-                  <div className="h-3 bg-gray-200 rounded w-2/3" />
-                </div>
-              ))}
-            </div>
-          ) : routingRequests.length === 0 ? (
-            <EmptyState
-              title="No imaging requests"
-              description="There are no imaging requests at this time. New requests will appear here."
-              icon={
-                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                </svg>
-              }
-            />
-          ) : (
-            routingRequests.map((request) => (
-              <div key={request.id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">
-                        {request.patient_name}
-                      </h3>
-                      <StatusBadge status={request.status} />
+        <div>
+          {/* Sub-tabs for order status */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setOrdersSubTab('pending')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                ordersSubTab === 'pending'
+                  ? 'bg-warning-100 text-warning-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Pending ({pendingCount})
+            </button>
+            <button
+              onClick={() => setOrdersSubTab('in_progress')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                ordersSubTab === 'in_progress'
+                  ? 'bg-primary-100 text-primary-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              In Progress ({inProgressCount})
+            </button>
+            <button
+              onClick={() => setOrdersSubTab('completed')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                ordersSubTab === 'completed'
+                  ? 'bg-success-100 text-success-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Completed ({completedCount})
+            </button>
+            <div className="flex-1"></div>
+            <button
+              onClick={fetchImagingOrders}
+              className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {/* Orders List and Patient Details */}
+          <div className="flex gap-6">
+            {/* Left: Orders List */}
+            <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="px-6 py-4 border-b flex justify-between items-center">
+                <h2 className="text-lg font-semibold">
+                  {ordersSubTab === 'pending' ? 'Pending' : ordersSubTab === 'in_progress' ? 'In Progress' : 'Completed'} Imaging Orders
+                </h2>
+              </div>
+              <div className="divide-y divide-gray-100 max-h-[calc(100vh-400px)] overflow-y-auto">
+                {ordersLoading ? (
+                  <div className="p-6 space-y-4">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
+                        <div className="h-3 bg-gray-200 rounded w-2/3" />
+                      </div>
+                    ))}
+                  </div>
+                ) : filteredOrders.length === 0 ? (
+                  <EmptyState
+                    title={`No ${ordersSubTab.replace('_', ' ')} imaging orders`}
+                    description="Orders will appear here when they match this status."
+                    icon={
+                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                      </svg>
+                    }
+                  />
+                ) : (
+                  filteredOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className={`px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        order.priority === 'stat' ? 'bg-danger-50 border-l-4 border-danger-500' : ''
+                      } ${selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''}`}
+                      onClick={() => {
+                        setSelectedOrderForDetails(order);
+                        fetchPatientDetailsForPanel(order.patient_id, order.encounter_id);
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              {order.patient_name}
+                            </h3>
+                            <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                              order.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                              order.priority === 'urgent' ? 'bg-orange-100 text-orange-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {order.priority.toUpperCase()}
+                            </span>
+                            <StatusBadge status={order.status} />
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500">Study:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.imaging_type}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Body Part:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.body_part}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Patient #:</span>
+                              <span className="ml-2 text-gray-900 font-medium">{order.patient_number}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Ordered:</span>
+                              <span className="ml-2 text-gray-900 font-medium">
+                                {new Date(order.ordered_date).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                          {order.clinical_indication && (
+                            <div className="mt-2 text-sm">
+                              <span className="text-gray-500">Clinical Indication:</span>
+                              <p className="text-gray-700 mt-1 bg-gray-50 rounded p-2">{order.clinical_indication}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="ml-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          {(order.status === 'pending' || order.status === 'ordered') && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() => updateOrderStatus(order.id, 'in_progress')}
+                            >
+                              Start Study
+                            </Button>
+                          )}
+                          {order.status === 'in_progress' && (
+                            <Button
+                              variant="success"
+                              size="sm"
+                              onClick={() => updateOrderStatus(order.id, 'completed')}
+                            >
+                              Complete
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500">Patient #:</span>
-                        <span className="ml-2 text-gray-900 font-medium">{request.patient_number}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Encounter #:</span>
-                        <span className="ml-2 text-gray-900 font-medium">{request.encounter_number}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Room:</span>
-                        <span className="ml-2 text-gray-900 font-medium">{request.room_number || 'N/A'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Requested:</span>
-                        <span className="ml-2 text-gray-900 font-medium">
-                          {new Date(request.routed_at).toLocaleString()}
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Right: Patient Details Panel */}
+            <div className="w-80 bg-white rounded-xl shadow-lg border border-gray-200 flex-shrink-0">
+              <div className="px-6 py-4 border-b">
+                <h2 className="text-lg font-semibold">Patient Details</h2>
+              </div>
+              {selectedOrderForDetails ? (
+                <div className="p-6 space-y-6 max-h-[calc(100vh-400px)] overflow-y-auto">
+                  {/* Patient Info */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      Patient
+                    </h3>
+                    <div className="bg-gray-50 rounded p-3 space-y-2">
+                      <div className="font-semibold text-gray-900">{selectedOrderForDetails.patient_name}</div>
+                      <div className="text-sm text-gray-600">{selectedOrderForDetails.patient_number}</div>
+                    </div>
+                  </div>
+
+                  {/* Current Study */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                      </svg>
+                      Current Study
+                    </h3>
+                    <div className="bg-primary-50 rounded p-3 border border-primary-200">
+                      <div className="font-semibold text-primary-900">{selectedOrderForDetails.imaging_type}</div>
+                      <div className="text-sm text-primary-600 mt-1">Body Part: {selectedOrderForDetails.body_part}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                          selectedOrderForDetails.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                          selectedOrderForDetails.priority === 'urgent' ? 'bg-orange-100 text-orange-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {selectedOrderForDetails.priority.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                          selectedOrderForDetails.status === 'completed' ? 'bg-success-100 text-success-700' :
+                          selectedOrderForDetails.status === 'in_progress' ? 'bg-primary-100 text-primary-700' :
+                          'bg-warning-100 text-warning-700'
+                        }`}>
+                          {selectedOrderForDetails.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
                     </div>
-                    {request.notes && (
-                      <div className="mt-3 text-sm">
-                        <span className="text-gray-500">Notes:</span>
-                        <p className="text-gray-700 mt-1 bg-gray-50 rounded-lg p-2">{request.notes}</p>
+                  </div>
+
+                  {/* Allergies */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-danger-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Allergies
+                    </h3>
+                    {patientAllergies.length > 0 ? (
+                      <div className="space-y-2">
+                        {patientAllergies.map((allergy: any, idx: number) => (
+                          <div key={idx} className="p-2 bg-danger-50 border border-danger-200 rounded text-sm">
+                            <span className="font-medium text-danger-700">{allergy.allergen || allergy}</span>
+                            {allergy.reaction && (
+                              <span className="text-danger-600 ml-2">- {allergy.reaction}</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No known allergies</p>
                     )}
                   </div>
-                  <div className="ml-4 flex gap-2">
-                    {request.status === 'pending' && (
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => updateStatus(request.id, 'in-progress')}
-                      >
-                        Start Study
-                      </Button>
-                    )}
-                    {request.status === 'in-progress' && (
-                      <Button
-                        variant="success"
-                        size="sm"
-                        onClick={() => updateStatus(request.id, 'completed')}
-                      >
-                        Complete
-                      </Button>
+
+                  {/* Contrast Warning (important for imaging) */}
+                  {patientAllergies.some((a: any) =>
+                    (a.allergen || a || '').toLowerCase().includes('contrast') ||
+                    (a.allergen || a || '').toLowerCase().includes('iodine')
+                  ) && (
+                    <div className="p-3 bg-danger-100 border-2 border-danger-300 rounded-lg">
+                      <div className="flex items-center gap-2 text-danger-700 font-bold">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        CONTRAST ALLERGY ALERT
+                      </div>
+                      <p className="text-sm text-danger-600 mt-1">
+                        Patient has documented allergy to contrast media or iodine. Confirm with ordering physician before proceeding.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Diagnoses */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Diagnoses
+                    </h3>
+                    {patientDiagnoses.length > 0 ? (
+                      <div className="space-y-2">
+                        {patientDiagnoses.map((dx: any, idx: number) => (
+                          <div key={idx} className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">
+                            <span className="font-medium text-purple-700">{dx.diagnosis_name || dx.name || dx}</span>
+                            {dx.icd_code && (
+                              <span className="text-purple-600 ml-2 text-xs">({dx.icd_code})</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No diagnoses recorded</p>
                     )}
                   </div>
+
+                  {/* Recent Imaging History */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Recent Imaging History
+                    </h3>
+                    {patientImagingHistory.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {patientImagingHistory.slice(0, 5).map((img: any, idx: number) => (
+                          <div key={idx} className="p-2 bg-gray-50 border border-gray-200 rounded text-sm">
+                            <div className="font-medium text-gray-700">{img.imaging_type} - {img.body_part}</div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {new Date(img.ordered_date).toLocaleDateString()} -
+                              <span className={`ml-1 ${img.status === 'completed' ? 'text-success-600' : 'text-warning-600'}`}>
+                                {img.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">No previous imaging orders</p>
+                    )}
+                  </div>
+
+                  {/* View Full Profile Button */}
+                  <button
+                    onClick={() => {
+                      setSelectedPatientId(selectedOrderForDetails.patient_id);
+                      setShowPatientQuickView(true);
+                    }}
+                    className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                  >
+                    View Full Patient Profile
+                  </button>
                 </div>
-              </div>
-            ))
-          )}
+              ) : (
+                <div className="p-6 text-center text-gray-500">
+                  <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                  </svg>
+                  <p>Select an order to view patient details</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </Card>
+      )}
+
+      {/* Patient Quick View Modal */}
+      {showPatientQuickView && selectedPatientId && (
+        <PatientQuickView
+          patientId={selectedPatientId}
+          onClose={() => {
+            setShowPatientQuickView(false);
+            setSelectedPatientId(null);
+          }}
+        />
       )}
     </AppLayout>
   );
