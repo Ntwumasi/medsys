@@ -215,6 +215,12 @@ const LabDashboard: React.FC = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [showPatientQuickView, setShowPatientQuickView] = useState(false);
 
+  // Patient Details panel state (for Orders tab)
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<LabOrder | null>(null);
+  const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
+  const [patientAllergies, setPatientAllergies] = useState<any[]>([]);
+  const [patientLabHistory, setPatientLabHistory] = useState<any[]>([]);
+
   // Modal states
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [showAdjustStockModal, setShowAdjustStockModal] = useState(false);
@@ -302,6 +308,24 @@ const LabDashboard: React.FC = () => {
       setLoading(false);
     }
   }, [startDate, endDate, priorityFilter]);
+
+  const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
+    try {
+      // Fetch diagnoses from encounter
+      const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      setPatientDiagnoses(encounterRes.data.diagnoses || []);
+
+      // Fetch allergies from patient record
+      const patientRes = await apiClient.get(`/patients/${patientId}`);
+      setPatientAllergies(patientRes.data.patient?.allergies || []);
+
+      // Fetch recent lab history for this patient
+      const labHistoryRes = await apiClient.get(`/orders/lab?patient_id=${patientId}&limit=10`);
+      setPatientLabHistory(labHistoryRes.data.lab_orders || []);
+    } catch (error) {
+      console.error('Error fetching patient details for panel:', error);
+    }
+  };
 
   // Fetch walk-in patients
   const fetchWalkIns = useCallback(async () => {
@@ -1181,16 +1205,18 @@ const LabDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Orders List */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-              <div className={`px-6 py-4 border-b border-gray-200 rounded-t-xl ${
-                ordersSubTab === 'pending' ? 'bg-gradient-to-r from-warning-50 to-orange-50' : 'bg-gradient-to-r from-success-50 to-success-50'
-              }`}>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {ordersSubTab === 'pending' ? 'Pending & In Progress Tests' : 'Completed Test Results'}
-                </h2>
-              </div>
-              <div className="divide-y divide-gray-200">
+            {/* Orders List with Patient Details Panel */}
+            <div className="flex gap-6">
+              {/* Left: Orders List */}
+              <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className={`px-6 py-4 border-b border-gray-200 rounded-t-xl ${
+                  ordersSubTab === 'pending' ? 'bg-gradient-to-r from-warning-50 to-orange-50' : 'bg-gradient-to-r from-success-50 to-success-50'
+                }`}>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {ordersSubTab === 'pending' ? 'Pending & In Progress Tests' : 'Completed Test Results'}
+                  </h2>
+                </div>
+                <div className="divide-y divide-gray-200">
                 {filteredOrders.length === 0 ? (
                   <div className="px-6 py-8 text-center text-gray-500">
                     <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1200,7 +1226,14 @@ const LabDashboard: React.FC = () => {
                   </div>
                 ) : (
                   filteredOrders.map((order) => (
-                    <div key={order.id} className={`px-6 py-4 hover:bg-gray-50 transition-colors ${order.priority === 'stat' ? 'bg-danger-50 border-l-4 border-danger-500' : ''}`}>
+                    <div
+                      key={order.id}
+                      className={`px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer ${order.priority === 'stat' ? 'bg-danger-50 border-l-4 border-danger-500' : ''} ${selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''}`}
+                      onClick={() => {
+                        setSelectedOrderForDetails(order);
+                        fetchPatientDetailsForPanel(order.patient_id, order.encounter_id);
+                      }}
+                    >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
@@ -1316,6 +1349,153 @@ const LabDashboard: React.FC = () => {
                       </div>
                     </div>
                   ))
+                )}
+              </div>
+            </div>
+
+              {/* Right: Patient Details Panel */}
+              <div className="w-80 bg-white rounded-xl shadow-lg border border-gray-200 flex-shrink-0">
+                <div className="px-6 py-4 border-b">
+                  <h2 className="text-lg font-semibold">Patient Details</h2>
+                </div>
+                {selectedOrderForDetails ? (
+                  <div className="p-6 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto">
+                    {/* Patient Info */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                        Patient
+                      </h3>
+                      <div className="bg-gray-50 rounded p-3 space-y-2">
+                        <div className="font-semibold text-gray-900">{selectedOrderForDetails.patient_name}</div>
+                        <div className="text-sm text-gray-600">{selectedOrderForDetails.patient_number}</div>
+                      </div>
+                    </div>
+
+                    {/* Current Test */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                        Current Test
+                      </h3>
+                      <div className="bg-primary-50 rounded p-3 border border-primary-200">
+                        <div className="font-semibold text-primary-900">{selectedOrderForDetails.test_name}</div>
+                        {selectedOrderForDetails.test_code && (
+                          <div className="text-sm text-primary-600 mt-1">Code: {selectedOrderForDetails.test_code}</div>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                            selectedOrderForDetails.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                            selectedOrderForDetails.priority === 'urgent' ? 'bg-orange-100 text-orange-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {selectedOrderForDetails.priority.toUpperCase()}
+                          </span>
+                          <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                            selectedOrderForDetails.status === 'completed' ? 'bg-success-100 text-success-700' :
+                            selectedOrderForDetails.status === 'in_progress' ? 'bg-primary-100 text-primary-700' :
+                            'bg-warning-100 text-warning-700'
+                          }`}>
+                            {selectedOrderForDetails.status.replace('_', ' ').toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Allergies */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-danger-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        Allergies
+                      </h3>
+                      {patientAllergies.length > 0 ? (
+                        <div className="space-y-2">
+                          {patientAllergies.map((allergy: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-danger-50 border border-danger-200 rounded text-sm">
+                              <span className="font-medium text-danger-700">{allergy.allergen || allergy}</span>
+                              {allergy.reaction && (
+                                <span className="text-danger-600 ml-2">- {allergy.reaction}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No known allergies</p>
+                      )}
+                    </div>
+
+                    {/* Diagnoses */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Diagnoses
+                      </h3>
+                      {patientDiagnoses.length > 0 ? (
+                        <div className="space-y-2">
+                          {patientDiagnoses.map((dx: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">
+                              <span className="font-medium text-purple-700">{dx.diagnosis_name || dx.name || dx}</span>
+                              {dx.icd_code && (
+                                <span className="text-purple-600 ml-2 text-xs">({dx.icd_code})</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No diagnoses recorded</p>
+                      )}
+                    </div>
+
+                    {/* Recent Lab History */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Recent Lab History
+                      </h3>
+                      {patientLabHistory.length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {patientLabHistory.slice(0, 5).map((lab: any, idx: number) => (
+                            <div key={idx} className="p-2 bg-gray-50 border border-gray-200 rounded text-sm">
+                              <div className="font-medium text-gray-700">{lab.test_name}</div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {new Date(lab.ordered_at).toLocaleDateString()} -
+                                <span className={`ml-1 ${lab.status === 'completed' ? 'text-success-600' : 'text-warning-600'}`}>
+                                  {lab.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No previous lab orders</p>
+                      )}
+                    </div>
+
+                    {/* View Full Profile Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedPatientId(selectedOrderForDetails.patient_id);
+                        setShowPatientQuickView(true);
+                      }}
+                      className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                    >
+                      View Full Patient Profile
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-gray-500">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <p>Select an order to view patient details</p>
+                  </div>
                 )}
               </div>
             </div>
