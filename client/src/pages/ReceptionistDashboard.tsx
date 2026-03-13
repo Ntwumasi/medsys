@@ -1299,6 +1299,7 @@ const ReceptionistDashboard: React.FC = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setEditingDoctorForEncounter(null);
                                     setEditingNurseForEncounter(item.id);
                                   }}
                                   className="hover:bg-gray-300 rounded p-0.5 transition-colors ml-1"
@@ -1321,6 +1322,7 @@ const ReceptionistDashboard: React.FC = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    setEditingNurseForEncounter(null);
                                     setEditingDoctorForEncounter(item.id);
                                   }}
                                   className="hover:bg-violet-300 rounded p-0.5 transition-colors ml-1"
@@ -1380,7 +1382,7 @@ const ReceptionistDashboard: React.FC = () => {
                                 handleAssignNurse(item.id, Number(e.target.value));
                               }
                             }}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                             defaultValue=""
                           >
                             <option value="">Select new nurse</option>
@@ -1410,7 +1412,7 @@ const ReceptionistDashboard: React.FC = () => {
                                 handleAssignDoctor(item.id, Number(e.target.value));
                               }
                             }}
-                            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                            className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                             defaultValue=""
                           >
                             <option value="">Select new doctor</option>
