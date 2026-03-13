@@ -29,6 +29,7 @@ import {
   getAppointments,
   updateAppointment,
   cancelAppointment,
+  markNoShow,
   getTodayAppointments,
 } from '../controllers/appointmentController';
 import {
@@ -297,6 +298,7 @@ router.get('/appointments', authenticateToken, getAppointments);
 router.get('/appointments/today', authenticateToken, getTodayAppointments);
 router.put('/appointments/:id', authenticateToken, updateAppointment);
 router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
+router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
 
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor'), prescribeMedication);

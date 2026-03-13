@@ -207,6 +207,33 @@ export const cancelAppointment = async (req: Request, res: Response): Promise<vo
   }
 };
 
+export const markNoShow = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `UPDATE appointments
+       SET status = 'no-show', notes = COALESCE(notes || E'\n', '') || 'Marked as no-show', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Appointment not found' });
+      return;
+    }
+
+    res.json({
+      message: 'Appointment marked as no-show',
+      appointment: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Mark no-show error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getTodayAppointments = async (req: Request, res: Response): Promise<void> => {
   try {
     const { provider_id } = req.query;

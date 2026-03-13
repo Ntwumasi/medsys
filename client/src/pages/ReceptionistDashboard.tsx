@@ -245,6 +245,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [encounterType, setEncounterType] = useState('walk-in');
   const [selectedClinic, setSelectedClinic] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
+  const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
 
   // Queue filter state
@@ -405,6 +406,24 @@ const ReceptionistDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading patient history:', error);
       setPatientHistory([]);
+    }
+  };
+
+  const loadOutstandingBalance = async (patientId: number) => {
+    try {
+      const response = await apiClient.get(`/invoices/patient/${patientId}`);
+      const invoices = response.data.invoices || [];
+      // Calculate outstanding balance from pending/partial invoices
+      const balance = invoices.reduce((sum: number, inv: { status: string; total_amount: number; amount_paid: number }) => {
+        if (inv.status === 'pending' || inv.status === 'partial') {
+          return sum + (parseFloat(String(inv.total_amount)) - parseFloat(String(inv.amount_paid || 0)));
+        }
+        return sum;
+      }, 0);
+      setOutstandingBalance(balance);
+    } catch (error) {
+      console.error('Error loading outstanding balance:', error);
+      setOutstandingBalance(0);
     }
   };
 
@@ -604,6 +623,23 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  const handleMarkNoShow = async (appointmentId: number) => {
+    if (!confirm('Mark this appointment as no-show?')) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/appointments/${appointmentId}/no-show`);
+      showToast('Appointment marked as no-show', 'success');
+      setSelectedAppointment(null);
+      loadAppointments();
+      loadTodayAppointments();
+    } catch (error) {
+      console.error('Error marking no-show:', error);
+      showToast('Failed to mark as no-show', 'error');
+    }
+  };
+
   const handleCheckInFromAppointment = async (appointment: Appointment) => {
     // Find the patient and switch to check-in view
     const patient = patients.find(p => p.id === appointment.patient_id);
@@ -649,6 +685,7 @@ const ReceptionistDashboard: React.FC = () => {
       setChiefComplaint('');
       setSearchTerm('');
       setPatientHistory([]);
+      setOutstandingBalance(0);
       setEncounterType('walk-in');
       setSelectedClinic('');
 
@@ -924,7 +961,10 @@ const ReceptionistDashboard: React.FC = () => {
     if (patient.preferred_clinic) {
       setSelectedClinic(patient.preferred_clinic);
     }
-    await loadPatientHistory(patient.id);
+    await Promise.all([
+      loadPatientHistory(patient.id),
+      loadOutstandingBalance(patient.id)
+    ]);
   };
 
   console.log('ReceptionistDashboard: Render check - loading:', loading, 'error:', error);
@@ -1556,6 +1596,7 @@ const ReceptionistDashboard: React.FC = () => {
                           setSelectedPatient(null);
                           setSearchTerm('');
                           setPatientHistory([]);
+                          setOutstandingBalance(0);
                           setSelectedClinic('');
                         }}
                         className="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
@@ -1574,8 +1615,24 @@ const ReceptionistDashboard: React.FC = () => {
                         <p><span className="font-medium">Gender:</span> {selectedPatient.gender}</p>
                       )}
                       {selectedPatient.phone && (
-                        <p><span className="font-medium">Phone:</span> {selectedPatient.phone}</p>
+                        <p><span className="font-medium">Phone:</span> <a href={`tel:${selectedPatient.phone}`} className="text-primary-600 hover:underline">{selectedPatient.phone}</a></p>
                       )}
+                      <p className="flex items-center gap-2">
+                        <span className="font-medium">Visits:</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          patientHistory.length === 0 ? 'bg-success-100 text-success-800' : 'bg-primary-100 text-primary-800'
+                        }`}>
+                          {patientHistory.length === 0 ? 'New Patient' : `${patientHistory.length} visit${patientHistory.length !== 1 ? 's' : ''}`}
+                        </span>
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <span className="font-medium">Balance:</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          outstandingBalance > 0 ? 'bg-danger-100 text-danger-800' : 'bg-success-100 text-success-800'
+                        }`}>
+                          {outstandingBalance > 0 ? `GH₵${outstandingBalance.toFixed(2)} owed` : 'No balance'}
+                        </span>
+                      </p>
                     </div>
                   </div>
                 )}
@@ -1656,7 +1713,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <p className="text-gray-700">
                     {selectedPatient.pcp_name || 'Not specified'}
                     {selectedPatient.pcp_phone && (
-                      <span className="ml-2 text-sm text-gray-500">| {selectedPatient.pcp_phone}</span>
+                      <span className="ml-2 text-sm text-gray-500">| <a href={`tel:${selectedPatient.pcp_phone}`} className="text-primary-600 hover:underline">{selectedPatient.pcp_phone}</a></span>
                     )}
                   </p>
                 </div>
@@ -2701,6 +2758,12 @@ const ReceptionistDashboard: React.FC = () => {
                         Check In
                       </button>
                       <button
+                        onClick={() => handleMarkNoShow(selectedAppointment.id)}
+                        className="flex-1 px-4 py-2 bg-warning-600 text-white rounded-lg hover:bg-warning-700 transition-colors font-medium"
+                      >
+                        No Show
+                      </button>
+                      <button
                         onClick={() => handleCancelAppointment(selectedAppointment.id)}
                         className="flex-1 px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700 transition-colors font-medium"
                       >
@@ -2752,7 +2815,7 @@ const ReceptionistDashboard: React.FC = () => {
                   <p className="font-semibold text-gray-900">{selectedRefill.patient_name}</p>
                   <p className="text-sm text-gray-600">{selectedRefill.patient_number}</p>
                   {selectedRefill.patient_phone && (
-                    <p className="text-sm text-gray-600">📞 {selectedRefill.patient_phone}</p>
+                    <p className="text-sm text-gray-600">📞 <a href={`tel:${selectedRefill.patient_phone}`} className="text-primary-600 hover:underline">{selectedRefill.patient_phone}</a></p>
                   )}
                 </div>
 
