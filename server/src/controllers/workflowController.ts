@@ -848,11 +848,19 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
         r.room_number,
         p.patient_number,
         p.date_of_birth,
+        p.vip_status,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        u_patient.phone as patient_phone,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
         u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name,
         i.status as invoice_status,
         i.total_amount as billing_amount,
+        -- Count allergies for this patient
+        COALESCE((SELECT COUNT(*) FROM allergies a WHERE a.patient_id = p.id), 0) as allergies_count,
+        -- Count past visits (excluding current encounter)
+        COALESCE((SELECT COUNT(*) FROM encounters e2 WHERE e2.patient_id = p.id AND e2.id != e.id), 0) as visit_count,
+        -- Calculate outstanding balance from unpaid invoices
+        COALESCE((SELECT SUM(inv.total_amount - COALESCE(inv.amount_paid, 0)) FROM invoices inv WHERE inv.patient_id = p.id AND inv.status IN ('pending', 'partial')), 0) as outstanding_balance,
         CASE
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 15 THEN 'green'
           WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - e.triage_time)) / 60 < 30 THEN 'yellow'

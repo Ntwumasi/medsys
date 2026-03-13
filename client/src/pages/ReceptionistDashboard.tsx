@@ -84,6 +84,11 @@ interface QueueItem {
   pending_pharmacy_orders?: number;
   pending_imaging_orders?: number;
   doctor_started_at?: string;
+  vip_status?: 'silver' | 'gold' | 'platinum';
+  patient_phone?: string;
+  allergies_count?: number;
+  visit_count?: number;
+  outstanding_balance?: number;
 }
 
 interface Nurse {
@@ -252,6 +257,8 @@ const ReceptionistDashboard: React.FC = () => {
   const [queueClinicFilter, setQueueClinicFilter] = useState('');
   const [queueStatusFilter, setQueueStatusFilter] = useState('');
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
+  const [queueSortBy, setQueueSortBy] = useState<'wait_time' | 'check_in' | 'status'>('check_in');
+  const [refreshingQueue, setRefreshingQueue] = useState(false);
 
   // Ghana regions
   const ghanaRegions = [
@@ -878,6 +885,23 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  const handleCancelVisit = async (encounterId: number, patientName: string) => {
+    if (!confirm(`Are you sure you want to cancel ${patientName}'s visit? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await apiClient.put(`/encounters/${encounterId}`, { status: 'cancelled' });
+      showToast(`${patientName}'s visit has been cancelled`, 'success');
+      await loadData();
+    } catch (error) {
+      console.error('Error cancelling visit:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to cancel visit';
+      showToast(errorMessage, 'error');
+    }
+  };
+
   const getWaitTimeColor = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
     // If patient is actively being seen, use a neutral/positive color
     if (workflowStatus === 'with_nurse' || workflowStatus === 'with_doctor') {
@@ -893,6 +917,15 @@ const ReceptionistDashboard: React.FC = () => {
     } else {
       return 'bg-danger-100 border-danger-400 text-danger-800';
     }
+  };
+
+  const formatWaitTime = (minutes: number | null | undefined): string => {
+    if (minutes === null || minutes === undefined || minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
   };
 
   const getWaitTimeLabel = (waitTimeMinutes: number | null | undefined, workflowStatus?: string) => {
@@ -930,6 +963,15 @@ const ReceptionistDashboard: React.FC = () => {
   );
 
   // Filter queue based on search, clinic, and status filters
+  const handleRefreshQueue = async () => {
+    setRefreshingQueue(true);
+    try {
+      await loadData();
+    } finally {
+      setRefreshingQueue(false);
+    }
+  };
+
   const filteredQueue = queue.filter((item) => {
     // Search filter
     if (queueSearchTerm) {
@@ -952,6 +994,26 @@ const ReceptionistDashboard: React.FC = () => {
     }
 
     return true;
+  }).sort((a, b) => {
+    // Calculate wait times
+    const waitTimeA = a.check_in_time ? Math.floor((Date.now() - new Date(a.check_in_time).getTime()) / 60000) : 0;
+    const waitTimeB = b.check_in_time ? Math.floor((Date.now() - new Date(b.check_in_time).getTime()) / 60000) : 0;
+
+    switch (queueSortBy) {
+      case 'wait_time':
+        return waitTimeB - waitTimeA; // Longest wait first
+      case 'check_in':
+        return new Date(a.check_in_time).getTime() - new Date(b.check_in_time).getTime(); // Earliest first
+      case 'status':
+        const statusOrder: Record<string, number> = {
+          'checked_in': 1, 'in_room': 2, 'waiting_for_nurse': 3, 'with_nurse': 4,
+          'ready_for_doctor': 5, 'with_doctor': 6, 'at_lab': 7, 'at_pharmacy': 8,
+          'at_imaging': 9, 'ready_for_checkout': 10, 'completed': 11, 'discharged': 12
+        };
+        return (statusOrder[a.workflow_status] || 99) - (statusOrder[b.workflow_status] || 99);
+      default:
+        return 0;
+    }
   });
 
   const handlePatientSelect = async (patient: Patient) => {
@@ -1177,15 +1239,27 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               }
             >
-              <span className="text-xl">Today's Patients</span>
-              <Badge variant="primary" size="lg" className="ml-3">
-                {filteredQueue.length}{filteredQueue.length !== queue.length && ` of ${queue.length}`}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <span className="text-xl">Today's Patients</span>
+                <Badge variant="primary" size="lg">
+                  {filteredQueue.length}{filteredQueue.length !== queue.length && ` of ${queue.length}`}
+                </Badge>
+                <button
+                  onClick={handleRefreshQueue}
+                  disabled={refreshingQueue}
+                  className="p-2 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
+                  title="Refresh queue"
+                >
+                  <svg className={`w-5 h-5 ${refreshingQueue ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
             </Card.Header>
 
             <Card.Body>
               {/* Queue Filters */}
-              <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                 <Input
                   value={queueSearchTerm}
                   onChange={(e) => setQueueSearchTerm(e.target.value)}
@@ -1221,6 +1295,15 @@ const ReceptionistDashboard: React.FC = () => {
                     { value: 'ready_for_checkout', label: 'Ready for Checkout' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'discharged', label: 'Checked Out' },
+                  ]}
+                />
+                <Select
+                  value={queueSortBy}
+                  onChange={(e) => setQueueSortBy(e.target.value as 'wait_time' | 'check_in' | 'status')}
+                  options={[
+                    { value: 'check_in', label: 'Sort: Check-in Time' },
+                    { value: 'wait_time', label: 'Sort: Longest Wait' },
+                    { value: 'status', label: 'Sort: Status' },
                   ]}
                 />
                 {(queueSearchTerm || queueClinicFilter || queueStatusFilter) && (
@@ -1296,6 +1379,25 @@ const ReceptionistDashboard: React.FC = () => {
                           <h3 className="text-xl font-semibold">
                             {item.patient_name}
                           </h3>
+                          {item.vip_status && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                              item.vip_status === 'platinum' ? 'bg-gray-800 text-white' :
+                              item.vip_status === 'gold' ? 'bg-yellow-400 text-yellow-900' :
+                              'bg-gray-300 text-gray-700'
+                            }`}>
+                              {item.vip_status.toUpperCase()}
+                            </span>
+                          )}
+                          {(item.allergies_count ?? 0) > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-danger-100 text-danger-700" title={`${item.allergies_count} known allergies`}>
+                              ⚠️ Allergies
+                            </span>
+                          )}
+                          {(item.visit_count ?? 0) === 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-700">
+                              NEW
+                            </span>
+                          )}
                           <span className="text-sm font-medium text-gray-600">
                             Patient #: {item.patient_number}
                           </span>
@@ -1307,12 +1409,28 @@ const ReceptionistDashboard: React.FC = () => {
                           </Badge>
                         </div>
 
-                        <div className="mt-2 flex gap-4 text-sm text-gray-700 flex-wrap">
+                        <div className="mt-2 flex gap-4 text-sm text-gray-700 flex-wrap items-center">
                           <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')}</span>
+                          {item.patient_phone && (
+                            <a href={`tel:${item.patient_phone}`} className="text-primary-600 hover:underline flex items-center gap-1">
+                              📞 {item.patient_phone}
+                            </a>
+                          )}
+                          {item.clinic && (
+                            <span className="text-gray-600">📍 {item.clinic}</span>
+                          )}
                           <span>Checked in: {safeFormatDate(item.check_in_time, 'h:mm a')}</span>
                           {item.billing_amount && (
-                            <span className={`font-semibold ${isPaid ? 'text-success-700' : 'text-warning-700'}`}>
+                            <button
+                              onClick={() => handleViewInvoice(item.id)}
+                              className={`font-semibold hover:underline ${isPaid ? 'text-success-700' : 'text-warning-700 hover:text-warning-800'}`}
+                            >
                               Billing: GH₵{item.billing_amount} {isPaid ? '(Paid)' : '(Pending)'}
+                            </button>
+                          )}
+                          {(item.outstanding_balance ?? 0) > 0 && (
+                            <span className="font-semibold text-danger-700 bg-danger-50 px-2 py-0.5 rounded">
+                              Balance: GH₵{Number(item.outstanding_balance).toFixed(2)}
                             </span>
                           )}
                         </div>
@@ -1384,9 +1502,9 @@ const ReceptionistDashboard: React.FC = () => {
                             <div className="text-2xl font-bold">{getWaitTimeLabel(waitTime, item.workflow_status)}</div>
                             <div className="text-sm text-gray-600 mt-1">
                               {item.workflow_status === 'with_nurse' || item.workflow_status === 'with_doctor'
-                                ? `In care for ${waitTime || 0} min`
+                                ? `In care: ${formatWaitTime(waitTime)}`
                                 : waitTime !== null
-                                  ? `Wait: ${waitTime} min`
+                                  ? `Wait: ${formatWaitTime(waitTime)}`
                                   : 'Just checked in'}
                             </div>
                           </>
@@ -1486,6 +1604,22 @@ const ReceptionistDashboard: React.FC = () => {
                       >
                         {isPaid ? 'View Invoice' : 'Print Invoice'}
                       </Button>
+
+                      {/* Cancel Visit button - show for active encounters */}
+                      {!isCompleted && item.workflow_status !== 'discharged' && (
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleCancelVisit(item.id, item.patient_name)}
+                          leftIcon={
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          }
+                        >
+                          Cancel Visit
+                        </Button>
+                      )}
 
                       {/* Checkout button - show for completed patients or those ready for checkout */}
                       {(isCompleted || item.workflow_status === 'ready_for_checkout') && item.workflow_status !== 'discharged' && (
