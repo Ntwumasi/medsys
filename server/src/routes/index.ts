@@ -288,7 +288,7 @@ router.get('/patients/:id/summary', authenticateToken, getPatientSummary);
 router.post('/encounters', authenticateToken, authorizeRoles('doctor', 'nurse'), createEncounter);
 router.get('/encounters', authenticateToken, getEncounters);
 router.get('/encounters/:id', authenticateToken, getEncounterById);
-router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse'), updateEncounter);
+router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateEncounter);
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
 

@@ -220,6 +220,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [editingNurseForEncounter, setEditingNurseForEncounter] = useState<number | null>(null);
   const [editingDoctorForEncounter, setEditingDoctorForEncounter] = useState<number | null>(null);
+  const [assigningDoctor, setAssigningDoctor] = useState<number | null>(null);
 
   // Appointments state
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
@@ -831,6 +832,7 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleAssignDoctor = async (encounterId: number, doctorId: number) => {
+    setAssigningDoctor(encounterId);
     try {
       await apiClient.post('/workflow/assign-doctor', {
         encounter_id: encounterId,
@@ -844,6 +846,8 @@ const ReceptionistDashboard: React.FC = () => {
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to assign doctor';
       showToast(errorMessage, 'error');
+    } finally {
+      setAssigningDoctor(null);
     }
   };
 
@@ -1562,33 +1566,46 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
                       )}
 
-                      {!isCompleted && editingDoctorForEncounter === item.id && item.doctor_name && (
+                      {!isCompleted && editingDoctorForEncounter === item.id && (
                         <div className="flex items-center gap-2">
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleAssignDoctor(item.id, Number(e.target.value));
-                              }
-                            }}
-                            className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                            defaultValue=""
-                          >
-                            <option value="">Select new doctor</option>
-                            {doctors.map((doctor) => (
-                              <option key={doctor.id} value={doctor.id}>
-                                Dr. {doctor.first_name} {doctor.last_name}
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => setEditingDoctorForEncounter(null)}
-                            className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-                            title="Cancel"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
+                          {assigningDoctor === item.id ? (
+                            <div className="flex items-center gap-2 px-4 py-2 text-gray-600">
+                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Assigning...
+                            </div>
+                          ) : (
+                            <>
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleAssignDoctor(item.id, Number(e.target.value));
+                                  }
+                                }}
+                                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                                defaultValue=""
+                                autoFocus
+                              >
+                                <option value="">Select new doctor</option>
+                                {doctors.map((doctor) => (
+                                  <option key={doctor.id} value={doctor.id}>
+                                    Dr. {doctor.first_name} {doctor.last_name}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => setEditingDoctorForEncounter(null)}
+                                className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                                title="Cancel"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
 
