@@ -547,7 +547,11 @@ const NurseDashboard: React.FC = () => {
         apiClient.get('/workflow/rooms')
       ]);
 
-      const updatedPatients = patientsRes.data.patients || [];
+      const patients = patientsRes.data.patients || [];
+      // Deduplicate patients by encounter ID
+      const updatedPatients = patients.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
+        index === self.findIndex((p) => p.id === patient.id)
+      );
       setAssignedPatients(updatedPatients);
       setRooms(roomsRes.data.rooms || []);
 
