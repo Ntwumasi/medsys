@@ -2664,14 +2664,43 @@ const ReceptionistDashboard: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                {/* Date/Time */}
+                {/* Date/Time - Editable */}
                 <div className="bg-secondary-50 p-4 rounded-lg">
-                  <p className="text-sm text-violet-700 font-medium">Selected Time Slot</p>
-                  <p className="text-lg font-bold text-violet-900">
-                    {safeFormatDate(selectedSlot.start, 'EEEE, MMMM d, yyyy')}
-                  </p>
-                  <p className="text-violet-700">
-                    {safeFormatDate(selectedSlot.start, 'h:mm a')} - {safeFormatDate(selectedSlot.end, 'h:mm a')}
+                  <p className="text-sm text-violet-700 font-medium mb-2">Appointment Date & Time</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-violet-600 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={safeFormatDate(selectedSlot.start, 'yyyy-MM-dd')}
+                        onChange={(e) => {
+                          const newDate = new Date(e.target.value);
+                          const currentStart = selectedSlot.start;
+                          newDate.setHours(currentStart.getHours(), currentStart.getMinutes(), 0, 0);
+                          const newEnd = new Date(newDate.getTime() + bookingDuration * 60000);
+                          setSelectedSlot({ start: newDate, end: newEnd });
+                        }}
+                        className="w-full px-3 py-2 border border-violet-200 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-violet-900 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-violet-600 mb-1">Time</label>
+                      <input
+                        type="time"
+                        value={safeFormatDate(selectedSlot.start, 'HH:mm')}
+                        onChange={(e) => {
+                          const [hours, minutes] = e.target.value.split(':').map(Number);
+                          const newStart = new Date(selectedSlot.start);
+                          newStart.setHours(hours, minutes, 0, 0);
+                          const newEnd = new Date(newStart.getTime() + bookingDuration * 60000);
+                          setSelectedSlot({ start: newStart, end: newEnd });
+                        }}
+                        className="w-full px-3 py-2 border border-violet-200 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-violet-900 font-medium"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-violet-600 mt-2">
+                    {safeFormatDate(selectedSlot.start, 'EEEE, MMMM d, yyyy')} at {safeFormatDate(selectedSlot.start, 'h:mm a')}
                   </p>
                 </div>
 
@@ -2780,7 +2809,14 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
                   <select
                     value={bookingDuration}
-                    onChange={(e) => setBookingDuration(Number(e.target.value))}
+                    onChange={(e) => {
+                      const newDuration = Number(e.target.value);
+                      setBookingDuration(newDuration);
+                      if (selectedSlot) {
+                        const newEnd = new Date(selectedSlot.start.getTime() + newDuration * 60000);
+                        setSelectedSlot({ ...selectedSlot, end: newEnd });
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
                   >
                     <option value={15}>15 minutes</option>
