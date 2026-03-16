@@ -1409,8 +1409,12 @@ const NurseDashboard: React.FC = () => {
                       // Calculate progress based on workflow_status
                       const workflowStatus = selectedPatient.workflow_status || 'checked_in';
                       const hasOrders = labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0;
-                      const allOrdersComplete = hasOrders &&
-                        [...labOrders, ...imagingOrders, ...pharmacyOrders].every(order => order.status === 'completed');
+
+                      // Check if all orders are complete (including 'dispensed' for pharmacy)
+                      const labsComplete = labOrders.length === 0 || labOrders.every(order => order.status === 'completed');
+                      const imagingComplete = imagingOrders.length === 0 || imagingOrders.every(order => order.status === 'completed');
+                      const pharmacyComplete = pharmacyOrders.length === 0 || pharmacyOrders.every(order => order.status === 'completed' || order.status === 'dispensed');
+                      const allOrdersComplete = hasOrders && labsComplete && imagingComplete && pharmacyComplete;
 
                       // Map workflow_status to stage and progress
                       const statusMap: Record<string, { stage: string; progress: number; color: string }> = {
@@ -1427,6 +1431,28 @@ const NurseDashboard: React.FC = () => {
                       };
 
                       let { stage, progress, color } = statusMap[workflowStatus] || statusMap['checked_in'];
+
+                      // Only allow "Ready for Checkout" if all orders are complete
+                      if (workflowStatus === 'ready_for_checkout' && hasOrders && !allOrdersComplete) {
+                        // Orders still pending - show appropriate status instead
+                        if (!labsComplete) {
+                          stage = 'At Lab';
+                          progress = 65;
+                          color = 'bg-teal-500';
+                        } else if (!imagingComplete) {
+                          stage = 'At Imaging';
+                          progress = 65;
+                          color = 'bg-indigo-500';
+                        } else if (!pharmacyComplete) {
+                          stage = 'At Pharmacy';
+                          progress = 75;
+                          color = 'bg-green-500';
+                        } else {
+                          stage = 'Orders Pending';
+                          progress = 70;
+                          color = 'bg-yellow-500';
+                        }
+                      }
 
                       // Adjust for orders completion
                       if (allOrdersComplete && progress < 85) {
