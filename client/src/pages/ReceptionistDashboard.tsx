@@ -1149,7 +1149,7 @@ const ReceptionistDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className="ml-4">
-                <h2 className="text-lg font-bold text-gray-900">Today's Appointments</h2>
+                <h2 className="text-lg font-bold text-gray-900">Appointments</h2>
                 <p className="text-2xl font-bold text-secondary-600">{queue.filter(q => q.status !== 'completed' && q.status !== 'discharged').length}</p>
               </div>
             </div>
