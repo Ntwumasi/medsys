@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
 import { validateVitalSign } from '../utils/vitalSignsValidation';
@@ -170,6 +170,7 @@ const safeFormatDate = (dateValue: string | Date | null | undefined, formatStrin
 
 const NurseDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useNotification();
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
@@ -226,8 +227,8 @@ const NurseDashboard: React.FC = () => {
   const [selectedBedId, setSelectedBedId] = useState<number | null>(null);
   const [shortStayNotes, setShortStayNotes] = useState('');
 
-  // Main view state
-  const [mainView, setMainView] = useState<'patients' | 'inventory'>('patients');
+  // Main view state - derived from route
+  const mainView = location.pathname === '/nurse/inventory' ? 'inventory' : 'patients';
 
   // Nurse Inventory state
   interface NurseInventoryItem {
@@ -1030,41 +1031,6 @@ const NurseDashboard: React.FC = () => {
               );
             })}
           </div>
-        </div>
-
-        {/* Main Navigation Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setMainView('patients')}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
-              mainView === 'patients'
-                ? 'bg-primary-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Patients
-          </button>
-          <button
-            onClick={() => setMainView('inventory')}
-            className={`px-6 py-3 rounded-lg font-semibold flex items-center gap-2 transition-all ${
-              mainView === 'inventory'
-                ? 'bg-orange-500 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-            </svg>
-            Inventory
-            {nurseInventory.filter(i => i.quantity <= i.min_quantity).length > 0 && (
-              <span className="px-2 py-0.5 bg-danger-500 text-white text-xs font-bold rounded-full">
-                {nurseInventory.filter(i => i.quantity <= i.min_quantity).length}
-              </span>
-            )}
-          </button>
         </div>
 
         {/* Patients View */}
@@ -2925,7 +2891,7 @@ const NurseDashboard: React.FC = () => {
         {mainView === 'inventory' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-primary-600 to-secondary-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2933,7 +2899,7 @@ const NurseDashboard: React.FC = () => {
                   </svg>
                   <div>
                     <h2 className="text-xl font-bold text-white">Nurse Station Inventory</h2>
-                    <p className="text-orange-100 text-sm">Manage supplies and equipment</p>
+                    <p className="text-primary-100 text-sm">Manage supplies and equipment</p>
                   </div>
                 </div>
                 <button
@@ -2942,7 +2908,7 @@ const NurseDashboard: React.FC = () => {
                     setInventoryForm({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
                     setShowInventoryModal(true);
                   }}
-                  className="px-4 py-2 bg-white text-orange-600 rounded-lg font-semibold hover:bg-orange-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 bg-white text-primary-600 rounded-lg font-semibold hover:bg-primary-50 transition-colors flex items-center gap-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2980,13 +2946,13 @@ const NurseDashboard: React.FC = () => {
                   placeholder="Search items..."
                   value={inventorySearch}
                   onChange={(e) => setInventorySearch(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
               <select
                 value={inventoryCategoryFilter}
                 onChange={(e) => setInventoryCategoryFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               >
                 <option value="all">All Categories</option>
                 <option value="Supplies">Supplies</option>
@@ -3065,7 +3031,7 @@ const NurseDashboard: React.FC = () => {
                             });
                             setShowInventoryModal(true);
                           }}
-                          className="text-orange-600 hover:text-orange-800 font-medium"
+                          className="text-primary-600 hover:text-primary-800 font-medium"
                         >
                           Edit
                         </button>
@@ -3419,7 +3385,7 @@ const NurseDashboard: React.FC = () => {
                     value={inventoryForm.name}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, name: e.target.value })}
                     placeholder="e.g., Syringes (10ml)"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   />
                 </div>
 
@@ -3429,7 +3395,7 @@ const NurseDashboard: React.FC = () => {
                     <select
                       value={inventoryForm.category}
                       onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="Supplies">Supplies</option>
                       <option value="Equipment">Equipment</option>
@@ -3444,7 +3410,7 @@ const NurseDashboard: React.FC = () => {
                       value={inventoryForm.location}
                       onChange={(e) => setInventoryForm({ ...inventoryForm, location: e.target.value })}
                       placeholder="e.g., Cabinet A"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
                 </div>
@@ -3457,7 +3423,7 @@ const NurseDashboard: React.FC = () => {
                       value={inventoryForm.quantity}
                       onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: Number(e.target.value) })}
                       min="0"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
                   <div>
@@ -3465,7 +3431,7 @@ const NurseDashboard: React.FC = () => {
                     <select
                       value={inventoryForm.unit}
                       onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="pcs">pcs</option>
                       <option value="boxes">boxes</option>
@@ -3481,7 +3447,7 @@ const NurseDashboard: React.FC = () => {
                       value={inventoryForm.min_quantity}
                       onChange={(e) => setInventoryForm({ ...inventoryForm, min_quantity: Number(e.target.value) })}
                       min="0"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
                 </div>
@@ -3522,7 +3488,7 @@ const NurseDashboard: React.FC = () => {
                     }
                     setShowInventoryModal(false);
                   }}
-                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
                 >
                   {editingInventoryItem ? 'Save Changes' : 'Add Item'}
                 </button>
