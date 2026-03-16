@@ -249,9 +249,9 @@ const PharmacyDashboard: React.FC = () => {
       groups[key].orders.push(order);
     });
 
-    // Sort by ordered_date descending
+    // Sort by ordered_date ascending (earliest first for FIFO processing)
     return Object.values(groups).sort((a, b) =>
-      new Date(b.ordered_date).getTime() - new Date(a.ordered_date).getTime()
+      new Date(a.ordered_date).getTime() - new Date(b.ordered_date).getTime()
     );
   }, [pharmacyOrders]);
 
@@ -278,9 +278,10 @@ const PharmacyDashboard: React.FC = () => {
     expiry_date: ''
   });
 
-  // Date range state
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  // Date range state - default to today for dispensed orders
+  const today = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
 
   // Drug history modal
   const [showDrugHistory, setShowDrugHistory] = useState(false);
