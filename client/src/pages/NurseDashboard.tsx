@@ -226,6 +226,30 @@ const NurseDashboard: React.FC = () => {
   const [selectedBedId, setSelectedBedId] = useState<number | null>(null);
   const [shortStayNotes, setShortStayNotes] = useState('');
 
+  // Nurse Inventory state
+  interface NurseInventoryItem {
+    id: number;
+    name: string;
+    category: string;
+    quantity: number;
+    unit: string;
+    min_quantity: number;
+    location: string;
+  }
+  const [nurseInventory, setNurseInventory] = useState<NurseInventoryItem[]>([
+    { id: 1, name: 'Syringes (10ml)', category: 'Supplies', quantity: 45, unit: 'pcs', min_quantity: 20, location: 'Cabinet A' },
+    { id: 2, name: 'Gauze Pads', category: 'Supplies', quantity: 120, unit: 'pcs', min_quantity: 50, location: 'Cabinet A' },
+    { id: 3, name: 'IV Catheters', category: 'Supplies', quantity: 8, unit: 'pcs', min_quantity: 15, location: 'Cabinet B' },
+    { id: 4, name: 'Blood Pressure Cuffs', category: 'Equipment', quantity: 5, unit: 'pcs', min_quantity: 3, location: 'Station 1' },
+    { id: 5, name: 'Thermometer Covers', category: 'Supplies', quantity: 200, unit: 'pcs', min_quantity: 100, location: 'Cabinet A' },
+    { id: 6, name: 'Alcohol Swabs', category: 'Supplies', quantity: 15, unit: 'boxes', min_quantity: 10, location: 'Cabinet B' },
+    { id: 7, name: 'Bandages (Elastic)', category: 'Supplies', quantity: 30, unit: 'rolls', min_quantity: 15, location: 'Cabinet C' },
+    { id: 8, name: 'Gloves (Medium)', category: 'PPE', quantity: 3, unit: 'boxes', min_quantity: 5, location: 'Cabinet A' },
+  ]);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [editingInventoryItem, setEditingInventoryItem] = useState<NurseInventoryItem | null>(null);
+  const [inventoryForm, setInventoryForm] = useState({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
+
   // Doctor Notifications state
   const [doctorNotifications, setDoctorNotifications] = useState<DoctorNotification[]>([]);
 
@@ -1303,6 +1327,80 @@ const NurseDashboard: React.FC = () => {
               </div>
             </div>
 
+            {/* Nurse Inventory */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <h2 className="text-sm font-semibold text-white">Inventory</h2>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingInventoryItem(null);
+                      setInventoryForm({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
+                      setShowInventoryModal(true);
+                    }}
+                    className="p-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                    title="Add Item"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
+                {nurseInventory.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`px-4 py-2.5 flex items-center justify-between hover:bg-gray-50 cursor-pointer ${
+                      item.quantity <= item.min_quantity ? 'bg-danger-50' : ''
+                    }`}
+                    onClick={() => {
+                      setEditingInventoryItem(item);
+                      setInventoryForm({
+                        name: item.name,
+                        category: item.category,
+                        quantity: item.quantity,
+                        unit: item.unit,
+                        min_quantity: item.min_quantity,
+                        location: item.location
+                      });
+                      setShowInventoryModal(true);
+                    }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm text-gray-900 truncate">{item.name}</span>
+                        {item.quantity <= item.min_quantity && (
+                          <span className="px-1.5 py-0.5 bg-danger-100 text-danger-700 text-xs font-bold rounded">LOW</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500">{item.category} • {item.location}</div>
+                    </div>
+                    <div className="text-right ml-2">
+                      <div className={`font-bold text-sm ${item.quantity <= item.min_quantity ? 'text-danger-600' : 'text-gray-900'}`}>
+                        {item.quantity} {item.unit}
+                      </div>
+                      <div className="text-xs text-gray-400">Min: {item.min_quantity}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {nurseInventory.filter(i => i.quantity <= i.min_quantity).length > 0 && (
+                <div className="px-4 py-2 bg-danger-50 border-t border-danger-200">
+                  <p className="text-xs text-danger-700 font-medium">
+                    ⚠️ {nurseInventory.filter(i => i.quantity <= i.min_quantity).length} item(s) below minimum stock
+                  </p>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Patient Details & Actions */}
@@ -1444,9 +1542,9 @@ const NurseDashboard: React.FC = () => {
                               )}
                               {pharmacyOrders.length > 0 && (
                                 <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
-                                  pharmacyOrders.every(o => o.status === 'completed')
+                                  pharmacyOrders.every(o => o.status === 'completed' || o.status === 'dispensed')
                                     ? 'bg-success-100 text-success-800 border border-success-300'
-                                    : pharmacyOrders.some(o => o.status === 'in_progress')
+                                    : pharmacyOrders.some(o => o.status === 'in_progress' || o.status === 'ready')
                                     ? 'bg-primary-100 text-primary-800 border border-primary-300 animate-pulse'
                                     : 'bg-warning-100 text-warning-800 border border-warning-300'
                                 }`}>
@@ -1454,8 +1552,8 @@ const NurseDashboard: React.FC = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                   </svg>
                                   Pharmacy ({pharmacyOrders.length})
-                                  {pharmacyOrders.every(o => o.status === 'completed') ? ' ✓' :
-                                   pharmacyOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
+                                  {pharmacyOrders.every(o => o.status === 'completed' || o.status === 'dispensed') ? ' ✓' :
+                                   pharmacyOrders.some(o => o.status === 'in_progress' || o.status === 'ready') ? ' ⏳' : ' ⏸'}
                                 </div>
                               )}
                               {imagingOrders.length > 0 && (
@@ -2178,6 +2276,37 @@ const NurseDashboard: React.FC = () => {
                                 </div>
                               </div>
                             </div>
+
+                            {/* BMI Auto-calculation */}
+                            {vitals.weight && vitals.height && (
+                              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="text-sm font-semibold text-indigo-800">BMI (Auto-calculated)</span>
+                                  </div>
+                                  {(() => {
+                                    // Convert to metric for BMI calculation
+                                    const weightKg = vitals.weight_unit === 'kg' ? vitals.weight : vitals.weight * 0.453592;
+                                    const heightM = vitals.height_unit === 'cm' ? vitals.height / 100 : vitals.height * 0.0254;
+                                    const bmi = weightKg / (heightM * heightM);
+                                    const bmiCategory = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+                                    const categoryColor = bmi < 18.5 ? 'text-blue-600' : bmi < 25 ? 'text-green-600' : bmi < 30 ? 'text-yellow-600' : 'text-red-600';
+                                    const categoryBg = bmi < 18.5 ? 'bg-blue-100' : bmi < 25 ? 'bg-green-100' : bmi < 30 ? 'bg-yellow-100' : 'bg-red-100';
+                                    return (
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-2xl font-bold text-indigo-900">{bmi.toFixed(1)}</span>
+                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${categoryColor} ${categoryBg}`}>
+                                          {bmiCategory}
+                                        </span>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            )}
 
                             <button type="submit" className="btn-primary w-full py-4 text-lg font-bold">
                               Save Vital Signs
@@ -3090,6 +3219,146 @@ const NurseDashboard: React.FC = () => {
                   className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 disabled:bg-secondary-400 disabled:cursor-not-allowed"
                 >
                   {creatingImagingOrder ? 'Creating...' : 'Create Order'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nurse Inventory Modal */}
+      {showInventoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingInventoryItem ? 'Edit Inventory Item' : 'Add Inventory Item'}
+                </h2>
+                <button
+                  onClick={() => setShowInventoryModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <input
+                    type="text"
+                    value={inventoryForm.name}
+                    onChange={(e) => setInventoryForm({ ...inventoryForm, name: e.target.value })}
+                    placeholder="e.g., Syringes (10ml)"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={inventoryForm.category}
+                      onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      <option value="Supplies">Supplies</option>
+                      <option value="Equipment">Equipment</option>
+                      <option value="PPE">PPE</option>
+                      <option value="Medications">Medications</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={inventoryForm.location}
+                      onChange={(e) => setInventoryForm({ ...inventoryForm, location: e.target.value })}
+                      placeholder="e.g., Cabinet A"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                    <input
+                      type="number"
+                      value={inventoryForm.quantity}
+                      onChange={(e) => setInventoryForm({ ...inventoryForm, quantity: Number(e.target.value) })}
+                      min="0"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                    <select
+                      value={inventoryForm.unit}
+                      onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      <option value="pcs">pcs</option>
+                      <option value="boxes">boxes</option>
+                      <option value="rolls">rolls</option>
+                      <option value="packs">packs</option>
+                      <option value="bottles">bottles</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Qty</label>
+                    <input
+                      type="number"
+                      value={inventoryForm.min_quantity}
+                      onChange={(e) => setInventoryForm({ ...inventoryForm, min_quantity: Number(e.target.value) })}
+                      min="0"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                {editingInventoryItem && (
+                  <button
+                    onClick={() => {
+                      setNurseInventory(nurseInventory.filter(i => i.id !== editingInventoryItem.id));
+                      setShowInventoryModal(false);
+                    }}
+                    className="px-4 py-2 border border-danger-300 text-danger-700 rounded-lg hover:bg-danger-50"
+                  >
+                    Delete
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowInventoryModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!inventoryForm.name) return;
+                    if (editingInventoryItem) {
+                      setNurseInventory(nurseInventory.map(i =>
+                        i.id === editingInventoryItem.id
+                          ? { ...i, ...inventoryForm }
+                          : i
+                      ));
+                    } else {
+                      setNurseInventory([
+                        ...nurseInventory,
+                        { id: Date.now(), ...inventoryForm }
+                      ]);
+                    }
+                    setShowInventoryModal(false);
+                  }}
+                  className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+                >
+                  {editingInventoryItem ? 'Save Changes' : 'Add Item'}
                 </button>
               </div>
             </div>
