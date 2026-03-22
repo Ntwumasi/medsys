@@ -247,6 +247,7 @@ import {
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import notificationRoutes from './notifications';
 import auditRoutes from './audit';
+import accountantRoutes from './accountant';
 import drugInteractionService from '../services/drugInteractionService';
 import labResultsService from '../services/labResultsService';
 
@@ -541,6 +542,9 @@ router.use('/notifications', notificationRoutes);
 
 // Audit log routes
 router.use('/audit', auditRoutes);
+
+// Accountant routes
+router.use('/accountant', accountantRoutes);
 
 // Drug Interaction Check routes
 router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {

@@ -13,6 +13,7 @@ import LabDashboard from './pages/LabDashboard';
 import PharmacyDashboard from './pages/PharmacyDashboard';
 import RefillsCalendar from './pages/RefillsCalendar';
 import ImagingDashboard from './pages/ImagingDashboard';
+import AccountantDashboard from './pages/AccountantDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
@@ -66,6 +67,8 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><PharmacyDashboard /></ErrorBoundary>;
       case 'imaging':
         return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
+      case 'accountant':
+        return <ErrorBoundary><AccountantDashboard /></ErrorBoundary>;
       case 'admin':
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
       case 'patient':
