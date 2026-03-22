@@ -249,6 +249,7 @@ import notificationRoutes from './notifications';
 import auditRoutes from './audit';
 import accountantRoutes from './accountant';
 import claimsRoutes from './claims';
+import reminderRoutes from './reminders';
 import drugInteractionService from '../services/drugInteractionService';
 import labResultsService from '../services/labResultsService';
 
@@ -549,6 +550,9 @@ router.use('/accountant', accountantRoutes);
 
 // Insurance claims routes
 router.use('/claims', claimsRoutes);
+
+// Payment reminders routes
+router.use('/reminders', reminderRoutes);
 
 // Drug Interaction Check routes
 router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {

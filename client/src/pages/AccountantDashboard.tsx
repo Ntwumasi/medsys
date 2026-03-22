@@ -170,9 +170,83 @@ const safeFormatDate = (dateValue: string | Date | null | undefined, formatStrin
   }
 };
 
+interface OutstandingInvoice {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  due_date: string;
+  total_amount: number;
+  amount_paid: number;
+  balance: number;
+  status: string;
+  last_reminder_sent: string | null;
+  reminder_count: number;
+  next_reminder_date: string | null;
+  days_outstanding: number;
+  aging_bucket: string;
+  patient_id: number;
+  patient_number: string;
+  patient_name: string;
+  patient_email: string | null;
+  patient_phone: string | null;
+}
+
+interface ReminderSettings {
+  first_reminder_days: string;
+  second_reminder_days: string;
+  third_reminder_days: string;
+  sms_enabled: string;
+  email_enabled: string;
+  auto_send_enabled: string;
+  sms_configured: string;
+  email_configured: string;
+  reminder_template_sms: string;
+  reminder_template_email_subject: string;
+  reminder_template_email_body: string;
+}
+
+interface ReminderPreview {
+  patient: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+    phoneValid: boolean;
+    emailValid: boolean;
+  };
+  invoice: {
+    number: string;
+    date: string;
+    dueDate: string | null;
+    total: number;
+    paid: number;
+    balance: number;
+    reminderCount: number;
+    lastReminder: string | null;
+  };
+  sms?: {
+    message: string;
+    characterCount: number;
+  };
+  email?: {
+    subject: string;
+    body: string;
+  };
+}
+
+interface ReminderHistory {
+  id: number;
+  reminder_type: string;
+  reminder_number: number;
+  contact_method: string;
+  message: string;
+  status: string;
+  sent_at: string;
+  sent_by_name: string;
+}
+
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -219,6 +293,22 @@ const AccountantDashboard: React.FC = () => {
   const [validationResult, setValidationResult] = useState<any>(null);
   const [coverageResult, setCoverageResult] = useState<any>(null);
 
+  // Reminders
+  const [outstandingInvoices, setOutstandingInvoices] = useState<OutstandingInvoice[]>([]);
+  const [outstandingSummary, setOutstandingSummary] = useState<any>(null);
+  const [reminderSettings, setReminderSettings] = useState<ReminderSettings | null>(null);
+  const [remindersLoading, setRemindersLoading] = useState(false);
+  const [reminderFilter, setReminderFilter] = useState('all');
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [selectedReminderInvoice, setSelectedReminderInvoice] = useState<OutstandingInvoice | null>(null);
+  const [reminderPreview, setReminderPreview] = useState<ReminderPreview | null>(null);
+  const [reminderType, setReminderType] = useState<'sms' | 'email' | 'both'>('sms');
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [selectedForBulk, setSelectedForBulk] = useState<number[]>([]);
+  const [showSettings, setShowSettings] = useState(false);
+  const [reminderHistory, setReminderHistory] = useState<ReminderHistory[]>([]);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
   useEffect(() => {
     loadFinancialSummary();
   }, [startDate, endDate]);
@@ -230,8 +320,11 @@ const AccountantDashboard: React.FC = () => {
       loadAgingReport();
     } else if (activeTab === 'claims') {
       loadClaims();
+    } else if (activeTab === 'reminders') {
+      loadOutstandingInvoices();
+      loadReminderSettings();
     }
-  }, [activeTab, invoiceFilter, claimFilter]);
+  }, [activeTab, invoiceFilter, claimFilter, reminderFilter]);
 
   const loadFinancialSummary = async () => {
     setLoading(true);
@@ -310,6 +403,128 @@ const AccountantDashboard: React.FC = () => {
       setInsuranceInvoices(response.data.invoices || []);
     } catch (error) {
       console.error('Error loading invoices:', error);
+    }
+  };
+
+  const loadOutstandingInvoices = async () => {
+    setRemindersLoading(true);
+    try {
+      const response = await apiClient.get('/reminders/outstanding', {
+        params: { aging_bucket: reminderFilter !== 'all' ? reminderFilter : undefined },
+      });
+      setOutstandingInvoices(response.data.invoices || []);
+      setOutstandingSummary(response.data.summary || null);
+    } catch (error) {
+      console.error('Error loading outstanding invoices:', error);
+    } finally {
+      setRemindersLoading(false);
+    }
+  };
+
+  const loadReminderSettings = async () => {
+    try {
+      const response = await apiClient.get('/reminders/settings');
+      setReminderSettings(response.data);
+    } catch (error) {
+      console.error('Error loading reminder settings:', error);
+    }
+  };
+
+  const handleOpenReminderModal = async (invoice: OutstandingInvoice) => {
+    setSelectedReminderInvoice(invoice);
+    setReminderType('sms');
+    try {
+      const response = await apiClient.get('/reminders/preview', {
+        params: { invoiceId: invoice.id },
+      });
+      setReminderPreview(response.data);
+      setShowReminderModal(true);
+    } catch (error) {
+      console.error('Error loading preview:', error);
+      showToast('Failed to load reminder preview', 'error');
+    }
+  };
+
+  const handleSendReminder = async () => {
+    if (!selectedReminderInvoice) return;
+    setSendingReminder(true);
+    try {
+      const response = await apiClient.post('/reminders/send', {
+        invoiceId: selectedReminderInvoice.id,
+        reminderType: reminderType,
+      });
+      if (response.data.success) {
+        showToast('Reminder sent successfully (logged)', 'success');
+        setShowReminderModal(false);
+        loadOutstandingInvoices();
+      } else {
+        showToast('Some reminders failed to send', 'warning');
+      }
+    } catch (error) {
+      console.error('Error sending reminder:', error);
+      showToast('Failed to send reminder', 'error');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const handleSendBulkReminders = async () => {
+    if (selectedForBulk.length === 0) {
+      showToast('No invoices selected', 'warning');
+      return;
+    }
+    setSendingReminder(true);
+    try {
+      const response = await apiClient.post('/reminders/send-bulk', {
+        invoiceIds: selectedForBulk,
+        reminderType: 'sms',
+      });
+      showToast(`Sent ${response.data.sent} of ${response.data.total} reminders`, 'success');
+      setSelectedForBulk([]);
+      loadOutstandingInvoices();
+    } catch (error) {
+      console.error('Error sending bulk reminders:', error);
+      showToast('Failed to send bulk reminders', 'error');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const handleViewHistory = async (invoiceId: number) => {
+    try {
+      const response = await apiClient.get(`/reminders/history/${invoiceId}`);
+      setReminderHistory(response.data);
+      setShowHistoryModal(true);
+    } catch (error) {
+      console.error('Error loading history:', error);
+      showToast('Failed to load reminder history', 'error');
+    }
+  };
+
+  const handleUpdateSettings = async (newSettings: Partial<ReminderSettings>) => {
+    try {
+      await apiClient.put('/reminders/settings', newSettings);
+      showToast('Settings updated', 'success');
+      loadReminderSettings();
+    } catch (error) {
+      console.error('Error updating settings:', error);
+      showToast('Failed to update settings', 'error');
+    }
+  };
+
+  const toggleBulkSelection = (invoiceId: number) => {
+    setSelectedForBulk(prev =>
+      prev.includes(invoiceId)
+        ? prev.filter(id => id !== invoiceId)
+        : [...prev, invoiceId]
+    );
+  };
+
+  const selectAllForBulk = () => {
+    if (selectedForBulk.length === outstandingInvoices.length) {
+      setSelectedForBulk([]);
+    } else {
+      setSelectedForBulk(outstandingInvoices.map(inv => inv.id));
     }
   };
 
@@ -527,6 +742,7 @@ const AccountantDashboard: React.FC = () => {
                 { id: 'invoices', label: 'Invoices' },
                 { id: 'aging', label: 'Aging Report' },
                 { id: 'claims', label: 'Insurance Claims' },
+                { id: 'reminders', label: 'Payment Reminders' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -823,6 +1039,245 @@ const AccountantDashboard: React.FC = () => {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Reminders Tab */}
+            {activeTab === 'reminders' && (
+              <div className="space-y-6">
+                {/* Summary Cards */}
+                {outstandingSummary && (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                      <h4 className="text-sm font-medium text-green-700">0-30 Days</h4>
+                      <p className="text-2xl font-bold text-green-900">{outstandingSummary.bucket_0_30}</p>
+                    </div>
+                    <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+                      <h4 className="text-sm font-medium text-yellow-700">31-60 Days</h4>
+                      <p className="text-2xl font-bold text-yellow-900">{outstandingSummary.bucket_31_60}</p>
+                    </div>
+                    <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                      <h4 className="text-sm font-medium text-orange-700">61-90 Days</h4>
+                      <p className="text-2xl font-bold text-orange-900">{outstandingSummary.bucket_61_90}</p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                      <h4 className="text-sm font-medium text-red-700">90+ Days</h4>
+                      <p className="text-2xl font-bold text-red-900">{outstandingSummary.bucket_90_plus}</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                      <h4 className="text-sm font-medium text-blue-700">Total Outstanding</h4>
+                      <p className="text-xl font-bold text-blue-900">{formatCurrency(outstandingSummary.total_outstanding)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Settings Toggle */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="flex items-center gap-2 text-gray-700 font-medium"
+                  >
+                    <svg className={`w-5 h-5 transition-transform ${showSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Reminder Settings
+                    {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full ml-2">
+                        SMS/Email not configured - reminders will be logged only
+                      </span>
+                    )}
+                  </button>
+
+                  {showSettings && reminderSettings && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">First Reminder (days after invoice)</label>
+                        <input
+                          type="number"
+                          value={reminderSettings.first_reminder_days}
+                          onChange={(e) => handleUpdateSettings({ first_reminder_days: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Second Reminder (days after first)</label>
+                        <input
+                          type="number"
+                          value={reminderSettings.second_reminder_days}
+                          onChange={(e) => handleUpdateSettings({ second_reminder_days: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Third Reminder (days after second)</label>
+                        <input
+                          type="number"
+                          value={reminderSettings.third_reminder_days}
+                          onChange={(e) => handleUpdateSettings({ third_reminder_days: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="block text-sm text-gray-600 mb-1">SMS Template</label>
+                        <textarea
+                          value={reminderSettings.reminder_template_sms}
+                          onChange={(e) => handleUpdateSettings({ reminder_template_sms: e.target.value })}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          placeholder="Use {patient_name}, {amount}, {invoice_number}, {invoice_date}, {due_date}"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Filters and Actions */}
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex gap-4 items-center">
+                    <select
+                      value={reminderFilter}
+                      onChange={(e) => setReminderFilter(e.target.value)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="all">All Outstanding</option>
+                      <option value="0-30">0-30 Days</option>
+                      <option value="31-60">31-60 Days</option>
+                      <option value="61-90">61-90 Days</option>
+                      <option value="90+">90+ Days</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    {selectedForBulk.length > 0 && (
+                      <button
+                        onClick={handleSendBulkReminders}
+                        disabled={sendingReminder}
+                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {sendingReminder ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                          </svg>
+                        )}
+                        Send to Selected ({selectedForBulk.length})
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Outstanding Invoices Table */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left">
+                          <input
+                            type="checkbox"
+                            checked={selectedForBulk.length === outstandingInvoices.length && outstandingInvoices.length > 0}
+                            onChange={selectAllForBulk}
+                            className="rounded border-gray-300"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Reminders Sent</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Last Reminder</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Contact</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {remindersLoading ? (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-8 text-center">
+                            <div className="flex justify-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : outstandingInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No outstanding invoices</td>
+                        </tr>
+                      ) : (
+                        outstandingInvoices.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedForBulk.includes(inv.id)}
+                                onChange={() => toggleBulkSelection(inv.id)}
+                                className="rounded border-gray-300"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
+                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-right font-bold text-red-600">{formatCurrency(inv.balance)}</td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                inv.days_outstanding > 90 ? 'bg-red-100 text-red-800' :
+                                inv.days_outstanding > 60 ? 'bg-orange-100 text-orange-800' :
+                                inv.days_outstanding > 30 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-green-100 text-green-800'
+                              }`}>
+                                {inv.days_outstanding}d
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center">
+                              {inv.reminder_count > 0 ? (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                  {inv.reminder_count}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-center text-gray-500">
+                              {inv.last_reminder_sent ? safeFormatDate(inv.last_reminder_sent, 'MMM d') : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex justify-center gap-1">
+                                {inv.patient_phone && (
+                                  <span className="px-1.5 py-0.5 bg-green-100 text-green-800 rounded text-xs">Phone</span>
+                                )}
+                                {inv.patient_email && (
+                                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">Email</span>
+                                )}
+                                {!inv.patient_phone && !inv.patient_email && (
+                                  <span className="text-gray-400 text-xs">No contact</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex justify-center gap-2">
+                                <button
+                                  onClick={() => handleOpenReminderModal(inv)}
+                                  className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                >
+                                  Send
+                                </button>
+                                {inv.reminder_count > 0 && (
+                                  <button
+                                    onClick={() => handleViewHistory(inv.id)}
+                                    className="text-gray-500 hover:text-gray-700 text-sm"
+                                  >
+                                    History
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1210,6 +1665,220 @@ const AccountantDashboard: React.FC = () => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Reminder Modal */}
+      {showReminderModal && selectedReminderInvoice && reminderPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">Send Payment Reminder</h2>
+                <button onClick={() => setShowReminderModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Patient & Invoice Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Patient</h3>
+                  <p className="text-sm">{reminderPreview.patient.name}</p>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-gray-500 flex items-center gap-2">
+                      <span className={reminderPreview.patient.phoneValid ? 'text-green-600' : 'text-red-600'}>
+                        {reminderPreview.patient.phoneValid ? '✓' : '✗'}
+                      </span>
+                      Phone: {reminderPreview.patient.phone || 'Not set'}
+                    </p>
+                    <p className="text-xs text-gray-500 flex items-center gap-2">
+                      <span className={reminderPreview.patient.emailValid ? 'text-green-600' : 'text-red-600'}>
+                        {reminderPreview.patient.emailValid ? '✓' : '✗'}
+                      </span>
+                      Email: {reminderPreview.patient.email || 'Not set'}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Invoice</h3>
+                  <p className="text-sm font-medium">{reminderPreview.invoice.number}</p>
+                  <p className="text-xl font-bold text-red-600 mt-1">{formatCurrency(reminderPreview.invoice.balance)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Reminders sent: {reminderPreview.invoice.reminderCount}
+                  </p>
+                </div>
+              </div>
+
+              {/* Reminder Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Send via</label>
+                <div className="flex gap-4">
+                  <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
+                    reminderType === 'sms' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                  } ${!reminderPreview.patient.phoneValid ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input
+                      type="radio"
+                      name="reminderType"
+                      value="sms"
+                      checked={reminderType === 'sms'}
+                      onChange={() => setReminderType('sms')}
+                      disabled={!reminderPreview.patient.phoneValid}
+                      className="text-primary-600"
+                    />
+                    <span>SMS</span>
+                  </label>
+                  <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
+                    reminderType === 'email' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                  } ${!reminderPreview.patient.emailValid ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input
+                      type="radio"
+                      name="reminderType"
+                      value="email"
+                      checked={reminderType === 'email'}
+                      onChange={() => setReminderType('email')}
+                      disabled={!reminderPreview.patient.emailValid}
+                      className="text-primary-600"
+                    />
+                    <span>Email</span>
+                  </label>
+                  <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
+                    reminderType === 'both' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                  } ${(!reminderPreview.patient.phoneValid || !reminderPreview.patient.emailValid) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    <input
+                      type="radio"
+                      name="reminderType"
+                      value="both"
+                      checked={reminderType === 'both'}
+                      onChange={() => setReminderType('both')}
+                      disabled={!reminderPreview.patient.phoneValid || !reminderPreview.patient.emailValid}
+                      className="text-primary-600"
+                    />
+                    <span>Both</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Message Preview */}
+              {(reminderType === 'sms' || reminderType === 'both') && reminderPreview.sms && (
+                <div className="bg-green-50 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-semibold text-gray-900">SMS Preview</h3>
+                    <span className="text-xs text-gray-500">{reminderPreview.sms.characterCount} characters</span>
+                  </div>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{reminderPreview.sms.message}</p>
+                </div>
+              )}
+
+              {(reminderType === 'email' || reminderType === 'both') && reminderPreview.email && (
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Email Preview</h3>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Subject: {reminderPreview.email.subject}</p>
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">
+                    {reminderPreview.email.body}
+                  </div>
+                </div>
+              )}
+
+              {/* Info Banner */}
+              {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-sm text-yellow-800">
+                      <strong>Stub Mode:</strong> SMS/Email APIs are not configured. This reminder will be logged but not actually sent. Configure API keys when ready for production.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowReminderModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendReminder}
+                  disabled={sendingReminder || (!reminderPreview.patient.phoneValid && !reminderPreview.patient.emailValid)}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {sendingReminder ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  )}
+                  Send Reminder
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reminder History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">Reminder History</h2>
+                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6">
+              {reminderHistory.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No reminders sent yet</p>
+              ) : (
+                <div className="space-y-4">
+                  {reminderHistory.map((reminder) => (
+                    <div key={reminder.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            reminder.reminder_type === 'sms' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {reminder.reminder_type.toUpperCase()}
+                          </span>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            reminder.status === 'sent' ? 'bg-green-100 text-green-800' :
+                            reminder.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                            reminder.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {reminder.status}
+                          </span>
+                          <span className="text-xs text-gray-500">Reminder #{reminder.reminder_number}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {safeFormatDate(reminder.sent_at, 'MMM d, yyyy h:mm a')}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">To: {reminder.contact_method}</p>
+                      <p className="text-sm text-gray-500 mt-2 line-clamp-2">{reminder.message}</p>
+                      {reminder.sent_by_name && (
+                        <p className="text-xs text-gray-400 mt-2">Sent by: {reminder.sent_by_name}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
