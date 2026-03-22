@@ -778,67 +778,69 @@ const AccountantDashboard: React.FC = () => {
       title="Accountant Portal"
     >
       <div className="space-y-6">
-        {/* Date Range Filter */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            {/* Quick Period Filters */}
-            <div className="flex gap-2">
-              {[
-                { id: 'today', label: 'Today' },
-                { id: 'week', label: 'This Week' },
-                { id: 'month', label: 'This Month' },
-                { id: 'year', label: 'This Year' },
-                { id: 'all', label: 'All Time' },
-              ].map((period) => (
-                <button
-                  key={period.id}
-                  onClick={() => setQuickPeriod(period.id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    activePeriod === period.id
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {period.label}
-                </button>
-              ))}
-            </div>
+        {/* Date Range Filter - Hidden for Payment Reminders tab */}
+        {activeTab !== 'reminders' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap gap-4 items-center justify-between">
+              {/* Quick Period Filters */}
+              <div className="flex gap-2">
+                {[
+                  { id: 'today', label: 'Today' },
+                  { id: 'week', label: 'This Week' },
+                  { id: 'month', label: 'This Month' },
+                  { id: 'year', label: 'This Year' },
+                  { id: 'all', label: 'All Time' },
+                ].map((period) => (
+                  <button
+                    key={period.id}
+                    onClick={() => setQuickPeriod(period.id)}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      activePeriod === period.id
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
 
-            {/* Custom Date Range */}
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">From:</label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setActivePeriod('custom');
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                />
+              {/* Custom Date Range */}
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">From:</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setActivePeriod('custom');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">To:</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setActivePeriod('custom');
+                    }}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <button
+                  onClick={loadFinancialSummary}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  Apply
+                </button>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">To:</label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                    setActivePeriod('custom');
-                  }}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                />
-              </div>
-              <button
-                onClick={loadFinancialSummary}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-              >
-                Apply
-              </button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200">
