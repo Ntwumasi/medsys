@@ -1,9 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { format, parseISO, isValid, subDays } from 'date-fns';
+import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
 interface FinancialSummary {
   total_invoices: number;
@@ -253,12 +268,61 @@ const AccountantDashboard: React.FC = () => {
   // Date filters
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [activePeriod, setActivePeriod] = useState<string>('month');
+
+  // Quick period filter helper
+  const setQuickPeriod = (period: string) => {
+    const today = new Date();
+    let start: Date;
+
+    switch (period) {
+      case 'today':
+        start = today;
+        break;
+      case 'week':
+        start = startOfWeek(today, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        start = startOfMonth(today);
+        break;
+      case 'year':
+        start = startOfYear(today);
+        break;
+      case 'all':
+        start = new Date('2020-01-01');
+        break;
+      default:
+        start = subDays(today, 30);
+    }
+
+    setStartDate(format(start, 'yyyy-MM-dd'));
+    setEndDate(format(today, 'yyyy-MM-dd'));
+    setActivePeriod(period);
+  };
+
+  // Chart colors from app theme
+  const CHART_COLORS = {
+    primary: '#5BC5C8',    // Teal
+    secondary: '#8E4585',  // Purple
+    success: '#10B981',    // Green
+    warning: '#F59E0B',    // Orange
+    danger: '#EF4444',     // Red
+    accent: '#B8A9C9',     // Lavender
+  };
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    consultation: CHART_COLORS.primary,
+    lab: CHART_COLORS.secondary,
+    imaging: CHART_COLORS.warning,
+    medication: CHART_COLORS.success,
+    procedure: CHART_COLORS.accent,
+    service: CHART_COLORS.danger,
+  };
 
   // Financial data
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [categoryRevenue, setCategoryRevenue] = useState<CategoryRevenue[]>([]);
-  // Daily revenue for charts (future enhancement)
-  const [, setDailyRevenue] = useState<DailyRevenue[]>([]);
+  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
   const [topServices, setTopServices] = useState<TopService[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   // Legacy insurance claims from financial summary (now using claims API)
@@ -705,31 +769,63 @@ const AccountantDashboard: React.FC = () => {
       <div className="space-y-6">
         {/* Date Range Filter */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">From:</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            {/* Quick Period Filters */}
+            <div className="flex gap-2">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'This Week' },
+                { id: 'month', label: 'This Month' },
+                { id: 'year', label: 'This Year' },
+                { id: 'all', label: 'All Time' },
+              ].map((period) => (
+                <button
+                  key={period.id}
+                  onClick={() => setQuickPeriod(period.id)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    activePeriod === period.id
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {period.label}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">To:</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              />
+
+            {/* Custom Date Range */}
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">From:</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setActivePeriod('custom');
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">To:</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setActivePeriod('custom');
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <button
+                onClick={loadFinancialSummary}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Apply
+              </button>
             </div>
-            <button
-              onClick={loadFinancialSummary}
-              className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-            >
-              Apply
-            </button>
           </div>
         </div>
 
@@ -771,23 +867,43 @@ const AccountantDashboard: React.FC = () => {
                   <>
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
-                        <h3 className="text-sm font-medium opacity-90">Total Billed</h3>
+                      <div className="bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-6 text-white shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium opacity-90">Total Billed</h3>
+                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                        </div>
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_billed || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.total_invoices || 0} invoices</p>
                       </div>
-                      <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
-                        <h3 className="text-sm font-medium opacity-90">Total Collected</h3>
+                      <div className="bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-6 text-white shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium opacity-90">Total Collected</h3>
+                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_collected || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.paid_count || 0} fully paid</p>
                       </div>
-                      <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl p-6 text-white">
-                        <h3 className="text-sm font-medium opacity-90">Outstanding</h3>
+                      <div className="bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-6 text-white shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium opacity-90">Outstanding</h3>
+                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_outstanding || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.pending_count || 0} pending</p>
                       </div>
-                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
-                        <h3 className="text-sm font-medium opacity-90">Collection Rate</h3>
+                      <div className="bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-6 text-white shadow-lg">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium opacity-90">Collection Rate</h3>
+                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        </div>
                         <p className="text-3xl font-bold mt-2">
                           {summary?.total_billed && summary.total_billed > 0
                             ? ((parseFloat(summary.total_collected as unknown as string) / parseFloat(summary.total_billed as unknown as string)) * 100).toFixed(1)
@@ -797,59 +913,247 @@ const AccountantDashboard: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* Revenue Trend Chart */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+                      {dailyRevenue.length > 0 ? (
+                        <div className="h-72">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={dailyRevenue}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                              <XAxis
+                                dataKey="date"
+                                tickFormatter={(value) => {
+                                  try {
+                                    return format(parseISO(value), 'MMM d');
+                                  } catch {
+                                    return value;
+                                  }
+                                }}
+                                stroke="#6B7280"
+                                fontSize={12}
+                              />
+                              <YAxis
+                                tickFormatter={(value) => `GHS ${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                                stroke="#6B7280"
+                                fontSize={12}
+                              />
+                              <Tooltip
+                                formatter={(value) => [formatCurrency(value as number), '']}
+                                labelFormatter={(label) => {
+                                  try {
+                                    return format(parseISO(label), 'MMMM d, yyyy');
+                                  } catch {
+                                    return label;
+                                  }
+                                }}
+                                contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                              />
+                              <Legend />
+                              <Line
+                                type="monotone"
+                                dataKey="billed"
+                                name="Billed"
+                                stroke={CHART_COLORS.primary}
+                                strokeWidth={2}
+                                dot={{ fill: CHART_COLORS.primary, strokeWidth: 2 }}
+                                activeDot={{ r: 6 }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="collected"
+                                name="Collected"
+                                stroke={CHART_COLORS.success}
+                                strokeWidth={2}
+                                dot={{ fill: CHART_COLORS.success, strokeWidth: 2 }}
+                                activeDot={{ r: 6 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-72 flex items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                            </svg>
+                            <p className="text-gray-500">No revenue data for selected period</p>
+                            <p className="text-sm text-gray-400 mt-1">Try selecting a different date range</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Revenue by Category & Top Services */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Revenue by Category */}
-                      <div className="bg-gray-50 rounded-xl p-6">
+                      {/* Revenue by Category - Pie Chart */}
+                      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Category</h3>
-                        <div className="space-y-3">
-                          {categoryRevenue.map((cat) => (
-                            <div key={cat.category} className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 rounded-full bg-primary-500"></div>
-                                <span className="text-sm font-medium text-gray-700 capitalize">{cat.category}</span>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-gray-900">{formatCurrency(cat.total_amount)}</p>
-                                <p className="text-xs text-gray-500">{cat.invoice_count} items</p>
-                              </div>
+                        {categoryRevenue.length > 0 ? (
+                          <div className="flex items-center gap-6">
+                            <div className="w-48 h-48">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={categoryRevenue}
+                                    dataKey="total_amount"
+                                    nameKey="category"
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={40}
+                                    outerRadius={70}
+                                    paddingAngle={2}
+                                  >
+                                    {categoryRevenue.map((entry, index) => (
+                                      <Cell
+                                        key={`cell-${index}`}
+                                        fill={CATEGORY_COLORS[entry.category] || Object.values(CHART_COLORS)[index % 6]}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip
+                                    formatter={(value) => formatCurrency(value as number)}
+                                    contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
                             </div>
-                          ))}
-                        </div>
+                            <div className="flex-1 space-y-2">
+                              {categoryRevenue.map((cat, idx) => (
+                                <div key={cat.category} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-3 h-3 rounded-full"
+                                      style={{ backgroundColor: CATEGORY_COLORS[cat.category] || Object.values(CHART_COLORS)[idx % 6] }}
+                                    />
+                                    <span className="text-sm font-medium text-gray-700 capitalize">{cat.category}</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-semibold text-gray-900">{formatCurrency(cat.total_amount)}</p>
+                                    <p className="text-xs text-gray-500">{cat.invoice_count} items</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                            <div className="text-center">
+                              <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+                              </svg>
+                              <p className="text-gray-500 text-sm">No category data</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Top Services */}
-                      <div className="bg-gray-50 rounded-xl p-6">
+                      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Services</h3>
-                        <div className="space-y-3">
-                          {topServices.slice(0, 5).map((service, idx) => (
-                            <div key={idx} className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold text-primary-600">#{idx + 1}</span>
-                                <span className="text-sm text-gray-700 truncate max-w-[200px]">{service.description}</span>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-gray-900">{formatCurrency(service.total_revenue)}</p>
-                                <p className="text-xs text-gray-500">{service.times_billed}x</p>
-                              </div>
+                        {topServices.length > 0 ? (
+                          <div className="space-y-3">
+                            {topServices.slice(0, 5).map((service, idx) => {
+                              const maxRevenue = Math.max(...topServices.map(s => s.total_revenue));
+                              const percentage = (service.total_revenue / maxRevenue) * 100;
+                              return (
+                                <div key={idx} className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold text-white bg-primary-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="text-sm text-gray-700 truncate max-w-[180px]">{service.description}</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(service.total_revenue)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                                      <div
+                                        className="bg-primary-500 h-2 rounded-full transition-all duration-500"
+                                        style={{ width: `${percentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs text-gray-500 w-12">{service.times_billed}x</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                            <div className="text-center">
+                              <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <p className="text-gray-500 text-sm">No services billed</p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Payment Methods */}
-                    <div className="bg-gray-50 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods (30 days)</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {paymentMethods.map((method) => (
-                          <div key={method.method} className="bg-white rounded-lg p-4 shadow-sm">
-                            <p className="text-sm text-gray-500 capitalize">{method.method.replace('_', ' ')}</p>
-                            <p className="text-xl font-bold text-gray-900">{formatCurrency(method.total)}</p>
-                            <p className="text-xs text-gray-400">{method.count} transactions</p>
+                    {/* Payment Methods - Bar Chart */}
+                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
+                      {paymentMethods.length > 0 ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={paymentMethods} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                                <XAxis
+                                  type="number"
+                                  tickFormatter={(value) => `GHS ${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
+                                  stroke="#6B7280"
+                                  fontSize={12}
+                                />
+                                <YAxis
+                                  type="category"
+                                  dataKey="method"
+                                  tickFormatter={(value) => value.replace('_', ' ').charAt(0).toUpperCase() + value.replace('_', ' ').slice(1)}
+                                  stroke="#6B7280"
+                                  fontSize={12}
+                                  width={100}
+                                />
+                                <Tooltip
+                                  formatter={(value) => [formatCurrency(value as number), 'Amount']}
+                                  contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                                />
+                                <Bar dataKey="total" fill={CHART_COLORS.primary} radius={[0, 4, 4, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
                           </div>
-                        ))}
-                      </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            {paymentMethods.map((method, idx) => {
+                              const colors = [CHART_COLORS.primary, CHART_COLORS.success, CHART_COLORS.warning, CHART_COLORS.secondary];
+                              return (
+                                <div
+                                  key={method.method}
+                                  className="rounded-lg p-4 border border-gray-100"
+                                  style={{ backgroundColor: `${colors[idx % 4]}10` }}
+                                >
+                                  <p className="text-sm text-gray-600 capitalize font-medium">{method.method.replace('_', ' ')}</p>
+                                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(method.total)}</p>
+                                  <p className="text-xs text-gray-500 mt-1">{method.count} transactions</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="text-center">
+                            <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                            <p className="text-gray-500 text-sm">No payment data</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

@@ -6,6 +6,7 @@ import {
   exportInvoiceDetailToExcel,
   getAgingReport,
   getRevenueByPayer,
+  getDepartmentRevenue,
 } from '../controllers/accountantController';
 
 const router = Router();
@@ -23,5 +24,8 @@ router.get('/export/invoice/:id', exportInvoiceDetailToExcel);
 // Reports
 router.get('/reports/aging', getAgingReport);
 router.get('/reports/revenue-by-payer', getRevenueByPayer);
+
+// Department revenue (for department-specific finance views)
+router.get('/department/:department/revenue', getDepartmentRevenue);
 
 export default router;

@@ -523,3 +523,129 @@ export const getRevenueByPayer = async (req: Request, res: Response): Promise<vo
     res.status(500).json({ error: 'Failed to fetch revenue by payer' });
   }
 };
+
+// Get department-specific revenue
+export const getDepartmentRevenue = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { department } = req.params;
+    const { period = 'month' } = req.query;
+
+    // Map department to invoice_items category
+    const categoryMap: Record<string, string> = {
+      lab: 'lab',
+      pharmacy: 'medication',
+      imaging: 'imaging',
+      nursing: 'procedure',
+    };
+
+    const category = categoryMap[department] || department;
+
+    // Calculate date range based on period
+    let dateFilter = '';
+    switch (period) {
+      case 'today':
+        dateFilter = "AND i.invoice_date = CURRENT_DATE";
+        break;
+      case 'week':
+        dateFilter = "AND i.invoice_date >= date_trunc('week', CURRENT_DATE)";
+        break;
+      case 'month':
+        dateFilter = "AND i.invoice_date >= date_trunc('month', CURRENT_DATE)";
+        break;
+      case 'year':
+        dateFilter = "AND i.invoice_date >= date_trunc('year', CURRENT_DATE)";
+        break;
+      default:
+        dateFilter = "AND i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'";
+    }
+
+    // Get summary stats
+    const summaryQuery = `
+      SELECT
+        COUNT(DISTINCT i.id) as total_orders,
+        COALESCE(SUM(ii.total_price), 0) as total_revenue,
+        COUNT(DISTINCT DATE(i.invoice_date)) as active_days,
+        COALESCE(AVG(ii.total_price), 0) as avg_order_value
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE ii.category = $1 ${dateFilter}
+    `;
+    const summaryResult = await pool.query(summaryQuery, [category]);
+
+    // Get daily revenue for the period
+    const dailyQuery = `
+      SELECT
+        DATE(i.invoice_date) as date,
+        COUNT(*) as order_count,
+        COALESCE(SUM(ii.total_price), 0) as revenue
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE ii.category = $1 ${dateFilter}
+      GROUP BY DATE(i.invoice_date)
+      ORDER BY date
+    `;
+    const dailyResult = await pool.query(dailyQuery, [category]);
+
+    // Get top items/services
+    const topItemsQuery = `
+      SELECT
+        ii.description,
+        COUNT(*) as times_billed,
+        COALESCE(SUM(ii.total_price), 0) as total_revenue,
+        COALESCE(AVG(ii.unit_price), 0) as avg_price
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE ii.category = $1 ${dateFilter}
+      GROUP BY ii.description
+      ORDER BY total_revenue DESC
+      LIMIT 10
+    `;
+    const topItemsResult = await pool.query(topItemsQuery, [category]);
+
+    // Get comparison with previous period
+    let prevDateFilter = '';
+    switch (period) {
+      case 'today':
+        prevDateFilter = "AND i.invoice_date = CURRENT_DATE - INTERVAL '1 day'";
+        break;
+      case 'week':
+        prevDateFilter = "AND i.invoice_date >= date_trunc('week', CURRENT_DATE) - INTERVAL '1 week' AND i.invoice_date < date_trunc('week', CURRENT_DATE)";
+        break;
+      case 'month':
+        prevDateFilter = "AND i.invoice_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND i.invoice_date < date_trunc('month', CURRENT_DATE)";
+        break;
+      case 'year':
+        prevDateFilter = "AND i.invoice_date >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND i.invoice_date < date_trunc('year', CURRENT_DATE)";
+        break;
+      default:
+        prevDateFilter = "AND i.invoice_date >= CURRENT_DATE - INTERVAL '60 days' AND i.invoice_date < CURRENT_DATE - INTERVAL '30 days'";
+    }
+
+    const prevQuery = `
+      SELECT COALESCE(SUM(ii.total_price), 0) as prev_revenue
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      WHERE ii.category = $1 ${prevDateFilter}
+    `;
+    const prevResult = await pool.query(prevQuery, [category]);
+
+    const currentRevenue = parseFloat(summaryResult.rows[0]?.total_revenue || 0);
+    const prevRevenue = parseFloat(prevResult.rows[0]?.prev_revenue || 0);
+    const percentChange = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+
+    res.json({
+      department,
+      period,
+      summary: {
+        ...summaryResult.rows[0],
+        percent_change: percentChange.toFixed(1),
+        trend: percentChange >= 0 ? 'up' : 'down',
+      },
+      daily_revenue: dailyResult.rows,
+      top_items: topItemsResult.rows,
+    });
+  } catch (error) {
+    console.error('Get department revenue error:', error);
+    res.status(500).json({ error: 'Failed to fetch department revenue' });
+  }
+};
