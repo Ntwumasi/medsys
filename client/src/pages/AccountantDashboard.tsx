@@ -136,7 +136,8 @@ const AccountantDashboard: React.FC = () => {
   // Financial data
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [categoryRevenue, setCategoryRevenue] = useState<CategoryRevenue[]>([]);
-  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
+  // Daily revenue for charts (future enhancement)
+  const [, setDailyRevenue] = useState<DailyRevenue[]>([]);
   const [topServices, setTopServices] = useState<TopService[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [insuranceClaims, setInsuranceClaims] = useState<InsuranceClaims | null>(null);
@@ -293,7 +294,6 @@ const AccountantDashboard: React.FC = () => {
   return (
     <AppLayout
       title="Accountant Portal"
-      subtitle="Financial Overview & Invoice Management"
     >
       <div className="space-y-6">
         {/* Date Range Filter */}
