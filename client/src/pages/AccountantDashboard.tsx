@@ -5,6 +5,11 @@ import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
 import {
+  OverviewSkeleton,
+  TableRowSkeleton,
+  AgingSkeleton,
+} from '../components/Skeleton';
+import {
   LineChart,
   Line,
   BarChart,
@@ -337,6 +342,7 @@ const AccountantDashboard: React.FC = () => {
   // Aging
   const [agingInvoices, setAgingInvoices] = useState<AgingInvoice[]>([]);
   const [agingSummary, setAgingSummary] = useState<AgingSummary[]>([]);
+  const [agingLoading, setAgingLoading] = useState(false);
 
   // Invoice modal
   const [showInvoice, setShowInvoice] = useState(false);
@@ -388,7 +394,7 @@ const AccountantDashboard: React.FC = () => {
       loadOutstandingInvoices();
       loadReminderSettings();
     }
-  }, [activeTab, invoiceFilter, claimFilter, reminderFilter]);
+  }, [activeTab, invoiceFilter, claimFilter, reminderFilter, startDate, endDate]);
 
   const loadFinancialSummary = async () => {
     setLoading(true);
@@ -431,12 +437,15 @@ const AccountantDashboard: React.FC = () => {
   };
 
   const loadAgingReport = async () => {
+    setAgingLoading(true);
     try {
       const response = await apiClient.get('/accountant/reports/aging');
       setAgingInvoices(response.data.invoices || []);
       setAgingSummary(response.data.summary || []);
     } catch (error) {
       console.error('Error loading aging report:', error);
+    } finally {
+      setAgingLoading(false);
     }
   };
 
@@ -447,6 +456,8 @@ const AccountantDashboard: React.FC = () => {
         params: {
           status: claimFilter !== 'all' ? claimFilter : undefined,
           search: claimSearch || undefined,
+          start_date: startDate,
+          end_date: endDate,
         },
       });
       setClaims(response.data.claims || []);
@@ -860,9 +871,7 @@ const AccountantDashboard: React.FC = () => {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {loading ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                  </div>
+                  <OverviewSkeleton />
                 ) : (
                   <>
                     {/* Summary Cards */}
@@ -1222,13 +1231,11 @@ const AccountantDashboard: React.FC = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {invoicesLoading ? (
-                        <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center">
-                            <div className="flex justify-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                            </div>
-                          </td>
-                        </tr>
+                        <>
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <TableRowSkeleton key={i} columns={8} />
+                          ))}
+                        </>
                       ) : invoices.length === 0 ? (
                         <tr>
                           <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
@@ -1284,42 +1291,46 @@ const AccountantDashboard: React.FC = () => {
             {/* Aging Report Tab */}
             {activeTab === 'aging' && (
               <div className="space-y-6">
-                {/* Aging Summary */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {agingSummary.map((bucket) => (
-                    <div
-                      key={bucket.aging_bucket}
-                      className={`rounded-xl p-4 ${
-                        bucket.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
-                        bucket.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
-                        bucket.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
-                        'bg-green-50 border border-green-200'
-                      }`}
-                    >
-                      <h4 className="text-sm font-medium text-gray-700">{bucket.aging_bucket}</h4>
-                      <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(bucket.total_balance)}</p>
-                      <p className="text-xs text-gray-500">{bucket.invoice_count} invoices</p>
+                {agingLoading ? (
+                  <AgingSkeleton />
+                ) : (
+                  <>
+                    {/* Aging Summary */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {agingSummary.map((bucket) => (
+                        <div
+                          key={bucket.aging_bucket}
+                          className={`rounded-xl p-4 ${
+                            bucket.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
+                            bucket.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
+                            bucket.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
+                            'bg-green-50 border border-green-200'
+                          }`}
+                        >
+                          <h4 className="text-sm font-medium text-gray-700">{bucket.aging_bucket}</h4>
+                          <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(bucket.total_balance)}</p>
+                          <p className="text-xs text-gray-500">{bucket.invoice_count} invoices</p>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
 
-                {/* Aging Details */}
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bucket</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {agingInvoices.map((inv) => (
+                    {/* Aging Details */}
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bucket</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {agingInvoices.map((inv) => (
                         <tr key={inv.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
                           <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
@@ -1339,13 +1350,15 @@ const AccountantDashboard: React.FC = () => {
                               'bg-green-100 text-green-800'
                             }`}>
                               {inv.aging_bucket}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1498,13 +1511,11 @@ const AccountantDashboard: React.FC = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {remindersLoading ? (
-                        <tr>
-                          <td colSpan={9} className="px-4 py-8 text-center">
-                            <div className="flex justify-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                            </div>
-                          </td>
-                        </tr>
+                        <>
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <TableRowSkeleton key={i} columns={9} />
+                          ))}
+                        </>
                       ) : outstandingInvoices.length === 0 ? (
                         <tr>
                           <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No outstanding invoices</td>
@@ -1684,13 +1695,11 @@ const AccountantDashboard: React.FC = () => {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {claimsLoading ? (
-                        <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center">
-                            <div className="flex justify-center">
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                            </div>
-                          </td>
-                        </tr>
+                        <>
+                          {Array.from({ length: 6 }).map((_, i) => (
+                            <TableRowSkeleton key={i} columns={7} />
+                          ))}
+                        </>
                       ) : claims.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No claims found</td>
