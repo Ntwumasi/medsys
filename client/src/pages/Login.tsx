@@ -143,6 +143,7 @@ const Login: React.FC = () => {
                   { role: 'Lab', email: 'lab@medsys.com', color: 'bg-accent-50 text-accent-700' },
                   { role: 'Pharmacy', email: 'pharmacy@medsys.com', color: 'bg-primary-50 text-primary-700' },
                   { role: 'Imaging', email: 'imaging@medsys.com', color: 'bg-secondary-50 text-secondary-700' },
+                  { role: 'Accountant', email: 'accountant@medsys.com', color: 'bg-amber-50 text-amber-700' },
                   { role: 'Patient', email: 'patient@medsys.com', color: 'bg-success-50 text-success-700' },
                 ].map((item) => (
                   <button
