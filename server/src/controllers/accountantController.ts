@@ -649,3 +649,79 @@ export const getDepartmentRevenue = async (req: Request, res: Response): Promise
     res.status(500).json({ error: 'Failed to fetch department revenue' });
   }
 };
+
+// Get line items for drill-down
+export const getDepartmentLineItems = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { department } = req.params;
+    const { period = 'month', description } = req.query;
+
+    if (!description) {
+      res.status(400).json({ error: 'Description is required' });
+      return;
+    }
+
+    // Map department to invoice_items category
+    const categoryMap: Record<string, string> = {
+      lab: 'lab',
+      pharmacy: 'medication',
+      imaging: 'imaging',
+      nursing: 'procedure',
+    };
+
+    const category = categoryMap[department] || department;
+
+    // Calculate date range based on period
+    let dateFilter = '';
+    switch (period) {
+      case 'today':
+        dateFilter = "AND i.invoice_date = CURRENT_DATE";
+        break;
+      case 'week':
+        dateFilter = "AND i.invoice_date >= date_trunc('week', CURRENT_DATE)";
+        break;
+      case 'month':
+        dateFilter = "AND i.invoice_date >= date_trunc('month', CURRENT_DATE)";
+        break;
+      case 'year':
+        dateFilter = "AND i.invoice_date >= date_trunc('year', CURRENT_DATE)";
+        break;
+      default:
+        dateFilter = "AND i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'";
+    }
+
+    const query = `
+      SELECT
+        ii.id,
+        i.invoice_number,
+        i.invoice_date,
+        u.first_name || ' ' || u.last_name as patient_name,
+        p.patient_number,
+        ii.description,
+        ii.quantity,
+        ii.unit_price,
+        ii.total_price
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.id
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      WHERE ii.category = $1
+        AND ii.description = $2
+        ${dateFilter}
+      ORDER BY i.invoice_date DESC, i.id DESC
+      LIMIT 100
+    `;
+
+    const result = await pool.query(query, [category, description]);
+
+    res.json({
+      department,
+      period,
+      description,
+      items: result.rows,
+    });
+  } catch (error) {
+    console.error('Get department line items error:', error);
+    res.status(500).json({ error: 'Failed to fetch line items' });
+  }
+};

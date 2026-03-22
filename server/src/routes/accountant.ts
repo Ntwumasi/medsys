@@ -7,6 +7,7 @@ import {
   getAgingReport,
   getRevenueByPayer,
   getDepartmentRevenue,
+  getDepartmentLineItems,
 } from '../controllers/accountantController';
 
 const router = Router();
@@ -27,5 +28,6 @@ router.get('/reports/revenue-by-payer', getRevenueByPayer);
 
 // Department revenue (for department-specific finance views)
 router.get('/department/:department/revenue', getDepartmentRevenue);
+router.get('/department/:department/line-items', getDepartmentLineItems);
 
 export default router;

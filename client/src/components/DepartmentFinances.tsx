@@ -12,6 +12,19 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { Skeleton, CardSkeleton, GradientCardSkeleton, LineChartSkeleton, ChartSkeleton } from './Skeleton';
+
+interface LineItemDetail {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  patient_name: string;
+  patient_number: string;
+  description: string;
+  quantity: number;
+  unit_price: string;
+  total_price: string;
+}
 
 interface DepartmentRevenueData {
   department: string;
@@ -36,6 +49,54 @@ interface DepartmentRevenueData {
     avg_price: string;
   }>;
 }
+
+// Skeleton for department finances
+const DepartmentFinancesSkeleton: React.FC = () => (
+  <div className="space-y-6">
+    {/* Header skeleton */}
+    <div className="flex items-center justify-between">
+      <Skeleton className="h-7 w-48" />
+      <div className="flex gap-2">
+        {[1, 2, 3, 4].map((i) => (
+          <Skeleton key={i} className="h-9 w-24 rounded-lg" />
+        ))}
+      </div>
+    </div>
+
+    {/* Summary cards skeleton */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <GradientCardSkeleton />
+      <CardSkeleton />
+      <CardSkeleton />
+      <CardSkeleton />
+    </div>
+
+    {/* Chart skeleton */}
+    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      <Skeleton className="h-6 w-32 mb-4" />
+      <LineChartSkeleton />
+    </div>
+
+    {/* Top items skeleton */}
+    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      <Skeleton className="h-6 w-40 mb-4" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ChartSkeleton />
+        <div className="space-y-4">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="flex justify-between">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+              <Skeleton className="h-1.5 w-full rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
 
 interface Props {
   department: 'lab' | 'pharmacy' | 'imaging' | 'nursing';
@@ -70,6 +131,12 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('month');
 
+  // Drill-down state
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [lineItems, setLineItems] = useState<LineItemDetail[]>([]);
+  const [lineItemsLoading, setLineItemsLoading] = useState(false);
+  const [showDrillDown, setShowDrillDown] = useState(false);
+
   const departmentColor = DEPARTMENT_COLORS[department] || CHART_COLORS.primary;
 
   useEffect(() => {
@@ -90,12 +157,31 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
     }
   };
 
+  const loadLineItems = async (itemDescription: string) => {
+    setLineItemsLoading(true);
+    setSelectedItem(itemDescription);
+    setShowDrillDown(true);
+    try {
+      const response = await apiClient.get(`/accountant/department/${department}/line-items`, {
+        params: { period, description: itemDescription },
+      });
+      setLineItems(response.data.items || []);
+    } catch (error) {
+      console.error('Error loading line items:', error);
+      setLineItems([]);
+    } finally {
+      setLineItemsLoading(false);
+    }
+  };
+
+  const closeDrillDown = () => {
+    setShowDrillDown(false);
+    setSelectedItem(null);
+    setLineItems([]);
+  };
+
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
-      </div>
-    );
+    return <DepartmentFinancesSkeleton />;
   }
 
   if (!data) {
@@ -277,7 +363,11 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
                 const maxRevenue = Math.max(...data.top_items.map((i) => parseFloat(i.total_revenue)));
                 const percentage = (parseFloat(item.total_revenue) / maxRevenue) * 100;
                 return (
-                  <div key={idx} className="space-y-1">
+                  <button
+                    key={idx}
+                    onClick={() => loadLineItems(item.description)}
+                    className="w-full text-left space-y-1 p-2 -mx-2 rounded-lg hover:bg-gray-50 transition-colors group"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span
@@ -286,9 +376,14 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
                         >
                           {idx + 1}
                         </span>
-                        <span className="text-sm text-gray-700 truncate max-w-[200px]">{item.description}</span>
+                        <span className="text-sm text-gray-700 truncate max-w-[200px] group-hover:text-gray-900">{item.description}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(item.total_revenue)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(item.total_revenue)}</span>
+                        <svg className="w-4 h-4 text-gray-400 group-hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
@@ -299,7 +394,7 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
                       </div>
                       <span className="text-xs text-gray-500 w-12">{item.times_billed}x</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -315,6 +410,114 @@ const DepartmentFinances: React.FC<Props> = ({ department, title }) => {
           </div>
         )}
       </div>
+
+      {/* Drill-down Modal */}
+      {showDrillDown && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div
+              className="px-6 py-4 text-white flex items-center justify-between"
+              style={{ backgroundColor: departmentColor }}
+            >
+              <div>
+                <h3 className="text-lg font-semibold">Line Item Details</h3>
+                <p className="text-sm opacity-90">{selectedItem}</p>
+              </div>
+              <button
+                onClick={closeDrillDown}
+                className="p-1 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {lineItemsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="animate-pulse flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4 w-40 flex-1" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : lineItems.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p>No line items found for this period</p>
+                </div>
+              ) : (
+                <>
+                  {/* Summary */}
+                  <div className="mb-4 p-4 rounded-lg bg-gray-50">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Transactions: <span className="font-semibold text-gray-900">{lineItems.length}</span></span>
+                      <span className="text-gray-600">Total Revenue: <span className="font-semibold text-gray-900">{formatCurrency(lineItems.reduce((sum, item) => sum + parseFloat(item.total_price), 0))}</span></span>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {lineItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-sm text-gray-600">
+                              {(() => {
+                                try {
+                                  return format(parseISO(item.invoice_date), 'MMM d, yyyy');
+                                } catch {
+                                  return item.invoice_date;
+                                }
+                              })()}
+                            </td>
+                            <td className="px-3 py-2 text-sm font-medium text-gray-900">{item.invoice_number}</td>
+                            <td className="px-3 py-2">
+                              <div className="text-sm text-gray-900">{item.patient_name}</div>
+                              <div className="text-xs text-gray-500">{item.patient_number}</div>
+                            </td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-600">{item.quantity}</td>
+                            <td className="px-3 py-2 text-sm text-right text-gray-600">{formatCurrency(item.unit_price)}</td>
+                            <td className="px-3 py-2 text-sm text-right font-semibold text-gray-900">{formatCurrency(item.total_price)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={closeDrillDown}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
