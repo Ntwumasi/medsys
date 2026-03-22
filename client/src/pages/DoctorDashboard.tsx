@@ -137,6 +137,12 @@ const DoctorDashboard: React.FC = () => {
   const [pharmacyAlerts, setPharmacyAlerts] = useState<DoctorAlert[]>([]);
   const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
 
+  // Claims Review state
+  const [pendingClaims, setPendingClaims] = useState<any[]>([]);
+  const [selectedReviewClaim, setSelectedReviewClaim] = useState<any>(null);
+  const [showClaimReviewModal, setShowClaimReviewModal] = useState(false);
+  const [claimReviewNotes, setClaimReviewNotes] = useState('');
+
   // Patient Quick View state
   const [quickViewPatientId, setQuickViewPatientId] = useState<number | null>(null);
 
@@ -146,9 +152,11 @@ const DoctorDashboard: React.FC = () => {
   useEffect(() => {
     loadRoomEncounters();
     loadDoctorAlerts();
+    loadPendingClaims();
     const interval = setInterval(() => {
       loadRoomEncounters();
       loadDoctorAlerts();
+      loadPendingClaims();
     }, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -202,6 +210,57 @@ const DoctorDashboard: React.FC = () => {
       setPharmacyAlerts(res.data.pharmacy_alerts || []);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
+    }
+  };
+
+  const loadPendingClaims = async () => {
+    try {
+      const res = await apiClient.get('/claims/pending-review');
+      setPendingClaims(res.data.claims || []);
+    } catch (error) {
+      console.error('Error loading pending claims:', error);
+    }
+  };
+
+  const handleReviewClaim = async (claim: any) => {
+    try {
+      const res = await apiClient.get(`/claims/${claim.id}`);
+      setSelectedReviewClaim(res.data.claim);
+      setClaimReviewNotes('');
+      setShowClaimReviewModal(true);
+    } catch (error) {
+      showToast('Failed to load claim details', 'error');
+    }
+  };
+
+  const handleApproveClaim = async () => {
+    if (!selectedReviewClaim) return;
+    try {
+      await apiClient.post(`/claims/${selectedReviewClaim.id}/doctor-approve`, {
+        doctor_notes: claimReviewNotes
+      });
+      showToast('Claim approved successfully', 'success');
+      setShowClaimReviewModal(false);
+      loadPendingClaims();
+    } catch (error) {
+      showToast('Failed to approve claim', 'error');
+    }
+  };
+
+  const handleRejectClaim = async () => {
+    if (!selectedReviewClaim || !claimReviewNotes) {
+      showToast('Please provide a reason for rejection', 'error');
+      return;
+    }
+    try {
+      await apiClient.post(`/claims/${selectedReviewClaim.id}/doctor-reject`, {
+        doctor_notes: claimReviewNotes
+      });
+      showToast('Claim rejected', 'success');
+      setShowClaimReviewModal(false);
+      loadPendingClaims();
+    } catch (error) {
+      showToast('Failed to reject claim', 'error');
     }
   };
 
@@ -764,6 +823,42 @@ const DoctorDashboard: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Claims Review Section */}
+            {pendingClaims.length > 0 && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <h2 className="text-sm font-semibold text-white">Claims Pending Review</h2>
+                    </div>
+                    <span className="px-2.5 py-1 bg-white text-amber-700 text-xs font-bold rounded-full">
+                      {pendingClaims.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-gray-100">
+                  {pendingClaims.map((claim) => (
+                    <div key={claim.id} className="px-4 py-3 hover:bg-amber-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold text-gray-900 text-sm">{claim.claim_number}</div>
+                          <div className="text-xs text-gray-600">{claim.patient_name}</div>
+                          <div className="text-xs text-gray-500">{claim.insurance_provider_name}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-gray-900 text-sm">GHS {parseFloat(claim.total_charged || 0).toFixed(2)}</div>
+                          <button className="text-xs text-amber-600 font-medium hover:underline">Review</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Pending Signatures Section */}
             {selectedEncounter && (
@@ -2090,6 +2185,103 @@ const DoctorDashboard: React.FC = () => {
                 className="px-4 py-2 bg-warning-600 text-white font-semibold rounded-lg hover:bg-warning-700 transition-colors"
               >
                 Add Anyway (Document Warning)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claim Review Modal */}
+      {showClaimReviewModal && selectedReviewClaim && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-amber-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Review Claim {selectedReviewClaim.claim_number}</h3>
+                  <p className="text-sm text-gray-600">Insurance claim requires physician review</p>
+                </div>
+                <button onClick={() => setShowClaimReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Patient Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Patient</p>
+                  <p className="font-semibold text-gray-900">{selectedReviewClaim.patient_name}</p>
+                  <p className="text-sm text-gray-600">{selectedReviewClaim.patient_number}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Insurance</p>
+                  <p className="font-semibold text-gray-900">{selectedReviewClaim.insurance_provider_name}</p>
+                  <p className="text-sm text-gray-600">Member: {selectedReviewClaim.member_id || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Diagnosis */}
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <p className="text-xs text-blue-600 font-medium">Primary Diagnosis</p>
+                <p className="font-semibold text-gray-900">
+                  {selectedReviewClaim.primary_diagnosis_code} - {selectedReviewClaim.primary_diagnosis_desc || 'No description'}
+                </p>
+              </div>
+
+              {/* Claim Amount */}
+              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                <p className="text-xs text-green-600 font-medium">Claim Amount</p>
+                <p className="text-2xl font-bold text-green-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
+              </div>
+
+              {/* Validation Issues */}
+              {selectedReviewClaim.validation_issues && selectedReviewClaim.validation_issues.length > 0 && (
+                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                  <p className="text-xs text-red-600 font-medium mb-2">Validation Issues</p>
+                  {selectedReviewClaim.validation_issues.map((issue: any, idx: number) => (
+                    <p key={idx} className="text-sm text-red-700">{issue.issue}</p>
+                  ))}
+                  {selectedReviewClaim.validation_override_reason && (
+                    <p className="text-sm text-gray-700 mt-2 p-2 bg-white rounded">
+                      <span className="font-medium">Override reason:</span> {selectedReviewClaim.validation_override_reason}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Review Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Review Notes</label>
+                <textarea
+                  value={claimReviewNotes}
+                  onChange={(e) => setClaimReviewNotes(e.target.value)}
+                  placeholder="Enter your review notes (required for rejection)..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex gap-3 justify-end">
+              <button
+                onClick={() => setShowClaimReviewModal(false)}
+                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRejectClaim}
+                className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Reject Claim
+              </button>
+              <button
+                onClick={handleApproveClaim}
+                className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Approve Claim
               </button>
             </div>
           </div>

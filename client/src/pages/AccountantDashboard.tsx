@@ -110,6 +110,53 @@ interface InvoicePayerSource {
   is_primary: boolean;
 }
 
+interface Claim {
+  id: number;
+  claim_number: string;
+  invoice_id: number;
+  patient_id: number;
+  encounter_id: number;
+  insurance_provider_id: number;
+  insurance_provider_name: string;
+  patient_name: string;
+  patient_number: string;
+  invoice_number: string;
+  member_id: string;
+  plan_option: string;
+  primary_diagnosis_code: string;
+  primary_diagnosis_desc: string;
+  total_charged: number;
+  amount_approved: number;
+  amount_paid: number;
+  patient_responsibility: number;
+  annual_limit: number;
+  used_to_date: number;
+  remaining_coverage: number;
+  status: string;
+  diagnosis_validated: boolean;
+  validation_issues: any[];
+  reviewed_by_doctor: number;
+  reviewed_by_name: string;
+  doctor_reviewed_at: string;
+  doctor_notes: string;
+  submitted_at: string;
+  created_at: string;
+}
+
+interface ClaimsSummary {
+  total: number;
+  draft: number;
+  pending_review: number;
+  approved_by_doctor: number;
+  submitted: number;
+  approved: number;
+  denied: number;
+  paid: number;
+  total_charged: number;
+  total_approved: number;
+  total_paid: number;
+}
+
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = 'N/A'): string => {
   if (!dateValue) return fallback;
   try {
@@ -140,7 +187,8 @@ const AccountantDashboard: React.FC = () => {
   const [, setDailyRevenue] = useState<DailyRevenue[]>([]);
   const [topServices, setTopServices] = useState<TopService[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [insuranceClaims, setInsuranceClaims] = useState<InsuranceClaims | null>(null);
+  // Legacy insurance claims from financial summary (now using claims API)
+  const [, setInsuranceClaims] = useState<InsuranceClaims | null>(null);
 
   // Invoices
   const [invoices, setInvoices] = useState<InvoiceData[]>([]);
@@ -158,6 +206,19 @@ const AccountantDashboard: React.FC = () => {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [invoicePayerSources, setInvoicePayerSources] = useState<InvoicePayerSource[]>([]);
 
+  // Claims
+  const [claims, setClaims] = useState<Claim[]>([]);
+  const [claimsSummary, setClaimsSummary] = useState<ClaimsSummary | null>(null);
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [claimFilter, setClaimFilter] = useState('all');
+  const [claimSearch, setClaimSearch] = useState('');
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [showClaimModal, setShowClaimModal] = useState(false);
+  const [showCreateClaimModal, setShowCreateClaimModal] = useState(false);
+  const [insuranceInvoices, setInsuranceInvoices] = useState<InvoiceData[]>([]);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [coverageResult, setCoverageResult] = useState<any>(null);
+
   useEffect(() => {
     loadFinancialSummary();
   }, [startDate, endDate]);
@@ -167,8 +228,10 @@ const AccountantDashboard: React.FC = () => {
       loadInvoices();
     } else if (activeTab === 'aging') {
       loadAgingReport();
+    } else if (activeTab === 'claims') {
+      loadClaims();
     }
-  }, [activeTab, invoiceFilter]);
+  }, [activeTab, invoiceFilter, claimFilter]);
 
   const loadFinancialSummary = async () => {
     setLoading(true);
@@ -218,6 +281,135 @@ const AccountantDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading aging report:', error);
     }
+  };
+
+  const loadClaims = async () => {
+    setClaimsLoading(true);
+    try {
+      const response = await apiClient.get('/claims', {
+        params: {
+          status: claimFilter !== 'all' ? claimFilter : undefined,
+          search: claimSearch || undefined,
+        },
+      });
+      setClaims(response.data.claims || []);
+      setClaimsSummary(response.data.summary || null);
+    } catch (error) {
+      console.error('Error loading claims:', error);
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
+  const loadInsuranceInvoices = async () => {
+    try {
+      const response = await apiClient.get('/invoices', {
+        params: { status: 'all', limit: 100 },
+      });
+      // Filter to only show invoices that can have claims (with insurance payer)
+      setInsuranceInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error('Error loading invoices:', error);
+    }
+  };
+
+  const handleCreateClaim = async (invoiceId: number) => {
+    try {
+      const response = await apiClient.post('/claims', { invoice_id: invoiceId });
+      showToast('Claim created successfully', 'success');
+      setShowCreateClaimModal(false);
+      loadClaims();
+      // Open the new claim for editing
+      handleViewClaim(response.data.claim.id);
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to create claim', 'error');
+    }
+  };
+
+  const handleViewClaim = async (claimId: number) => {
+    try {
+      const response = await apiClient.get(`/claims/${claimId}`);
+      setSelectedClaim(response.data.claim);
+      setValidationResult(null);
+      setCoverageResult(null);
+      setShowClaimModal(true);
+    } catch (error) {
+      console.error('Error loading claim:', error);
+      showToast('Failed to load claim details', 'error');
+    }
+  };
+
+  const handleValidateDiagnosis = async (claimId: number) => {
+    try {
+      const response = await apiClient.post(`/claims/${claimId}/validate`);
+      setValidationResult(response.data);
+      if (response.data.validated) {
+        showToast('All orders validated for diagnosis', 'success');
+      } else {
+        showToast('Some orders require doctor override', 'warning');
+      }
+    } catch (error) {
+      showToast('Failed to validate diagnosis', 'error');
+    }
+  };
+
+  const handleCheckCoverage = async (claimId: number) => {
+    try {
+      const response = await apiClient.get(`/claims/${claimId}/coverage`);
+      setCoverageResult(response.data);
+      if (response.data.exceeds_limit) {
+        showToast(`Claim exceeds coverage by GHS ${response.data.shortfall.toFixed(2)}`, 'warning');
+      } else {
+        showToast('Claim is within coverage limits', 'success');
+      }
+    } catch (error) {
+      showToast('Failed to check coverage', 'error');
+    }
+  };
+
+  const handleSubmitForReview = async (claimId: number, overrideReason?: string) => {
+    try {
+      await apiClient.post(`/claims/${claimId}/submit-for-review`, {
+        validation_override_reason: overrideReason,
+      });
+      showToast('Claim submitted for doctor review', 'success');
+      setShowClaimModal(false);
+      loadClaims();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to submit for review', 'error');
+    }
+  };
+
+  const handleUpdateClaimStatus = async (claimId: number, status: string, data?: any) => {
+    try {
+      await apiClient.put(`/claims/${claimId}/status`, { status, ...data });
+      showToast('Claim status updated', 'success');
+      setShowClaimModal(false);
+      loadClaims();
+    } catch (error) {
+      showToast('Failed to update claim status', 'error');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      draft: 'bg-gray-100 text-gray-800',
+      pending_validation: 'bg-blue-100 text-blue-800',
+      pending_doctor_review: 'bg-yellow-100 text-yellow-800',
+      doctor_rejected: 'bg-red-100 text-red-800',
+      approved_by_doctor: 'bg-green-100 text-green-800',
+      submitted: 'bg-purple-100 text-purple-800',
+      processing: 'bg-indigo-100 text-indigo-800',
+      approved: 'bg-emerald-100 text-emerald-800',
+      partial: 'bg-orange-100 text-orange-800',
+      denied: 'bg-red-100 text-red-800',
+      paid: 'bg-green-100 text-green-800',
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  const formatStatus = (status: string) => {
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const handleViewInvoice = async (invoiceId: number) => {
@@ -640,34 +832,141 @@ const AccountantDashboard: React.FC = () => {
             {/* Insurance Claims Tab */}
             {activeTab === 'claims' && (
               <div className="space-y-6">
-                {insuranceClaims && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Claims Summary Cards */}
+                {claimsSummary && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                       <h4 className="text-sm font-medium text-blue-700">Total Claims</h4>
-                      <p className="text-2xl font-bold text-blue-900">{insuranceClaims.total_claims}</p>
+                      <p className="text-2xl font-bold text-blue-900">{claimsSummary.total}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-700">Draft</h4>
+                      <p className="text-2xl font-bold text-gray-900">{claimsSummary.draft}</p>
                     </div>
                     <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                      <h4 className="text-sm font-medium text-yellow-700">Pending</h4>
-                      <p className="text-2xl font-bold text-yellow-900">{insuranceClaims.pending_claims}</p>
+                      <h4 className="text-sm font-medium text-yellow-700">Pending Review</h4>
+                      <p className="text-2xl font-bold text-yellow-900">{claimsSummary.pending_review}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                      <h4 className="text-sm font-medium text-purple-700">Submitted</h4>
+                      <p className="text-2xl font-bold text-purple-900">{claimsSummary.submitted}</p>
                     </div>
                     <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                       <h4 className="text-sm font-medium text-green-700">Approved</h4>
-                      <p className="text-2xl font-bold text-green-900">{insuranceClaims.approved_claims}</p>
-                      <p className="text-xs text-green-600">{formatCurrency(insuranceClaims.total_approved)}</p>
+                      <p className="text-2xl font-bold text-green-900">{claimsSummary.approved}</p>
+                      <p className="text-xs text-green-600">{formatCurrency(claimsSummary.total_approved)}</p>
                     </div>
                     <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                       <h4 className="text-sm font-medium text-red-700">Denied</h4>
-                      <p className="text-2xl font-bold text-red-900">{insuranceClaims.denied_claims}</p>
+                      <p className="text-2xl font-bold text-red-900">{claimsSummary.denied}</p>
                     </div>
                   </div>
                 )}
 
-                <div className="bg-gray-50 rounded-xl p-8 text-center">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Insurance Claims Management</h3>
-                  <p className="mt-1 text-sm text-gray-500">Full claims workflow coming soon</p>
+                {/* Claims Filters and Actions */}
+                <div className="flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex gap-4 items-center flex-1">
+                    <input
+                      type="text"
+                      placeholder="Search claims..."
+                      value={claimSearch}
+                      onChange={(e) => setClaimSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && loadClaims()}
+                      className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <select
+                      value={claimFilter}
+                      onChange={(e) => setClaimFilter(e.target.value)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="all">All Status</option>
+                      <option value="draft">Draft</option>
+                      <option value="pending_doctor_review">Pending Doctor Review</option>
+                      <option value="approved_by_doctor">Approved by Doctor</option>
+                      <option value="submitted">Submitted</option>
+                      <option value="approved">Approved</option>
+                      <option value="denied">Denied</option>
+                      <option value="paid">Paid</option>
+                    </select>
+                    <button
+                      onClick={loadClaims}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                    >
+                      Search
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      loadInsuranceInvoices();
+                      setShowCreateClaimModal(true);
+                    }}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create Claim
+                  </button>
+                </div>
+
+                {/* Claims Table */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claim #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Insurance</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {claimsLoading ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center">
+                            <div className="flex justify-center">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : claims.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No claims found</td>
+                        </tr>
+                      ) : (
+                        claims.map((claim) => (
+                          <tr key={claim.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{claim.claim_number}</td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{claim.patient_name}</div>
+                              <div className="text-xs text-gray-500">{claim.patient_number}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{claim.insurance_provider_name}</td>
+                            <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(claim.total_charged)}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(claim.status)}`}>
+                                {formatStatus(claim.status)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500">
+                              {safeFormatDate(claim.created_at, 'MMM d, yyyy')}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleViewClaim(claim.id)}
+                                className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -688,6 +987,232 @@ const AccountantDashboard: React.FC = () => {
             setShowInvoice(false);
           }}
         />
+      )}
+
+      {/* Create Claim Modal */}
+      {showCreateClaimModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">Create Insurance Claim</h2>
+                <button onClick={() => setShowCreateClaimModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Select an invoice to create an insurance claim</p>
+            </div>
+            <div className="p-6">
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {insuranceInvoices.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No invoices available for claims</p>
+                ) : (
+                  insuranceInvoices.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => handleCreateClaim(inv.id)}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900">{inv.invoice_number}</p>
+                          <p className="text-sm text-gray-600">{inv.patient_name}</p>
+                          <p className="text-xs text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-gray-900">{formatCurrency(inv.total_amount)}</p>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {inv.status.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Claim Detail Modal */}
+      {showClaimModal && selectedClaim && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Claim {selectedClaim.claim_number}</h2>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedClaim.status)}`}>
+                    {formatStatus(selectedClaim.status)}
+                  </span>
+                </div>
+                <button onClick={() => setShowClaimModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Patient & Insurance Info */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Patient Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="text-gray-500">Name:</span> {selectedClaim.patient_name}</p>
+                    <p><span className="text-gray-500">Patient #:</span> {selectedClaim.patient_number}</p>
+                    <p><span className="text-gray-500">Invoice:</span> {selectedClaim.invoice_number}</p>
+                  </div>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Insurance Information</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><span className="text-gray-500">Provider:</span> {selectedClaim.insurance_provider_name}</p>
+                    <p><span className="text-gray-500">Member ID:</span> {selectedClaim.member_id || 'Not set'}</p>
+                    <p><span className="text-gray-500">Plan:</span> {selectedClaim.plan_option || 'Not set'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Diagnosis */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">Diagnosis</h3>
+                <p className="text-sm">
+                  <span className="font-medium">{selectedClaim.primary_diagnosis_code}</span>
+                  {selectedClaim.primary_diagnosis_desc && ` - ${selectedClaim.primary_diagnosis_desc}`}
+                </p>
+              </div>
+
+              {/* Coverage Info */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-green-50 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600">Annual Limit</p>
+                  <p className="text-xl font-bold text-green-700">{formatCurrency(selectedClaim.annual_limit || 0)}</p>
+                </div>
+                <div className="bg-orange-50 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600">Used to Date</p>
+                  <p className="text-xl font-bold text-orange-700">{formatCurrency(selectedClaim.used_to_date || 0)}</p>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600">Claim Amount</p>
+                  <p className="text-xl font-bold text-blue-700">{formatCurrency(selectedClaim.total_charged)}</p>
+                </div>
+              </div>
+
+              {/* Validation Result */}
+              {validationResult && (
+                <div className={`rounded-lg p-4 ${validationResult.validated ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <h3 className="font-semibold mb-2">{validationResult.validated ? 'Validation Passed' : 'Validation Issues'}</h3>
+                  {validationResult.issues?.map((issue: any, idx: number) => (
+                    <p key={idx} className="text-sm text-red-700">{issue.issue}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Coverage Result */}
+              {coverageResult && (
+                <div className={`rounded-lg p-4 ${coverageResult.exceeds_limit ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                  <h3 className="font-semibold mb-2">{coverageResult.message}</h3>
+                  <p className="text-sm">Remaining Coverage: {formatCurrency(coverageResult.remaining_coverage)}</p>
+                </div>
+              )}
+
+              {/* Doctor Review Info */}
+              {selectedClaim.reviewed_by_doctor && (
+                <div className="bg-purple-50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Doctor Review</h3>
+                  <p className="text-sm"><span className="text-gray-500">Reviewed by:</span> {selectedClaim.reviewed_by_name}</p>
+                  <p className="text-sm"><span className="text-gray-500">Date:</span> {safeFormatDate(selectedClaim.doctor_reviewed_at, 'MMM d, yyyy h:mm a')}</p>
+                  {selectedClaim.doctor_notes && <p className="text-sm mt-2"><span className="text-gray-500">Notes:</span> {selectedClaim.doctor_notes}</p>}
+                </div>
+              )}
+
+              {/* Actions based on status */}
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                {selectedClaim.status === 'draft' && (
+                  <>
+                    <button
+                      onClick={() => handleValidateDiagnosis(selectedClaim.id)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                      Validate Diagnosis
+                    </button>
+                    <button
+                      onClick={() => handleCheckCoverage(selectedClaim.id)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Check Coverage
+                    </button>
+                    <button
+                      onClick={() => {
+                        const reason = validationResult?.issues?.length > 0
+                          ? prompt('Enter override reason for validation issues:')
+                          : undefined;
+                        if (validationResult?.issues?.length > 0 && !reason) return;
+                        handleSubmitForReview(selectedClaim.id, reason || undefined);
+                      }}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                    >
+                      Submit for Doctor Review
+                    </button>
+                  </>
+                )}
+                {selectedClaim.status === 'approved_by_doctor' && (
+                  <button
+                    onClick={() => handleUpdateClaimStatus(selectedClaim.id, 'submitted')}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    Mark as Submitted to Insurance
+                  </button>
+                )}
+                {selectedClaim.status === 'submitted' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        const amount = prompt('Enter approved amount:');
+                        if (amount) handleUpdateClaimStatus(selectedClaim.id, 'approved', { amount_approved: parseFloat(amount) });
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Mark Approved
+                    </button>
+                    <button
+                      onClick={() => handleUpdateClaimStatus(selectedClaim.id, 'denied')}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                      Mark Denied
+                    </button>
+                  </>
+                )}
+                {selectedClaim.status === 'approved' && (
+                  <button
+                    onClick={() => {
+                      const amount = prompt('Enter paid amount:');
+                      if (amount) handleUpdateClaimStatus(selectedClaim.id, 'paid', { amount_paid: parseFloat(amount) });
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    Record Payment Received
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowClaimModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );
