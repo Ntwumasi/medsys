@@ -23,6 +23,7 @@ import PublicUpdates from './pages/PublicUpdates';
 import InvoicesPage from './pages/InvoicesPage';
 import PendingPaymentsPage from './pages/PendingPaymentsPage';
 import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
+import QuickBooksSettings from './pages/QuickBooksSettings';
 import ImpersonationBanner from './components/ImpersonationBanner';
 
 // Protected Route Component
@@ -100,6 +101,7 @@ const AppContent: React.FC = () => {
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/pending-payments" element={<ProtectedRoute><PendingPaymentsPage /></ProtectedRoute>} />
         <Route path="/finances" element={<ProtectedRoute><DepartmentFinancesPage /></ProtectedRoute>} />
+        <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />
 
         <Route
           path="/"
