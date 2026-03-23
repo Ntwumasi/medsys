@@ -21,6 +21,7 @@ import AppointmentsCalendar from './pages/AppointmentsCalendar';
 import PatientPortal from './pages/PatientPortal';
 import PublicUpdates from './pages/PublicUpdates';
 import InvoicesPage from './pages/InvoicesPage';
+import PendingPaymentsPage from './pages/PendingPaymentsPage';
 import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
 import ImpersonationBanner from './components/ImpersonationBanner';
 
@@ -97,6 +98,7 @@ const AppContent: React.FC = () => {
         <Route path="/nurse/inventory" element={<ProtectedRoute><NurseDashboard /></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
+        <Route path="/pending-payments" element={<ProtectedRoute><PendingPaymentsPage /></ProtectedRoute>} />
         <Route path="/finances" element={<ProtectedRoute><DepartmentFinancesPage /></ProtectedRoute>} />
 
         <Route

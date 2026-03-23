@@ -94,6 +94,28 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     }
   };
 
+  const handleDeferPayment = async () => {
+    if (!confirm('Defer this payment? The patient will be marked as "Miscellaneous - Pending" and can pay later.')) {
+      return;
+    }
+
+    try {
+      // Update invoice payer source to miscellaneous_pending
+      await apiClient.post(`/invoices/${invoice.id}/defer-payment`, {
+        encounter_id: encounterId,
+      });
+
+      showToast('Payment deferred. Patient moved to Miscellaneous Pending.', 'success');
+      onClose();
+      if (onPaymentComplete) onPaymentComplete();
+    } catch (error) {
+      console.error('Error deferring payment:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.error || apiError.message || 'Unknown error occurred';
+      showToast(`Failed to defer payment: ${errorMessage}`, 'error');
+    }
+  };
+
   const handleSubmitToPayer = async () => {
     if (!confirm('Submit this invoice to the payer and complete the encounter?')) {
       return;
@@ -178,15 +200,26 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           {encounterId && (
             <div className="flex gap-3 pt-4 border-t border-gray-300">
               {isSelfPay ? (
-                <button
-                  onClick={handleMarkAsPaid}
-                  className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Paid
-                </button>
+                <>
+                  <button
+                    onClick={handleMarkAsPaid}
+                    className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Paid
+                  </button>
+                  <button
+                    onClick={handleDeferPayment}
+                    className="flex-1 px-6 py-3 bg-warning-500 text-white rounded-lg hover:bg-warning-600 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Defer Payment
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={handleSubmitToPayer}

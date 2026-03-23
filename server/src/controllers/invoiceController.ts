@@ -362,3 +362,184 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     res.status(500).json({ error: 'Failed to update invoice' });
   }
 };
+
+// Get pending payments (miscellaneous_pending invoices)
+export const getPendingPayments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start_date, end_date, aging_bucket, search } = req.query;
+
+    let dateFilter = '';
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (start_date && end_date) {
+      dateFilter = `AND i.invoice_date BETWEEN $${paramIndex} AND $${paramIndex + 1}`;
+      params.push(start_date, end_date);
+      paramIndex += 2;
+    }
+
+    let agingFilter = '';
+    if (aging_bucket && aging_bucket !== 'all') {
+      switch (aging_bucket) {
+        case '0-30':
+          agingFilter = "AND (CURRENT_DATE - i.invoice_date::date) <= 30";
+          break;
+        case '31-60':
+          agingFilter = "AND (CURRENT_DATE - i.invoice_date::date) BETWEEN 31 AND 60";
+          break;
+        case '61-90':
+          agingFilter = "AND (CURRENT_DATE - i.invoice_date::date) BETWEEN 61 AND 90";
+          break;
+        case '90+':
+          agingFilter = "AND (CURRENT_DATE - i.invoice_date::date) > 90";
+          break;
+      }
+    }
+
+    let searchFilter = '';
+    if (search) {
+      searchFilter = `AND (
+        LOWER(u.first_name || ' ' || u.last_name) LIKE LOWER($${paramIndex})
+        OR LOWER(i.invoice_number) LIKE LOWER($${paramIndex})
+        OR LOWER(p.patient_number) LIKE LOWER($${paramIndex})
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const query = `
+      SELECT
+        i.id,
+        i.invoice_number,
+        i.invoice_date,
+        i.total_amount,
+        COALESCE(i.amount_paid, 0) as amount_paid,
+        (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
+        (CURRENT_DATE - i.invoice_date::date) as days_outstanding,
+        i.last_reminder_sent,
+        COALESCE(i.reminder_count, 0) as reminder_count,
+        p.id as patient_id,
+        p.patient_number,
+        u.first_name || ' ' || u.last_name as patient_name,
+        u.email as patient_email,
+        u.phone as patient_phone
+      FROM invoices i
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      JOIN invoice_payer_sources ips ON i.id = ips.invoice_id
+      WHERE ips.payer_type = 'miscellaneous_pending'
+        AND ips.is_primary = true
+        AND i.status != 'paid'
+        ${dateFilter}
+        ${agingFilter}
+        ${searchFilter}
+      ORDER BY i.invoice_date DESC
+      LIMIT 100
+    `;
+
+    const result = await pool.query(query, params);
+
+    // Get summary
+    const summaryQuery = `
+      SELECT
+        COUNT(*) as total_count,
+        COALESCE(SUM(i.total_amount - COALESCE(i.amount_paid, 0)), 0) as total_balance,
+        COUNT(*) FILTER (WHERE (CURRENT_DATE - i.invoice_date::date) <= 30) as bucket_0_30,
+        COUNT(*) FILTER (WHERE (CURRENT_DATE - i.invoice_date::date) BETWEEN 31 AND 60) as bucket_31_60,
+        COUNT(*) FILTER (WHERE (CURRENT_DATE - i.invoice_date::date) BETWEEN 61 AND 90) as bucket_61_90,
+        COUNT(*) FILTER (WHERE (CURRENT_DATE - i.invoice_date::date) > 90) as bucket_90_plus
+      FROM invoices i
+      JOIN invoice_payer_sources ips ON i.id = ips.invoice_id
+      WHERE ips.payer_type = 'miscellaneous_pending'
+        AND ips.is_primary = true
+        AND i.status != 'paid'
+    `;
+
+    const summaryResult = await pool.query(summaryQuery);
+
+    res.json({
+      invoices: result.rows,
+      summary: summaryResult.rows[0],
+    });
+  } catch (error) {
+    console.error('Get pending payments error:', error);
+    res.status(500).json({ error: 'Failed to fetch pending payments' });
+  }
+};
+
+// Defer payment - mark as miscellaneous pending and complete encounter
+export const deferPayment = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { encounter_id } = req.body;
+
+    await client.query('BEGIN');
+
+    // Get the invoice to find patient_id
+    const invoiceResult = await client.query(
+      'SELECT patient_id FROM invoices WHERE id = $1',
+      [id]
+    );
+
+    if (invoiceResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const patientId = invoiceResult.rows[0].patient_id;
+
+    // Update or create payer source to miscellaneous_pending
+    await client.query(
+      `INSERT INTO invoice_payer_sources (invoice_id, patient_id, payer_type, is_primary, created_at)
+       VALUES ($1, $2, 'miscellaneous_pending', true, CURRENT_TIMESTAMP)
+       ON CONFLICT (invoice_id, payer_type)
+       DO UPDATE SET is_primary = true, updated_at = CURRENT_TIMESTAMP`,
+      [id, patientId]
+    );
+
+    // Remove self_pay as primary if exists
+    await client.query(
+      `UPDATE invoice_payer_sources
+       SET is_primary = false
+       WHERE invoice_id = $1 AND payer_type = 'self_pay'`,
+      [id]
+    );
+
+    // Complete the encounter if provided
+    if (encounter_id) {
+      await client.query(
+        `UPDATE encounters
+         SET status = 'completed',
+             completed_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [encounter_id]
+      );
+
+      // Release the room
+      await client.query(
+        `UPDATE rooms
+         SET status = 'available',
+             current_patient_id = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE current_patient_id = $1`,
+        [patientId]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Payment deferred successfully',
+      success: true,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Defer payment error:', error);
+    res.status(500).json({ error: 'Failed to defer payment' });
+  } finally {
+    client.release();
+  }
+};

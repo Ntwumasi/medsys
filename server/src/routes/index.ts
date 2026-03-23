@@ -107,6 +107,8 @@ import {
   getInvoiceByEncounter,
   createOrGetInvoice,
   updateInvoice,
+  deferPayment,
+  getPendingPayments,
 } from '../controllers/invoiceController';
 import {
   getAllCharges,
@@ -389,11 +391,13 @@ router.get('/payer-sources/patient/:patient_id', authenticateToken, getPatientPa
 
 // Invoice routes
 router.get('/invoices', authenticateToken, getAllInvoices);
+router.get('/invoices/pending-payments', authenticateToken, getPendingPayments);
 router.get('/invoices/:id', authenticateToken, getInvoiceById);
 router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
+router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
 
 // Charge Master routes
 router.get('/charge-master', authenticateToken, getAllCharges);

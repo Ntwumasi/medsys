@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { format, isValid, parseISO } from 'date-fns';
+import { format, isValid, parseISO, startOfWeek, startOfMonth } from 'date-fns';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
+import { TableRowSkeleton } from '../components/Skeleton';
 
 // Safe date formatting helper
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = 'N/A'): string => {
@@ -75,6 +76,9 @@ const InvoicesPage: React.FC = () => {
   const [invoicesSearchTerm, setInvoicesSearchTerm] = useState('');
   const [invoicesStats, setInvoicesStats] = useState<InvoiceStats | null>(null);
 
+  // Time period filter - default to today
+  const [timePeriod, setTimePeriod] = useState<'today' | 'week' | 'month' | 'all'>('today');
+
   // Invoice modal state
   const [showInvoice, setShowInvoice] = useState(false);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
@@ -82,17 +86,45 @@ const InvoicesPage: React.FC = () => {
   const [invoicePayerSources, setInvoicePayerSources] = useState<InvoicePayerSource[]>([]);
   const [currentEncounterId, setCurrentEncounterId] = useState<number | null>(null);
 
+  // Calculate date range based on time period
+  const getDateRange = () => {
+    const today = new Date();
+    const endDate = format(today, 'yyyy-MM-dd');
+    let startDate: string;
+
+    switch (timePeriod) {
+      case 'today':
+        startDate = endDate;
+        break;
+      case 'week':
+        startDate = format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        break;
+      case 'month':
+        startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+        break;
+      case 'all':
+      default:
+        startDate = '2020-01-01';
+        break;
+    }
+
+    return { startDate, endDate };
+  };
+
   useEffect(() => {
     loadInvoices();
-  }, [invoicesStatusFilter]);
+  }, [invoicesStatusFilter, timePeriod]);
 
   const loadInvoices = async () => {
     setInvoicesLoading(true);
     try {
+      const { startDate, endDate } = getDateRange();
       const response = await apiClient.get('/invoices', {
         params: {
           status: invoicesStatusFilter,
           search: invoicesSearchTerm || undefined,
+          start_date: startDate,
+          end_date: endDate,
           limit: 100,
         },
       });
@@ -192,35 +224,60 @@ const InvoicesPage: React.FC = () => {
           </div>
         )}
 
-        {/* Filters */}
+        {/* Time Period Filters */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex-1 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="Search by invoice #, patient name, or patient #..."
-                value={invoicesSearchTerm}
-                onChange={(e) => setInvoicesSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleInvoiceSearch()}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            {/* Quick Period Filters */}
+            <div className="flex gap-2">
+              {[
+                { id: 'today', label: 'Today' },
+                { id: 'week', label: 'This Week' },
+                { id: 'month', label: 'This Month' },
+                { id: 'all', label: 'All Time' },
+              ].map((period) => (
+                <button
+                  key={period.id}
+                  onClick={() => setTimePeriod(period.id as 'today' | 'week' | 'month' | 'all')}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    timePeriod === period.id
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {period.label}
+                </button>
+              ))}
             </div>
-            <select
-              value={invoicesStatusFilter}
-              onChange={(e) => setInvoicesStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="partial">Partial</option>
-              <option value="paid">Paid</option>
-            </select>
-            <button
-              onClick={handleInvoiceSearch}
-              className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-            >
-              Search
-            </button>
+
+            {/* Search and Status Filter */}
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="min-w-[200px]">
+                <input
+                  type="text"
+                  placeholder="Search by invoice #, patient name, or patient #..."
+                  value={invoicesSearchTerm}
+                  onChange={(e) => setInvoicesSearchTerm(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleInvoiceSearch()}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+              <select
+                value={invoicesStatusFilter}
+                onChange={(e) => setInvoicesStatusFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+              </select>
+              <button
+                onClick={handleInvoiceSearch}
+                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+              >
+                Search
+              </button>
+            </div>
           </div>
         </div>
 
@@ -242,13 +299,11 @@ const InvoicesPage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {invoicesLoading ? (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                      </div>
-                    </td>
-                  </tr>
+                  <>
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <TableRowSkeleton key={i} columns={8} />
+                    ))}
+                  </>
                 ) : invoicesList.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
