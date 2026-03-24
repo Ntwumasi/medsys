@@ -8,37 +8,37 @@ const router = express.Router();
 // Mount QBWC SOAP endpoints (no auth - handled by QBWC protocol)
 router.use('/', qbwcRouter);
 
-// All admin routes require authentication and admin role
-const adminAuth = [authenticateToken, authorizeRoles('admin')];
+// QuickBooks routes - accessible by admin and accountant
+const qbAuth = [authenticateToken, authorizeRoles('admin', 'accountant')];
 
 // Status & Configuration
-router.get('/status', ...adminAuth, qbController.getStatus);
-router.put('/settings', ...adminAuth, qbController.updateSettings);
+router.get('/status', ...qbAuth, qbController.getStatus);
+router.put('/settings', ...qbAuth, qbController.updateSettings);
 
 // Password Management
-router.post('/password', ...adminAuth, qbController.setPassword);
-router.post('/password/reset', ...adminAuth, qbController.resetPassword);
+router.post('/password', ...qbAuth, qbController.setPassword);
+router.post('/password/reset', ...qbAuth, qbController.resetPassword);
 
 // QWC File Download
-router.get('/qwc-file', ...adminAuth, qbController.downloadQWCFile);
+router.get('/qwc-file', ...qbAuth, qbController.downloadQWCFile);
 
 // Queue Management
-router.post('/queue/customers', ...adminAuth, qbController.queueCustomers);
-router.post('/queue/invoices', ...adminAuth, qbController.queueInvoices);
-router.post('/queue/:type/:id', ...adminAuth, qbController.queueSingleEntity);
-router.get('/queue/status', ...adminAuth, qbController.getQueueStatus);
-router.get('/queue/items', ...adminAuth, qbController.getQueueItems);
-router.post('/queue/retry', ...adminAuth, qbController.retryFailedRequests);
-router.delete('/queue', ...adminAuth, qbController.clearQueue);
+router.post('/queue/customers', ...qbAuth, qbController.queueCustomers);
+router.post('/queue/invoices', ...qbAuth, qbController.queueInvoices);
+router.post('/queue/:type/:id', ...qbAuth, qbController.queueSingleEntity);
+router.get('/queue/status', ...qbAuth, qbController.getQueueStatus);
+router.get('/queue/items', ...qbAuth, qbController.getQueueItems);
+router.post('/queue/retry', ...qbAuth, qbController.retryFailedRequests);
+router.delete('/queue', ...qbAuth, qbController.clearQueue);
 
 // Sync Mappings
-router.get('/mappings', ...adminAuth, qbController.getMappings);
-router.delete('/mappings/:id', ...adminAuth, qbController.deleteMapping);
+router.get('/mappings', ...qbAuth, qbController.getMappings);
+router.delete('/mappings/:id', ...qbAuth, qbController.deleteMapping);
 
 // Sync Log
-router.get('/sync-log', ...adminAuth, qbController.getSyncLog);
+router.get('/sync-log', ...qbAuth, qbController.getSyncLog);
 
 // Disconnect
-router.post('/disconnect', ...adminAuth, qbController.disconnect);
+router.post('/disconnect', ...qbAuth, qbController.disconnect);
 
 export default router;
