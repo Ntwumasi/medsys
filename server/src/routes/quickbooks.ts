@@ -1,35 +1,44 @@
 import express from 'express';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import * as qbController from '../controllers/quickbooksController';
+import qbwcRouter from './qbwc';
 
 const router = express.Router();
 
-// All QuickBooks routes require authentication and admin role
-// except the callback which is called by Intuit
+// Mount QBWC SOAP endpoints (no auth - handled by QBWC protocol)
+router.use('/', qbwcRouter);
 
-// OAuth endpoints
-router.get('/auth-url', authenticateToken, authorizeRoles('admin'), qbController.getAuthUrl);
-router.get('/callback', qbController.handleCallback); // No auth - called by Intuit
-router.post('/disconnect', authenticateToken, authorizeRoles('admin'), qbController.disconnect);
-router.get('/status', authenticateToken, authorizeRoles('admin'), qbController.getStatus);
+// All admin routes require authentication and admin role
+const adminAuth = [authenticateToken, authorizeRoles('admin')];
 
-// Settings
-router.put('/settings', authenticateToken, authorizeRoles('admin'), qbController.updateSettings);
+// Status & Configuration
+router.get('/status', ...adminAuth, qbController.getStatus);
+router.put('/settings', ...adminAuth, qbController.updateSettings);
 
-// Sync endpoints
-router.post('/sync/customers', authenticateToken, authorizeRoles('admin'), qbController.syncCustomers);
-router.post('/sync/items', authenticateToken, authorizeRoles('admin'), qbController.syncItems);
-router.post('/sync/invoices', authenticateToken, authorizeRoles('admin'), qbController.syncInvoices);
-router.post('/sync/payments', authenticateToken, authorizeRoles('admin'), qbController.syncPayments);
-router.post('/sync/full', authenticateToken, authorizeRoles('admin'), qbController.fullSync);
-router.post('/sync/single/:type/:id', authenticateToken, authorizeRoles('admin'), qbController.syncSingleEntity);
+// Password Management
+router.post('/password', ...adminAuth, qbController.setPassword);
+router.post('/password/reset', ...adminAuth, qbController.resetPassword);
 
-// Pull endpoints
-router.post('/pull/payments', authenticateToken, authorizeRoles('admin'), qbController.pullPayments);
+// QWC File Download
+router.get('/qwc-file', ...adminAuth, qbController.downloadQWCFile);
 
-// Admin endpoints
-router.get('/sync-log', authenticateToken, authorizeRoles('admin'), qbController.getSyncLog);
-router.get('/mappings', authenticateToken, authorizeRoles('admin'), qbController.getMappings);
-router.delete('/mappings/:id', authenticateToken, authorizeRoles('admin'), qbController.deleteMapping);
+// Queue Management
+router.post('/queue/customers', ...adminAuth, qbController.queueCustomers);
+router.post('/queue/invoices', ...adminAuth, qbController.queueInvoices);
+router.post('/queue/:type/:id', ...adminAuth, qbController.queueSingleEntity);
+router.get('/queue/status', ...adminAuth, qbController.getQueueStatus);
+router.get('/queue/items', ...adminAuth, qbController.getQueueItems);
+router.post('/queue/retry', ...adminAuth, qbController.retryFailedRequests);
+router.delete('/queue', ...adminAuth, qbController.clearQueue);
+
+// Sync Mappings
+router.get('/mappings', ...adminAuth, qbController.getMappings);
+router.delete('/mappings/:id', ...adminAuth, qbController.deleteMapping);
+
+// Sync Log
+router.get('/sync-log', ...adminAuth, qbController.getSyncLog);
+
+// Disconnect
+router.post('/disconnect', ...adminAuth, qbController.disconnect);
 
 export default router;

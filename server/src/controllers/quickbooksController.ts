@@ -1,81 +1,97 @@
 import { Request, Response } from 'express';
-import * as qbService from '../services/quickbooksService';
+import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
+import crypto from 'crypto';
+import * as qbwcService from '../services/qbwcService';
 
-// ===== OAuth Endpoints =====
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
-export const getAuthUrl = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const authUrl = await qbService.getAuthUrl();
-    res.json({ authUrl });
-  } catch (error) {
-    console.error('Get auth URL error:', error);
-    res.status(500).json({ error: 'Failed to generate authorization URL' });
-  }
-};
-
-export const handleCallback = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { code, realmId, error } = req.query;
-
-    if (error) {
-      // User denied access or error occurred
-      res.redirect('/quickbooks?error=' + encodeURIComponent(String(error)));
-      return;
-    }
-
-    if (!code || !realmId) {
-      res.redirect('/quickbooks?error=missing_parameters');
-      return;
-    }
-
-    const result = await qbService.handleOAuthCallback(String(code), String(realmId));
-
-    if (result.success) {
-      res.redirect('/quickbooks?connected=true');
-    } else {
-      res.redirect('/quickbooks?error=' + encodeURIComponent(result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    console.error('OAuth callback error:', error);
-    res.redirect('/quickbooks?error=callback_failed');
-  }
-};
-
-export const disconnect = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const success = await qbService.disconnectQuickBooks();
-    if (success) {
-      res.json({ message: 'Disconnected from QuickBooks' });
-    } else {
-      res.status(500).json({ error: 'Failed to disconnect' });
-    }
-  } catch (error) {
-    console.error('Disconnect error:', error);
-    res.status(500).json({ error: 'Failed to disconnect from QuickBooks' });
-  }
-};
+// ===== Status & Configuration =====
 
 export const getStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const status = await qbService.getConnectionStatus();
-    res.json(status);
+    const config = await pool.query('SELECT * FROM quickbooks_config WHERE id = 1');
+
+    if (config.rows.length === 0) {
+      res.json({
+        connected: false,
+        configured: false,
+        integrationType: 'desktop',
+      });
+      return;
+    }
+
+    const qbConfig = config.rows[0];
+    const queueStatus = await qbwcService.getQueueStatus();
+
+    res.json({
+      connected: qbConfig.is_connected,
+      configured: !!qbConfig.qbwc_password_hash,
+      integrationType: qbConfig.integration_type || 'desktop',
+      username: qbConfig.qbwc_username,
+      companyFilePath: qbConfig.company_file_path,
+      pollIntervalMinutes: qbConfig.poll_interval_minutes,
+      lastPollAt: qbConfig.last_poll_at,
+      lastSyncAt: qbConfig.last_sync_at,
+      syncEnabled: qbConfig.sync_enabled,
+      autoSyncInvoices: qbConfig.auto_sync_invoices,
+      autoSyncPayments: qbConfig.auto_sync_payments,
+      ownerId: qbConfig.owner_id,
+      fileId: qbConfig.file_id,
+      queueStatus,
+    });
   } catch (error) {
     console.error('Get status error:', error);
     res.status(500).json({ error: 'Failed to get connection status' });
   }
 };
 
-// ===== Settings Endpoints =====
-
 export const updateSettings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { syncEnabled, autoSyncInvoices, autoSyncPayments } = req.body;
-
-    await qbService.updateSyncSettings({
+    const {
       syncEnabled,
       autoSyncInvoices,
       autoSyncPayments,
-    });
+      username,
+      companyFilePath,
+      pollIntervalMinutes,
+    } = req.body;
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+
+    if (syncEnabled !== undefined) {
+      updates.push(`sync_enabled = $${paramIndex++}`);
+      values.push(syncEnabled);
+    }
+    if (autoSyncInvoices !== undefined) {
+      updates.push(`auto_sync_invoices = $${paramIndex++}`);
+      values.push(autoSyncInvoices);
+    }
+    if (autoSyncPayments !== undefined) {
+      updates.push(`auto_sync_payments = $${paramIndex++}`);
+      values.push(autoSyncPayments);
+    }
+    if (username) {
+      updates.push(`qbwc_username = $${paramIndex++}`);
+      values.push(username);
+    }
+    if (companyFilePath !== undefined) {
+      updates.push(`company_file_path = $${paramIndex++}`);
+      values.push(companyFilePath);
+    }
+    if (pollIntervalMinutes) {
+      updates.push(`poll_interval_minutes = $${paramIndex++}`);
+      values.push(pollIntervalMinutes);
+    }
+
+    if (updates.length > 0) {
+      updates.push('updated_at = CURRENT_TIMESTAMP');
+      await pool.query(`UPDATE quickbooks_config SET ${updates.join(', ')} WHERE id = 1`, values);
+    }
 
     res.json({ message: 'Settings updated' });
   } catch (error) {
@@ -84,83 +100,124 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ===== Sync Endpoints =====
+// ===== Password Management =====
 
-export const syncCustomers = async (req: Request, res: Response): Promise<void> => {
+export const setPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await qbService.syncAllCustomers();
-    res.json({
-      message: 'Customer sync completed',
-      ...result,
-    });
-  } catch (error) {
-    console.error('Sync customers error:', error);
-    res.status(500).json({ error: 'Failed to sync customers' });
-  }
-};
+    const { password } = req.body;
 
-export const syncItems = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const result = await qbService.syncAllItems();
-    res.json({
-      message: 'Items sync completed',
-      ...result,
-    });
-  } catch (error) {
-    console.error('Sync items error:', error);
-    res.status(500).json({ error: 'Failed to sync items' });
-  }
-};
-
-export const syncInvoices = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const result = await qbService.syncUnsyncedInvoices();
-    res.json({
-      message: 'Invoice sync completed',
-      ...result,
-    });
-  } catch (error) {
-    console.error('Sync invoices error:', error);
-    res.status(500).json({ error: 'Failed to sync invoices' });
-  }
-};
-
-export const syncPayments = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const result = await qbService.syncUnsyncedPayments();
-    res.json({
-      message: 'Payment sync completed',
-      ...result,
-    });
-  } catch (error) {
-    console.error('Sync payments error:', error);
-    res.status(500).json({ error: 'Failed to sync payments' });
-  }
-};
-
-export const fullSync = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const userId = (req as any).user?.id;
-    const result = await qbService.fullSync(userId);
-
-    if (result.success) {
-      res.json({
-        message: 'Full sync completed',
-        results: result.results,
-      });
-    } else {
-      res.status(500).json({
-        error: 'Sync failed',
-        details: result.results,
-      });
+    if (!password || password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return;
     }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await pool.query(`
+      UPDATE quickbooks_config SET
+        qbwc_password_hash = $1,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `, [passwordHash]);
+
+    res.json({ message: 'Password updated successfully' });
   } catch (error) {
-    console.error('Full sync error:', error);
-    res.status(500).json({ error: 'Failed to perform full sync' });
+    console.error('Set password error:', error);
+    res.status(500).json({ error: 'Failed to set password' });
   }
 };
 
-export const syncSingleEntity = async (req: Request, res: Response): Promise<void> => {
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const newPassword = crypto.randomBytes(8).toString('hex');
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    await pool.query(`
+      UPDATE quickbooks_config SET
+        qbwc_password_hash = $1,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `, [passwordHash]);
+
+    res.json({
+      message: 'Password reset successfully',
+      newPassword, // Show once, user must save it
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+};
+
+// ===== QWC File Generation =====
+
+export const downloadQWCFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const config = await pool.query('SELECT * FROM quickbooks_config WHERE id = 1');
+
+    if (config.rows.length === 0) {
+      res.status(400).json({ error: 'QuickBooks not configured' });
+      return;
+    }
+
+    const qbConfig = config.rows[0];
+    const baseUrl = process.env.APP_URL || 'https://medsys-five.vercel.app';
+
+    const qwcContent = `<?xml version="1.0"?>
+<QBWCXML>
+  <AppName>MedSys EMR</AppName>
+  <AppID></AppID>
+  <AppURL>${baseUrl}/api/quickbooks/soap</AppURL>
+  <AppDescription>MedSys EMR - QuickBooks Integration for medical billing sync</AppDescription>
+  <AppSupport>${baseUrl}/support</AppSupport>
+  <UserName>${qbConfig.qbwc_username || 'medsys'}</UserName>
+  <OwnerID>{${qbConfig.owner_id || crypto.randomUUID()}}</OwnerID>
+  <FileID>{${qbConfig.file_id || crypto.randomUUID()}}</FileID>
+  <QBType>QBFS</QBType>
+  <Scheduler>
+    <RunEveryNMinutes>${qbConfig.poll_interval_minutes || 5}</RunEveryNMinutes>
+  </Scheduler>
+  <IsReadOnly>false</IsReadOnly>
+</QBWCXML>`;
+
+    res.setHeader('Content-Type', 'application/x-qwc');
+    res.setHeader('Content-Disposition', 'attachment; filename="medsys.qwc"');
+    res.send(qwcContent);
+  } catch (error) {
+    console.error('Download QWC error:', error);
+    res.status(500).json({ error: 'Failed to generate QWC file' });
+  }
+};
+
+// ===== Queue Management =====
+
+export const queueCustomers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const count = await qbwcService.queueAllCustomers();
+    res.json({
+      message: 'Customers queued for sync',
+      queued: count,
+    });
+  } catch (error) {
+    console.error('Queue customers error:', error);
+    res.status(500).json({ error: 'Failed to queue customers' });
+  }
+};
+
+export const queueInvoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const count = await qbwcService.queueAllInvoices();
+    res.json({
+      message: 'Invoices queued for sync',
+      queued: count,
+    });
+  } catch (error) {
+    console.error('Queue invoices error:', error);
+    res.status(500).json({ error: 'Failed to queue invoices' });
+  }
+};
+
+export const queueSingleEntity = async (req: Request, res: Response): Promise<void> => {
   try {
     const { type, id } = req.params;
     const entityId = parseInt(id);
@@ -170,77 +227,94 @@ export const syncSingleEntity = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    let result;
     switch (type) {
       case 'customer':
       case 'patient':
-        result = await qbService.syncCustomer(entityId);
-        break;
-      case 'item':
-      case 'service':
-        result = await qbService.syncItem(entityId);
+        await qbwcService.queueCustomerSync(entityId);
         break;
       case 'invoice':
-        result = await qbService.syncInvoice(entityId);
-        break;
-      case 'payment':
-        result = await qbService.syncPayment(entityId);
+        await qbwcService.queueInvoiceSync(entityId);
         break;
       default:
-        res.status(400).json({ error: 'Invalid entity type' });
+        res.status(400).json({ error: 'Invalid entity type. Use: customer, patient, or invoice' });
         return;
     }
 
-    if (result.success) {
-      res.json({
-        message: `${type} synced successfully`,
-        quickbooksId: result.qbId,
-      });
-    } else {
-      res.status(500).json({
-        error: `Failed to sync ${type}`,
-        details: result.error,
-      });
-    }
+    res.json({ message: `${type} queued for sync` });
   } catch (error) {
-    console.error('Sync single entity error:', error);
-    res.status(500).json({ error: 'Failed to sync entity' });
+    console.error('Queue single entity error:', error);
+    res.status(500).json({ error: 'Failed to queue entity' });
   }
 };
 
-// ===== Pull Endpoints =====
-
-export const pullPayments = async (req: Request, res: Response): Promise<void> => {
+export const getQueueStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await qbService.pullPaymentUpdates();
+    const status = await qbwcService.getQueueStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Get queue status error:', error);
+    res.status(500).json({ error: 'Failed to get queue status' });
+  }
+};
+
+export const getQueueItems = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const status = req.query.status as string | undefined;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const items = await qbwcService.getQueueItems(status, limit);
+    res.json(items);
+  } catch (error) {
+    console.error('Get queue items error:', error);
+    res.status(500).json({ error: 'Failed to get queue items' });
+  }
+};
+
+export const retryFailedRequests = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const count = await qbwcService.retryFailedRequests();
     res.json({
-      message: 'Payment pull completed',
-      ...result,
+      message: 'Failed requests queued for retry',
+      count,
     });
   } catch (error) {
-    console.error('Pull payments error:', error);
-    res.status(500).json({ error: 'Failed to pull payments' });
+    console.error('Retry failed requests error:', error);
+    res.status(500).json({ error: 'Failed to retry requests' });
   }
 };
 
-// ===== Admin Endpoints =====
-
-export const getSyncLog = async (req: Request, res: Response): Promise<void> => {
+export const clearQueue = async (req: Request, res: Response): Promise<void> => {
   try {
-    const limit = parseInt(req.query.limit as string) || 50;
-    const logs = await qbService.getSyncLog(limit);
-    res.json(logs);
+    const status = req.query.status as string | undefined;
+    const count = await qbwcService.clearQueue(status);
+    res.json({
+      message: status ? `Cleared ${status} requests` : 'Queue cleared',
+      count,
+    });
   } catch (error) {
-    console.error('Get sync log error:', error);
-    res.status(500).json({ error: 'Failed to get sync log' });
+    console.error('Clear queue error:', error);
+    res.status(500).json({ error: 'Failed to clear queue' });
   }
 };
+
+// ===== Sync Mappings =====
 
 export const getMappings = async (req: Request, res: Response): Promise<void> => {
   try {
     const entityType = req.query.entityType as string | undefined;
-    const mappings = await qbService.getMappings(entityType);
-    res.json(mappings);
+
+    let query = 'SELECT * FROM quickbooks_sync_map';
+    const params: any[] = [];
+
+    if (entityType) {
+      query += ' WHERE entity_type = $1';
+      params.push(entityType);
+    }
+
+    query += ' ORDER BY last_synced_at DESC LIMIT 200';
+
+    const result = await pool.query(query, params);
+    res.json(result.rows);
   } catch (error) {
     console.error('Get mappings error:', error);
     res.status(500).json({ error: 'Failed to get mappings' });
@@ -255,10 +329,58 @@ export const deleteMapping = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    await qbService.deleteMapping(id);
+    await pool.query('DELETE FROM quickbooks_sync_map WHERE id = $1', [id]);
     res.json({ message: 'Mapping deleted' });
   } catch (error) {
     console.error('Delete mapping error:', error);
     res.status(500).json({ error: 'Failed to delete mapping' });
+  }
+};
+
+// ===== Sync Log =====
+
+export const getSyncLog = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const result = await pool.query(`
+      SELECT qsl.*, u.first_name || ' ' || u.last_name as created_by_name
+      FROM quickbooks_sync_log qsl
+      LEFT JOIN users u ON qsl.created_by = u.id
+      ORDER BY qsl.created_at DESC
+      LIMIT $1
+    `, [limit]);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get sync log error:', error);
+    res.status(500).json({ error: 'Failed to get sync log' });
+  }
+};
+
+// ===== Disconnect =====
+
+export const disconnect = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Clear all sessions
+    await pool.query('DELETE FROM quickbooks_sessions');
+
+    // Clear queue
+    await pool.query('DELETE FROM quickbooks_request_queue');
+
+    // Reset config (keep credentials)
+    await pool.query(`
+      UPDATE quickbooks_config SET
+        is_connected = false,
+        last_poll_at = NULL,
+        last_sync_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = 1
+    `);
+
+    res.json({ message: 'Disconnected from QuickBooks' });
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    res.status(500).json({ error: 'Failed to disconnect' });
   }
 };
