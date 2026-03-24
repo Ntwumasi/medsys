@@ -32,19 +32,22 @@ export async function authenticate(
     // Get config
     const config = await pool.query('SELECT * FROM quickbooks_config WHERE id = 1');
     if (config.rows.length === 0) {
+      console.log('[QBWC] No config found');
       return ['', 'nvu']; // Not valid user
     }
 
     const qbConfig = config.rows[0];
+    console.log(`[QBWC] Config found - username in DB: "${qbConfig.qbwc_username}", hash exists: ${!!qbConfig.qbwc_password_hash}`);
 
     // Verify username
     if (strUserName !== qbConfig.qbwc_username) {
-      console.log(`[QBWC] Invalid username: ${strUserName}`);
+      console.log(`[QBWC] Username mismatch: received "${strUserName}", expected "${qbConfig.qbwc_username}"`);
       return ['', 'nvu'];
     }
 
     // Verify password
-    const validPassword = await bcrypt.compare(strPassword, qbConfig.qbwc_password_hash);
+    console.log(`[QBWC] Comparing password (length ${strPassword.length}) with hash`);
+    const validPassword = await bcrypt.compare(strPassword, qbConfig.qbwc_password_hash || '');
     if (!validPassword) {
       console.log(`[QBWC] Invalid password for user: ${strUserName}`);
       return ['', 'nvu'];

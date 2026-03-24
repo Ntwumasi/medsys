@@ -342,7 +342,9 @@ router.post('/soap', express.text({ type: '*/*' }), async (req: Request, res: Re
     else if (soapAction.includes('authenticate')) {
       const strUserName = extractSoapValue(body, 'strUserName');
       const strPassword = extractSoapValue(body, 'strPassword');
+      console.log(`[QBWC SOAP] Auth attempt - username: "${strUserName}", password length: ${strPassword.length}`);
       const [ticket, companyFile] = await qbwcService.authenticate(strUserName, strPassword);
+      console.log(`[QBWC SOAP] Auth result - ticket: ${ticket ? ticket.substring(0, 8) + '...' : 'NONE'}, companyFile: "${companyFile}"`);
       responseXML = buildSoapResponse('authenticate', 'authenticateResult', [ticket, companyFile]);
     }
     else if (soapAction.includes('sendRequestXML')) {
