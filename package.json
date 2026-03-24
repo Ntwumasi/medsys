@@ -10,5 +10,8 @@
     "install-all": "npm install --workspaces",
     "build": "npm run build --workspace=server && npm run build --workspace=client",
     "vercel-build": "npm install --workspaces && npm run build --workspace=server && npm run build --workspace=client"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }
