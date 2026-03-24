@@ -285,11 +285,13 @@ function buildSoapResponse(methodName: string, resultName: string, result: strin
   let resultXML: string;
 
   if (Array.isArray(result)) {
-    resultXML = `<${resultName}>${result.map(s => `<string>${escapeXML(s)}</string>`).join('')}</${resultName}>`;
+    // ArrayOfString needs proper namespace on string elements
+    const stringElements = result.map(s => `<tns:string>${escapeXML(s)}</tns:string>`).join('');
+    resultXML = `<tns:${resultName}>${stringElements}</tns:${resultName}>`;
   } else if (typeof result === 'number') {
-    resultXML = `<${resultName}>${result}</${resultName}>`;
+    resultXML = `<tns:${resultName}>${result}</tns:${resultName}>`;
   } else {
-    resultXML = `<${resultName}>${escapeXML(result)}</${resultName}>`;
+    resultXML = `<tns:${resultName}>${escapeXML(result)}</tns:${resultName}>`;
   }
 
   return `<?xml version="1.0" encoding="utf-8"?>
