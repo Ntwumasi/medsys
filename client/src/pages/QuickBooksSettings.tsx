@@ -63,6 +63,7 @@ const QuickBooksSettings: React.FC = () => {
   const [syncing, setSyncing] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
 
   useEffect(() => {
     loadStatus();
@@ -227,6 +228,20 @@ const QuickBooksSettings: React.FC = () => {
     }
   };
 
+  const handleImport = async (type: 'customers' | 'items' | 'invoices' | 'all') => {
+    setImporting(type);
+    try {
+      const endpoint = type === 'all' ? '/quickbooks/import/all' : `/quickbooks/import/${type}`;
+      const response = await apiClient.post(endpoint);
+      showToast(response.data.message, 'success');
+      loadStatus();
+    } catch (error) {
+      showToast(`Failed to queue ${type} import`, 'error');
+    } finally {
+      setImporting(null);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout title="QuickBooks Integration">
@@ -303,30 +318,71 @@ const QuickBooksSettings: React.FC = () => {
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => handleQueueSync('customers')}
-              disabled={syncing !== null}
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium disabled:opacity-50"
-            >
-              {syncing === 'customers' ? 'Queuing...' : 'Queue Customers'}
-            </button>
-            <button
-              onClick={() => handleQueueSync('invoices')}
-              disabled={syncing !== null}
-              className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium disabled:opacity-50"
-            >
-              {syncing === 'invoices' ? 'Queuing...' : 'Queue Invoices'}
-            </button>
-            {status?.queueStatus && status.queueStatus.error > 0 && (
+          {/* Quick Actions - Push to QuickBooks */}
+          <div className="mb-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Push to QuickBooks (MedSys → QB)</h3>
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={handleRetryFailed}
-                className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                onClick={() => handleQueueSync('customers')}
+                disabled={syncing !== null}
+                className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium disabled:opacity-50"
               >
-                Retry Failed
+                {syncing === 'customers' ? 'Queuing...' : 'Queue Customers'}
               </button>
-            )}
+              <button
+                onClick={() => handleQueueSync('invoices')}
+                disabled={syncing !== null}
+                className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-medium disabled:opacity-50"
+              >
+                {syncing === 'invoices' ? 'Queuing...' : 'Queue Invoices'}
+              </button>
+              {status?.queueStatus && status.queueStatus.error > 0 && (
+                <button
+                  onClick={handleRetryFailed}
+                  className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                >
+                  Retry Failed
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Import from QuickBooks */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Import from QuickBooks (QB → MedSys)</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Pull existing data from QuickBooks into MedSys. QuickBooks Desktop must be running.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => handleImport('customers')}
+                disabled={importing !== null}
+                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+              >
+                {importing === 'customers' ? 'Queuing...' : 'Import Customers → Patients'}
+              </button>
+              <button
+                onClick={() => handleImport('items')}
+                disabled={importing !== null}
+                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+              >
+                {importing === 'items' ? 'Queuing...' : 'Import Items → Charge Master'}
+              </button>
+              <button
+                onClick={() => handleImport('invoices')}
+                disabled={importing !== null}
+                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+              >
+                {importing === 'invoices' ? 'Queuing...' : 'Import Invoices'}
+              </button>
+              <button
+                onClick={() => handleImport('all')}
+                disabled={importing !== null}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50"
+              >
+                {importing === 'all' ? 'Queuing...' : 'Import All Data'}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -38,6 +38,12 @@ router.delete('/mappings/:id', ...qbAuth, qbController.deleteMapping);
 // Sync Log
 router.get('/sync-log', ...qbAuth, qbController.getSyncLog);
 
+// Import from QuickBooks
+router.post('/import/customers', ...qbAuth, qbController.importCustomers);
+router.post('/import/items', ...qbAuth, qbController.importServiceItems);
+router.post('/import/invoices', ...qbAuth, qbController.importInvoices);
+router.post('/import/all', ...qbAuth, qbController.importAll);
+
 // Disconnect
 router.post('/disconnect', ...qbAuth, qbController.disconnect);
 

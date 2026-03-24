@@ -385,3 +385,215 @@ export function isSuccessResponse(statusCode: string): boolean {
   // 0 = Success, 500 = Object not found (warning), 1 = User cancelled
   return statusCode === '0' || statusCode === '500';
 }
+
+// ===== IMPORT QUERIES (Pull from QuickBooks) =====
+
+// Query ALL customers from QuickBooks
+export function buildCustomerQueryAllRq(requestId?: string): string {
+  const requestXML = `
+    <CustomerQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+      <ActiveStatus>ActiveOnly</ActiveStatus>
+      <MaxReturned>500</MaxReturned>
+    </CustomerQueryRq>`;
+
+  return wrapInQBXML(requestXML);
+}
+
+// Query ALL service items from QuickBooks
+export function buildItemServiceQueryAllRq(requestId?: string): string {
+  const requestXML = `
+    <ItemServiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+      <ActiveStatus>ActiveOnly</ActiveStatus>
+      <MaxReturned>500</MaxReturned>
+    </ItemServiceQueryRq>`;
+
+  return wrapInQBXML(requestXML);
+}
+
+// Query ALL invoices from QuickBooks (with date range option)
+export function buildInvoiceQueryAllRq(fromDate?: string, toDate?: string, requestId?: string): string {
+  let dateFilter = '';
+  if (fromDate || toDate) {
+    dateFilter = `
+      <ModifiedDateRangeFilter>
+        ${fromDate ? `<FromModifiedDate>${fromDate}</FromModifiedDate>` : ''}
+        ${toDate ? `<ToModifiedDate>${toDate}</ToModifiedDate>` : ''}
+      </ModifiedDateRangeFilter>`;
+  }
+
+  const requestXML = `
+    <InvoiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+      ${dateFilter}
+      <MaxReturned>500</MaxReturned>
+      <IncludeLineItems>true</IncludeLineItems>
+    </InvoiceQueryRq>`;
+
+  return wrapInQBXML(requestXML);
+}
+
+// ===== IMPORT Response Parsers (Multiple Results) =====
+
+export interface QBCustomer {
+  listId: string;
+  editSequence: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  isActive: boolean;
+}
+
+export interface QBServiceItem {
+  listId: string;
+  editSequence: string;
+  name: string;
+  description?: string;
+  price?: number;
+  isActive: boolean;
+}
+
+export interface QBInvoiceLineItem {
+  itemListId?: string;
+  itemName?: string;
+  description?: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
+export interface QBInvoice {
+  txnId: string;
+  editSequence: string;
+  refNumber: string;
+  customerListId: string;
+  customerName?: string;
+  txnDate: string;
+  dueDate?: string;
+  subtotal: number;
+  totalAmount: number;
+  isPaid: boolean;
+  lineItems: QBInvoiceLineItem[];
+}
+
+// Parse multiple customers from CustomerQueryRs
+export function parseCustomersFromResponse(xml: string): QBCustomer[] {
+  const customers: QBCustomer[] = [];
+
+  // Split by CustomerRet tags
+  const customerMatches = xml.match(/<CustomerRet>[\s\S]*?<\/CustomerRet>/g) || [];
+
+  for (const customerXml of customerMatches) {
+    const listId = extractTag(customerXml, 'ListID');
+    const editSequence = extractTag(customerXml, 'EditSequence');
+    const name = extractTag(customerXml, 'Name') || extractTag(customerXml, 'FullName');
+
+    if (listId && name) {
+      customers.push({
+        listId,
+        editSequence: editSequence || '',
+        name,
+        firstName: extractTag(customerXml, 'FirstName') || undefined,
+        lastName: extractTag(customerXml, 'LastName') || undefined,
+        phone: extractTag(customerXml, 'Phone') || undefined,
+        email: extractTag(customerXml, 'Email') || undefined,
+        address: extractTag(customerXml, 'Addr1') || undefined,
+        city: extractTag(customerXml, 'City') || undefined,
+        state: extractTag(customerXml, 'State') || undefined,
+        isActive: extractTag(customerXml, 'IsActive') !== 'false',
+      });
+    }
+  }
+
+  return customers;
+}
+
+// Parse multiple service items from ItemServiceQueryRs
+export function parseServiceItemsFromResponse(xml: string): QBServiceItem[] {
+  const items: QBServiceItem[] = [];
+
+  // Split by ItemServiceRet tags
+  const itemMatches = xml.match(/<ItemServiceRet>[\s\S]*?<\/ItemServiceRet>/g) || [];
+
+  for (const itemXml of itemMatches) {
+    const listId = extractTag(itemXml, 'ListID');
+    const name = extractTag(itemXml, 'Name') || extractTag(itemXml, 'FullName');
+
+    if (listId && name) {
+      const priceStr = extractTag(itemXml, 'Price') || extractTag(itemXml, 'SalesOrPurchase/Price');
+      items.push({
+        listId,
+        editSequence: extractTag(itemXml, 'EditSequence') || '',
+        name,
+        description: extractTag(itemXml, 'Desc') || extractTag(itemXml, 'SalesOrPurchase/Desc') || undefined,
+        price: priceStr ? parseFloat(priceStr) : undefined,
+        isActive: extractTag(itemXml, 'IsActive') !== 'false',
+      });
+    }
+  }
+
+  return items;
+}
+
+// Parse multiple invoices from InvoiceQueryRs
+export function parseInvoicesFromResponse(xml: string): QBInvoice[] {
+  const invoices: QBInvoice[] = [];
+
+  // Split by InvoiceRet tags
+  const invoiceMatches = xml.match(/<InvoiceRet>[\s\S]*?<\/InvoiceRet>/g) || [];
+
+  for (const invoiceXml of invoiceMatches) {
+    const txnId = extractTag(invoiceXml, 'TxnID');
+    const refNumber = extractTag(invoiceXml, 'RefNumber');
+
+    if (txnId) {
+      // Parse line items
+      const lineItems: QBInvoiceLineItem[] = [];
+      const lineMatches = invoiceXml.match(/<InvoiceLineRet>[\s\S]*?<\/InvoiceLineRet>/g) || [];
+
+      for (const lineXml of lineMatches) {
+        lineItems.push({
+          itemListId: extractTag(lineXml, 'ItemRef/ListID') || extractNestedTag(lineXml, 'ItemRef', 'ListID') || undefined,
+          itemName: extractTag(lineXml, 'ItemRef/FullName') || extractNestedTag(lineXml, 'ItemRef', 'FullName') || undefined,
+          description: extractTag(lineXml, 'Desc') || '',
+          quantity: parseFloat(extractTag(lineXml, 'Quantity') || '1'),
+          rate: parseFloat(extractTag(lineXml, 'Rate') || '0'),
+          amount: parseFloat(extractTag(lineXml, 'Amount') || '0'),
+        });
+      }
+
+      const subtotal = parseFloat(extractTag(invoiceXml, 'Subtotal') || '0');
+      const totalAmount = parseFloat(extractTag(invoiceXml, 'BalanceRemaining') || extractTag(invoiceXml, 'AppliedAmount') || '0');
+      const isPaid = extractTag(invoiceXml, 'IsPaid') === 'true';
+
+      invoices.push({
+        txnId,
+        editSequence: extractTag(invoiceXml, 'EditSequence') || '',
+        refNumber: refNumber || '',
+        customerListId: extractTag(invoiceXml, 'CustomerRef/ListID') || extractNestedTag(invoiceXml, 'CustomerRef', 'ListID') || '',
+        customerName: extractTag(invoiceXml, 'CustomerRef/FullName') || extractNestedTag(invoiceXml, 'CustomerRef', 'FullName') || undefined,
+        txnDate: extractTag(invoiceXml, 'TxnDate') || '',
+        dueDate: extractTag(invoiceXml, 'DueDate') || undefined,
+        subtotal,
+        totalAmount: parseFloat(extractTag(invoiceXml, 'Subtotal') || '0'),
+        isPaid,
+        lineItems,
+      });
+    }
+  }
+
+  return invoices;
+}
+
+// Helper to extract nested tags like <CustomerRef><ListID>xxx</ListID></CustomerRef>
+function extractNestedTag(xml: string, parentTag: string, childTag: string): string | null {
+  const parentRegex = new RegExp(`<${parentTag}>[\\s\\S]*?</${parentTag}>`, 'i');
+  const parentMatch = xml.match(parentRegex);
+  if (parentMatch) {
+    return extractTag(parentMatch[0], childTag);
+  }
+  return null;
+}

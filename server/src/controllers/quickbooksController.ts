@@ -358,6 +358,56 @@ export const getSyncLog = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+// ===== Import from QuickBooks =====
+
+export const importCustomers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await qbwcService.queueImportCustomers();
+    res.json({ message: 'Import customers query queued. Web Connector will fetch data on next sync.' });
+  } catch (error) {
+    console.error('Import customers error:', error);
+    res.status(500).json({ error: 'Failed to queue customer import' });
+  }
+};
+
+export const importServiceItems = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await qbwcService.queueImportServiceItems();
+    res.json({ message: 'Import service items query queued. Web Connector will fetch data on next sync.' });
+  } catch (error) {
+    console.error('Import service items error:', error);
+    res.status(500).json({ error: 'Failed to queue service items import' });
+  }
+};
+
+export const importInvoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fromDate, toDate } = req.body;
+    await qbwcService.queueImportInvoices(fromDate, toDate);
+    res.json({ message: 'Import invoices query queued. Web Connector will fetch data on next sync.' });
+  } catch (error) {
+    console.error('Import invoices error:', error);
+    res.status(500).json({ error: 'Failed to queue invoices import' });
+  }
+};
+
+export const importAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Queue all three imports - customers first (highest priority), then items, then invoices
+    await qbwcService.queueImportCustomers();
+    await qbwcService.queueImportServiceItems();
+    await qbwcService.queueImportInvoices();
+
+    res.json({
+      message: 'All import queries queued. Web Connector will import in order: Customers → Service Items → Invoices',
+      queued: ['customers', 'service_items', 'invoices']
+    });
+  } catch (error) {
+    console.error('Import all error:', error);
+    res.status(500).json({ error: 'Failed to queue imports' });
+  }
+};
+
 // ===== Disconnect =====
 
 export const disconnect = async (req: Request, res: Response): Promise<void> => {

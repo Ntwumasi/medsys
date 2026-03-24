@@ -172,7 +172,16 @@ export async function receiveResponseXML(
     let errorMessage: string | null = null;
     let status = 'completed';
 
-    if (request.entity_type === 'patient' || request.entity_type === 'customer') {
+    // Handle import queries
+    if (request.entity_type.startsWith('import_')) {
+      const importResult = await processImportResponse(request.entity_type, response);
+      console.log(`[QBWC] Import result for ${request.entity_type}:`, importResult);
+
+      if (importResult.errors.length > 0) {
+        status = 'completed'; // Still mark as completed, errors are logged separately
+        errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}, Errors: ${importResult.errors.length}`;
+      }
+    } else if (request.entity_type === 'patient' || request.entity_type === 'customer') {
       const parsed = qbxmlBuilder.parseCustomerResponse(response);
       if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
         status = 'error';
@@ -583,4 +592,243 @@ export async function queueAllInvoices(): Promise<number> {
   }
 
   return queued;
+}
+
+// ===== IMPORT Functions (Pull from QuickBooks) =====
+
+export async function queueImportCustomers(): Promise<void> {
+  const qbxml = qbxmlBuilder.buildCustomerQueryAllRq('import-customers');
+
+  await pool.query(`
+    INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority)
+    VALUES ('import_customers', 0, 'query', $1, 20)
+  `, [qbxml]);
+
+  console.log('[QBWC] Queued import customers query');
+}
+
+export async function queueImportServiceItems(): Promise<void> {
+  const qbxml = qbxmlBuilder.buildItemServiceQueryAllRq('import-items');
+
+  await pool.query(`
+    INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority)
+    VALUES ('import_items', 0, 'query', $1, 19)
+  `, [qbxml]);
+
+  console.log('[QBWC] Queued import service items query');
+}
+
+export async function queueImportInvoices(fromDate?: string, toDate?: string): Promise<void> {
+  const qbxml = qbxmlBuilder.buildInvoiceQueryAllRq(fromDate, toDate, 'import-invoices');
+
+  await pool.query(`
+    INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority)
+    VALUES ('import_invoices', 0, 'query', $1, 18)
+  `, [qbxml]);
+
+  console.log('[QBWC] Queued import invoices query');
+}
+
+// Process import responses
+export async function processImportResponse(entityType: string, responseXml: string): Promise<{
+  imported: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const result = { imported: 0, skipped: 0, errors: [] as string[] };
+
+  try {
+    if (entityType === 'import_customers') {
+      const customers = qbxmlBuilder.parseCustomersFromResponse(responseXml);
+
+      for (const customer of customers) {
+        try {
+          // Check if customer already imported (by QB ListID)
+          const existing = await pool.query(
+            `SELECT id FROM quickbooks_sync_map WHERE entity_type = 'patient' AND quickbooks_id = $1`,
+            [customer.listId]
+          );
+
+          if (existing.rows.length > 0) {
+            result.skipped++;
+            continue;
+          }
+
+          // Parse name to get first/last name
+          let firstName = customer.firstName || '';
+          let lastName = customer.lastName || '';
+
+          if (!firstName && !lastName && customer.name) {
+            const nameParts = customer.name.split(' ');
+            firstName = nameParts[0] || 'Unknown';
+            lastName = nameParts.slice(1).join(' ') || 'Customer';
+          }
+
+          // Create user first
+          const userResult = await pool.query(`
+            INSERT INTO users (email, password_hash, first_name, last_name, phone, role, is_active)
+            VALUES ($1, $2, $3, $4, $5, 'patient', true)
+            RETURNING id
+          `, [
+            customer.email || `qb-${customer.listId}@imported.local`,
+            '$2b$10$placeholder', // Placeholder hash - user can't login
+            firstName,
+            lastName,
+            customer.phone || null
+          ]);
+
+          const userId = userResult.rows[0].id;
+
+          // Generate patient number
+          const patientCountResult = await pool.query('SELECT COUNT(*) FROM patients');
+          const patientNumber = `P${String(parseInt(patientCountResult.rows[0].count) + 1).padStart(5, '0')}`;
+
+          // Create patient
+          const patientResult = await pool.query(`
+            INSERT INTO patients (user_id, patient_number, address, city, state, date_of_birth)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+          `, [
+            userId,
+            patientNumber,
+            customer.address || null,
+            customer.city || null,
+            customer.state || null,
+            '1900-01-01' // Placeholder DOB - QB doesn't have this
+          ]);
+
+          // Create sync mapping
+          await pool.query(`
+            INSERT INTO quickbooks_sync_map (entity_type, medsys_id, quickbooks_id, quickbooks_sync_token, last_synced_at, sync_status)
+            VALUES ('patient', $1, $2, $3, CURRENT_TIMESTAMP, 'imported')
+          `, [patientResult.rows[0].id, customer.listId, customer.editSequence]);
+
+          result.imported++;
+        } catch (err: any) {
+          result.errors.push(`Customer ${customer.name}: ${err.message}`);
+        }
+      }
+    } else if (entityType === 'import_items') {
+      const items = qbxmlBuilder.parseServiceItemsFromResponse(responseXml);
+
+      for (const item of items) {
+        try {
+          // Check if already imported
+          const existing = await pool.query(
+            `SELECT id FROM quickbooks_sync_map WHERE entity_type = 'service' AND quickbooks_id = $1`,
+            [item.listId]
+          );
+
+          if (existing.rows.length > 0) {
+            result.skipped++;
+            continue;
+          }
+
+          // Generate service code
+          const codeBase = item.name.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const serviceCode = `QB-${codeBase}`;
+
+          // Create charge master entry
+          const chargeResult = await pool.query(`
+            INSERT INTO charge_master (service_code, service_name, category, price, is_active)
+            VALUES ($1, $2, 'service', $3, true)
+            ON CONFLICT (service_code) DO UPDATE SET
+              service_name = EXCLUDED.service_name,
+              price = EXCLUDED.price
+            RETURNING id
+          `, [serviceCode, item.name, item.price || 0]);
+
+          // Create sync mapping
+          await pool.query(`
+            INSERT INTO quickbooks_sync_map (entity_type, medsys_id, quickbooks_id, quickbooks_sync_token, last_synced_at, sync_status)
+            VALUES ('service', $1, $2, $3, CURRENT_TIMESTAMP, 'imported')
+          `, [chargeResult.rows[0].id, item.listId, item.editSequence]);
+
+          result.imported++;
+        } catch (err: any) {
+          result.errors.push(`Item ${item.name}: ${err.message}`);
+        }
+      }
+    } else if (entityType === 'import_invoices') {
+      const invoices = qbxmlBuilder.parseInvoicesFromResponse(responseXml);
+
+      for (const invoice of invoices) {
+        try {
+          // Check if already imported
+          const existing = await pool.query(
+            `SELECT id FROM quickbooks_sync_map WHERE entity_type = 'invoice' AND quickbooks_id = $1`,
+            [invoice.txnId]
+          );
+
+          if (existing.rows.length > 0) {
+            result.skipped++;
+            continue;
+          }
+
+          // Find matching patient by QB customer ID
+          const patientMapping = await pool.query(
+            `SELECT medsys_id FROM quickbooks_sync_map WHERE entity_type = 'patient' AND quickbooks_id = $1`,
+            [invoice.customerListId]
+          );
+
+          if (patientMapping.rows.length === 0) {
+            result.errors.push(`Invoice ${invoice.refNumber}: Customer not found in MedSys`);
+            continue;
+          }
+
+          const patientId = patientMapping.rows[0].medsys_id;
+
+          // Create invoice
+          const invoiceResult = await pool.query(`
+            INSERT INTO invoices (patient_id, invoice_number, invoice_date, subtotal, total_amount, status)
+            VALUES ($1, $2, $3, $4, $4, $5)
+            RETURNING id
+          `, [
+            patientId,
+            invoice.refNumber || `QB-${invoice.txnId}`,
+            invoice.txnDate || new Date().toISOString().split('T')[0],
+            invoice.totalAmount,
+            invoice.isPaid ? 'paid' : 'pending'
+          ]);
+
+          const invoiceId = invoiceResult.rows[0].id;
+
+          // Create invoice line items
+          for (const line of invoice.lineItems) {
+            await pool.query(`
+              INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+              VALUES ($1, $2, $3, $4, $5, 'service')
+            `, [invoiceId, line.description || line.itemName || 'Service', line.quantity, line.rate, line.amount]);
+          }
+
+          // Create sync mapping
+          await pool.query(`
+            INSERT INTO quickbooks_sync_map (entity_type, medsys_id, quickbooks_id, quickbooks_sync_token, last_synced_at, sync_status)
+            VALUES ('invoice', $1, $2, $3, CURRENT_TIMESTAMP, 'imported')
+          `, [invoiceId, invoice.txnId, invoice.editSequence]);
+
+          result.imported++;
+        } catch (err: any) {
+          result.errors.push(`Invoice ${invoice.refNumber}: ${err.message}`);
+        }
+      }
+    }
+
+    // Log import results
+    await pool.query(`
+      INSERT INTO quickbooks_sync_log (sync_type, entity_type, direction, status, records_synced, error_details, started_at, completed_at)
+      VALUES ('import', $1, 'pull', $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `, [
+      entityType,
+      result.errors.length > 0 ? 'partial' : 'success',
+      result.imported,
+      result.errors.length > 0 ? JSON.stringify(result.errors) : null
+    ]);
+
+  } catch (error: any) {
+    console.error(`[QBWC] Import processing error for ${entityType}:`, error);
+    result.errors.push(error.message);
+  }
+
+  return result;
 }
