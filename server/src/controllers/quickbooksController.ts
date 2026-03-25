@@ -408,6 +408,63 @@ export const importAll = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// ===== Imported Data =====
+
+export const getImportedData = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Get imported patients (customers from QB)
+    const patients = await pool.query(`
+      SELECT p.id, p.patient_number, u.first_name, u.last_name, u.email, u.phone,
+             qsm.quickbooks_id, qsm.last_synced_at
+      FROM quickbooks_sync_map qsm
+      JOIN patients p ON qsm.medsys_id = p.id AND qsm.entity_type = 'patient'
+      JOIN users u ON p.user_id = u.id
+      WHERE qsm.sync_status = 'imported'
+      ORDER BY qsm.last_synced_at DESC
+      LIMIT 100
+    `);
+
+    // Get imported service items (from QB)
+    const services = await pool.query(`
+      SELECT cm.id, cm.service_code, cm.service_name, cm.price, cm.category,
+             qsm.quickbooks_id, qsm.last_synced_at
+      FROM quickbooks_sync_map qsm
+      JOIN charge_master cm ON qsm.medsys_id = cm.id AND qsm.entity_type = 'service'
+      WHERE qsm.sync_status = 'imported'
+      ORDER BY qsm.last_synced_at DESC
+      LIMIT 100
+    `);
+
+    // Get imported invoices (from QB)
+    const invoices = await pool.query(`
+      SELECT i.id, i.invoice_number, i.invoice_date, i.total_amount, i.status,
+             u.first_name || ' ' || u.last_name as patient_name,
+             qsm.quickbooks_id, qsm.last_synced_at
+      FROM quickbooks_sync_map qsm
+      JOIN invoices i ON qsm.medsys_id = i.id AND qsm.entity_type = 'invoice'
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      WHERE qsm.sync_status = 'imported'
+      ORDER BY qsm.last_synced_at DESC
+      LIMIT 100
+    `);
+
+    res.json({
+      patients: patients.rows,
+      services: services.rows,
+      invoices: invoices.rows,
+      summary: {
+        patientsCount: patients.rows.length,
+        servicesCount: services.rows.length,
+        invoicesCount: invoices.rows.length,
+      }
+    });
+  } catch (error) {
+    console.error('Get imported data error:', error);
+    res.status(500).json({ error: 'Failed to get imported data' });
+  }
+};
+
 // ===== Disconnect =====
 
 export const disconnect = async (req: Request, res: Response): Promise<void> => {

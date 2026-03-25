@@ -51,13 +51,58 @@ interface SyncMapping {
   error_message?: string;
 }
 
+interface ImportedPatient {
+  id: number;
+  patient_number: string;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  quickbooks_id: string;
+  last_synced_at: string;
+}
+
+interface ImportedService {
+  id: number;
+  service_code: string;
+  service_name: string;
+  price: number;
+  category: string;
+  quickbooks_id: string;
+  last_synced_at: string;
+}
+
+interface ImportedInvoice {
+  id: number;
+  invoice_number: string;
+  invoice_date: string;
+  total_amount: number;
+  status: string;
+  patient_name: string;
+  quickbooks_id: string;
+  last_synced_at: string;
+}
+
+interface ImportedData {
+  patients: ImportedPatient[];
+  services: ImportedService[];
+  invoices: ImportedInvoice[];
+  summary: {
+    patientsCount: number;
+    servicesCount: number;
+    invoicesCount: number;
+  };
+}
+
 const QuickBooksSettings: React.FC = () => {
   const { showToast } = useNotification();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [mappings, setMappings] = useState<SyncMapping[]>([]);
-  const [activeTab, setActiveTab] = useState<'setup' | 'queue' | 'mappings'>('setup');
+  const [importedData, setImportedData] = useState<ImportedData | null>(null);
+  const [activeTab, setActiveTab] = useState<'setup' | 'queue' | 'mappings' | 'imported'>('setup');
+  const [importedSubTab, setImportedSubTab] = useState<'patients' | 'services' | 'invoices'>('patients');
   const [queueFilter, setQueueFilter] = useState<string>('');
   const [mappingFilter, setMappingFilter] = useState<string>('');
   const [syncing, setSyncing] = useState<string | null>(null);
@@ -97,6 +142,15 @@ const QuickBooksSettings: React.FC = () => {
       setMappings(response.data);
     } catch (error) {
       console.error('Error loading mappings:', error);
+    }
+  };
+
+  const loadImportedData = async () => {
+    try {
+      const response = await apiClient.get('/quickbooks/imported');
+      setImportedData(response.data);
+    } catch (error) {
+      console.error('Error loading imported data:', error);
     }
   };
 
@@ -426,6 +480,19 @@ const QuickBooksSettings: React.FC = () => {
               >
                 Entity Mappings
               </button>
+              <button
+                onClick={() => {
+                  setActiveTab('imported');
+                  loadImportedData();
+                }}
+                className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                  activeTab === 'imported'
+                    ? 'border-purple-500 text-purple-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Imported Data
+              </button>
             </nav>
           </div>
 
@@ -718,6 +785,195 @@ const QuickBooksSettings: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* Imported Data Tab */}
+            {activeTab === 'imported' && (
+              <div>
+                {/* Summary Cards */}
+                {importedData && (
+                  <div className="grid grid-cols-3 gap-4 mb-6">
+                    <div className="bg-purple-50 rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-purple-700">{importedData.summary.patientsCount}</div>
+                      <div className="text-sm text-purple-600">Patients Imported</div>
+                    </div>
+                    <div className="bg-indigo-50 rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-indigo-700">{importedData.summary.servicesCount}</div>
+                      <div className="text-sm text-indigo-600">Services Imported</div>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-blue-700">{importedData.summary.invoicesCount}</div>
+                      <div className="text-sm text-blue-600">Invoices Imported</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-tabs */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    onClick={() => setImportedSubTab('patients')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      importedSubTab === 'patients'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Patients ({importedData?.patients.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setImportedSubTab('services')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      importedSubTab === 'services'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Services ({importedData?.services.length || 0})
+                  </button>
+                  <button
+                    onClick={() => setImportedSubTab('invoices')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                      importedSubTab === 'invoices'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Invoices ({importedData?.invoices.length || 0})
+                  </button>
+                </div>
+
+                {/* Patients Table */}
+                {importedSubTab === 'patients' && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead>
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient #</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {!importedData || importedData.patients.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                              No patients imported from QuickBooks yet
+                            </td>
+                          </tr>
+                        ) : (
+                          importedData.patients.map((patient) => (
+                            <tr key={patient.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{patient.patient_number}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{patient.first_name} {patient.last_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{patient.email || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{patient.phone || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{patient.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {patient.last_synced_at ? format(new Date(patient.last_synced_at), 'MMM d, h:mm a') : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Services Table */}
+                {importedSubTab === 'services' && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead>
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {!importedData || importedData.services.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                              No services imported from QuickBooks yet
+                            </td>
+                          </tr>
+                        ) : (
+                          importedData.services.map((service) => (
+                            <tr key={service.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{service.service_code}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{service.service_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600 capitalize">{service.category}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {service.price?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{service.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {service.last_synced_at ? format(new Date(service.last_synced_at), 'MMM d, h:mm a') : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Invoices Table */}
+                {importedSubTab === 'invoices' && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead>
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {!importedData || importedData.invoices.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                              No invoices imported from QuickBooks yet
+                            </td>
+                          </tr>
+                        ) : (
+                          importedData.invoices.map((invoice) => (
+                            <tr key={invoice.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{invoice.patient_name}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'MMM d, yyyy') : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {invoice.total_amount?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                  invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {invoice.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{invoice.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {invoice.last_synced_at ? format(new Date(invoice.last_synced_at), 'MMM d, h:mm a') : '-'}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

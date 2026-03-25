@@ -44,6 +44,9 @@ router.post('/import/items', ...qbAuth, qbController.importServiceItems);
 router.post('/import/invoices', ...qbAuth, qbController.importInvoices);
 router.post('/import/all', ...qbAuth, qbController.importAll);
 
+// Imported Data View
+router.get('/imported', ...qbAuth, qbController.getImportedData);
+
 // Disconnect
 router.post('/disconnect', ...qbAuth, qbController.disconnect);
 
