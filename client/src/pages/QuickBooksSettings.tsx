@@ -588,10 +588,42 @@ const QuickBooksSettings: React.FC = () => {
                   </ol>
                 </div>
 
+                {/* Important Note */}
+                <div className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-yellow-800 mb-2">
+                    Important: QuickBooks Must Be Open
+                  </h3>
+                  <p className="text-sm text-yellow-700 mb-3">
+                    For the Web Connector to work, <strong>QuickBooks Desktop must be running</strong> with your company file open before syncing.
+                    Alternatively, you can specify the company file path below so Web Connector can open it automatically.
+                  </p>
+                </div>
+
                 {/* Settings */}
                 <div className="border border-gray-200 rounded-lg p-4">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">Settings</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Company File Path */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Company File Path (Optional)
+                      </label>
+                      <p className="text-xs text-gray-500 mb-2">
+                        Path to your QuickBooks company file (.qbw) on the server. Example: C:\Users\Public\Documents\Intuit\QuickBooks\Company Files\MyCompany.qbw
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={status?.companyFilePath || ''}
+                          onChange={(e) => handleUpdateSettings('companyFilePath', e.target.value)}
+                          placeholder="C:\path\to\company.qbw"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <hr className="border-gray-200" />
+
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
