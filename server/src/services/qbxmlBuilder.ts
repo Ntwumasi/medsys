@@ -6,12 +6,14 @@ const QBXML_VERSION = '13.0';
 // ===== Request Builders =====
 
 export function wrapInQBXML(requestXML: string): string {
+  // Trim whitespace and normalize the inner XML
+  const trimmedRequest = requestXML.trim();
   return `<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="${QBXML_VERSION}"?>
 <QBXML>
-  <QBXMLMsgsRq onError="stopOnError">
-    ${requestXML}
-  </QBXMLMsgsRq>
+<QBXMLMsgsRq onError="stopOnError">
+${trimmedRequest}
+</QBXMLMsgsRq>
 </QBXML>`;
 }
 
@@ -390,23 +392,19 @@ export function isSuccessResponse(statusCode: string): boolean {
 
 // Query ALL customers from QuickBooks
 export function buildCustomerQueryAllRq(requestId?: string): string {
-  const requestXML = `
-    <CustomerQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
-      <ActiveStatus>ActiveOnly</ActiveStatus>
-      <MaxReturned>500</MaxReturned>
-    </CustomerQueryRq>`;
-
+  const requestXML = `<CustomerQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+<ActiveStatus>ActiveOnly</ActiveStatus>
+<MaxReturned>500</MaxReturned>
+</CustomerQueryRq>`;
   return wrapInQBXML(requestXML);
 }
 
 // Query ALL service items from QuickBooks
 export function buildItemServiceQueryAllRq(requestId?: string): string {
-  const requestXML = `
-    <ItemServiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
-      <ActiveStatus>ActiveOnly</ActiveStatus>
-      <MaxReturned>500</MaxReturned>
-    </ItemServiceQueryRq>`;
-
+  const requestXML = `<ItemServiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+<ActiveStatus>ActiveOnly</ActiveStatus>
+<MaxReturned>500</MaxReturned>
+</ItemServiceQueryRq>`;
   return wrapInQBXML(requestXML);
 }
 
@@ -414,20 +412,16 @@ export function buildItemServiceQueryAllRq(requestId?: string): string {
 export function buildInvoiceQueryAllRq(fromDate?: string, toDate?: string, requestId?: string): string {
   let dateFilter = '';
   if (fromDate || toDate) {
-    dateFilter = `
-      <ModifiedDateRangeFilter>
-        ${fromDate ? `<FromModifiedDate>${fromDate}</FromModifiedDate>` : ''}
-        ${toDate ? `<ToModifiedDate>${toDate}</ToModifiedDate>` : ''}
-      </ModifiedDateRangeFilter>`;
+    dateFilter = `<ModifiedDateRangeFilter>
+${fromDate ? `<FromModifiedDate>${fromDate}</FromModifiedDate>` : ''}
+${toDate ? `<ToModifiedDate>${toDate}</ToModifiedDate>` : ''}
+</ModifiedDateRangeFilter>`;
   }
 
-  const requestXML = `
-    <InvoiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
-      ${dateFilter}
-      <MaxReturned>500</MaxReturned>
-      <IncludeLineItems>true</IncludeLineItems>
-    </InvoiceQueryRq>`;
-
+  const requestXML = `<InvoiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
+${dateFilter}<MaxReturned>500</MaxReturned>
+<IncludeLineItems>true</IncludeLineItems>
+</InvoiceQueryRq>`;
   return wrapInQBXML(requestXML);
 }
 
