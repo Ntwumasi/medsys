@@ -177,12 +177,15 @@ export async function receiveResponseXML(
 
     // Handle import queries
     if (request.entity_type.startsWith('import_')) {
+      console.log(`[QBWC] Processing import response for ${request.entity_type}, response length: ${response?.length || 0}`);
       const importResult = await processImportResponse(request.entity_type, response);
       console.log(`[QBWC] Import result for ${request.entity_type}:`, importResult);
 
       if (importResult.errors.length > 0) {
         status = 'completed'; // Still mark as completed, errors are logged separately
-        errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}, Errors: ${importResult.errors.length}`;
+        errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}, Errors: ${importResult.errors.join('; ').substring(0, 500)}`;
+      } else {
+        errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}`;
       }
     } else if (request.entity_type === 'patient' || request.entity_type === 'customer') {
       const parsed = qbxmlBuilder.parseCustomerResponse(response);
@@ -640,9 +643,17 @@ export async function processImportResponse(entityType: string, responseXml: str
 }> {
   const result = { imported: 0, skipped: 0, errors: [] as string[] };
 
+  if (!responseXml || responseXml.length < 50) {
+    result.errors.push(`Empty or invalid response (length: ${responseXml?.length || 0})`);
+    return result;
+  }
+
+  console.log(`[QBWC] Processing ${entityType}, XML preview: ${responseXml.substring(0, 200)}`);
+
   try {
     if (entityType === 'import_customers') {
       const customers = qbxmlBuilder.parseCustomersFromResponse(responseXml);
+      console.log(`[QBWC] Parsed ${customers.length} customers from response`);
 
       for (const customer of customers) {
         try {
@@ -713,6 +724,7 @@ export async function processImportResponse(entityType: string, responseXml: str
       }
     } else if (entityType === 'import_items') {
       const items = qbxmlBuilder.parseServiceItemsFromResponse(responseXml);
+      console.log(`[QBWC] Parsed ${items.length} service items from response`);
 
       for (const item of items) {
         try {
@@ -754,6 +766,7 @@ export async function processImportResponse(entityType: string, responseXml: str
       }
     } else if (entityType === 'import_invoices') {
       const invoices = qbxmlBuilder.parseInvoicesFromResponse(responseXml);
+      console.log(`[QBWC] Parsed ${invoices.length} invoices from response`);
 
       for (const invoice of invoices) {
         try {

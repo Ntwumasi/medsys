@@ -276,9 +276,21 @@ const WSDL = `<?xml version="1.0" encoding="utf-8"?>
 // Helper to extract value from SOAP XML
 function extractSoapValue(xml: string, tagName: string): string {
   // Match both <tagName> and <ns:tagName> formats
-  const regex = new RegExp(`<(?:[a-zA-Z0-9]+:)?${tagName}(?:\\s[^>]*)?>([^<]*)<`, 'i');
+  // Use a more permissive regex that captures content including nested XML
+  const regex = new RegExp(`<(?:[a-zA-Z0-9]+:)?${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)</(?:[a-zA-Z0-9]+:)?${tagName}>`, 'i');
   const match = xml.match(regex);
-  return match ? match[1] : '';
+  if (!match) return '';
+
+  let value = match[1];
+  // Decode HTML entities (QBXML responses are often HTML-encoded in SOAP)
+  value = value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+
+  return value;
 }
 
 // Helper to build SOAP response
