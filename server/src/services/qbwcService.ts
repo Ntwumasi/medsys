@@ -832,7 +832,7 @@ export async function processImportResponse(entityType: string, responseXml: str
 
     // Log import results
     await pool.query(`
-      INSERT INTO quickbooks_sync_log (sync_type, entity_type, direction, status, records_synced, error_details, started_at, completed_at)
+      INSERT INTO quickbooks_sync_log (sync_type, entity_type, direction, status, records_processed, error_details, started_at, completed_at)
       VALUES ('import', $1, 'pull', $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `, [
       entityType,
