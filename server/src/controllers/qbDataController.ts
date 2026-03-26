@@ -10,7 +10,7 @@ export const getDashboard = async (req: Request, res: Response) => {
         COUNT(DISTINCT p.id) as total_customers,
         COUNT(DISTINCT CASE WHEN sm.quickbooks_id IS NOT NULL THEN p.id END) as synced_customers
       FROM patients p
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'customer' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
     `);
 
     // Get invoice stats
@@ -47,7 +47,7 @@ export const getDashboard = async (req: Request, res: Response) => {
 
     // Get connection status from config
     const configResult = await pool.query(`
-      SELECT is_connected, last_sync_time
+      SELECT is_connected, last_sync_at
       FROM quickbooks_config
       WHERE id = 1
     `);
@@ -67,7 +67,7 @@ export const getDashboard = async (req: Request, res: Response) => {
       totalPayments: parseInt(payments.total_payments) || 0,
       syncedPayments: parseInt(payments.synced_payments) || 0,
       pendingQueueItems: parseInt(queueResult.rows[0].pending_items) || 0,
-      lastSyncTime: lastSyncResult.rows[0]?.last_sync || config?.last_sync_time || null,
+      lastSyncTime: lastSyncResult.rows[0]?.last_sync || config?.last_sync_at || null,
       connectionStatus: config?.is_connected ? 'connected' : 'disconnected',
     });
   } catch (error) {
@@ -87,7 +87,7 @@ export const getCustomers = async (req: Request, res: Response) => {
     } else if (filter === 'not_synced') {
       whereClause = 'AND sm.quickbooks_id IS NULL';
     } else if (filter === 'pending') {
-      whereClause = 'AND EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = \'customer\' AND q.entity_id = p.id AND q.status = \'pending\')';
+      whereClause = 'AND EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = \'patient\' AND q.entity_id = p.id AND q.status = \'pending\')';
     }
 
     const result = await pool.query(`
@@ -104,7 +104,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         sm.quickbooks_id,
         sm.last_synced_at as quickbooks_synced_at,
         CASE
-          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'customer' AND q.entity_id = p.id AND q.status = 'pending') THEN 'pending'
+          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'patient' AND q.entity_id = p.id AND q.status = 'pending') THEN 'pending'
           WHEN sm.quickbooks_id IS NOT NULL THEN 'synced'
           ELSE 'not_synced'
         END as sync_status,
@@ -112,7 +112,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         COALESCE((SELECT COUNT(*) FROM invoices WHERE patient_id = p.id), 0) as total_invoices
       FROM patients p
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'customer' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
       WHERE 1=1 ${whereClause}
       ORDER BY u.last_name, u.first_name
     `);
@@ -145,7 +145,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
         sm.last_synced_at as quickbooks_synced_at
       FROM patients p
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'customer' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
       WHERE p.id = $1
     `, [id]);
 
