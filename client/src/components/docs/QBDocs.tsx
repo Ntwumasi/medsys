@@ -6,6 +6,7 @@ const QBDocs: React.FC = () => {
   const sections = [
     { id: 'overview', label: 'Overview', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { id: 'flow', label: 'How It Works', icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+    { id: 'cashsales', label: 'Cash Sales Mode', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
     { id: 'receptionist', label: 'For Receptionists', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
     { id: 'accountant', label: 'For Accountants', icon: 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z' },
     { id: 'qbdata', label: 'QB Data Section', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
@@ -51,6 +52,7 @@ const QBDocs: React.FC = () => {
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
           {activeSection === 'overview' && <OverviewSection />}
           {activeSection === 'flow' && <FlowSection />}
+          {activeSection === 'cashsales' && <CashSalesSection />}
           {activeSection === 'receptionist' && <ReceptionistSection />}
           {activeSection === 'accountant' && <AccountantSection />}
           {activeSection === 'qbdata' && <QBDataSection />}
@@ -79,7 +81,7 @@ const OverviewSection: React.FC = () => (
           <li>No more manual Excel exports/imports</li>
           <li>Data flows directly to QuickBooks</li>
           <li>Real-time sync of invoices and payments</li>
-          <li>Automatic customer creation</li>
+          <li><strong>Cash Sales Mode:</strong> All invoices go to one "Cash Sales" customer (keeps QB clean)</li>
           <li>Full audit trail in MedSys</li>
         </ul>
       </div>
@@ -206,6 +208,155 @@ const FlowSection: React.FC = () => (
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+);
+
+const CashSalesSection: React.FC = () => (
+  <div>
+    <h2 className="text-2xl font-bold text-gray-900 mb-6">Cash Sales Mode</h2>
+
+    <div className="prose max-w-none">
+      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-primary-900 mb-2">What is Cash Sales Mode?</h4>
+        <p className="text-primary-800 text-sm">
+          Cash Sales Mode allows all patient invoices to be assigned to a single "Cash Sales" customer
+          in QuickBooks, instead of creating individual customers for each patient. This keeps your
+          QuickBooks customer list clean and consolidated.
+        </p>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Why Use Cash Sales Mode?</h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-success-50 rounded-lg p-4 border border-green-200">
+          <h4 className="font-semibold text-success-800 mb-2">Benefits</h4>
+          <ul className="text-sm text-success-700 space-y-1">
+            <li>Keeps QB customer list clean (no hundreds of patients)</li>
+            <li>All revenue tracked under one customer</li>
+            <li>Simpler reporting in QuickBooks</li>
+            <li>Still have full patient details in MedSys</li>
+          </ul>
+        </div>
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+          <h4 className="font-semibold text-gray-800 mb-2">Best For</h4>
+          <ul className="text-sm text-gray-600 space-y-1">
+            <li>Clinics with walk-in patients</li>
+            <li>Cash-based practices</li>
+            <li>Simplified accounting workflows</li>
+            <li>Organizations that don't track A/R by patient in QB</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">How It Works</h3>
+
+      <div className="space-y-4 mb-6">
+        <WorkflowStep
+          number={1}
+          title="Create Cash Sales Customer in QuickBooks"
+          description="In QuickBooks Desktop, create a customer named 'Cash Sales' (or your preferred name). This only needs to be done once."
+          role="Accountant"
+        />
+        <WorkflowStep
+          number={2}
+          title="Import Customers from QuickBooks"
+          description="In MedSys, go to QuickBooks Settings and click 'Import Customers'. This will pull the Cash Sales customer into MedSys."
+          role="Accountant"
+        />
+        <WorkflowStep
+          number={3}
+          title="Enable Cash Sales Mode"
+          description="In QuickBooks Settings, enable 'Use Cash Sales Customer for All Invoices'. The system will automatically link to your Cash Sales customer."
+          role="Accountant"
+        />
+        <WorkflowStep
+          number={4}
+          title="Invoices Auto-Assign"
+          description="All new invoices will automatically be assigned to the Cash Sales customer when synced to QuickBooks. No action needed from staff."
+          role="System"
+        />
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Setting Up Cash Sales Mode</h3>
+
+      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+          <li>
+            <strong>In QuickBooks Desktop:</strong> Create a new customer called "Cash Sales"
+            <p className="text-sm text-gray-500 mt-1">Customers → New Customer → Name: "Cash Sales"</p>
+          </li>
+          <li>
+            <strong>In MedSys:</strong> Go to <strong>QuickBooks Settings</strong> (sidebar)
+          </li>
+          <li>
+            Click <strong>"Import Customers"</strong> to pull customers from QuickBooks
+          </li>
+          <li>
+            Scroll to <strong>Settings</strong> section at the bottom
+          </li>
+          <li>
+            Enable <strong>"Use Cash Sales Customer for All Invoices"</strong>
+          </li>
+          <li>
+            Verify the customer name matches (default: "Cash Sales")
+          </li>
+          <li>
+            Once linked, you'll see the QB Customer ID displayed
+          </li>
+        </ol>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">What Changes</h3>
+
+      <div className="overflow-x-auto mb-6">
+        <table className="w-full text-sm border border-gray-200 rounded-lg">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-2 text-left font-semibold text-gray-900">Without Cash Sales Mode</th>
+              <th className="px-4 py-2 text-left font-semibold text-gray-900">With Cash Sales Mode</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            <tr>
+              <td className="px-4 py-2">Each patient synced as QB customer</td>
+              <td className="px-4 py-2 text-success-600">All invoices go to "Cash Sales" customer</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-2">QB customer list grows with each patient</td>
+              <td className="px-4 py-2 text-success-600">QB customer list stays clean</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-2">Can track A/R per patient in QB</td>
+              <td className="px-4 py-2">A/R tracking done in MedSys only</td>
+            </tr>
+            <tr>
+              <td className="px-4 py-2">Invoice shows patient name as customer</td>
+              <td className="px-4 py-2">Invoice shows "Cash Sales" as customer</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-amber-900 mb-2">Important Note</h4>
+        <p className="text-warning-800 text-sm">
+          Cash Sales Mode is <strong>enabled by default</strong>. If you need individual patient tracking
+          in QuickBooks, you can disable it in QuickBooks Settings.
+        </p>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Troubleshooting</h3>
+
+      <div className="border border-gray-200 rounded-lg p-4">
+        <h4 className="font-semibold text-danger-600 mb-2">"Cash Sales customer not found"</h4>
+        <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+          <li>Make sure you created the "Cash Sales" customer in QuickBooks Desktop</li>
+          <li>Click "Import Customers" in QuickBooks Settings to pull the customer</li>
+          <li>Check that the customer name in MedSys matches exactly</li>
+          <li>The system will auto-link once it finds the matching customer</li>
+        </ol>
       </div>
     </div>
   </div>
