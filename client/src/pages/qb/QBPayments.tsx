@@ -112,7 +112,7 @@ const QBPayments: React.FC = () => {
     return matchesSearch;
   });
 
-  const totalAmount = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalAmount = filteredPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   if (loading) {
     return (
@@ -248,7 +248,7 @@ const QBPayments: React.FC = () => {
                     </a>
                   </td>
                   <td className="px-4 py-3 text-sm text-text-primary">{payment.patient_name}</td>
-                  <td className="px-4 py-3 text-sm font-medium text-success-600">{formatCurrency(payment.amount)}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-success-600">{formatCurrency(Number(payment.amount || 0))}</td>
                   <td className="px-4 py-3">{getMethodBadge(payment.payment_method)}</td>
                   <td className="px-4 py-3 text-sm text-text-secondary font-mono">
                     {payment.reference_number || '-'}
