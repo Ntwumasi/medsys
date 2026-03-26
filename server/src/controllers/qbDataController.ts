@@ -10,7 +10,7 @@ export const getDashboard = async (req: Request, res: Response) => {
         COUNT(DISTINCT p.id) as total_customers,
         COUNT(DISTINCT CASE WHEN sm.quickbooks_id IS NOT NULL THEN p.id END) as synced_customers
       FROM patients p
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.medsys_id = p.id
     `);
 
     // Get invoice stats
@@ -20,7 +20,7 @@ export const getDashboard = async (req: Request, res: Response) => {
         COUNT(CASE WHEN sm.quickbooks_id IS NOT NULL THEN 1 END) as synced_invoices,
         COUNT(CASE WHEN balance_due > 0 THEN 1 END) as unpaid_invoices
       FROM invoices i
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.local_id = i.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.medsys_id = i.id
     `);
 
     // Get payment stats (from payments table)
@@ -112,7 +112,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         COALESCE((SELECT COUNT(*) FROM invoices WHERE patient_id = p.id), 0) as total_invoices
       FROM patients p
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.medsys_id = p.id
       WHERE 1=1 ${whereClause}
       ORDER BY u.last_name, u.first_name
     `);
@@ -145,7 +145,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
         sm.last_synced_at as quickbooks_synced_at
       FROM patients p
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.local_id = p.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'patient' AND sm.medsys_id = p.id
       WHERE p.id = $1
     `, [id]);
 
@@ -165,7 +165,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
         i.created_at,
         sm.quickbooks_id
       FROM invoices i
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.local_id = i.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.medsys_id = i.id
       WHERE i.patient_id = $1
       ORDER BY i.created_at DESC
       LIMIT 10
@@ -220,7 +220,7 @@ export const getInvoices = async (req: Request, res: Response) => {
       FROM invoices i
       JOIN patients p ON i.patient_id = p.id
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.local_id = i.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.medsys_id = i.id
       WHERE 1=1 ${whereClause}
       ORDER BY i.created_at DESC
     `);
@@ -263,7 +263,7 @@ export const getInvoiceById = async (req: Request, res: Response) => {
       FROM invoices i
       JOIN patients p ON i.patient_id = p.id
       JOIN users u ON p.user_id = u.id
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.local_id = i.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.medsys_id = i.id
       WHERE i.id = $1
     `, [id]);
 
@@ -472,7 +472,7 @@ export const getServices = async (req: Request, res: Response) => {
           ELSE 'not_synced'
         END as sync_status
       FROM charge_master cm
-      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'service' AND sm.local_id = cm.id
+      LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'service' AND sm.medsys_id = cm.id
       ${whereClause}
       ORDER BY cm.category, cm.name
     `);
