@@ -18,7 +18,7 @@ export const getDashboard = async (req: Request, res: Response) => {
       SELECT
         COUNT(*) as total_invoices,
         COUNT(CASE WHEN sm.quickbooks_id IS NOT NULL THEN 1 END) as synced_invoices,
-        COUNT(CASE WHEN balance_due > 0 THEN 1 END) as unpaid_invoices
+        COUNT(CASE WHEN (i.total_amount - i.amount_paid) > 0 THEN 1 END) as unpaid_invoices
       FROM invoices i
       LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'invoice' AND sm.medsys_id = i.id
     `);
@@ -108,7 +108,7 @@ export const getCustomers = async (req: Request, res: Response) => {
           WHEN sm.quickbooks_id IS NOT NULL THEN 'synced'
           ELSE 'not_synced'
         END as sync_status,
-        COALESCE((SELECT SUM(balance_due) FROM invoices WHERE patient_id = p.id), 0) as outstanding_balance,
+        COALESCE((SELECT SUM(total_amount - amount_paid) FROM invoices WHERE patient_id = p.id), 0) as outstanding_balance,
         COALESCE((SELECT COUNT(*) FROM invoices WHERE patient_id = p.id), 0) as total_invoices
       FROM patients p
       JOIN users u ON p.user_id = u.id
@@ -160,7 +160,7 @@ export const getCustomerById = async (req: Request, res: Response) => {
         i.invoice_number,
         i.total_amount,
         i.amount_paid,
-        i.balance_due,
+        (i.total_amount - i.amount_paid) as balance_due,
         i.status,
         i.created_at,
         sm.quickbooks_id
@@ -192,9 +192,9 @@ export const getInvoices = async (req: Request, res: Response) => {
     } else if (filter === 'not_synced') {
       whereClause = 'AND sm.quickbooks_id IS NULL';
     } else if (filter === 'unpaid') {
-      whereClause = 'AND i.balance_due > 0';
+      whereClause = 'AND (i.total_amount - i.amount_paid) > 0';
     } else if (filter === 'overdue') {
-      whereClause = 'AND i.balance_due > 0 AND i.due_date < CURRENT_DATE';
+      whereClause = 'AND (i.total_amount - i.amount_paid) > 0 AND i.due_date < CURRENT_DATE';
     }
 
     const result = await pool.query(`
@@ -206,7 +206,7 @@ export const getInvoices = async (req: Request, res: Response) => {
         i.encounter_id,
         i.total_amount,
         i.amount_paid,
-        i.balance_due,
+        (i.total_amount - i.amount_paid) as balance_due,
         i.status,
         i.due_date,
         i.created_at,
@@ -328,8 +328,9 @@ export const recordPayment = async (req: Request, res: Response) => {
     }
 
     const invoice = invoiceResult.rows[0];
+    const currentBalance = parseFloat(invoice.total_amount) - parseFloat(invoice.amount_paid);
 
-    if (amount > invoice.balance_due) {
+    if (amount > currentBalance) {
       return res.status(400).json({ error: 'Payment amount exceeds balance due' });
     }
 
@@ -347,9 +348,9 @@ export const recordPayment = async (req: Request, res: Response) => {
 
     await pool.query(`
       UPDATE invoices
-      SET amount_paid = $1, balance_due = $2, status = $3, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4
-    `, [newAmountPaid, newBalanceDue, newStatus, id]);
+      SET amount_paid = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3
+    `, [newAmountPaid, newStatus, id]);
 
     // Queue payment to QuickBooks (if connected)
     const configResult = await pool.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
