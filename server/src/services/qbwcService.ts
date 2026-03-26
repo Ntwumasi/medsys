@@ -385,20 +385,59 @@ export async function queueInvoiceSync(invoiceId: number): Promise<void> {
 
   const invoice = invoiceResult.rows[0];
 
-  // Get customer ListID
-  const customerMapping = await pool.query(`
-    SELECT quickbooks_id FROM quickbooks_sync_map
-    WHERE entity_type = 'patient' AND medsys_id = $1
-  `, [invoice.patient_db_id]);
+  // Check if using Cash Sales customer mode
+  const configResult = await pool.query(`
+    SELECT use_cash_sales_customer, cash_sales_customer_name, cash_sales_customer_listid
+    FROM quickbooks_config WHERE id = 1
+  `);
+  const config = configResult.rows[0];
 
-  if (customerMapping.rows.length === 0 || !customerMapping.rows[0].quickbooks_id) {
-    // Queue customer first
-    await queueCustomerSync(invoice.patient_db_id);
-    // Re-queue invoice with lower priority to run after customer
-    await pool.query(`
-      INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority, status)
-      VALUES ('invoice', $1, 'pending_customer', '', 5, 'waiting')
-    `, [invoiceId]);
+  let customerListId: string | null = null;
+
+  if (config?.use_cash_sales_customer) {
+    // Use Cash Sales customer instead of individual patient
+    if (config.cash_sales_customer_listid) {
+      customerListId = config.cash_sales_customer_listid;
+    } else {
+      // Try to find Cash Sales customer in imported customers
+      const cashSalesMapping = await pool.query(`
+        SELECT quickbooks_id FROM quickbooks_sync_map
+        WHERE entity_type = 'customer' AND entity_name ILIKE $1
+      `, [config.cash_sales_customer_name || 'Cash Sales']);
+
+      if (cashSalesMapping.rows.length > 0 && cashSalesMapping.rows[0].quickbooks_id) {
+        customerListId = cashSalesMapping.rows[0].quickbooks_id;
+        // Save it for future use
+        await pool.query(`
+          UPDATE quickbooks_config SET cash_sales_customer_listid = $1 WHERE id = 1
+        `, [customerListId]);
+      } else {
+        console.log(`[QBWC] Cash Sales customer "${config.cash_sales_customer_name}" not found in QB. Please import customers first.`);
+        return;
+      }
+    }
+  } else {
+    // Use individual patient as customer (original behavior)
+    const customerMapping = await pool.query(`
+      SELECT quickbooks_id FROM quickbooks_sync_map
+      WHERE entity_type = 'patient' AND medsys_id = $1
+    `, [invoice.patient_db_id]);
+
+    if (customerMapping.rows.length === 0 || !customerMapping.rows[0].quickbooks_id) {
+      // Queue customer first
+      await queueCustomerSync(invoice.patient_db_id);
+      // Re-queue invoice with lower priority to run after customer
+      await pool.query(`
+        INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority, status)
+        VALUES ('invoice', $1, 'pending_customer', '', 5, 'waiting')
+      `, [invoiceId]);
+      return;
+    }
+    customerListId = customerMapping.rows[0].quickbooks_id;
+  }
+
+  if (!customerListId) {
+    console.log(`[QBWC] No customer ListID available for invoice ${invoiceId}`);
     return;
   }
 
@@ -427,7 +466,7 @@ export async function queueInvoiceSync(invoiceId: number): Promise<void> {
   const qbxml = qbxmlBuilder.buildInvoiceAddRq(
     invoice,
     itemsResult.rows,
-    customerMapping.rows[0].quickbooks_id,
+    customerListId,
     itemListIds
   );
 
@@ -452,19 +491,39 @@ export async function queuePaymentSync(invoiceId: number, paymentAmount: number)
     return;
   }
 
-  // Get customer ListID
-  const invoiceResult = await pool.query(`
-    SELECT p.id as patient_db_id FROM invoices i
-    JOIN patients p ON i.patient_id = p.id
-    WHERE i.id = $1
-  `, [invoiceId]);
+  // Check if using Cash Sales customer mode
+  const configResult = await pool.query(`
+    SELECT use_cash_sales_customer, cash_sales_customer_listid
+    FROM quickbooks_config WHERE id = 1
+  `);
+  const config = configResult.rows[0];
 
-  const customerMapping = await pool.query(`
-    SELECT quickbooks_id FROM quickbooks_sync_map
-    WHERE entity_type = 'patient' AND medsys_id = $1
-  `, [invoiceResult.rows[0].patient_db_id]);
+  let customerListId: string | null = null;
 
-  if (!customerMapping.rows[0]?.quickbooks_id) {
+  if (config?.use_cash_sales_customer && config.cash_sales_customer_listid) {
+    // Use Cash Sales customer
+    customerListId = config.cash_sales_customer_listid;
+  } else {
+    // Use individual patient as customer
+    const invoiceResult = await pool.query(`
+      SELECT p.id as patient_db_id FROM invoices i
+      JOIN patients p ON i.patient_id = p.id
+      WHERE i.id = $1
+    `, [invoiceId]);
+
+    const customerMapping = await pool.query(`
+      SELECT quickbooks_id FROM quickbooks_sync_map
+      WHERE entity_type = 'patient' AND medsys_id = $1
+    `, [invoiceResult.rows[0].patient_db_id]);
+
+    if (!customerMapping.rows[0]?.quickbooks_id) {
+      return;
+    }
+    customerListId = customerMapping.rows[0].quickbooks_id;
+  }
+
+  if (!customerListId) {
+    console.log(`[QBWC] No customer ListID available for payment on invoice ${invoiceId}`);
     return;
   }
 
@@ -477,7 +536,7 @@ export async function queuePaymentSync(invoiceId: number, paymentAmount: number)
 
   const qbxml = qbxmlBuilder.buildReceivePaymentAddRq(
     payment,
-    customerMapping.rows[0].quickbooks_id,
+    customerListId,
     invoiceMapping.rows[0].quickbooks_id
   );
 

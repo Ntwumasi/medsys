@@ -38,6 +38,9 @@ export const getStatus = async (req: Request, res: Response): Promise<void> => {
       syncEnabled: qbConfig.sync_enabled,
       autoSyncInvoices: qbConfig.auto_sync_invoices,
       autoSyncPayments: qbConfig.auto_sync_payments,
+      useCashSalesCustomer: qbConfig.use_cash_sales_customer ?? true,
+      cashSalesCustomerName: qbConfig.cash_sales_customer_name || 'Cash Sales',
+      cashSalesCustomerListId: qbConfig.cash_sales_customer_listid,
       ownerId: qbConfig.owner_id,
       fileId: qbConfig.file_id,
       queueStatus,
@@ -54,6 +57,8 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       syncEnabled,
       autoSyncInvoices,
       autoSyncPayments,
+      useCashSalesCustomer,
+      cashSalesCustomerName,
       username,
       companyFilePath,
       pollIntervalMinutes,
@@ -74,6 +79,16 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
     if (autoSyncPayments !== undefined) {
       updates.push(`auto_sync_payments = $${paramIndex++}`);
       values.push(autoSyncPayments);
+    }
+    if (useCashSalesCustomer !== undefined) {
+      updates.push(`use_cash_sales_customer = $${paramIndex++}`);
+      values.push(useCashSalesCustomer);
+    }
+    if (cashSalesCustomerName !== undefined) {
+      updates.push(`cash_sales_customer_name = $${paramIndex++}`);
+      values.push(cashSalesCustomerName);
+      // Clear the ListID when name changes so it gets re-looked up
+      updates.push(`cash_sales_customer_listid = NULL`);
     }
     if (username) {
       updates.push(`qbwc_username = $${paramIndex++}`);

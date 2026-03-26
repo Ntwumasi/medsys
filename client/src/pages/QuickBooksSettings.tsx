@@ -24,6 +24,9 @@ interface ConnectionStatus {
   syncEnabled: boolean;
   autoSyncInvoices: boolean;
   autoSyncPayments: boolean;
+  useCashSalesCustomer: boolean;
+  cashSalesCustomerName: string;
+  cashSalesCustomerListId?: string;
   ownerId?: string;
   fileId?: string;
   queueStatus: QueueStatus;
@@ -651,6 +654,51 @@ const QuickBooksSettings: React.FC = () => {
                       />
                       <span className="text-sm text-gray-700">Auto-queue new payments</span>
                     </label>
+
+                    <hr className="border-gray-200" />
+
+                    {/* Cash Sales Customer Mode */}
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <label className="flex items-center gap-2 cursor-pointer mb-3">
+                        <input
+                          type="checkbox"
+                          checked={status?.useCashSalesCustomer ?? true}
+                          onChange={(e) => handleUpdateSettings('useCashSalesCustomer', e.target.checked)}
+                          className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">Use "Cash Sales" Customer for All Invoices</span>
+                      </label>
+                      <p className="text-xs text-gray-600 mb-3">
+                        When enabled, all invoices will be assigned to a single "Cash Sales" customer in QuickBooks
+                        instead of creating individual customers for each patient. This keeps your QuickBooks customer
+                        list clean while still tracking revenue.
+                      </p>
+                      {(status?.useCashSalesCustomer ?? true) && (
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Cash Sales Customer Name (must exist in QuickBooks)
+                            </label>
+                            <input
+                              type="text"
+                              value={status?.cashSalesCustomerName || 'Cash Sales'}
+                              onChange={(e) => handleUpdateSettings('cashSalesCustomerName', e.target.value)}
+                              placeholder="Cash Sales"
+                              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full max-w-xs"
+                            />
+                          </div>
+                          {status?.cashSalesCustomerListId ? (
+                            <p className="text-xs text-green-700">
+                              Linked to QB Customer: {status.cashSalesCustomerListId}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-yellow-700">
+                              Not yet linked. Import customers from QuickBooks to find "{status?.cashSalesCustomerName || 'Cash Sales'}".
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
