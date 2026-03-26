@@ -392,19 +392,13 @@ export function isSuccessResponse(statusCode: string): boolean {
 
 // Query ALL customers from QuickBooks
 export function buildCustomerQueryAllRq(requestId?: string): string {
-  const requestXML = `<CustomerQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
-<ActiveStatus>ActiveOnly</ActiveStatus>
-<MaxReturned>500</MaxReturned>
-</CustomerQueryRq>`;
+  const requestXML = `<CustomerQueryRq${requestId ? ` requestID="${requestId}"` : ''}></CustomerQueryRq>`;
   return wrapInQBXML(requestXML);
 }
 
 // Query ALL service items from QuickBooks
 export function buildItemServiceQueryAllRq(requestId?: string): string {
-  const requestXML = `<ItemServiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}>
-<ActiveStatus>ActiveOnly</ActiveStatus>
-<MaxReturned>500</MaxReturned>
-</ItemServiceQueryRq>`;
+  const requestXML = `<ItemServiceQueryRq${requestId ? ` requestID="${requestId}"` : ''}></ItemServiceQueryRq>`;
   return wrapInQBXML(requestXML);
 }
 
