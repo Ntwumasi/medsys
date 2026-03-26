@@ -38,6 +38,7 @@ interface PaymentFormData {
 const QBInvoices: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'synced' | 'not_synced' | 'unpaid' | 'overdue'>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -58,10 +59,12 @@ const QBInvoices: React.FC = () => {
   const loadInvoices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await apiClient.get(`/qb/invoices?filter=${filter}`);
       setInvoices(res.data || []);
-    } catch (error) {
-      console.error('Error loading invoices:', error);
+    } catch (err: any) {
+      console.error('Error loading invoices:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to load invoices');
     } finally {
       setLoading(false);
     }
@@ -158,6 +161,21 @@ const QBInvoices: React.FC = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+        <h3 className="font-semibold text-danger-800">Error loading invoices</h3>
+        <p className="text-danger-700 text-sm mt-1">{error}</p>
+        <button
+          onClick={loadInvoices}
+          className="mt-3 px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }

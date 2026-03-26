@@ -17,6 +17,7 @@ interface Service {
 const QBServices: React.FC = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'synced' | 'not_synced'>('all');
   const [search, setSearch] = useState('');
   const [syncing, setSyncing] = useState<number | null>(null);
@@ -30,10 +31,12 @@ const QBServices: React.FC = () => {
   const loadServices = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await apiClient.get(`/qb/services?filter=${filter}`);
       setServices(res.data || []);
-    } catch (error) {
-      console.error('Error loading services:', error);
+    } catch (err: any) {
+      console.error('Error loading services:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to load services');
     } finally {
       setLoading(false);
     }
@@ -138,6 +141,21 @@ const QBServices: React.FC = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+        <h3 className="font-semibold text-danger-800">Error loading services</h3>
+        <p className="text-danger-700 text-sm mt-1">{error}</p>
+        <button
+          onClick={loadServices}
+          className="mt-3 px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700"
+        >
+          Retry
+        </button>
       </div>
     );
   }

@@ -990,7 +990,7 @@ const QuickBooksSettings: React.FC = () => {
                               <td className="px-4 py-3 text-sm font-medium text-gray-900">{service.service_code}</td>
                               <td className="px-4 py-3 text-sm text-gray-900">{service.service_name}</td>
                               <td className="px-4 py-3 text-sm text-gray-600 capitalize">{service.category}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {service.price?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {Number(service.price || 0).toFixed(2)}</td>
                               <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{service.quickbooks_id}</td>
                               <td className="px-4 py-3 text-sm text-gray-600">
                                 {service.last_synced_at ? format(new Date(service.last_synced_at), 'MMM d, h:mm a') : '-'}
@@ -1033,7 +1033,7 @@ const QuickBooksSettings: React.FC = () => {
                               <td className="px-4 py-3 text-sm text-gray-600">
                                 {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'MMM d, yyyy') : '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {invoice.total_amount?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {Number(invoice.total_amount || 0).toFixed(2)}</td>
                               <td className="px-4 py-3">
                                 <span className={`px-2 py-1 text-xs rounded-full ${
                                   invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
