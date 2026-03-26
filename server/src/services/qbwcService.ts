@@ -699,8 +699,8 @@ export async function processImportResponse(entityType: string, responseXml: str
 
           // Create patient
           const patientResult = await pool.query(`
-            INSERT INTO patients (user_id, patient_number, address, city, state, date_of_birth)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO patients (user_id, patient_number, address, city, state, date_of_birth, gender)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
           `, [
             userId,
@@ -708,7 +708,8 @@ export async function processImportResponse(entityType: string, responseXml: str
             customer.address || null,
             customer.city || null,
             customer.state || null,
-            '1900-01-01' // Placeholder DOB - QB doesn't have this
+            '1900-01-01', // Placeholder DOB - QB doesn't have this
+            'other' // Default gender - QB doesn't have this
           ]);
 
           // Create sync mapping
