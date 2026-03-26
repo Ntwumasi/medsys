@@ -333,11 +333,32 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
 
 // Update invoice
 export const updateInvoice = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { status, amount_paid, notes } = req.body;
+    const { status, amount_paid, notes, payment_method } = req.body;
+    const userId = (req as any).user?.id;
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+
+    // Get current invoice state
+    const currentInvoice = await client.query(
+      'SELECT * FROM invoices WHERE id = $1',
+      [id]
+    );
+
+    if (currentInvoice.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const invoice = currentInvoice.rows[0];
+    const wasUnpaid = invoice.status !== 'paid';
+    const isBeingPaid = status === 'paid';
+
+    // Update the invoice
+    const result = await client.query(
       `UPDATE invoices
        SET status = COALESCE($1, status),
            amount_paid = COALESCE($2, amount_paid),
@@ -348,18 +369,65 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
       [status, amount_paid, notes, id]
     );
 
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Invoice not found' });
-      return;
+    // If invoice is being marked as paid, create a payment record
+    if (wasUnpaid && isBeingPaid && amount_paid) {
+      const paymentAmount = parseFloat(amount_paid) - parseFloat(invoice.amount_paid || 0);
+
+      if (paymentAmount > 0) {
+        const paymentResult = await client.query(
+          `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
+           VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+           RETURNING id`,
+          [id, paymentAmount, payment_method || 'cash', 'Payment at checkout', userId]
+        );
+
+        // Queue payment to QuickBooks
+        const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+        if (qbConfig.rows[0]?.is_connected) {
+          await client.query(
+            `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+             VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)`,
+            [paymentResult.rows[0].id]
+          );
+          console.log(`Payment ${paymentResult.rows[0].id} queued for QuickBooks sync`);
+        }
+      }
     }
+
+    // Queue invoice update to QuickBooks (for status change)
+    const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+    if (qbConfig.rows[0]?.is_connected && status) {
+      // Check if invoice is already synced to QB
+      const syncMap = await client.query(
+        `SELECT quickbooks_id FROM quickbooks_sync_map
+         WHERE entity_type = 'invoice' AND medsys_id = $1`,
+        [id]
+      );
+
+      if (syncMap.rows.length > 0) {
+        // Invoice exists in QB, queue an update
+        await client.query(
+          `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+           VALUES ('update', 'invoice', $1, 'pending', 5, CURRENT_TIMESTAMP)
+           ON CONFLICT DO NOTHING`,
+          [id]
+        );
+        console.log(`Invoice ${id} update queued for QuickBooks sync`);
+      }
+    }
+
+    await client.query('COMMIT');
 
     res.json({
       message: 'Invoice updated successfully',
       invoice: result.rows[0],
     });
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Update invoice error:', error);
     res.status(500).json({ error: 'Failed to update invoice' });
+  } finally {
+    client.release();
   }
 };
 

@@ -87,7 +87,7 @@ export const getCustomers = async (req: Request, res: Response) => {
     } else if (filter === 'not_synced') {
       whereClause = 'AND sm.quickbooks_id IS NULL';
     } else if (filter === 'pending') {
-      whereClause = 'AND EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = \'patient\' AND q.entity_id = p.id AND q.status = \'pending\')';
+      whereClause = 'AND EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = \'patient\' AND q.medsys_id = p.id AND q.status = \'pending\')';
     }
 
     const result = await pool.query(`
@@ -104,7 +104,7 @@ export const getCustomers = async (req: Request, res: Response) => {
         sm.quickbooks_id,
         sm.last_synced_at as quickbooks_synced_at,
         CASE
-          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'patient' AND q.entity_id = p.id AND q.status = 'pending') THEN 'pending'
+          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'patient' AND q.medsys_id = p.id AND q.status = 'pending') THEN 'pending'
           WHEN sm.quickbooks_id IS NOT NULL THEN 'synced'
           ELSE 'not_synced'
         END as sync_status,
@@ -213,7 +213,7 @@ export const getInvoices = async (req: Request, res: Response) => {
         sm.quickbooks_id,
         sm.last_synced_at as quickbooks_synced_at,
         CASE
-          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'invoice' AND q.entity_id = i.id AND q.status = 'pending') THEN 'pending'
+          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'invoice' AND q.medsys_id = i.id AND q.status = 'pending') THEN 'pending'
           WHEN sm.quickbooks_id IS NOT NULL THEN 'synced'
           ELSE 'not_synced'
         END as sync_status
@@ -233,8 +233,8 @@ export const getInvoices = async (req: Request, res: Response) => {
           ii.description,
           ii.quantity,
           ii.unit_price,
-          ii.total_amount as total,
-          cm.code as charge_master_code
+          ii.total_price as total,
+          cm.service_code as charge_master_code
         FROM invoice_items ii
         LEFT JOIN charge_master cm ON ii.charge_master_id = cm.id
         WHERE ii.invoice_id = $1
@@ -278,8 +278,8 @@ export const getInvoiceById = async (req: Request, res: Response) => {
         ii.description,
         ii.quantity,
         ii.unit_price,
-        ii.total_amount as total,
-        cm.code as charge_master_code
+        ii.total_price as total,
+        cm.service_code as charge_master_code
       FROM invoice_items ii
       LEFT JOIN charge_master cm ON ii.charge_master_id = cm.id
       WHERE ii.invoice_id = $1
@@ -356,7 +356,7 @@ export const recordPayment = async (req: Request, res: Response) => {
     const configResult = await pool.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
     if (configResult.rows[0]?.is_connected) {
       await pool.query(`
-        INSERT INTO quickbooks_request_queue (request_type, entity_type, entity_id, status, priority, created_at)
+        INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
         VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)
       `, [paymentResult.rows[0].id]);
     }
@@ -425,7 +425,7 @@ export const getPayments = async (req: Request, res: Response) => {
         pay.quickbooks_txn_id,
         pay.quickbooks_synced_at,
         CASE
-          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'payment' AND q.entity_id = pay.id AND q.status = 'pending') THEN 'pending'
+          WHEN EXISTS (SELECT 1 FROM quickbooks_request_queue q WHERE q.entity_type = 'payment' AND q.medsys_id = pay.id AND q.status = 'pending') THEN 'pending'
           WHEN pay.quickbooks_txn_id IS NOT NULL THEN 'synced'
           ELSE 'not_synced'
         END as sync_status
@@ -460,10 +460,10 @@ export const getServices = async (req: Request, res: Response) => {
     const result = await pool.query(`
       SELECT
         cm.id,
-        cm.code,
-        cm.name,
+        cm.service_code as code,
+        cm.service_name as name,
         cm.description,
-        cm.default_price as price,
+        cm.price,
         cm.category,
         cm.is_active,
         sm.quickbooks_id,
@@ -475,7 +475,7 @@ export const getServices = async (req: Request, res: Response) => {
       FROM charge_master cm
       LEFT JOIN quickbooks_sync_map sm ON sm.entity_type = 'service' AND sm.medsys_id = cm.id
       ${whereClause}
-      ORDER BY cm.category, cm.name
+      ORDER BY cm.category, cm.service_name
     `);
 
     res.json(result.rows);
@@ -502,7 +502,7 @@ export const syncService = async (req: Request, res: Response) => {
 
     // Queue to QuickBooks
     await pool.query(`
-      INSERT INTO quickbooks_request_queue (request_type, entity_type, entity_id, status, priority, created_at)
+      INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
       VALUES ('push', 'service', $1, 'pending', 5, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING
     `, [id]);

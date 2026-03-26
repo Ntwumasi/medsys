@@ -10,6 +10,7 @@ import SearchBar from '../components/SearchBar';
 import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
 import LabDocs from '../components/docs/LabDocs';
+import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
 import {
   Select,
@@ -2135,6 +2136,11 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <LabDocs />
+
+            {/* QuickBooks Integration Documentation */}
+            <div className="mt-8 pt-8 border-t border-gray-200">
+              <QBDocs />
+            </div>
           </div>
         )}
 

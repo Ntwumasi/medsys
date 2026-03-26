@@ -236,6 +236,51 @@ export const billingService = {
 
       const total = parseFloat(totalResult.rows[0]?.total_amount || 0);
 
+      // Auto-queue to QuickBooks if connected
+      const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+      if (qbConfig.rows[0]?.is_connected) {
+        // First, ensure patient/customer is synced (higher priority = processed first)
+        const patientSynced = await client.query(
+          `SELECT quickbooks_id FROM quickbooks_sync_map
+           WHERE entity_type = 'patient' AND medsys_id = $1`,
+          [encounter.patient_id]
+        );
+
+        if (patientSynced.rows.length === 0) {
+          // Patient not synced, queue with higher priority
+          const existingPatientQueue = await client.query(
+            `SELECT id FROM quickbooks_request_queue
+             WHERE entity_type = 'patient' AND medsys_id = $1 AND status = 'pending'`,
+            [encounter.patient_id]
+          );
+
+          if (existingPatientQueue.rows.length === 0) {
+            await client.query(
+              `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+               VALUES ('push', 'patient', $1, 'pending', 10, CURRENT_TIMESTAMP)`,
+              [encounter.patient_id]
+            );
+            console.log(`Patient ${encounter.patient_id} queued for QuickBooks sync (before invoice)`);
+          }
+        }
+
+        // Then queue the invoice (lower priority = processed after patient)
+        const existingInvoiceQueue = await client.query(
+          `SELECT id FROM quickbooks_request_queue
+           WHERE entity_type = 'invoice' AND medsys_id = $1 AND status = 'pending'`,
+          [invoiceId]
+        );
+
+        if (existingInvoiceQueue.rows.length === 0) {
+          await client.query(
+            `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+             VALUES ('push', 'invoice', $1, 'pending', 5, CURRENT_TIMESTAMP)`,
+            [invoiceId]
+          );
+          console.log(`Invoice ${invoiceId} queued for QuickBooks sync`);
+        }
+      }
+
       await client.query('COMMIT');
 
       console.log(`Synced invoice ${invoiceId} for encounter ${encounterId}: Added ${newItems.length} items, Total: GHS ${total.toFixed(2)}`);
