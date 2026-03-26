@@ -253,6 +253,7 @@ import accountantRoutes from './accountant';
 import claimsRoutes from './claims';
 import reminderRoutes from './reminders';
 import quickbooksRoutes from './quickbooks';
+import qbDataRoutes from './qbData';
 import drugInteractionService from '../services/drugInteractionService';
 import labResultsService from '../services/labResultsService';
 
@@ -561,6 +562,9 @@ router.use('/reminders', reminderRoutes);
 
 // QuickBooks integration routes
 router.use('/quickbooks', quickbooksRoutes);
+
+// QuickBooks data routes (for accountant dashboard)
+router.use('/qb', qbDataRoutes);
 
 // Drug Interaction Check routes
 router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {
