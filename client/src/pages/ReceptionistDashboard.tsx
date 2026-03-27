@@ -12,6 +12,7 @@ import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import type { ApiError } from '../types';
 import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
+import NationalityAutocomplete from '../components/NationalityAutocomplete';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -2056,12 +2057,11 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Nationality
                   </label>
-                  <input
-                    type="text"
+                  <NationalityAutocomplete
                     value={newPatient.nationality}
-                    onChange={(e) => setNewPatient({ ...newPatient, nationality: e.target.value })}
+                    onChange={(value) => setNewPatient({ ...newPatient, nationality: value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    placeholder="e.g., Ghanaian"
+                    placeholder="Start typing..."
                   />
                 </div>
 

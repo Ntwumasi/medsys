@@ -4,6 +4,7 @@ import { patientsAPI } from '../api/patients';
 import type { ApiError } from '../types';
 import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Select } from '../components/ui';
+import NationalityAutocomplete from '../components/NationalityAutocomplete';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
@@ -210,14 +211,16 @@ const PatientRegistration: React.FC = () => {
                     options={genderOptions}
                     placeholder="Select Gender"
                   />
-                  <Input
-                    label="Nationality"
-                    name="nationality"
-                    type="text"
-                    value={formData.nationality}
-                    onChange={handleChange}
-                    placeholder="e.g., Ghanaian"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Nationality
+                    </label>
+                    <NationalityAutocomplete
+                      value={formData.nationality}
+                      onChange={(value) => setFormData({ ...formData, nationality: value })}
+                      placeholder="Start typing..."
+                    />
+                  </div>
                   <Select
                     label="Marital Status"
                     name="marital_status"
