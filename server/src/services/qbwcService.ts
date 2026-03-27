@@ -113,13 +113,33 @@ export async function sendRequestXML(
 
     const request = result.rows[0];
 
+    // Generate QBXML based on entity type and operation
+    let qbxml = request.qbxml_request;
+
+    if (!qbxml) {
+      qbxml = await generateQBXML(request);
+      if (!qbxml) {
+        console.error(`[QBWC] Failed to generate QBXML for ${request.entity_type} ${request.operation} #${request.medsys_id}`);
+        // Mark as error and move on
+        await pool.query(`
+          UPDATE quickbooks_request_queue SET
+            status = 'error',
+            error_message = 'Failed to generate QBXML'
+          WHERE id = $1
+        `, [request.id]);
+        // Try next request
+        return sendRequestXML(ticket, strHCPResponse, strCompanyFileName, qbXMLCountry, qbXMLMajorVers, qbXMLMinorVers);
+      }
+    }
+
     // Mark as sent
     await pool.query(`
       UPDATE quickbooks_request_queue SET
         status = 'sent',
-        sent_at = CURRENT_TIMESTAMP
+        sent_at = CURRENT_TIMESTAMP,
+        qbxml_request = $2
       WHERE id = $1
-    `, [request.id]);
+    `, [request.id, qbxml]);
 
     // Update session
     await pool.query(`
@@ -129,13 +149,128 @@ export async function sendRequestXML(
       WHERE ticket = $1
     `, [ticket]);
 
-    console.log(`[QBWC] Sending request ${request.id}: ${request.entity_type} ${request.operation}`);
+    console.log(`[QBWC] Sending request ${request.id}: ${request.entity_type} ${request.operation} #${request.medsys_id}`);
 
-    return request.qbxml_request;
+    return qbxml;
 
   } catch (error) {
     console.error('[QBWC] sendRequestXML error:', error);
     return '';
+  }
+}
+
+// Generate QBXML based on request type
+async function generateQBXML(request: any): Promise<string | null> {
+  const { entity_type, operation, medsys_id } = request;
+
+  try {
+    if (entity_type === 'patient' && (operation === 'add' || operation === 'push')) {
+      // Get patient data
+      const result = await pool.query(`
+        SELECT p.id, p.patient_number, u.first_name, u.last_name, u.email, u.phone,
+               p.address, p.city, p.state
+        FROM patients p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = $1
+      `, [medsys_id]);
+
+      if (result.rows.length === 0) return null;
+      return qbxmlBuilder.buildCustomerAddRq(result.rows[0], request.id.toString());
+    }
+
+    if (entity_type === 'invoice' && (operation === 'push' || operation === 'add')) {
+      // Get invoice data with items
+      const invoiceResult = await pool.query(`
+        SELECT i.*, p.patient_number, u.first_name, u.last_name
+        FROM invoices i
+        JOIN patients p ON i.patient_id = p.id
+        JOIN users u ON p.user_id = u.id
+        WHERE i.id = $1
+      `, [medsys_id]);
+
+      if (invoiceResult.rows.length === 0) return null;
+
+      const itemsResult = await pool.query(`
+        SELECT ii.*, cm.quickbooks_item_name
+        FROM invoice_items ii
+        LEFT JOIN charge_master cm ON ii.charge_master_id = cm.id
+        WHERE ii.invoice_id = $1
+      `, [medsys_id]);
+
+      // Get QB customer ID
+      const syncMap = await pool.query(`
+        SELECT quickbooks_id FROM quickbooks_sync_map
+        WHERE entity_type = 'patient' AND medsys_id = $1
+      `, [invoiceResult.rows[0].patient_id]);
+
+      if (syncMap.rows.length === 0) {
+        console.log(`[QBWC] Patient ${invoiceResult.rows[0].patient_id} not synced to QB yet`);
+        // Queue patient first, mark invoice as waiting
+        await pool.query(`
+          UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1
+        `, [request.id]);
+        return null;
+      }
+
+      return qbxmlBuilder.buildInvoiceAddRq(
+        invoiceResult.rows[0],
+        itemsResult.rows,
+        syncMap.rows[0].quickbooks_id,
+        request.id.toString()
+      );
+    }
+
+    if (entity_type === 'payment' && (operation === 'push' || operation === 'add')) {
+      // Get payment data
+      const paymentResult = await pool.query(`
+        SELECT pay.*, i.invoice_number, i.patient_id, i.total_amount
+        FROM payments pay
+        JOIN invoices i ON pay.invoice_id = i.id
+        WHERE pay.id = $1
+      `, [medsys_id]);
+
+      if (paymentResult.rows.length === 0) return null;
+
+      const payment = paymentResult.rows[0];
+
+      // Get QB customer ID
+      const customerSync = await pool.query(`
+        SELECT quickbooks_id FROM quickbooks_sync_map
+        WHERE entity_type = 'patient' AND medsys_id = $1
+      `, [payment.patient_id]);
+
+      if (customerSync.rows.length === 0) {
+        console.log(`[QBWC] Customer for payment ${medsys_id} not synced to QB yet`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+        return null;
+      }
+
+      // Get QB invoice ID
+      const invoiceSync = await pool.query(`
+        SELECT quickbooks_id FROM quickbooks_sync_map
+        WHERE entity_type = 'invoice' AND medsys_id = $1
+      `, [payment.invoice_id]);
+
+      if (invoiceSync.rows.length === 0) {
+        console.log(`[QBWC] Invoice for payment ${medsys_id} not synced to QB yet`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+        return null;
+      }
+
+      return qbxmlBuilder.buildReceivePaymentAddRq(
+        payment,
+        customerSync.rows[0].quickbooks_id,
+        invoiceSync.rows[0].quickbooks_id,
+        request.id.toString()
+      );
+    }
+
+    console.log(`[QBWC] Unknown request type: ${entity_type} ${operation}`);
+    return null;
+
+  } catch (error) {
+    console.error(`[QBWC] Error generating QBXML for ${entity_type} ${operation}:`, error);
+    return null;
   }
 }
 
