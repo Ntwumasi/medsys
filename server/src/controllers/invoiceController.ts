@@ -354,8 +354,9 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     }
 
     const invoice = currentInvoice.rows[0];
-    const wasUnpaid = invoice.status !== 'paid';
-    const isBeingPaid = status === 'paid';
+    const currentAmountPaid = parseFloat(invoice.amount_paid || 0);
+    const newAmountPaid = amount_paid ? parseFloat(amount_paid) : currentAmountPaid;
+    const paymentAmount = newAmountPaid - currentAmountPaid;
 
     // Update the invoice
     const result = await client.query(
@@ -369,28 +370,26 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
       [status, amount_paid, notes, id]
     );
 
-    // If invoice is being marked as paid, create a payment record
-    if (wasUnpaid && isBeingPaid && amount_paid) {
-      const paymentAmount = parseFloat(amount_paid) - parseFloat(invoice.amount_paid || 0);
+    // If a payment is being made (amount_paid is increasing), create a payment record
+    if (paymentAmount > 0) {
+      const paymentResult = await client.query(
+        `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
+         VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+         RETURNING id`,
+        [id, paymentAmount, payment_method || 'cash', 'Payment at checkout', userId]
+      );
 
-      if (paymentAmount > 0) {
-        const paymentResult = await client.query(
-          `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
-           VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-           RETURNING id`,
-          [id, paymentAmount, payment_method || 'cash', 'Payment at checkout', userId]
+      console.log(`Payment recorded: ${paymentAmount} for invoice ${id} (method: ${payment_method || 'cash'})`);
+
+      // Queue payment to QuickBooks
+      const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+      if (qbConfig.rows[0]?.is_connected) {
+        await client.query(
+          `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+           VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)`,
+          [paymentResult.rows[0].id]
         );
-
-        // Queue payment to QuickBooks
-        const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
-        if (qbConfig.rows[0]?.is_connected) {
-          await client.query(
-            `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
-             VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)`,
-            [paymentResult.rows[0].id]
-          );
-          console.log(`Payment ${paymentResult.rows[0].id} queued for QuickBooks sync`);
-        }
+        console.log(`Payment ${paymentResult.rows[0].id} queued for QuickBooks sync`);
       }
     }
 

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -60,6 +60,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const { showToast } = useNotification();
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Calculate balance due
+  const balanceDue = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
+
+  // Payment state
+  const [paymentAmount, setPaymentAmount] = useState<string>(balanceDue.toFixed(2));
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const handlePrint = () => {
     window.print();
   };
@@ -67,23 +75,49 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
 
   const handleMarkAsPaid = async () => {
-    if (!confirm('Mark this invoice as paid and complete the encounter?')) {
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Please enter a valid payment amount', 'error');
       return;
     }
 
+    if (amount > balanceDue) {
+      showToast(`Payment amount cannot exceed balance due (GHS ${balanceDue.toFixed(2)})`, 'error');
+      return;
+    }
+
+    const isFullPayment = amount >= balanceDue;
+    const confirmMessage = isFullPayment
+      ? 'Record full payment and complete the encounter?'
+      : `Record partial payment of GHS ${amount.toFixed(2)}? Balance will be GHS ${(balanceDue - amount).toFixed(2)}`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setIsProcessing(true);
     try {
-      // Mark invoice as paid
+      // Calculate new amount_paid
+      const newAmountPaid = Number(invoice.amount_paid || 0) + amount;
+      const newStatus = newAmountPaid >= Number(invoice.total_amount) ? 'paid' : 'partial';
+
+      // Record payment
       await apiClient.put(`/invoices/${invoice.id}`, {
-        status: 'paid',
-        amount_paid: invoice.total_amount,
+        status: newStatus,
+        amount_paid: newAmountPaid,
+        payment_method: paymentMethod,
       });
 
-      // Complete the encounter
-      await apiClient.post('/workflow/release-room', {
-        encounter_id: encounterId,
-      });
+      // Complete the encounter only if fully paid
+      if (isFullPayment && encounterId) {
+        await apiClient.post('/workflow/release-room', {
+          encounter_id: encounterId,
+        });
+        showToast('Payment recorded and encounter completed successfully!', 'success');
+      } else {
+        showToast(`Partial payment of GHS ${amount.toFixed(2)} recorded. Balance: GHS ${(balanceDue - amount).toFixed(2)}`, 'success');
+      }
 
-      showToast('Payment recorded and encounter completed successfully!', 'success');
       onClose();
       if (onPaymentComplete) onPaymentComplete();
     } catch (error) {
@@ -91,6 +125,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.error || apiError.message || 'Unknown error occurred';
       showToast(`Failed to complete payment: ${errorMessage}`, 'error');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -198,28 +234,82 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
           {/* Payment Actions - Only show if encounterId is provided */}
           {encounterId && (
-            <div className="flex gap-3 pt-4 border-t border-gray-300">
+            <div className="pt-4 border-t border-gray-300">
               {isSelfPay ? (
-                <>
-                  <button
-                    onClick={handleMarkAsPaid}
-                    className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Paid
-                  </button>
-                  <button
-                    onClick={handleDeferPayment}
-                    className="flex-1 px-6 py-3 bg-warning-500 text-white rounded-lg hover:bg-warning-600 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Defer Payment
-                  </button>
-                </>
+                <div className="space-y-4">
+                  {/* Balance Due Display */}
+                  <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 flex justify-between items-center">
+                    <span className="text-sm font-medium text-primary-700">Balance Due:</span>
+                    <span className="text-xl font-bold text-primary-700">GHS {balanceDue.toFixed(2)}</span>
+                  </div>
+
+                  {/* Payment Input Row */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount (GHS)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        max={balanceDue}
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="Enter amount"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                      <select
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="mobile_money">Mobile Money</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleMarkAsPaid}
+                      disabled={isProcessing}
+                      className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <>
+                          <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          </svg>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Record Payment
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={handleDeferPayment}
+                      disabled={isProcessing}
+                      className="flex-1 px-6 py-3 bg-warning-500 text-white rounded-lg hover:bg-warning-600 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Defer Payment
+                    </button>
+                  </div>
+                </div>
               ) : (
                 <button
                   onClick={handleSubmitToPayer}
