@@ -158,6 +158,98 @@ export const textToHtml = (text: string): string => {
   `.trim();
 };
 
+/**
+ * Send payment receipt email
+ */
+export const sendReceiptEmail = async (
+  patientEmail: string,
+  patientName: string,
+  paymentAmount: number,
+  paymentMethod: string,
+  invoiceNumber: string,
+  invoiceTotal: number,
+  balanceRemaining: number,
+  paymentId: number
+): Promise<EmailResult> => {
+  const subject = `Payment Receipt - ${invoiceNumber}`;
+
+  const body = `
+Dear ${patientName},
+
+Thank you for your payment at MedSys Healthcare.
+
+PAYMENT DETAILS
+---------------
+Receipt #: RCP-${paymentId}
+Invoice: ${invoiceNumber}
+Amount Paid: GHS ${paymentAmount.toFixed(2)}
+Payment Method: ${paymentMethod}
+Date: ${new Date().toLocaleDateString()}
+
+Invoice Total: GHS ${invoiceTotal.toFixed(2)}
+Balance Remaining: GHS ${balanceRemaining.toFixed(2)}
+
+Thank you for choosing MedSys Healthcare.
+
+For questions about your bill, please contact our billing department.
+
+Best regards,
+MedSys Healthcare
+  `.trim();
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #2563eb; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; }
+    .receipt-box { background: white; padding: 15px; border: 1px solid #e5e7eb; border-radius: 8px; margin: 15px 0; }
+    .amount { font-size: 24px; color: #059669; font-weight: bold; }
+    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 8px 0; }
+    .label { color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Payment Receipt</h1>
+    <p>MedSys Healthcare</p>
+  </div>
+  <div class="content">
+    <p>Dear ${patientName},</p>
+    <p>Thank you for your payment. Here are your receipt details:</p>
+
+    <div class="receipt-box">
+      <table>
+        <tr><td class="label">Receipt #:</td><td>RCP-${paymentId}</td></tr>
+        <tr><td class="label">Invoice:</td><td>${invoiceNumber}</td></tr>
+        <tr><td class="label">Date:</td><td>${new Date().toLocaleDateString()}</td></tr>
+        <tr><td class="label">Payment Method:</td><td>${paymentMethod}</td></tr>
+      </table>
+      <hr>
+      <table>
+        <tr><td class="label">Amount Paid:</td><td class="amount">GHS ${paymentAmount.toFixed(2)}</td></tr>
+        <tr><td class="label">Invoice Total:</td><td>GHS ${invoiceTotal.toFixed(2)}</td></tr>
+        <tr><td class="label">Balance Remaining:</td><td style="color: ${balanceRemaining > 0 ? '#dc2626' : '#059669'}">GHS ${balanceRemaining.toFixed(2)}</td></tr>
+      </table>
+    </div>
+
+    <p>For questions about your bill, please contact our billing department.</p>
+  </div>
+  <div class="footer">
+    <p>This is an automated message from MedSys Healthcare.</p>
+  </div>
+</body>
+</html>
+  `.trim();
+
+  return sendEmail(patientEmail, subject, body, html);
+};
+
 // =============================================================
 // INTEGRATION EXAMPLES (uncomment and modify when ready)
 // =============================================================

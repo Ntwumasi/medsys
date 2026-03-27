@@ -8,6 +8,8 @@ import {
   getRevenueByPayer,
   getDepartmentRevenue,
   getDepartmentLineItems,
+  generatePatientStatement,
+  generateReceipt,
 } from '../controllers/accountantController';
 
 const router = Router();
@@ -29,5 +31,9 @@ router.get('/reports/revenue-by-payer', getRevenueByPayer);
 // Department revenue (for department-specific finance views)
 router.get('/department/:department/revenue', getDepartmentRevenue);
 router.get('/department/:department/line-items', getDepartmentLineItems);
+
+// PDF generation
+router.get('/statement/:patient_id', generatePatientStatement);
+router.get('/receipt/:payment_id', generateReceipt);
 
 export default router;

@@ -255,15 +255,28 @@ const QBPayments: React.FC = () => {
                   </td>
                   <td className="px-4 py-3">{getSyncStatusBadge(payment.sync_status)}</td>
                   <td className="px-4 py-3">
-                    {payment.sync_status !== 'synced' && (
-                      <button
-                        onClick={() => handleSyncPayment(payment.id)}
-                        disabled={syncing === payment.id}
-                        className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded hover:bg-primary-200 disabled:opacity-50"
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`${import.meta.env.VITE_API_URL || ''}/api/accountant/receipt/${payment.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 flex items-center gap-1"
                       >
-                        {syncing === payment.id ? 'Syncing...' : 'Sync'}
-                      </button>
-                    )}
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Receipt
+                      </a>
+                      {payment.sync_status !== 'synced' && (
+                        <button
+                          onClick={() => handleSyncPayment(payment.id)}
+                          disabled={syncing === payment.id}
+                          className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded hover:bg-primary-200 disabled:opacity-50"
+                        >
+                          {syncing === payment.id ? 'Syncing...' : 'Sync'}
+                        </button>
+                      )}
+                    </div>
                     {payment.quickbooks_txn_id && (
                       <span className="text-xs text-text-secondary block mt-1">
                         QB: {payment.quickbooks_txn_id}

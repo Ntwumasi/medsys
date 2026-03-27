@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 
 // Get financial dashboard summary
 export const getFinancialSummary = async (req: Request, res: Response): Promise<void> => {
@@ -723,5 +724,312 @@ export const getDepartmentLineItems = async (req: Request, res: Response): Promi
   } catch (error) {
     console.error('Get department line items error:', error);
     res.status(500).json({ error: 'Failed to fetch line items' });
+  }
+};
+
+// Generate patient statement PDF
+export const generatePatientStatement = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+    const { start_date, end_date } = req.query;
+
+    // Get patient info
+    const patientResult = await pool.query(`
+      SELECT p.*, u.first_name, u.last_name, u.email, u.phone
+      FROM patients p
+      JOIN users u ON p.user_id = u.id
+      WHERE p.id = $1
+    `, [patient_id]);
+
+    if (patientResult.rows.length === 0) {
+      res.status(404).json({ error: 'Patient not found' });
+      return;
+    }
+
+    const patient = patientResult.rows[0];
+
+    // Build date filter
+    let dateFilter = '';
+    const params: any[] = [patient_id];
+    if (start_date) {
+      params.push(start_date);
+      dateFilter += ` AND i.invoice_date >= $${params.length}`;
+    }
+    if (end_date) {
+      params.push(end_date);
+      dateFilter += ` AND i.invoice_date <= $${params.length}`;
+    }
+
+    // Get unpaid invoices
+    const invoicesResult = await pool.query(`
+      SELECT
+        i.id,
+        i.invoice_number,
+        i.invoice_date,
+        i.due_date,
+        i.total_amount,
+        COALESCE(i.amount_paid, 0) as amount_paid,
+        (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
+        i.status,
+        e.encounter_number,
+        CURRENT_DATE - DATE(i.invoice_date) as days_outstanding
+      FROM invoices i
+      LEFT JOIN encounters e ON i.encounter_id = e.id
+      WHERE i.patient_id = $1
+        AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0
+        ${dateFilter}
+      ORDER BY i.invoice_date DESC
+    `, params);
+
+    // Get line items for each invoice
+    const invoiceIds = invoicesResult.rows.map((inv: any) => inv.id);
+    let lineItems: any[] = [];
+    if (invoiceIds.length > 0) {
+      const itemsResult = await pool.query(`
+        SELECT
+          ii.invoice_id,
+          ii.description,
+          ii.quantity,
+          ii.unit_price,
+          ii.total_price
+        FROM invoice_items ii
+        WHERE ii.invoice_id = ANY($1)
+        ORDER BY ii.invoice_id, ii.id
+      `, [invoiceIds]);
+      lineItems = itemsResult.rows;
+    }
+
+    // Get payment history
+    const paymentsResult = await pool.query(`
+      SELECT
+        pay.payment_date,
+        pay.amount,
+        pay.payment_method,
+        pay.reference_number,
+        i.invoice_number
+      FROM payments pay
+      JOIN invoices i ON pay.invoice_id = i.id
+      WHERE i.patient_id = $1
+      ORDER BY pay.payment_date DESC
+      LIMIT 10
+    `, [patient_id]);
+
+    // Calculate totals
+    const totalBilled = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount), 0);
+    const totalPaid = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount_paid), 0);
+    const totalBalance = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.balance), 0);
+
+    // Create PDF
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+    // Set response headers
+    const filename = `statement_${patient.patient_number}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Pipe to response
+    doc.pipe(res);
+
+    // Header
+    doc.fontSize(20).font('Helvetica-Bold').text('PATIENT STATEMENT', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(12).font('Helvetica').text('MedSys Healthcare', { align: 'center' });
+    doc.fontSize(10).text('Statement Date: ' + new Date().toLocaleDateString(), { align: 'center' });
+    doc.moveDown(1);
+
+    // Patient Info Box
+    doc.rect(50, doc.y, 495, 70).stroke();
+    const boxY = doc.y + 10;
+    doc.fontSize(10).font('Helvetica-Bold').text('Patient Information', 60, boxY);
+    doc.font('Helvetica').text(`Name: ${patient.first_name} ${patient.last_name}`, 60, boxY + 15);
+    doc.text(`Patient #: ${patient.patient_number}`, 60, boxY + 30);
+    doc.text(`Phone: ${patient.phone || 'N/A'}`, 60, boxY + 45);
+    doc.text(`Email: ${patient.email || 'N/A'}`, 300, boxY + 15);
+    doc.text(`Address: ${patient.address || 'N/A'}`, 300, boxY + 30);
+    doc.moveDown(4);
+
+    // Account Summary
+    doc.fontSize(14).font('Helvetica-Bold').text('Account Summary');
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica');
+    doc.text(`Total Billed: GHS ${totalBilled.toFixed(2)}`, { continued: true });
+    doc.text(`     Total Paid: GHS ${totalPaid.toFixed(2)}`, { continued: true });
+    doc.font('Helvetica-Bold').text(`     Balance Due: GHS ${totalBalance.toFixed(2)}`);
+    doc.moveDown(1);
+
+    // Invoices Table
+    if (invoicesResult.rows.length > 0) {
+      doc.fontSize(12).font('Helvetica-Bold').text('Outstanding Invoices');
+      doc.moveDown(0.5);
+
+      // Table header
+      const tableTop = doc.y;
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text('Invoice #', 50, tableTop, { width: 80 });
+      doc.text('Date', 130, tableTop, { width: 70 });
+      doc.text('Description', 200, tableTop, { width: 150 });
+      doc.text('Amount', 350, tableTop, { width: 60, align: 'right' });
+      doc.text('Paid', 410, tableTop, { width: 60, align: 'right' });
+      doc.text('Balance', 470, tableTop, { width: 75, align: 'right' });
+
+      doc.moveTo(50, tableTop + 12).lineTo(545, tableTop + 12).stroke();
+
+      // Table rows
+      let rowY = tableTop + 18;
+      doc.font('Helvetica').fontSize(9);
+
+      for (const inv of invoicesResult.rows) {
+        if (rowY > 700) {
+          doc.addPage();
+          rowY = 50;
+        }
+
+        doc.text(inv.invoice_number || `INV-${inv.id}`, 50, rowY, { width: 80 });
+        doc.text(new Date(inv.invoice_date).toLocaleDateString(), 130, rowY, { width: 70 });
+        doc.text(inv.encounter_number ? `Visit: ${inv.encounter_number}` : 'Medical Services', 200, rowY, { width: 150 });
+        doc.text(`GHS ${parseFloat(inv.total_amount).toFixed(2)}`, 350, rowY, { width: 60, align: 'right' });
+        doc.text(`GHS ${parseFloat(inv.amount_paid).toFixed(2)}`, 410, rowY, { width: 60, align: 'right' });
+        doc.text(`GHS ${parseFloat(inv.balance).toFixed(2)}`, 470, rowY, { width: 75, align: 'right' });
+        rowY += 15;
+      }
+
+      // Total line
+      doc.moveTo(50, rowY).lineTo(545, rowY).stroke();
+      rowY += 5;
+      doc.font('Helvetica-Bold');
+      doc.text('TOTAL DUE:', 350, rowY, { width: 60 });
+      doc.text(`GHS ${totalBalance.toFixed(2)}`, 470, rowY, { width: 75, align: 'right' });
+      doc.moveDown(2);
+    }
+
+    // Payment History
+    if (paymentsResult.rows.length > 0) {
+      doc.fontSize(12).font('Helvetica-Bold').text('Recent Payments');
+      doc.moveDown(0.5);
+
+      doc.fontSize(9).font('Helvetica');
+      for (const pay of paymentsResult.rows) {
+        doc.text(
+          `${new Date(pay.payment_date).toLocaleDateString()} - GHS ${parseFloat(pay.amount).toFixed(2)} (${pay.payment_method || 'N/A'}) - Invoice: ${pay.invoice_number}`,
+          { indent: 10 }
+        );
+      }
+      doc.moveDown(1);
+    }
+
+    // Footer
+    doc.fontSize(10).font('Helvetica');
+    doc.text('Thank you for choosing MedSys Healthcare.', { align: 'center' });
+    doc.text('For questions about this statement, please contact our billing department.', { align: 'center' });
+
+    // Finalize
+    doc.end();
+
+  } catch (error) {
+    console.error('Generate patient statement error:', error);
+    res.status(500).json({ error: 'Failed to generate statement' });
+  }
+};
+
+// Generate receipt PDF for a payment
+export const generateReceipt = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { payment_id } = req.params;
+
+    // Get payment with invoice and patient details
+    const result = await pool.query(`
+      SELECT
+        pay.*,
+        i.invoice_number,
+        i.total_amount as invoice_total,
+        i.amount_paid as invoice_paid,
+        (i.total_amount - COALESCE(i.amount_paid, 0)) as invoice_balance,
+        p.patient_number,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.phone,
+        p.address,
+        creator.first_name as created_by_first,
+        creator.last_name as created_by_last
+      FROM payments pay
+      JOIN invoices i ON pay.invoice_id = i.id
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN users creator ON pay.created_by = creator.id
+      WHERE pay.id = $1
+    `, [payment_id]);
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Payment not found' });
+      return;
+    }
+
+    const payment = result.rows[0];
+
+    // Create PDF
+    const doc = new PDFDocument({ margin: 50, size: 'A5' });
+
+    // Set response headers
+    const filename = `receipt_${payment.reference_number || payment.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    doc.pipe(res);
+
+    // Header
+    doc.fontSize(18).font('Helvetica-Bold').text('PAYMENT RECEIPT', { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(12).font('Helvetica').text('MedSys Healthcare', { align: 'center' });
+    doc.moveDown(1);
+
+    // Receipt Details
+    doc.fontSize(10).font('Helvetica-Bold').text('Receipt #: ', { continued: true });
+    doc.font('Helvetica').text(payment.reference_number || `RCP-${payment.id}`);
+
+    doc.font('Helvetica-Bold').text('Date: ', { continued: true });
+    doc.font('Helvetica').text(new Date(payment.payment_date).toLocaleDateString());
+    doc.moveDown(1);
+
+    // Patient Info
+    doc.font('Helvetica-Bold').text('Received From:');
+    doc.font('Helvetica').text(`${payment.first_name} ${payment.last_name}`);
+    doc.text(`Patient #: ${payment.patient_number}`);
+    doc.moveDown(1);
+
+    // Payment Details Box
+    doc.rect(40, doc.y, doc.page.width - 80, 80).stroke();
+    const boxTop = doc.y + 10;
+
+    doc.fontSize(10).font('Helvetica');
+    doc.text(`Invoice: ${payment.invoice_number}`, 50, boxTop);
+    doc.text(`Payment Method: ${payment.payment_method || 'N/A'}`, 50, boxTop + 15);
+    doc.text(`Reference: ${payment.reference_number || 'N/A'}`, 50, boxTop + 30);
+
+    doc.fontSize(14).font('Helvetica-Bold');
+    doc.text(`Amount Paid: GHS ${parseFloat(payment.amount).toFixed(2)}`, 50, boxTop + 50);
+
+    doc.moveDown(5);
+
+    // Balance Info
+    doc.fontSize(10).font('Helvetica');
+    const balanceAfter = parseFloat(payment.invoice_total) - parseFloat(payment.invoice_paid);
+    doc.text(`Invoice Total: GHS ${parseFloat(payment.invoice_total).toFixed(2)}`);
+    doc.text(`Total Paid: GHS ${parseFloat(payment.invoice_paid).toFixed(2)}`);
+    doc.font('Helvetica-Bold').text(`Balance Remaining: GHS ${balanceAfter.toFixed(2)}`);
+    doc.moveDown(1);
+
+    // Footer
+    if (payment.created_by_first) {
+      doc.fontSize(9).font('Helvetica').text(`Processed by: ${payment.created_by_first} ${payment.created_by_last}`);
+    }
+    doc.moveDown(2);
+    doc.fontSize(10).text('Thank you for your payment!', { align: 'center' });
+
+    doc.end();
+
+  } catch (error) {
+    console.error('Generate receipt error:', error);
+    res.status(500).json({ error: 'Failed to generate receipt' });
   }
 };

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { sendReceiptEmail, validateEmail } from '../services/emailService';
 
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
@@ -380,6 +381,45 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
       );
 
       console.log(`Payment recorded: ${paymentAmount} for invoice ${id} (method: ${payment_method || 'cash'})`);
+
+      // Send receipt email to patient
+      try {
+        const patientInfo = await client.query(
+          `SELECT u.email, u.first_name || ' ' || u.last_name as patient_name,
+                  i.invoice_number, i.total_amount, i.amount_paid
+           FROM invoices i
+           JOIN patients p ON i.patient_id = p.id
+           JOIN users u ON p.user_id = u.id
+           WHERE i.id = $1`,
+          [id]
+        );
+
+        if (patientInfo.rows.length > 0) {
+          const patient = patientInfo.rows[0];
+          const invoiceTotal = parseFloat(patient.total_amount || 0);
+          const totalPaid = parseFloat(patient.amount_paid || 0);
+          const balanceRemaining = invoiceTotal - totalPaid;
+
+          if (patient.email && validateEmail(patient.email)) {
+            await sendReceiptEmail(
+              patient.email,
+              patient.patient_name,
+              paymentAmount,
+              payment_method || 'cash',
+              patient.invoice_number,
+              invoiceTotal,
+              balanceRemaining,
+              paymentResult.rows[0].id
+            );
+            console.log(`Receipt email sent to ${patient.email}`);
+          } else {
+            console.log(`Skipping receipt email - no valid email for patient`);
+          }
+        }
+      } catch (emailError) {
+        // Don't fail the payment if email fails
+        console.error('Failed to send receipt email:', emailError);
+      }
 
       // Queue payment to QuickBooks
       const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
