@@ -179,7 +179,6 @@ async function generateQBXML(request: any): Promise<string | null> {
     }
 
     if (entity_type === 'invoice' && (operation === 'push' || operation === 'add')) {
-      console.log(`[QBWC] Generating invoice QBXML for medsys_id=${medsys_id}`);
       // Get invoice data with items
       const invoiceResult = await pool.query(`
         SELECT i.*, p.patient_number, u.first_name, u.last_name
@@ -189,7 +188,6 @@ async function generateQBXML(request: any): Promise<string | null> {
         WHERE i.id = $1
       `, [medsys_id]);
 
-      console.log(`[QBWC] Invoice query returned ${invoiceResult.rows.length} rows`);
       if (invoiceResult.rows.length === 0) return null;
 
       const itemsResult = await pool.query(`
@@ -198,14 +196,12 @@ async function generateQBXML(request: any): Promise<string | null> {
         LEFT JOIN charge_master cm ON ii.charge_master_id = cm.id
         WHERE ii.invoice_id = $1
       `, [medsys_id]);
-      console.log(`[QBWC] Invoice items: ${itemsResult.rows.length}`);
 
       // Get QB customer ID
       const syncMap = await pool.query(`
         SELECT quickbooks_id FROM quickbooks_sync_map
         WHERE entity_type = 'patient' AND medsys_id = $1
       `, [invoiceResult.rows[0].patient_id]);
-      console.log(`[QBWC] Patient ${invoiceResult.rows[0].patient_id} sync check: ${syncMap.rows.length > 0 ? syncMap.rows[0].quickbooks_id : 'NOT FOUND'}`);
 
       if (syncMap.rows.length === 0) {
         console.log(`[QBWC] Patient ${invoiceResult.rows[0].patient_id} not synced to QB yet`);
@@ -232,15 +228,13 @@ async function generateQBXML(request: any): Promise<string | null> {
         }
       }
 
-      const qbxml = qbxmlBuilder.buildInvoiceAddRq(
+      return qbxmlBuilder.buildInvoiceAddRq(
         invoiceResult.rows[0],
         itemsResult.rows,
         syncMap.rows[0].quickbooks_id,
         itemListIds,
         request.id.toString()
       );
-      console.log(`[QBWC] Invoice QBXML generated: ${qbxml ? qbxml.length : 0} chars`);
-      return qbxml;
     }
 
     if (entity_type === 'payment' && (operation === 'push' || operation === 'add')) {
