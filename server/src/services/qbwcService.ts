@@ -323,33 +323,59 @@ export async function receiveResponseXML(
         errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}`;
       }
     } else if (request.entity_type === 'patient' || request.entity_type === 'customer') {
-      const parsed = qbxmlBuilder.parseCustomerResponse(response);
-      if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+      // Check for empty/invalid response
+      if (!response || response.length < 50 || !response.includes('CustomerAddRs')) {
         status = 'error';
-        errorCode = parsed.statusCode;
-        errorMessage = parsed.statusMessage;
+        errorMessage = 'Empty or invalid response from QuickBooks';
+        console.log(`[QBWC] Invalid customer response for ${request.id}, length: ${response?.length || 0}`);
       } else {
-        qbListId = parsed.listId || null;
-        qbEditSequence = parsed.editSequence || null;
+        const parsed = qbxmlBuilder.parseCustomerResponse(response);
+        if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+          status = 'error';
+          errorCode = parsed.statusCode;
+          errorMessage = parsed.statusMessage;
+        } else if (!parsed.listId) {
+          status = 'error';
+          errorMessage = 'No ListID returned from QuickBooks';
+        } else {
+          qbListId = parsed.listId;
+          qbEditSequence = parsed.editSequence || null;
+        }
       }
     } else if (request.entity_type === 'invoice') {
-      const parsed = qbxmlBuilder.parseInvoiceResponse(response);
-      if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+      if (!response || response.length < 50 || !response.includes('InvoiceAddRs')) {
         status = 'error';
-        errorCode = parsed.statusCode;
-        errorMessage = parsed.statusMessage;
+        errorMessage = 'Empty or invalid response from QuickBooks';
       } else {
-        qbTxnId = parsed.txnId || null;
-        qbEditSequence = parsed.editSequence || null;
+        const parsed = qbxmlBuilder.parseInvoiceResponse(response);
+        if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+          status = 'error';
+          errorCode = parsed.statusCode;
+          errorMessage = parsed.statusMessage;
+        } else if (!parsed.txnId) {
+          status = 'error';
+          errorMessage = 'No TxnID returned from QuickBooks';
+        } else {
+          qbTxnId = parsed.txnId;
+          qbEditSequence = parsed.editSequence || null;
+        }
       }
     } else if (request.entity_type === 'payment') {
-      const parsed = qbxmlBuilder.parsePaymentResponse(response);
-      if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+      if (!response || response.length < 50 || !response.includes('ReceivePaymentAddRs')) {
         status = 'error';
-        errorCode = parsed.statusCode;
-        errorMessage = parsed.statusMessage;
+        errorMessage = 'Empty or invalid response from QuickBooks';
       } else {
-        qbTxnId = parsed.txnId || null;
+        const parsed = qbxmlBuilder.parsePaymentResponse(response);
+        if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+          status = 'error';
+          errorCode = parsed.statusCode;
+          errorMessage = parsed.statusMessage;
+        } else if (!parsed.txnId) {
+          status = 'error';
+          errorMessage = 'No TxnID returned from QuickBooks';
+        } else {
+          qbTxnId = parsed.txnId;
+        }
       }
     }
 
