@@ -191,7 +191,7 @@ async function generateQBXML(request: any): Promise<string | null> {
       if (invoiceResult.rows.length === 0) return null;
 
       const itemsResult = await pool.query(`
-        SELECT ii.*, cm.quickbooks_item_name
+        SELECT ii.*, cm.service_name as quickbooks_item_name
         FROM invoice_items ii
         LEFT JOIN charge_master cm ON ii.charge_master_id = cm.id
         WHERE ii.invoice_id = $1
