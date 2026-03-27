@@ -616,6 +616,13 @@ export const deferPayment = async (req: Request, res: Response): Promise<void> =
 
     // Complete the encounter if provided
     if (encounter_id) {
+      // Get the encounter's room_id first
+      const encResult = await client.query(
+        'SELECT room_id FROM encounters WHERE id = $1',
+        [encounter_id]
+      );
+      const roomId = encResult.rows[0]?.room_id;
+
       await client.query(
         `UPDATE encounters
          SET status = 'completed',
@@ -625,15 +632,16 @@ export const deferPayment = async (req: Request, res: Response): Promise<void> =
         [encounter_id]
       );
 
-      // Release the room
-      await client.query(
-        `UPDATE rooms
-         SET status = 'available',
-             current_patient_id = NULL,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE current_patient_id = $1`,
-        [patientId]
-      );
+      // Release the room if one was assigned
+      if (roomId) {
+        await client.query(
+          `UPDATE rooms
+           SET is_available = true,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [roomId]
+        );
+      }
     }
 
     await client.query('COMMIT');
