@@ -144,7 +144,7 @@ export function buildItemServiceAddRq(item: ServiceItemData, incomeAccountListId
         <IsActive>true</IsActive>
         <SalesOrPurchase>
           <Desc>${escapeXML((item.service_name + (item.description ? ' - ' + item.description : '')).substring(0, 4095))}</Desc>
-          <Price>${item.price.toFixed(2)}</Price>
+          <Price>${Number(item.price || 0).toFixed(2)}</Price>
           <AccountRef>
             <ListID>${escapeXML(incomeAccountListId)}</ListID>
           </AccountRef>
@@ -191,7 +191,7 @@ export function buildInvoiceAddRq(
         ${itemRef}
         <Desc>${escapeXML(item.description.substring(0, 4095))}</Desc>
         <Quantity>${item.quantity}</Quantity>
-        <Rate>${item.unit_price.toFixed(2)}</Rate>
+        <Rate>${Number(item.unit_price || 0).toFixed(2)}</Rate>
       </InvoiceLineAdd>`;
   }).join('');
 
@@ -249,11 +249,11 @@ export function buildReceivePaymentAddRq(
         </CustomerRef>
         <TxnDate>${formatQBDate(payment.payment_date)}</TxnDate>
         ${payment.reference_number ? `<RefNumber>${escapeXML(payment.reference_number.substring(0, 11))}</RefNumber>` : ''}
-        <TotalAmount>${payment.amount.toFixed(2)}</TotalAmount>
+        <TotalAmount>${Number(payment.amount || 0).toFixed(2)}</TotalAmount>
         ${payment.payment_method ? `<Memo>Payment Method: ${escapeXML(payment.payment_method)}</Memo>` : ''}
         <AppliedToTxnAdd>
           <TxnID>${escapeXML(invoiceTxnId)}</TxnID>
-          <PaymentAmount>${payment.amount.toFixed(2)}</PaymentAmount>
+          <PaymentAmount>${Number(payment.amount || 0).toFixed(2)}</PaymentAmount>
         </AppliedToTxnAdd>
       </ReceivePaymentAdd>
     </ReceivePaymentAddRq>`;
