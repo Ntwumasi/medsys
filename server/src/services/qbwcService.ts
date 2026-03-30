@@ -178,7 +178,29 @@ async function generateQBXML(request: any): Promise<string | null> {
       return qbxmlBuilder.buildCustomerAddRq(result.rows[0], request.id.toString());
     }
 
-    if (entity_type === 'invoice' && (operation === 'push' || operation === 'add')) {
+    if (entity_type === 'invoice' && (operation === 'push' || operation === 'add' || operation === 'update')) {
+      // For 'update' operation, check if already synced - if so, skip (InvoiceMod not yet supported)
+      if (operation === 'update') {
+        const existingSync = await pool.query(`
+          SELECT quickbooks_id FROM quickbooks_sync_map
+          WHERE entity_type = 'invoice' AND medsys_id = $1
+        `, [medsys_id]);
+
+        if (existingSync.rows.length > 0) {
+          console.log(`[QBWC] Invoice ${medsys_id} already synced to QB (TxnID: ${existingSync.rows[0].quickbooks_id}). Invoice modifications not yet supported.`);
+          // Mark as completed since it's already in QB
+          await pool.query(`
+            UPDATE quickbooks_request_queue SET
+              status = 'completed',
+              error_message = 'Invoice already synced - modifications not yet supported',
+              completed_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+          `, [request.id]);
+          return null;
+        }
+        // If not yet synced, treat as add
+      }
+
       // Get invoice data with items
       const invoiceResult = await pool.query(`
         SELECT i.*, p.patient_number, u.first_name, u.last_name
