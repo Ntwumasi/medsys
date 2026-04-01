@@ -484,68 +484,95 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       <style>{`
         @media print {
           @page {
-            size: A4;
-            margin: 10mm;
+            size: letter;
+            margin: 8mm;
           }
-          body {
-            margin: 0;
-            padding: 0;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          body * {
-            visibility: hidden;
+          /* Hide everything except the invoice */
+          body > *:not(#root),
+          .fixed,
+          .print\\:hidden {
+            display: none !important;
           }
-          #printable-invoice,
-          #printable-invoice * {
-            visibility: visible;
+          /* Reset the modal and overlay */
+          #root {
+            position: static !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          #root > * {
+            position: static !important;
+            background: none !important;
+            height: auto !important;
+            overflow: visible !important;
           }
           #printable-invoice {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            padding: 8px !important;
+            position: static !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            background: white !important;
             font-size: 11px !important;
           }
           #printable-invoice h1 {
-            font-size: 20px !important;
+            font-size: 18px !important;
           }
           #printable-invoice h2 {
-            font-size: 16px !important;
+            font-size: 14px !important;
           }
           #printable-invoice h3 {
-            font-size: 11px !important;
+            font-size: 10px !important;
+            margin-bottom: 4px !important;
           }
           #printable-invoice table {
             font-size: 10px !important;
           }
           #printable-invoice th,
           #printable-invoice td {
-            padding: 4px 8px !important;
+            padding: 3px 6px !important;
           }
           #printable-invoice .border-b-2 {
-            padding-bottom: 8px !important;
-            margin-bottom: 8px !important;
+            padding-bottom: 6px !important;
+            margin-bottom: 6px !important;
           }
           #printable-invoice .mb-8 {
-            margin-bottom: 12px !important;
+            margin-bottom: 10px !important;
           }
           #printable-invoice .mb-6 {
-            margin-bottom: 8px !important;
+            margin-bottom: 6px !important;
           }
           #printable-invoice .pb-6 {
-            padding-bottom: 8px !important;
+            padding-bottom: 6px !important;
           }
           #printable-invoice .p-4 {
-            padding: 8px !important;
+            padding: 6px !important;
           }
           #printable-invoice .pt-6 {
-            padding-top: 8px !important;
+            padding-top: 6px !important;
           }
           #printable-invoice .gap-8 {
-            gap: 12px !important;
+            gap: 10px !important;
           }
-          .print\\:hidden {
-            display: none !important;
+          #printable-invoice .mt-2 {
+            margin-top: 4px !important;
+          }
+          #printable-invoice .mt-3 {
+            margin-top: 6px !important;
+          }
+          #printable-invoice .py-3 {
+            padding-top: 4px !important;
+            padding-bottom: 4px !important;
+          }
+          #printable-invoice .py-2 {
+            padding-top: 3px !important;
+            padding-bottom: 3px !important;
           }
         }
       `}</style>
