@@ -158,21 +158,24 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { username, password } = req.body;
+  const { username: rawUsername, password } = req.body;
 
   try {
     // Validate required fields
-    if (!username || !password) {
+    if (!rawUsername || !password) {
       res.status(400).json({ error: 'Username and password are required' });
       return;
     }
+
+    // Normalize username: trim, lowercase, remove spaces
+    const username = rawUsername.toString().trim().toLowerCase().replace(/\s+/g, '');
 
     // Find user by username (case-insensitive) with security fields
     const result = await pool.query(
       `SELECT id, username, email, password_hash, role, first_name, last_name, is_active,
               is_breakglass, is_super_admin, must_change_password, password_changed_at,
               failed_login_attempts, locked_until
-       FROM users WHERE LOWER(username) = LOWER($1)`,
+       FROM users WHERE LOWER(username) = $1`,
       [username]
     );
 
