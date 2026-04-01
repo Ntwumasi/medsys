@@ -259,7 +259,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Generate JWT token
     const secret = getJwtSecret();
     const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
+      { id: user.id, username: user.username, role: user.role, is_super_admin: user.is_super_admin || false },
       secret,
       { expiresIn: '24h' }
     );

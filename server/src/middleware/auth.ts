@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
     id: number;
     email: string;
     role: string;
+    is_super_admin?: boolean;
   };
 }
 
@@ -36,6 +37,7 @@ export const authenticateToken = (
       id: number;
       email: string;
       role: string;
+      is_super_admin?: boolean;
     };
 
     (req as AuthRequest).user = decoded;
@@ -56,6 +58,12 @@ export const authorizeRoles = (...roles: string[]) => {
 
     if (!user) {
       res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    // Super admins can access any role's endpoints
+    if (user.is_super_admin) {
+      next();
       return;
     }
 
