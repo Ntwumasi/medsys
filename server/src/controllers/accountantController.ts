@@ -967,8 +967,8 @@ export const generateReceipt = async (req: Request, res: Response): Promise<void
 
     const payment = result.rows[0];
 
-    // Create PDF
-    const doc = new PDFDocument({ margin: 50, size: 'A5' });
+    // Create PDF - use A4 for proper printing
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
 
     // Set response headers
     const filename = `receipt_${payment.reference_number || payment.id}_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -977,54 +977,56 @@ export const generateReceipt = async (req: Request, res: Response): Promise<void
 
     doc.pipe(res);
 
-    // Header
-    doc.fontSize(18).font('Helvetica-Bold').text('PAYMENT RECEIPT', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fontSize(12).font('Helvetica').text('MedSys Healthcare', { align: 'center' });
-    doc.moveDown(1);
+    // Header - larger fonts for A4
+    doc.fontSize(24).font('Helvetica-Bold').text('PAYMENT RECEIPT', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(14).font('Helvetica').text('MedSys Healthcare', { align: 'center' });
+    doc.fontSize(11).text('123 Healthcare Avenue, Accra, Ghana', { align: 'center' });
+    doc.moveDown(1.5);
 
-    // Receipt Details
-    doc.fontSize(10).font('Helvetica-Bold').text('Receipt #: ', { continued: true });
+    // Receipt Details - larger fonts
+    doc.fontSize(12).font('Helvetica-Bold').text('Receipt #: ', { continued: true });
     doc.font('Helvetica').text(payment.reference_number || `RCP-${payment.id}`);
 
     doc.font('Helvetica-Bold').text('Date: ', { continued: true });
     doc.font('Helvetica').text(new Date(payment.payment_date).toLocaleDateString());
-    doc.moveDown(1);
+    doc.moveDown(1.5);
 
-    // Patient Info
-    doc.font('Helvetica-Bold').text('Received From:');
+    // Patient Info - larger fonts
+    doc.fontSize(12).font('Helvetica-Bold').text('Received From:');
     doc.font('Helvetica').text(`${payment.first_name} ${payment.last_name}`);
     doc.text(`Patient #: ${payment.patient_number}`);
-    doc.moveDown(1);
+    doc.moveDown(1.5);
 
-    // Payment Details Box
-    doc.rect(40, doc.y, doc.page.width - 80, 80).stroke();
-    const boxTop = doc.y + 10;
+    // Payment Details Box - larger box for A4
+    const boxStartY = doc.y;
+    doc.rect(40, boxStartY, doc.page.width - 80, 100).stroke();
 
-    doc.fontSize(10).font('Helvetica');
-    doc.text(`Invoice: ${payment.invoice_number}`, 50, boxTop);
-    doc.text(`Payment Method: ${payment.payment_method || 'N/A'}`, 50, boxTop + 15);
-    doc.text(`Reference: ${payment.reference_number || 'N/A'}`, 50, boxTop + 30);
+    doc.fontSize(12).font('Helvetica');
+    doc.text(`Invoice: ${payment.invoice_number}`, 55, boxStartY + 15);
+    doc.text(`Payment Method: ${payment.payment_method || 'N/A'}`, 55, boxStartY + 35);
+    doc.text(`Reference: ${payment.reference_number || 'N/A'}`, 55, boxStartY + 55);
 
-    doc.fontSize(14).font('Helvetica-Bold');
-    doc.text(`Amount Paid: GHS ${parseFloat(payment.amount).toFixed(2)}`, 50, boxTop + 50);
+    doc.fontSize(16).font('Helvetica-Bold');
+    doc.text(`Amount Paid: GHS ${parseFloat(payment.amount).toFixed(2)}`, 55, boxStartY + 75);
 
-    doc.moveDown(5);
+    // Move cursor below the box
+    doc.y = boxStartY + 120;
 
-    // Balance Info
-    doc.fontSize(10).font('Helvetica');
+    // Balance Info - larger fonts
+    doc.fontSize(12).font('Helvetica');
     const balanceAfter = parseFloat(payment.invoice_total) - parseFloat(payment.invoice_paid);
     doc.text(`Invoice Total: GHS ${parseFloat(payment.invoice_total).toFixed(2)}`);
     doc.text(`Total Paid: GHS ${parseFloat(payment.invoice_paid).toFixed(2)}`);
     doc.font('Helvetica-Bold').text(`Balance Remaining: GHS ${balanceAfter.toFixed(2)}`);
-    doc.moveDown(1);
+    doc.moveDown(2);
 
     // Footer
     if (payment.created_by_first) {
-      doc.fontSize(9).font('Helvetica').text(`Processed by: ${payment.created_by_first} ${payment.created_by_last}`);
+      doc.fontSize(11).font('Helvetica').text(`Processed by: ${payment.created_by_first} ${payment.created_by_last}`);
     }
     doc.moveDown(2);
-    doc.fontSize(10).text('Thank you for your payment!', { align: 'center' });
+    doc.fontSize(12).text('Thank you for your payment!', { align: 'center' });
 
     doc.end();
 

@@ -429,10 +429,10 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                     <td className="py-3 px-4 text-gray-700">{item.description}</td>
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
-                      ${parseFloat(item.unit_price.toString()).toFixed(2)}
+                      GHS {parseFloat(item.unit_price.toString()).toFixed(2)}
                     </td>
                     <td className="py-3 px-4 text-right text-gray-700 font-medium">
-                      ${parseFloat(item.total_price.toString()).toFixed(2)}
+                      GHS {parseFloat(item.total_price.toString()).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -445,27 +445,27 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             <div className="w-64">
               <div className="flex justify-between py-2 text-gray-700">
                 <span>Subtotal:</span>
-                <span className="font-medium">${parseFloat(invoice.subtotal.toString()).toFixed(2)}</span>
+                <span className="font-medium">GHS {parseFloat(invoice.subtotal.toString()).toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-2 text-gray-700">
                 <span>Tax:</span>
-                <span className="font-medium">${parseFloat(invoice.tax.toString()).toFixed(2)}</span>
+                <span className="font-medium">GHS {parseFloat(invoice.tax.toString()).toFixed(2)}</span>
               </div>
               <div className="flex justify-between py-3 text-lg font-bold text-gray-900 border-t-2 border-gray-300">
                 <span>Total:</span>
-                <span>${parseFloat(invoice.total_amount.toString()).toFixed(2)}</span>
+                <span>GHS {parseFloat(invoice.total_amount.toString()).toFixed(2)}</span>
               </div>
               {invoice.amount_paid > 0 && (
                 <>
                   <div className="flex justify-between py-2 text-gray-700">
                     <span>Amount Paid:</span>
                     <span className="font-medium text-success-600">
-                      -${parseFloat(invoice.amount_paid.toString()).toFixed(2)}
+                      -GHS {parseFloat(invoice.amount_paid.toString()).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between py-3 text-lg font-bold text-primary-600 border-t-2 border-gray-300">
                     <span>Balance Due:</span>
-                    <span>${balance}</span>
+                    <span>GHS {balance}</span>
                   </div>
                 </>
               )}
