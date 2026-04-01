@@ -207,27 +207,27 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         </button>
 
         {/* Non-printable header with action buttons */}
-        <div className="print:hidden bg-gray-100 px-6 py-4 border-b border-gray-200 rounded-t-lg">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Invoice Preview</h2>
-            <div className="flex gap-2">
+        <div className="print:hidden bg-gray-100 px-4 sm:px-6 py-4 border-b border-gray-200 rounded-t-lg">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invoice Preview</h2>
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handlePrint}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                Print Invoice
+                <span className="whitespace-nowrap">Print Invoice</span>
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-                Close
+                <span>Close</span>
               </button>
             </div>
           </div>
@@ -483,6 +483,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
       <style>{`
         @media print {
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
           body * {
             visibility: hidden;
           }
@@ -495,7 +503,46 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             left: 0;
             top: 0;
             width: 100%;
-            padding: 20px;
+            padding: 8px !important;
+            font-size: 11px !important;
+          }
+          #printable-invoice h1 {
+            font-size: 20px !important;
+          }
+          #printable-invoice h2 {
+            font-size: 16px !important;
+          }
+          #printable-invoice h3 {
+            font-size: 11px !important;
+          }
+          #printable-invoice table {
+            font-size: 10px !important;
+          }
+          #printable-invoice th,
+          #printable-invoice td {
+            padding: 4px 8px !important;
+          }
+          #printable-invoice .border-b-2 {
+            padding-bottom: 8px !important;
+            margin-bottom: 8px !important;
+          }
+          #printable-invoice .mb-8 {
+            margin-bottom: 12px !important;
+          }
+          #printable-invoice .mb-6 {
+            margin-bottom: 8px !important;
+          }
+          #printable-invoice .pb-6 {
+            padding-bottom: 8px !important;
+          }
+          #printable-invoice .p-4 {
+            padding: 8px !important;
+          }
+          #printable-invoice .pt-6 {
+            padding-top: 8px !important;
+          }
+          #printable-invoice .gap-8 {
+            gap: 12px !important;
           }
           .print\\:hidden {
             display: none !important;
