@@ -135,7 +135,7 @@ const Login: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="form-input"
                 required
-                placeholder="Enter your password"
+                placeholder="demo123"
                 autoComplete="current-password"
               />
             </div>
