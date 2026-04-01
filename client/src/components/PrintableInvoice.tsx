@@ -193,8 +193,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const balance = (invoice.total_amount - (invoice.amount_paid || 0)).toFixed(2);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8 relative" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-2 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-2 sm:my-8 relative max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-4rem)] flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Close button - always visible in top-right corner */}
         <button
           onClick={onClose}
@@ -206,8 +206,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           </svg>
         </button>
 
-        {/* Non-printable header with action buttons */}
-        <div className="print:hidden bg-gray-100 px-4 sm:px-6 py-4 border-b border-gray-200 rounded-t-lg">
+        {/* Non-printable header with action buttons - sticky on scroll */}
+        <div className="print:hidden bg-gray-100 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 rounded-t-lg sticky top-0 z-10 flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invoice Preview</h2>
             <div className="flex gap-2 flex-wrap">
@@ -326,7 +326,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         </div>
 
         {/* Printable invoice content */}
-        <div ref={printRef} id="printable-invoice" className="p-8 print:p-12">
+        <div ref={printRef} id="printable-invoice" className="p-4 sm:p-8 print:p-12 overflow-y-auto flex-1">
           {/* Header */}
           <div className="border-b-2 border-primary-600 pb-6 mb-6">
             <div className="flex justify-between items-start">
