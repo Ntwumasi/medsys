@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
 import NotificationCenter from './NotificationCenter';
+import SuperAdminRoleSwitcher from './SuperAdminRoleSwitcher';
 import apiClient from '../api/client';
 
 interface NavItem {
@@ -190,7 +191,7 @@ interface SearchResult {
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, activeRole } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -255,8 +256,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
     navigate('/login');
   };
 
+  // Use activeRole for super admins, otherwise use user's actual role
+  const effectiveRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
+
   const filteredNavItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(user?.role || '')
+    (item) => !item.roles || item.roles.includes(effectiveRole || '')
   );
 
   const getRoleColor = (role: string) => {
@@ -377,6 +381,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
 
         {/* Right side items */}
         <div className="flex items-center gap-2 lg:gap-4 ml-auto">
+          {/* Super Admin Role Switcher */}
+          <SuperAdminRoleSwitcher />
+
           {/* Notifications */}
           <NotificationCenter />
 

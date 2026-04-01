@@ -501,10 +501,28 @@ export async function connectionError(
 }
 
 export async function closeConnection(ticket: string): Promise<string> {
+  // Get session stats before cleanup
+  const sessionResult = await pool.query(`
+    SELECT request_count FROM quickbooks_sessions WHERE ticket = $1
+  `, [ticket]);
+
+  const requestCount = sessionResult.rows.length > 0 ? sessionResult.rows[0].request_count : 0;
+
   // Clean up session
   await pool.query('DELETE FROM quickbooks_sessions WHERE ticket = $1', [ticket]);
 
-  console.log(`[QBWC] Connection closed for ticket: ${ticket.substring(0, 8)}...`);
+  // Log successful connection close
+  await pool.query(`
+    INSERT INTO quickbooks_sync_log (sync_type, entity_type, direction, status, records_processed, started_at, completed_at)
+    VALUES ('connection', 'all', 'push', $1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `, [requestCount > 0 ? 'completed' : 'success', requestCount]);
+
+  // Update last sync time
+  await pool.query(`
+    UPDATE quickbooks_config SET last_sync_at = CURRENT_TIMESTAMP WHERE id = 1
+  `);
+
+  console.log(`[QBWC] Connection closed for ticket: ${ticket.substring(0, 8)}..., requests processed: ${requestCount}`);
 
   return 'OK';
 }

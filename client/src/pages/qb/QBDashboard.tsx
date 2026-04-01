@@ -252,6 +252,20 @@ const QBDashboard: React.FC = () => {
                     <p className="text-sm text-text-secondary">
                       {activity.records_processed} records processed
                     </p>
+                    {activity.error_details && activity.status === 'failed' && (
+                      <p className="text-xs text-danger-600 mt-1">
+                        {(() => {
+                          try {
+                            const parsed = typeof activity.error_details === 'string'
+                              ? JSON.parse(activity.error_details)
+                              : activity.error_details;
+                            return parsed.message || parsed.hresult || String(activity.error_details);
+                          } catch {
+                            return String(activity.error_details);
+                          }
+                        })()}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">

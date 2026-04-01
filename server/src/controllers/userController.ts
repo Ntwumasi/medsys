@@ -2,13 +2,47 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import pool from '../database/db';
 
+// Default password for new users
+const DEFAULT_PASSWORD = 'demo123';
+
+// Generate unique username from first name and last name
+const generateUsername = async (firstName: string, lastName: string): Promise<string> => {
+  // Base username: first initial + lastname (lowercase, alphanumeric only)
+  const firstInitial = (firstName || 'x').charAt(0).toLowerCase();
+  const lastNameClean = (lastName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
+  let baseUsername = `${firstInitial}${lastNameClean}`;
+
+  // Ensure minimum length
+  if (baseUsername.length < 3) {
+    baseUsername = baseUsername + 'user';
+  }
+
+  // Check for existing usernames and handle duplicates
+  const existingResult = await pool.query(
+    `SELECT username FROM users WHERE username LIKE $1`,
+    [`${baseUsername}%`]
+  );
+
+  const existingUsernames = new Set(existingResult.rows.map(r => r.username));
+
+  let username = baseUsername;
+  let counter = 2;
+  while (existingUsernames.has(username)) {
+    username = `${baseUsername}${counter}`;
+    counter++;
+  }
+
+  return username;
+};
+
 // Get all users (staff members) - optionally filter by role
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { role } = req.query;
 
     let query = `
-      SELECT id, email, role, first_name, last_name, phone, is_active, created_at, updated_at
+      SELECT id, username, email, role, first_name, last_name, phone, is_active,
+             must_change_password, last_login_at, created_at, updated_at
       FROM users
       WHERE role != 'patient'
     `;
@@ -36,7 +70,8 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
   try {
     const result = await pool.query(
-      `SELECT id, email, role, first_name, last_name, phone, is_active, created_at, updated_at
+      `SELECT id, username, email, role, first_name, last_name, phone, is_active,
+              must_change_password, last_login_at, created_at, updated_at
        FROM users
        WHERE id = $1`,
       [id]
@@ -56,43 +91,62 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
 // Create new user (staff member)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
-  const { email, password, role, first_name, last_name, phone } = req.body;
+  const { email, role, first_name, last_name, phone } = req.body;
 
   try {
-    // Validate required fields
-    if (!email || !password || !role || !first_name || !last_name) {
-      res.status(400).json({ error: 'Missing required fields: email, password, role, first_name, last_name' });
+    // Validate required fields (password no longer required - we use default)
+    if (!role || !first_name || !last_name) {
+      res.status(400).json({ error: 'Missing required fields: role, first_name, last_name' });
       return;
     }
 
     // Validate role
-    const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'imaging'];
+    const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
     if (!validRoles.includes(role)) {
       res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
       return;
     }
 
-    // Check if user already exists
-    const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
-      [email]
+    // Generate unique username
+    const username = await generateUsername(first_name, last_name);
+
+    // Check if username already exists (extra safety check)
+    const existingUsername = await pool.query(
+      'SELECT id FROM users WHERE username = $1',
+      [username]
     );
 
-    if (existingUser.rows.length > 0) {
-      res.status(400).json({ error: 'User with this email already exists' });
+    if (existingUsername.rows.length > 0) {
+      res.status(400).json({ error: 'Failed to generate unique username. Please try again.' });
       return;
     }
 
-    // Hash password
-    const saltRounds = 10;
-    const password_hash = await bcrypt.hash(password, saltRounds);
+    // Check if email already exists (if provided)
+    if (email) {
+      const existingEmail = await pool.query(
+        'SELECT id FROM users WHERE email = $1',
+        [email]
+      );
 
-    // Insert user
+      if (existingEmail.rows.length > 0) {
+        res.status(400).json({ error: 'User with this email already exists' });
+        return;
+      }
+    }
+
+    // Hash default password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+
+    // Generate a placeholder email if not provided
+    const userEmail = email || `${username}@medsys.local`;
+
+    // Insert user with must_change_password = true
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true)
-       RETURNING id, email, role, first_name, last_name, phone, is_active, created_at`,
-      [email, password_hash, role, first_name, last_name, phone]
+      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone, is_active, must_change_password, password_changed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, NULL)
+       RETURNING id, username, email, role, first_name, last_name, phone, is_active, must_change_password, created_at`,
+      [username, userEmail, password_hash, role, first_name, last_name, phone]
     );
 
     const user = result.rows[0];
@@ -101,13 +155,20 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       message: 'User created successfully',
       user: {
         id: user.id,
+        username: user.username,
         email: user.email,
         role: user.role,
         first_name: user.first_name,
         last_name: user.last_name,
         phone: user.phone,
         is_active: user.is_active,
+        must_change_password: user.must_change_password,
       },
+      credentials: {
+        username: user.username,
+        temporary_password: DEFAULT_PASSWORD,
+        note: 'User must change password on first login'
+      }
     });
   } catch (error) {
     console.error('Create user error:', error);
@@ -118,12 +179,12 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 // Update user
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const { email, role, first_name, last_name, phone, is_active, password } = req.body;
+  const { email, role, first_name, last_name, phone, is_active } = req.body;
 
   try {
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE id = $1',
+      'SELECT id, username FROM users WHERE id = $1',
       [id]
     );
 
@@ -134,7 +195,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
     // Validate role if provided
     if (role) {
-      const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'imaging'];
+      const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
       if (!validRoles.includes(role)) {
         res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
         return;
@@ -183,12 +244,6 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       updateFields.push(`is_active = $${paramIndex++}`);
       updateValues.push(is_active);
     }
-    if (password !== undefined && password !== '') {
-      const saltRounds = 10;
-      const password_hash = await bcrypt.hash(password, saltRounds);
-      updateFields.push(`password_hash = $${paramIndex++}`);
-      updateValues.push(password_hash);
-    }
 
     if (updateFields.length === 0) {
       res.status(400).json({ error: 'No fields to update' });
@@ -202,7 +257,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       UPDATE users
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, email, role, first_name, last_name, phone, is_active, updated_at
+      RETURNING id, username, email, role, first_name, last_name, phone, is_active, updated_at
     `;
 
     const result = await pool.query(query, updateValues);
@@ -217,6 +272,60 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+// Admin: Reset user password to default
+export const resetUserPassword = async (req: Request, res: Response): Promise<void> => {
+  const { id } = req.params;
+
+  try {
+    // Check if user exists
+    const existingUser = await pool.query(
+      'SELECT id, username, first_name, last_name FROM users WHERE id = $1',
+      [id]
+    );
+
+    if (existingUser.rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Hash default password
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+
+    // Reset password and flag for change
+    await pool.query(
+      `UPDATE users
+       SET password_hash = $1,
+           must_change_password = true,
+           failed_login_attempts = 0,
+           locked_until = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [password_hash, id]
+    );
+
+    const user = existingUser.rows[0];
+
+    res.json({
+      message: 'Password reset successfully',
+      user: {
+        id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        last_name: user.last_name,
+      },
+      credentials: {
+        username: user.username,
+        temporary_password: DEFAULT_PASSWORD,
+        note: 'User must change password on next login'
+      }
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Delete user (soft delete by deactivating)
 export const deleteUser = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
@@ -224,7 +333,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
   try {
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id, first_name, last_name FROM users WHERE id = $1',
+      'SELECT id, username, first_name, last_name FROM users WHERE id = $1',
       [id]
     );
 
@@ -258,7 +367,7 @@ export const activateUser = async (req: Request, res: Response): Promise<void> =
       `UPDATE users
        SET is_active = true, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
-       RETURNING id, email, role, first_name, last_name, is_active`,
+       RETURNING id, username, email, role, first_name, last_name, is_active`,
       [id]
     );
 
@@ -281,7 +390,7 @@ export const activateUser = async (req: Request, res: Response): Promise<void> =
 export const getActiveDoctors = async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(`
-      SELECT id, first_name, last_name, email
+      SELECT id, username, first_name, last_name, email
       FROM users
       WHERE role = 'doctor' AND is_active = true
       ORDER BY last_name ASC, first_name ASC

@@ -14,6 +14,7 @@ import PharmacyDashboard from './pages/PharmacyDashboard';
 import RefillsCalendar from './pages/RefillsCalendar';
 import ImagingDashboard from './pages/ImagingDashboard';
 import AccountantDashboard from './pages/AccountantDashboard';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
@@ -44,16 +45,22 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
 // Role-based Dashboard Router
 const RoleDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, activeRole } = useAuth();
 
   if (!user) {
     return <Navigate to="/login" />;
   }
 
-  console.log('User role:', user.role); // Debug log
+  // Super admin with no active role selected - show role picker
+  if (user.is_super_admin && !activeRole) {
+    return <ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>;
+  }
 
-  // Make role comparison case-insensitive
-  const userRole = user.role?.toLowerCase();
+  // Use activeRole for super admins, otherwise use user's actual role
+  const effectiveRole = user.is_super_admin && activeRole ? activeRole : user.role;
+  const userRole = effectiveRole?.toLowerCase();
+
+  console.log('User role:', user.role, 'Active role:', activeRole, 'Effective role:', userRole); // Debug log
 
   try {
     switch (userRole) {

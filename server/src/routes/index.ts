@@ -1,5 +1,18 @@
 import express from 'express';
-import { register, login, getCurrentUser, impersonateUser } from '../controllers/authController';
+import {
+  register,
+  login,
+  getCurrentUser,
+  impersonateUser,
+  changePassword,
+  requestPasswordReset,
+  resetPassword,
+  getLoginHistory,
+  getAllLoginAttempts,
+  getBreakglassAlerts,
+  unlockAccount,
+  forcePasswordReset,
+} from '../controllers/authController';
 import {
   getAllUsers,
   getUserById,
@@ -8,6 +21,7 @@ import {
   deleteUser,
   activateUser,
   getActiveDoctors,
+  resetUserPassword,
 } from '../controllers/userController';
 import {
   createPatient,
@@ -264,6 +278,16 @@ router.post('/auth/register', register);
 router.post('/auth/login', login);
 router.get('/auth/me', authenticateToken, getCurrentUser);
 router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
+router.post('/auth/change-password', authenticateToken, changePassword);
+router.post('/auth/request-reset', requestPasswordReset);
+router.post('/auth/reset-password', resetPassword);
+router.get('/auth/login-history', authenticateToken, getLoginHistory);
+
+// Admin security routes
+router.get('/admin/login-attempts', authenticateToken, authorizeRoles('admin'), getAllLoginAttempts);
+router.get('/admin/breakglass-alerts', authenticateToken, authorizeRoles('admin'), getBreakglassAlerts);
+router.post('/admin/unlock-account/:userId', authenticateToken, authorizeRoles('admin'), unlockAccount);
+router.post('/admin/force-password-reset/:userId', authenticateToken, authorizeRoles('admin'), forcePasswordReset);
 
 // Notification routes (user-specific)
 router.get('/notifications', authenticateToken, getUserNotifications);
@@ -283,6 +307,7 @@ router.post('/users', authenticateToken, authorizeRoles('admin'), createUser);
 router.put('/users/:id', authenticateToken, authorizeRoles('admin'), updateUser);
 router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUser);
 router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);
+router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin'), resetUserPassword);
 
 // Patient routes
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), createPatient);

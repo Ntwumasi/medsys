@@ -6,6 +6,7 @@ export interface User {
   last_name: string;
   phone?: string;
   is_active?: boolean;
+  is_super_admin?: boolean;
 }
 
 export interface Patient {
