@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
-import { messagesAPI, Conversation, Message, MessageableUser, ThreadResponse } from '../api/messages';
+import { messagesAPI } from '../api/messages';
+import type { Conversation, MessageableUser, ThreadResponse } from '../api/messages';
 import { useAuth } from '../context/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
 
