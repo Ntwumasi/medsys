@@ -26,6 +26,7 @@ import PendingPaymentsPage from './pages/PendingPaymentsPage';
 import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
 import QuickBooksSettings from './pages/QuickBooksSettings';
 import QuickBooksData from './pages/QuickBooksData';
+import MessagesPage from './pages/MessagesPage';
 import ImpersonationBanner from './components/ImpersonationBanner';
 
 // Protected Route Component
@@ -111,6 +112,7 @@ const AppContent: React.FC = () => {
         <Route path="/finances" element={<ProtectedRoute><DepartmentFinancesPage /></ProtectedRoute>} />
         <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
+        <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
 
         <Route
           path="/"

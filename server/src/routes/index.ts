@@ -260,6 +260,15 @@ import {
   deleteNotification,
   clearAllNotifications,
 } from '../controllers/notificationsController';
+import {
+  sendMessage,
+  getInbox,
+  getThread,
+  getUnreadCount,
+  markAsRead,
+  getMessageableUsers,
+  deleteMessage,
+} from '../controllers/messageController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import notificationRoutes from './notifications';
 import auditRoutes from './audit';
@@ -296,6 +305,15 @@ router.put('/notifications/:id/read', authenticateToken, markNotificationRead);
 router.put('/notifications/read-all', authenticateToken, markAllNotificationsRead);
 router.delete('/notifications/:id', authenticateToken, deleteNotification);
 router.delete('/notifications', authenticateToken, clearAllNotifications);
+
+// Messaging routes
+router.post('/messages', authenticateToken, sendMessage);
+router.get('/messages/inbox', authenticateToken, getInbox);
+router.get('/messages/unread-count', authenticateToken, getUnreadCount);
+router.get('/messages/users', authenticateToken, getMessageableUsers);
+router.get('/messages/thread/:otherUserId', authenticateToken, getThread);
+router.put('/messages/:messageId/read', authenticateToken, markAsRead);
+router.delete('/messages/:messageId', authenticateToken, deleteMessage);
 
 // Get active doctors (for nurses to select when ordering labs)
 router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getActiveDoctors);
