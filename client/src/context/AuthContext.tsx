@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const response = await authAPI.login(credentials);
     const { user: userData, token: authToken, must_change_password } = response;
 
-    setUser(userData);
+    setUser(userData as User);
     setToken(authToken);
 
     localStorage.setItem('token', authToken);

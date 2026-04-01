@@ -187,6 +187,10 @@ export interface ApiError {
       message?: string;
       existingPatientId?: number;
       existingPatientNumber?: string;
+      // Auth security fields
+      details?: string[];
+      attempts_remaining?: number;
+      locked_until?: string;
     };
   };
   message?: string;
