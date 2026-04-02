@@ -68,10 +68,6 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
 
   const handleMarkAsPaid = async () => {
