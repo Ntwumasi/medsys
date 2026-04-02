@@ -442,7 +442,7 @@ const Dashboard: React.FC = () => {
   const handleEditStaff = (staffMember: StaffMember) => {
     setEditingStaff(staffMember);
     setStaffForm({
-      email: staffMember.email,
+      email: staffMember.email || '',
       password: '', // Don't populate password for security
       role: staffMember.role,
       first_name: staffMember.first_name,
