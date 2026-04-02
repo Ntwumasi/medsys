@@ -464,13 +464,15 @@ describe('Inventory Controller', () => {
   describe('getRevenueSummary', () => {
     it('should return revenue summary with top medications', async () => {
       const mockDailyRevenue = [{ date: '2025-01-01', orders_count: 5, revenue: 100 }];
-      const mockTotals = { total_orders: 50, dispensed_orders: 45 };
-      const mockTopMeds = [{ medication_name: 'Paracetamol', order_count: 20 }];
+      const mockTotals = { total_orders: 50, dispensed_orders: 45, pending_orders: 5, unique_patients: 30 };
+      const mockRevenueTotal = { total_revenue: 1500 };
+      const mockTopMeds = [{ medication_name: 'Paracetamol', order_count: 20, total_quantity: 100, total_revenue: 500 }];
 
       vi.mocked(pool.query)
-        .mockResolvedValueOnce({ rows: mockDailyRevenue } as any)
-        .mockResolvedValueOnce({ rows: [mockTotals] } as any)
-        .mockResolvedValueOnce({ rows: mockTopMeds } as any);
+        .mockResolvedValueOnce({ rows: mockDailyRevenue } as any) // dailyRevenue
+        .mockResolvedValueOnce({ rows: [mockTotals] } as any) // totals
+        .mockResolvedValueOnce({ rows: [mockRevenueTotal] } as any) // revenueTotal
+        .mockResolvedValueOnce({ rows: mockTopMeds } as any); // topMedications
 
       const req = mockRequest({}, {}, {});
       const res = mockResponse();
@@ -479,7 +481,10 @@ describe('Inventory Controller', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         daily_revenue: mockDailyRevenue,
-        totals: mockTotals,
+        totals: {
+          ...mockTotals,
+          total_revenue: mockRevenueTotal.total_revenue,
+        },
         top_medications: mockTopMeds,
       });
     });

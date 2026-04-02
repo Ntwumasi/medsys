@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -21,6 +21,14 @@ vi.mock('jsonwebtoken', () => ({
   },
 }));
 
+// Mock password validation
+vi.mock('../utils/passwordValidation', () => ({
+  validatePassword: vi.fn(() => ({ isValid: true, errors: [] })),
+  generateResetToken: vi.fn(),
+  hashResetToken: vi.fn(),
+  getPasswordRequirementsMessage: vi.fn(() => 'Password requirements'),
+}));
+
 const mockResponse = () => {
   const res: Partial<Response> = {
     json: vi.fn().mockReturnThis(),
@@ -35,31 +43,51 @@ const mockRequest = (body = {}, params = {}, user: any = null) => {
     params,
     user,
     ip: '127.0.0.1',
-    headers: { 'x-forwarded-for': '127.0.0.1' },
+    headers: { 'x-forwarded-for': '127.0.0.1', 'user-agent': 'test-agent' },
+    socket: { remoteAddress: '127.0.0.1' },
   } as unknown as Request;
 };
 
 describe('Auth Controller', () => {
+  const originalEnv = process.env;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env = { ...originalEnv, JWT_SECRET: 'test-secret-key-for-testing' };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
   });
 
   describe('login', () => {
     it('should login successfully with valid credentials', async () => {
       const mockUser = {
         id: 1,
+        username: 'testuser',
         email: 'test@example.com',
-        password: 'hashed_password',
+        password_hash: 'hashed_password',
         first_name: 'Test',
         last_name: 'User',
         role: 'doctor',
         is_active: true,
+        is_breakglass: false,
+        is_super_admin: false,
+        must_change_password: false,
+        password_changed_at: new Date(),
+        failed_login_attempts: 0,
+        locked_until: null,
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [mockUser] } as any);
+      // Mock: find user, log attempt, reset failed attempts
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [mockUser] } as any) // Find user by username
+        .mockResolvedValueOnce({ rows: [] } as any) // Log login attempt
+        .mockResolvedValueOnce({ rows: [] } as any); // Reset failed attempts
+
       vi.mocked(bcrypt.compare).mockResolvedValueOnce(true as never);
 
-      const req = mockRequest({ email: 'test@example.com', password: 'password123' });
+      const req = mockRequest({ username: 'testuser', password: 'password123' });
       const res = mockResponse();
 
       await login(req, res);
@@ -68,15 +96,18 @@ describe('Auth Controller', () => {
         message: 'Login successful',
         token: 'mock-token',
         user: expect.objectContaining({
-          email: 'test@example.com',
+          username: 'testuser',
         }),
       }));
     });
 
     it('should reject login with invalid email', async () => {
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+      // Mock: user not found, log attempt
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [] } as any) // Find user - not found
+        .mockResolvedValueOnce({ rows: [] } as any); // Log login attempt
 
-      const req = mockRequest({ email: 'invalid@example.com', password: 'password123' });
+      const req = mockRequest({ username: 'invalid', password: 'password123' });
       const res = mockResponse();
 
       await login(req, res);
@@ -88,40 +119,56 @@ describe('Auth Controller', () => {
     it('should reject login with invalid password', async () => {
       const mockUser = {
         id: 1,
+        username: 'testuser',
         email: 'test@example.com',
-        password: 'hashed_password',
+        password_hash: 'hashed_password',
         is_active: true,
+        failed_login_attempts: 0,
+        locked_until: null,
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [mockUser] } as any);
+      // Mock: find user, log attempt, update failed attempts
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [mockUser] } as any) // Find user
+        .mockResolvedValueOnce({ rows: [] } as any) // Update failed attempts
+        .mockResolvedValueOnce({ rows: [] } as any); // Log login attempt
+
       vi.mocked(bcrypt.compare).mockResolvedValueOnce(false as never);
 
-      const req = mockRequest({ email: 'test@example.com', password: 'wrongpassword' });
+      const req = mockRequest({ username: 'testuser', password: 'wrongpassword' });
       const res = mockResponse();
 
       await login(req, res);
 
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Invalid credentials' });
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: 'Invalid credentials',
+      }));
     });
 
     it('should reject login for inactive user', async () => {
       const mockUser = {
         id: 1,
+        username: 'testuser',
         email: 'test@example.com',
         password_hash: 'hashed_password',
         is_active: false,
+        failed_login_attempts: 0,
+        locked_until: null,
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [mockUser] } as any);
+      // Mock: find user, log attempt
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [mockUser] } as any) // Find user
+        .mockResolvedValueOnce({ rows: [] } as any); // Log login attempt
 
-      const req = mockRequest({ email: 'test@example.com', password: 'password123' });
+      const req = mockRequest({ username: 'testuser', password: 'password123' });
       const res = mockResponse();
 
       await login(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Account is disabled' });
+      expect(res.json).toHaveBeenCalledWith({ error: 'Account is disabled. Please contact an administrator.' });
     });
   });
 
@@ -129,15 +176,25 @@ describe('Auth Controller', () => {
     it('should register a new user successfully', async () => {
       const newUser = {
         email: 'new@example.com',
-        password: 'password123',
+        password: 'Password123!',
         first_name: 'New',
         last_name: 'User',
         role: 'receptionist',
       };
 
+      const createdUser = {
+        id: 1,
+        email: newUser.email,
+        role: newUser.role,
+        first_name: newUser.first_name,
+        last_name: newUser.last_name,
+        employee_id: null,
+      };
+
       vi.mocked(pool.query)
-        .mockResolvedValueOnce({ rows: [] } as any) // Check existing user
-        .mockResolvedValueOnce({ rows: [{ id: 1, ...newUser }] } as any); // Insert user
+        .mockResolvedValueOnce({ rows: [] } as any) // Check existing user by email
+        .mockResolvedValueOnce({ rows: [createdUser] } as any) // Insert user
+        .mockResolvedValueOnce({ rows: [] } as any); // Insert password history
 
       vi.mocked(bcrypt.hash).mockResolvedValueOnce('hashed_password' as never);
 
@@ -157,7 +214,7 @@ describe('Auth Controller', () => {
 
       const req = mockRequest({
         email: 'existing@example.com',
-        password: 'password123',
+        password: 'Password123!',
         first_name: 'Test',
         last_name: 'User',
         role: 'receptionist',
@@ -179,11 +236,11 @@ describe('Auth Controller', () => {
         first_name: 'Test',
         last_name: 'User',
         role: 'doctor',
+        password_changed_at: new Date(),
       };
 
       vi.mocked(pool.query).mockResolvedValueOnce({ rows: [mockUser] } as any);
 
-      // Create request with user in the req object (as authReq.user)
       const req = {
         body: {},
         params: {},
@@ -195,7 +252,11 @@ describe('Auth Controller', () => {
 
       await getCurrentUser(req, res);
 
-      expect(res.json).toHaveBeenCalledWith({ user: mockUser });
+      expect(res.json).toHaveBeenCalledWith({
+        user: expect.objectContaining({
+          email: 'test@example.com',
+        }),
+      });
     });
 
     it('should return 404 if user not found', async () => {
@@ -298,7 +359,7 @@ describe('Auth Controller', () => {
         id: 2,
         email: 'admin2@example.com',
         role: 'admin',
-        is_active: true,  // Need active flag to pass inactive check first
+        is_active: true,
       };
 
       vi.mocked(pool.query).mockResolvedValueOnce({ rows: [targetAdmin] } as any);
@@ -309,7 +370,6 @@ describe('Auth Controller', () => {
       await impersonateUser(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
-      // The error checks is_active first, then role - admin check comes after active check
       expect(res.json).toHaveBeenCalledWith({ error: 'Cannot impersonate another administrator' });
     });
 

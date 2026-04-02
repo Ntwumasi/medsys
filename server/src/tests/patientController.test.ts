@@ -3,6 +3,13 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import { createPatient, getPatients, getPatientById, updatePatient } from '../controllers/patientController';
 
+// Mock bcrypt for password hashing in createPatient
+vi.mock('bcrypt', () => ({
+  default: {
+    hash: vi.fn(() => Promise.resolve('hashed_password')),
+  },
+}));
+
 const mockResponse = () => {
   const res: Partial<Response> = {
     json: vi.fn().mockReturnThis(),
@@ -43,11 +50,11 @@ describe('Patient Controller', () => {
       // Mock client for transaction
       const mockClient = {
         query: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // Duplicate check - no duplicates
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
-          .mockResolvedValueOnce({ rows: [{ first_name: 'John', last_name: 'Doe' }] }) // Get user
           .mockResolvedValueOnce({}), // COMMIT
         release: vi.fn(),
       };
@@ -86,11 +93,11 @@ describe('Patient Controller', () => {
 
       const mockClient = {
         query: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // Duplicate check
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
-          .mockResolvedValueOnce({ rows: [{ first_name: 'Kwame', last_name: 'Asante' }] }) // Get user
           .mockResolvedValueOnce({}), // COMMIT
         release: vi.fn(),
       };
@@ -130,11 +137,11 @@ describe('Patient Controller', () => {
 
       const mockClient = {
         query: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // Duplicate check
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
-          .mockResolvedValueOnce({ rows: [{ first_name: 'Test', last_name: 'Patient' }] }) // Get user
           .mockResolvedValueOnce({}), // COMMIT
         release: vi.fn(),
       };
@@ -152,8 +159,9 @@ describe('Patient Controller', () => {
     it('should handle database error gracefully', async () => {
       const mockClient = {
         query: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // Duplicate check passes
           .mockResolvedValueOnce({}) // BEGIN
-          .mockRejectedValueOnce(new Error('Database error')), // Simulated error
+          .mockRejectedValueOnce(new Error('Database error')), // Simulated error on count
         release: vi.fn(),
       };
 
@@ -222,7 +230,13 @@ describe('Patient Controller', () => {
         other_health_conditions: '',
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [mockPatient] } as any);
+      const mockAllergies = [
+        { id: 1, allergen: 'Penicillin', reaction: 'Rash', severity: 'moderate' }
+      ];
+
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [mockPatient] } as any)
+        .mockResolvedValueOnce({ rows: mockAllergies } as any);
 
       const req = mockRequest({}, { id: '1' });
       const res = mockResponse();
@@ -234,6 +248,7 @@ describe('Patient Controller', () => {
           hiv_status: 'Negative',
           sickle_cell_status: 'AA',
           gps_address: 'GA-123-4567',
+          allergies: mockAllergies,
         }),
       });
     });
@@ -261,7 +276,17 @@ describe('Patient Controller', () => {
         phone: '0244999999',
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [updatedPatient] } as any);
+      const mockClient = {
+        query: vi.fn()
+          .mockResolvedValueOnce({}) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+          .mockResolvedValueOnce({ rows: [] }) // Update users table
+          .mockResolvedValueOnce({ rows: [updatedPatient] }) // Update patients table
+          .mockResolvedValueOnce({}), // COMMIT
+        release: vi.fn(),
+      };
+
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
       const req = mockRequest(
         { first_name: 'John Updated', phone: '0244999999' },
@@ -289,7 +314,16 @@ describe('Patient Controller', () => {
         sickle_cell_status: 'SS',
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [updatedPatient] } as any);
+      const mockClient = {
+        query: vi.fn()
+          .mockResolvedValueOnce({}) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+          .mockResolvedValueOnce({ rows: [updatedPatient] }) // Update patients table (no user fields)
+          .mockResolvedValueOnce({}), // COMMIT
+        release: vi.fn(),
+      };
+
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
       const req = mockRequest(
         { hiv_status: 'Positive', sickle_cell_status: 'SS' },
@@ -315,7 +349,16 @@ describe('Patient Controller', () => {
         city: 'Kumasi',
       };
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [updatedPatient] } as any);
+      const mockClient = {
+        query: vi.fn()
+          .mockResolvedValueOnce({}) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+          .mockResolvedValueOnce({ rows: [updatedPatient] }) // Update patients table
+          .mockResolvedValueOnce({}), // COMMIT
+        release: vi.fn(),
+      };
+
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
       const req = mockRequest(
         { gps_address: 'GA-999-8888', region: 'Ashanti', city: 'Kumasi' },
@@ -334,7 +377,14 @@ describe('Patient Controller', () => {
     });
 
     it('should return 404 if patient not found', async () => {
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+      const mockClient = {
+        query: vi.fn()
+          .mockResolvedValueOnce({}) // BEGIN
+          .mockResolvedValueOnce({ rows: [] }), // Get user_id - not found
+        release: vi.fn(),
+      };
+
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
       const req = mockRequest({ first_name: 'Test' }, { id: '999' });
       const res = mockResponse();
@@ -350,9 +400,16 @@ describe('Patient Controller', () => {
       const validStatuses = ['AA', 'AS', 'SS', 'SC', 'Not Tested'];
 
       for (const status of validStatuses) {
-        vi.mocked(pool.query).mockResolvedValueOnce({
-          rows: [{ id: 1, sickle_cell_status: status }],
-        } as any);
+        const mockClient = {
+          query: vi.fn()
+            .mockResolvedValueOnce({}) // BEGIN
+            .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+            .mockResolvedValueOnce({ rows: [{ id: 1, sickle_cell_status: status }] }) // Update
+            .mockResolvedValueOnce({}), // COMMIT
+          release: vi.fn(),
+        };
+
+        vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
         const req = mockRequest({ sickle_cell_status: status }, { id: '1' });
         const res = mockResponse();
@@ -373,9 +430,16 @@ describe('Patient Controller', () => {
       const validStatuses = ['Negative', 'Positive', 'Not Tested', ''];
 
       for (const status of validStatuses) {
-        vi.mocked(pool.query).mockResolvedValueOnce({
-          rows: [{ id: 1, hiv_status: status }],
-        } as any);
+        const mockClient = {
+          query: vi.fn()
+            .mockResolvedValueOnce({}) // BEGIN
+            .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+            .mockResolvedValueOnce({ rows: [{ id: 1, hiv_status: status }] }) // Update
+            .mockResolvedValueOnce({}), // COMMIT
+          release: vi.fn(),
+        };
+
+        vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
         const req = mockRequest({ hiv_status: status }, { id: '1' });
         const res = mockResponse();
@@ -397,9 +461,16 @@ describe('Patient Controller', () => {
 
     it('should accept all 16 Ghana regions', async () => {
       for (const region of ghanaRegions) {
-        vi.mocked(pool.query).mockResolvedValueOnce({
-          rows: [{ id: 1, region: region }],
-        } as any);
+        const mockClient = {
+          query: vi.fn()
+            .mockResolvedValueOnce({}) // BEGIN
+            .mockResolvedValueOnce({ rows: [{ user_id: 1 }] }) // Get user_id
+            .mockResolvedValueOnce({ rows: [{ id: 1, region: region }] }) // Update
+            .mockResolvedValueOnce({}), // COMMIT
+          release: vi.fn(),
+        };
+
+        vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
         const req = mockRequest({ region: region }, { id: '1' });
         const res = mockResponse();
