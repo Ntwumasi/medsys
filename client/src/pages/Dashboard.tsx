@@ -215,7 +215,7 @@ const Dashboard: React.FC = () => {
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
   const [staffRoleFilter, setStaffRoleFilter] = useState<string>('all');
   const [staffStatusFilter, setStaffStatusFilter] = useState<string>('all');
-  const [staffSortBy, setStaffSortBy] = useState<'name' | 'email' | 'role'>('name');
+  const [staffSortBy, setStaffSortBy] = useState<'name' | 'username' | 'role'>('name');
   const [staffSortOrder, setStaffSortOrder] = useState<'asc' | 'desc'>('asc');
   const [staffPage, setStaffPage] = useState(1);
   const staffItemsPerPage = 10;
@@ -339,7 +339,7 @@ const Dashboard: React.FC = () => {
         (member) =>
           member.first_name?.toLowerCase().includes(searchLower) ||
           member.last_name?.toLowerCase().includes(searchLower) ||
-          member.email?.toLowerCase().includes(searchLower)
+          member.username?.toLowerCase().includes(searchLower)
       );
     }
 
@@ -362,9 +362,9 @@ const Dashboard: React.FC = () => {
       if (staffSortBy === 'name') {
         compareA = `${a.first_name} ${a.last_name}`.toLowerCase();
         compareB = `${b.first_name} ${b.last_name}`.toLowerCase();
-      } else if (staffSortBy === 'email') {
-        compareA = a.email?.toLowerCase() || '';
-        compareB = b.email?.toLowerCase() || '';
+      } else if (staffSortBy === 'username') {
+        compareA = a.username?.toLowerCase() || '';
+        compareB = b.username?.toLowerCase() || '';
       } else if (staffSortBy === 'role') {
         compareA = a.role?.toLowerCase() || '';
         compareB = b.role?.toLowerCase() || '';
@@ -390,7 +390,7 @@ const Dashboard: React.FC = () => {
     return Math.ceil(filteredStaff.length / staffItemsPerPage);
   };
 
-  const handleStaffSort = (column: 'name' | 'email' | 'role') => {
+  const handleStaffSort = (column: 'name' | 'username' | 'role') => {
     if (staffSortBy === column) {
       // Toggle sort order
       setStaffSortOrder(staffSortOrder === 'asc' ? 'desc' : 'asc');
@@ -1389,7 +1389,7 @@ const Dashboard: React.FC = () => {
               <TextField
                 fullWidth
                 label="Search"
-                placeholder="Name or email..."
+                placeholder="Name or username..."
                 value={staffSearchTerm}
                 onChange={(e) => {
                   setStaffSearchTerm(e.target.value);
@@ -1586,12 +1586,12 @@ const Dashboard: React.FC = () => {
                       </div>
                     </th>
                     <th
-                      onClick={() => handleStaffSort('email')}
+                      onClick={() => handleStaffSort('username')}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
                     >
                       <div className="flex items-center gap-2">
-                        Email
-                        {staffSortBy === 'email' && (
+                        Username
+                        {staffSortBy === 'username' && (
                           <svg className={`w-4 h-4 transition-transform ${staffSortOrder === 'desc' ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                           </svg>
@@ -1631,7 +1631,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-600">{member.email}</div>
+                        <div className="text-sm text-gray-600">{member.username}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
