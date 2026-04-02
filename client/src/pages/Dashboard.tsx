@@ -121,7 +121,8 @@ interface Doctor {
 
 interface StaffMember {
   id: number;
-  email: string;
+  username: string;
+  email?: string;
   first_name: string;
   last_name: string;
   phone?: string;
