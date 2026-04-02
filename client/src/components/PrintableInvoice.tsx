@@ -68,8 +68,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+      window.print();
+    }, 100);
   };
 
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
@@ -212,6 +216,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invoice Preview</h2>
             <div className="flex gap-2 flex-wrap">
               <button
+                type="button"
                 onClick={handlePrint}
                 className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
               >
@@ -221,6 +226,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                 <span className="whitespace-nowrap">Print Invoice</span>
               </button>
               <button
+                type="button"
                 onClick={onClose}
                 className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
               >
