@@ -472,6 +472,21 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async (member: StaffMember) => {
+    if (!confirm(`Reset password for ${member.first_name} ${member.last_name}? Their password will be set to "demo123" and they will be required to change it on next login.`)) {
+      return;
+    }
+
+    try {
+      await apiClient.post(`/users/${member.id}/reset-password`);
+      showToast(`Password reset for ${member.first_name} ${member.last_name}. New password: demo123`, 'success');
+    } catch (err) {
+      const error = err as ApiError;
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to reset password';
+      showToast(errorMessage, 'error');
+    }
+  };
+
   const handleImpersonate = async (member: StaffMember) => {
     if (!confirm(`Log in as ${member.first_name} ${member.last_name} (${member.role})? You will be redirected to their dashboard.`)) {
       return;
@@ -1648,6 +1663,12 @@ const Dashboard: React.FC = () => {
                           className="text-primary-600 hover:text-primary-900"
                         >
                           Edit
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(member)}
+                          className="text-warning-600 hover:text-warning-700"
+                        >
+                          Reset PW
                         </button>
                         {member.is_active && member.role !== 'admin' && (
                           <button
