@@ -68,12 +68,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handlePrint = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setTimeout(() => {
-      window.print();
-    }, 100);
+  const handlePrint = () => {
+    window.print();
   };
 
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
@@ -214,11 +210,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         <div className="print:hidden bg-gray-100 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 rounded-t-lg sticky top-0 z-10 flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invoice Preview</h2>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap relative z-20">
               <button
                 type="button"
-                onClick={handlePrint}
-                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
+                onClick={() => window.print()}
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
