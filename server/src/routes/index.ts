@@ -282,6 +282,15 @@ import labResultsService from '../services/labResultsService';
 
 const router = express.Router();
 
+// Health check endpoint (no auth required)
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0'
+  });
+});
+
 // Auth routes
 router.post('/auth/register', register);
 router.post('/auth/login', login);
