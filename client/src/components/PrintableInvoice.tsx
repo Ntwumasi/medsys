@@ -491,42 +491,33 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         @media print {
           @page {
             size: letter;
-            margin: 8mm;
+            margin: 10mm;
           }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
+
+          /* Hide EVERYTHING first */
+          body * {
+            visibility: hidden !important;
           }
-          /* Hide everything except the invoice */
-          body > *:not(#root),
-          .fixed,
-          .print\\:hidden {
-            display: none !important;
+
+          /* Show only the invoice and its contents */
+          #printable-invoice,
+          #printable-invoice * {
+            visibility: visible !important;
           }
-          /* Reset the modal and overlay */
-          #root {
-            position: static !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          #root > * {
-            position: static !important;
-            background: none !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
+
+          /* Position invoice at top left */
           #printable-invoice {
-            position: static !important;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 100% !important;
             max-width: none !important;
             margin: 0 !important;
-            padding: 0 !important;
-            box-shadow: none !important;
+            padding: 15px !important;
             background: white !important;
             font-size: 11px !important;
           }
+
           #printable-invoice h1 {
             font-size: 18px !important;
           }
@@ -565,20 +556,6 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           }
           #printable-invoice .gap-8 {
             gap: 10px !important;
-          }
-          #printable-invoice .mt-2 {
-            margin-top: 4px !important;
-          }
-          #printable-invoice .mt-3 {
-            margin-top: 6px !important;
-          }
-          #printable-invoice .py-3 {
-            padding-top: 4px !important;
-            padding-bottom: 4px !important;
-          }
-          #printable-invoice .py-2 {
-            padding-top: 3px !important;
-            padding-bottom: 3px !important;
           }
         }
       `}</style>
