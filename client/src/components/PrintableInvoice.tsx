@@ -68,6 +68,111 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const handlePrint = () => {
+    if (!printRef.current) return;
+
+    const printContent = printRef.current.innerHTML;
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+
+    if (!printWindow) {
+      showToast('Please allow popups to print the invoice', 'error');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice ${invoice.invoice_number}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px; padding: 20px; }
+            .text-3xl { font-size: 24px; }
+            .text-2xl { font-size: 20px; }
+            .text-lg { font-size: 16px; }
+            .text-sm { font-size: 11px; }
+            .text-xs { font-size: 10px; }
+            .font-bold { font-weight: 700; }
+            .font-semibold { font-weight: 600; }
+            .font-medium { font-weight: 500; }
+            .text-primary-600 { color: #0d9488; }
+            .text-gray-900 { color: #111827; }
+            .text-gray-700 { color: #374151; }
+            .text-gray-600 { color: #4b5563; }
+            .text-gray-500 { color: #6b7280; }
+            .text-success-600 { color: #059669; }
+            .text-green-800 { color: #166534; }
+            .text-yellow-800 { color: #854d0e; }
+            .bg-gray-50 { background: #f9fafb; }
+            .bg-gray-100 { background: #f3f4f6; }
+            .bg-success-100 { background: #d1fae5; }
+            .bg-yellow-100 { background: #fef3c7; }
+            .bg-primary-100 { background: #ccfbf1; }
+            .text-primary-800 { color: #115e59; }
+            .border-primary-600 { border-color: #0d9488; }
+            .border-gray-300 { border-color: #d1d5db; }
+            .border-gray-200 { border-color: #e5e7eb; }
+            .rounded { border-radius: 4px; }
+            .rounded-lg { border-radius: 8px; }
+            .p-4 { padding: 12px; }
+            .px-2 { padding-left: 8px; padding-right: 8px; }
+            .py-1 { padding-top: 4px; padding-bottom: 4px; }
+            .py-0\\.5 { padding-top: 2px; padding-bottom: 2px; }
+            .py-2 { padding-top: 8px; padding-bottom: 8px; }
+            .py-3 { padding-top: 12px; padding-bottom: 12px; }
+            .px-4 { padding-left: 16px; padding-right: 16px; }
+            .mt-1 { margin-top: 4px; }
+            .mt-2 { margin-top: 8px; }
+            .mt-3 { margin-top: 12px; }
+            .mb-2 { margin-bottom: 8px; }
+            .mb-6 { margin-bottom: 16px; }
+            .mb-8 { margin-bottom: 20px; }
+            .ml-2 { margin-left: 8px; }
+            .pt-3 { padding-top: 12px; }
+            .pt-6 { padding-top: 16px; }
+            .pb-6 { padding-bottom: 16px; }
+            .space-y-1 > * + * { margin-top: 4px; }
+            .border-b-2 { border-bottom: 2px solid; }
+            .border-t-2 { border-top: 2px solid; }
+            .border-t { border-top: 1px solid #e5e7eb; }
+            .flex { display: flex; }
+            .justify-between { justify-content: space-between; }
+            .justify-end { justify-content: flex-end; }
+            .items-start { align-items: flex-start; }
+            .items-center { align-items: center; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .uppercase { text-transform: uppercase; }
+            .grid { display: grid; }
+            .grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+            .gap-8 { gap: 20px; }
+            .w-full { width: 100%; }
+            .w-64 { width: 200px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { padding: 8px 12px; text-align: left; }
+            th { background: #f3f4f6; border-bottom: 2px solid #d1d5db; font-weight: 600; }
+            tr:nth-child(even) { background: #f9fafb; }
+            .text-center { text-align: center; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 10mm; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.onafterprint = function() { window.close(); };
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
 
   const handleMarkAsPaid = async () => {
@@ -206,10 +311,10 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         <div className="print:hidden bg-gray-100 px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 rounded-t-lg sticky top-0 z-10 flex-shrink-0">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-gray-900">Invoice Preview</h2>
-            <div className="flex gap-2 flex-wrap relative z-20">
+            <div className="flex gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={handlePrint}
                 className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2 text-sm sm:text-base cursor-pointer"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -479,78 +584,6 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         </div>
       </div>
 
-      <style>{`
-        @media print {
-          @page {
-            size: letter;
-            margin: 10mm;
-          }
-
-          /* Hide EVERYTHING first */
-          body * {
-            visibility: hidden !important;
-          }
-
-          /* Show only the invoice and its contents */
-          #printable-invoice,
-          #printable-invoice * {
-            visibility: visible !important;
-          }
-
-          /* Position invoice at top left */
-          #printable-invoice {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
-            padding: 15px !important;
-            background: white !important;
-            font-size: 11px !important;
-          }
-
-          #printable-invoice h1 {
-            font-size: 18px !important;
-          }
-          #printable-invoice h2 {
-            font-size: 14px !important;
-          }
-          #printable-invoice h3 {
-            font-size: 10px !important;
-            margin-bottom: 4px !important;
-          }
-          #printable-invoice table {
-            font-size: 10px !important;
-          }
-          #printable-invoice th,
-          #printable-invoice td {
-            padding: 3px 6px !important;
-          }
-          #printable-invoice .border-b-2 {
-            padding-bottom: 6px !important;
-            margin-bottom: 6px !important;
-          }
-          #printable-invoice .mb-8 {
-            margin-bottom: 10px !important;
-          }
-          #printable-invoice .mb-6 {
-            margin-bottom: 6px !important;
-          }
-          #printable-invoice .pb-6 {
-            padding-bottom: 6px !important;
-          }
-          #printable-invoice .p-4 {
-            padding: 6px !important;
-          }
-          #printable-invoice .pt-6 {
-            padding-top: 6px !important;
-          }
-          #printable-invoice .gap-8 {
-            gap: 10px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 };
