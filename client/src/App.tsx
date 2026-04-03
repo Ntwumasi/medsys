@@ -28,6 +28,8 @@ import QuickBooksSettings from './pages/QuickBooksSettings';
 import QuickBooksData from './pages/QuickBooksData';
 import MessagesPage from './pages/MessagesPage';
 import ImpersonationBanner from './components/ImpersonationBanner';
+import SessionTimeoutModal from './components/SessionTimeoutModal';
+import { useSessionTimeout } from './hooks/useSessionTimeout';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -95,10 +97,31 @@ const RoleDashboard: React.FC = () => {
   }
 };
 
+// Session timeout wrapper
+const SessionTimeoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { logout } = useAuth();
+  const { isWarningVisible, remainingSeconds, extendSession } = useSessionTimeout({
+    timeoutMinutes: 30,    // Logout after 30 min inactivity
+    warningMinutes: 5,     // Show warning 5 min before logout
+  });
+
+  return (
+    <>
+      {children}
+      <SessionTimeoutModal
+        isVisible={isWarningVisible}
+        remainingSeconds={remainingSeconds}
+        onExtend={extendSession}
+        onLogout={logout}
+      />
+    </>
+  );
+};
+
 // Wrapper to include impersonation banner within auth context
 const AppContent: React.FC = () => {
   return (
-    <>
+    <SessionTimeoutWrapper>
       <ImpersonationBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -132,7 +155,7 @@ const AppContent: React.FC = () => {
 
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
-    </>
+    </SessionTimeoutWrapper>
   );
 };
 
