@@ -149,6 +149,12 @@ const DoctorDashboard: React.FC = () => {
   // Vital Signs History state
   const [showVitalsHistory, setShowVitalsHistory] = useState(false);
 
+  // Follow-up modal state
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpRequired, setFollowUpRequired] = useState(false);
+  const [followUpTimeframe, setFollowUpTimeframe] = useState('2 weeks');
+  const [followUpReason, setFollowUpReason] = useState('');
+
   useEffect(() => {
     loadRoomEncounters();
     loadDoctorAlerts();
@@ -522,23 +528,37 @@ const DoctorDashboard: React.FC = () => {
     }
   };
 
-  const handleCompleteEncounter = async () => {
+  const handleCompleteEncounter = () => {
     if (!selectedEncounter) {
       showToast('Please select a patient first', 'warning');
       return;
     }
+    // Reset follow-up form and open modal
+    setFollowUpRequired(false);
+    setFollowUpTimeframe('2 weeks');
+    setFollowUpReason('');
+    setShowFollowUpModal(true);
+  };
 
-    if (!confirm('Are you sure you want to alert the nurse? The patient will be sent back to the nurse for follow-up care.')) {
-      return;
-    }
+  const handleConfirmCompleteEncounter = async () => {
+    if (!selectedEncounter) return;
 
     try {
       showToast('Alerting nurse...', 'info');
       const response = await apiClient.post('/workflow/doctor/complete-encounter', {
         encounter_id: selectedEncounter.id,
+        follow_up_required: followUpRequired,
+        follow_up_timeframe: followUpRequired ? followUpTimeframe : null,
+        follow_up_reason: followUpRequired ? followUpReason : null,
       });
       console.log('Alert nurse response:', response.data);
-      showToast('Nurse has been alerted. Patient is ready for follow-up care.', 'success');
+
+      const message = followUpRequired
+        ? 'Nurse alerted. Follow-up visit marked for scheduling.'
+        : 'Nurse has been alerted. Patient is ready for follow-up care.';
+      showToast(message, 'success');
+
+      setShowFollowUpModal(false);
       setSelectedEncounter(null);
       loadRoomEncounters();
     } catch (error: any) {
@@ -2282,6 +2302,90 @@ const DoctorDashboard: React.FC = () => {
                 className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
               >
                 Approve Claim
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Encounter / Follow-Up Modal */}
+      {showFollowUpModal && selectedEncounter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Complete Encounter</h3>
+                  <p className="text-sm text-gray-600">{selectedEncounter.patient_name}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-gray-600">
+                The patient will be sent back to the nurse for follow-up care.
+              </p>
+
+              {/* Follow-up checkbox */}
+              <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={followUpRequired}
+                  onChange={(e) => setFollowUpRequired(e.target.checked)}
+                  className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <span className="font-medium text-gray-700">Follow-up visit required</span>
+              </label>
+
+              {/* Follow-up details (shown when checkbox is checked) */}
+              {followUpRequired && (
+                <div className="space-y-4 pl-2 border-l-4 border-primary-200 ml-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                    <select
+                      value={followUpTimeframe}
+                      onChange={(e) => setFollowUpTimeframe(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="1 week">1 week</option>
+                      <option value="2 weeks">2 weeks</option>
+                      <option value="1 month">1 month</option>
+                      <option value="3 months">3 months</option>
+                      <option value="6 months">6 months</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for follow-up</label>
+                    <input
+                      type="text"
+                      value={followUpReason}
+                      onChange={(e) => setFollowUpReason(e.target.value)}
+                      placeholder="e.g., Review lab results, Check wound healing"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+              <button
+                onClick={() => setShowFollowUpModal(false)}
+                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCompleteEncounter}
+                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                Alert Nurse
               </button>
             </div>
           </div>

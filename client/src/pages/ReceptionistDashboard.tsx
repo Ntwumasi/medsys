@@ -90,6 +90,11 @@ interface QueueItem {
   allergies_count?: number;
   visit_count?: number;
   outstanding_balance?: number;
+  // Follow-up fields
+  follow_up_required?: boolean;
+  follow_up_timeframe?: string;
+  follow_up_reason?: string;
+  follow_up_scheduled?: boolean;
 }
 
 interface Nurse {
@@ -261,6 +266,11 @@ const ReceptionistDashboard: React.FC = () => {
   const [queueSearchTerm, setQueueSearchTerm] = useState('');
   const [queueSortBy, setQueueSortBy] = useState<'wait_time' | 'check_in' | 'status'>('check_in');
   const [refreshingQueue, setRefreshingQueue] = useState(false);
+
+  // Follow-up checkout modal state
+  const [showFollowUpCheckoutModal, setShowFollowUpCheckoutModal] = useState(false);
+  const [followUpCheckoutItem, setFollowUpCheckoutItem] = useState<QueueItem | null>(null);
+  const [schedulingFollowUp, setSchedulingFollowUp] = useState(false);
 
   // Ghana regions
   const ghanaRegions = [
@@ -589,7 +599,7 @@ const ReceptionistDashboard: React.FC = () => {
 
     setSavingAppointment(true);
     try {
-      await apiClient.post('/appointments', {
+      const response = await apiClient.post('/appointments', {
         patient_id: bookingPatient?.id || null,
         patient_name: patientName,
         provider_id: bookingDoctor || null,
@@ -600,12 +610,39 @@ const ReceptionistDashboard: React.FC = () => {
         notes: bookingNotes,
       });
 
-      showToast('Appointment booked successfully', 'success');
+      const newAppointmentId = response.data.appointment?.id;
+
+      // If this is a follow-up appointment from checkout, link it to the encounter
+      if (schedulingFollowUp && followUpCheckoutItem && newAppointmentId) {
+        try {
+          // Link the appointment to the encounter
+          await apiClient.post('/follow-up/schedule', {
+            encounter_id: followUpCheckoutItem.id,
+            appointment_id: newAppointmentId,
+          });
+
+          // Now checkout the patient
+          await apiClient.post('/workflow/checkout', { encounter_id: followUpCheckoutItem.id });
+
+          showToast(`Follow-up scheduled and ${followUpCheckoutItem.patient_name} checked out successfully`, 'success');
+
+          // Reset follow-up state
+          setSchedulingFollowUp(false);
+          setFollowUpCheckoutItem(null);
+        } catch (followUpError) {
+          console.error('Error linking follow-up or checking out:', followUpError);
+          showToast('Appointment booked, but there was an issue completing checkout', 'warning');
+        }
+      } else {
+        showToast('Appointment booked successfully', 'success');
+      }
+
       setShowBookingModal(false);
       setBookingPatientSearch('');
       setBookingPatient(null);
       loadAppointments();
       loadTodayAppointments();
+      loadData(); // Reload queue to reflect checkout
     } catch (error) {
       console.error('Error booking appointment:', error);
       const apiError = error as ApiError;
@@ -874,6 +911,17 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleCheckout = async (encounterId: number, patientName: string) => {
+    // Find the queue item to check for follow-up requirements
+    const queueItem = queue.find(q => q.id === encounterId);
+
+    // If follow-up is required and not yet scheduled, show the modal
+    if (queueItem?.follow_up_required && !queueItem?.follow_up_scheduled) {
+      setFollowUpCheckoutItem(queueItem);
+      setShowFollowUpCheckoutModal(true);
+      return;
+    }
+
+    // Otherwise proceed with normal checkout
     if (!confirm(`Are you sure you want to checkout ${patientName}? This will close the entire patient visit.`)) {
       return;
     }
@@ -888,6 +936,63 @@ const ReceptionistDashboard: React.FC = () => {
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to checkout patient';
       showToast(errorMessage, 'error');
     }
+  };
+
+  const handleSkipFollowUpAndCheckout = async () => {
+    if (!followUpCheckoutItem) return;
+
+    try {
+      // Skip the follow-up
+      await apiClient.post('/follow-up/skip', { encounter_id: followUpCheckoutItem.id });
+
+      // Then checkout
+      await apiClient.post('/workflow/checkout', { encounter_id: followUpCheckoutItem.id });
+      showToast(`${followUpCheckoutItem.patient_name} has been checked out successfully`, 'success');
+
+      setShowFollowUpCheckoutModal(false);
+      setFollowUpCheckoutItem(null);
+      await loadData();
+    } catch (error) {
+      console.error('Error checking out patient:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to checkout patient';
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  const handleScheduleFollowUpFromCheckout = () => {
+    if (!followUpCheckoutItem) return;
+
+    // Switch to appointments view with pre-filled patient info
+    setSchedulingFollowUp(true);
+    setActiveView('appointments');
+
+    // Pre-fill the booking modal
+    const patient: Patient = {
+      id: followUpCheckoutItem.patient_id,
+      patient_number: followUpCheckoutItem.patient_number,
+      first_name: followUpCheckoutItem.patient_name.split(' ')[0],
+      last_name: followUpCheckoutItem.patient_name.split(' ').slice(1).join(' '),
+      phone: followUpCheckoutItem.patient_phone,
+    };
+    setBookingPatient(patient);
+    setBookingType('follow-up');
+    setBookingReason(followUpCheckoutItem.follow_up_reason || 'Follow-up visit');
+
+    // Calculate suggested date based on timeframe
+    const timeframe = followUpCheckoutItem.follow_up_timeframe;
+    let suggestedDate = new Date();
+    if (timeframe === '1 week') suggestedDate.setDate(suggestedDate.getDate() + 7);
+    else if (timeframe === '2 weeks') suggestedDate.setDate(suggestedDate.getDate() + 14);
+    else if (timeframe === '1 month') suggestedDate.setMonth(suggestedDate.getMonth() + 1);
+    else if (timeframe === '3 months') suggestedDate.setMonth(suggestedDate.getMonth() + 3);
+    else if (timeframe === '6 months') suggestedDate.setMonth(suggestedDate.getMonth() + 6);
+
+    // Set the calendar to the suggested date
+    setCalendarDate(suggestedDate);
+
+    setShowFollowUpCheckoutModal(false);
+    setShowBookingModal(true);
   };
 
   const handleCancelVisit = async (encounterId: number, patientName: string) => {
@@ -1401,6 +1506,14 @@ const ReceptionistDashboard: React.FC = () => {
                           {(item.visit_count ?? 0) === 0 && (
                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-700">
                               NEW
+                            </span>
+                          )}
+                          {item.follow_up_required && !item.follow_up_scheduled && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-warning-100 text-warning-700 flex items-center gap-1" title={`Follow-up: ${item.follow_up_timeframe}${item.follow_up_reason ? ' - ' + item.follow_up_reason : ''}`}>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              Follow-up: {item.follow_up_timeframe}
                             </span>
                           )}
                           <span className="text-sm font-medium text-gray-600">
@@ -3052,6 +3165,75 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
           </div>
         )}
+
+      {/* Follow-up Checkout Modal */}
+      {showFollowUpCheckoutModal && followUpCheckoutItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-warning-50 to-warning-100 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-warning-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Follow-Up Required</h3>
+                  <p className="text-sm text-gray-600">{followUpCheckoutItem.patient_name}</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-warning-800 mb-2">
+                  Doctor requested follow-up visit:
+                </p>
+                <div className="space-y-1">
+                  <p className="text-warning-700">
+                    <span className="font-semibold">Timeframe:</span> {followUpCheckoutItem.follow_up_timeframe}
+                  </p>
+                  {followUpCheckoutItem.follow_up_reason && (
+                    <p className="text-warning-700">
+                      <span className="font-semibold">Reason:</span> {followUpCheckoutItem.follow_up_reason}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm">
+                Would you like to schedule the follow-up appointment now before checkout?
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl space-y-3">
+              <button
+                onClick={handleScheduleFollowUpFromCheckout}
+                className="w-full px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Schedule Follow-Up Now
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowFollowUpCheckoutModal(false);
+                    setFollowUpCheckoutItem(null);
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSkipFollowUpAndCheckout}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Skip & Checkout
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Invoice Modal */}
       {showInvoice && invoiceData && currentEncounterId && (

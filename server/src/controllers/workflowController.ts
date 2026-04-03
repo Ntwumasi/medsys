@@ -982,7 +982,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
   try {
     const authReq = req as any;
     const doctor_id = authReq.user?.id;
-    const { encounter_id } = req.body;
+    const { encounter_id, follow_up_required, follow_up_timeframe, follow_up_reason } = req.body;
 
     // Get encounter details to find nurse_id and patient_id
     const encounterResult = await pool.query(
@@ -1004,13 +1004,17 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     const { nurse_id, patient_id, room_number, patient_name } = encounterResult.rows[0];
 
     // Update encounter status to 'with_nurse' - patient goes back to nurse
+    // Include follow-up data if provided
     await pool.query(
       `UPDATE encounters
        SET status = 'with_nurse',
            doctor_completed_at = CURRENT_TIMESTAMP,
+           follow_up_required = COALESCE($2, false),
+           follow_up_timeframe = $3,
+           follow_up_reason = $4,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [encounter_id]
+      [encounter_id, follow_up_required || false, follow_up_timeframe || null, follow_up_reason || null]
     );
 
     // Create alert for nurse that patient is ready for follow-up
@@ -1029,7 +1033,10 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     }
 
     res.json({
-      message: 'Encounter completed. Patient sent back to nurse.',
+      message: follow_up_required
+        ? 'Encounter completed. Patient sent back to nurse. Follow-up visit scheduled.'
+        : 'Encounter completed. Patient sent back to nurse.',
+      follow_up_required: follow_up_required || false,
     });
   } catch (error) {
     console.error('Doctor complete encounter error:', error);

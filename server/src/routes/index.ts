@@ -269,6 +269,13 @@ import {
   getMessageableUsers,
   deleteMessage,
 } from '../controllers/messageController';
+import {
+  getUnscheduledFollowUps,
+  scheduleFollowUp,
+  getFollowUpStats,
+  skipFollowUp,
+} from '../controllers/followUpController';
+import { processFollowUpReminders } from '../services/followUpReminderService';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import notificationRoutes from './notifications';
 import auditRoutes from './audit';
@@ -688,6 +695,23 @@ router.get('/lab-results/critical/:orderId', authenticateToken, authorizeRoles('
   } catch (error) {
     console.error('Error checking critical results:', error);
     res.status(500).json({ error: 'Failed to check critical results' });
+  }
+});
+
+// Follow-up appointment routes
+router.get('/follow-up/unscheduled', authenticateToken, authorizeRoles('receptionist', 'admin'), getUnscheduledFollowUps);
+router.get('/follow-up/stats', authenticateToken, authorizeRoles('receptionist', 'admin'), getFollowUpStats);
+router.post('/follow-up/schedule', authenticateToken, authorizeRoles('receptionist', 'admin'), scheduleFollowUp);
+router.post('/follow-up/skip', authenticateToken, authorizeRoles('receptionist', 'admin'), skipFollowUp);
+
+// Manual trigger for follow-up reminders (admin only, for testing)
+router.post('/follow-up/send-reminders', authenticateToken, authorizeRoles('admin'), async (req, res) => {
+  try {
+    const result = await processFollowUpReminders();
+    res.json({ message: 'Reminder processing complete', ...result });
+  } catch (error) {
+    console.error('Error processing follow-up reminders:', error);
+    res.status(500).json({ error: 'Failed to process reminders' });
   }
 });
 
