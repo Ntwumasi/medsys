@@ -1,31 +1,12 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import rateLimit from 'express-rate-limit';
 import routes from './routes';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Rate limiting - general API limiter
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
-  message: { error: 'Too many requests, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-// Strict rate limiter for auth endpoints (login, password reset)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // 10 attempts per window
-  message: { error: 'Too many authentication attempts, please try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 // Middleware
 const corsOptions = {
@@ -46,12 +27,6 @@ app.use((req: Request, res: Response, next) => {
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// Apply rate limiters
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/reset-password', authLimiter);
-app.use('/api/auth/request-password-reset', authLimiter);
-app.use('/api', apiLimiter);
 
 // API routes
 app.use('/api', routes);
