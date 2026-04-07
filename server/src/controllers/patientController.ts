@@ -5,6 +5,36 @@ import pool from '../database/db';
 // ALTER TABLE patients ADD COLUMN pcp_name VARCHAR(255);
 // ALTER TABLE patients ADD COLUMN pcp_phone VARCHAR(20);
 
+// Generate unique username from first name and last name
+const generatePatientUsername = async (client: any, firstName: string, lastName: string): Promise<string> => {
+  // Base username: first initial + lastname (lowercase, alphanumeric only)
+  const firstInitial = (firstName || 'x').charAt(0).toLowerCase();
+  const lastNameClean = (lastName || 'user').toLowerCase().replace(/[^a-z0-9]/g, '');
+  let baseUsername = `${firstInitial}${lastNameClean}`;
+
+  // Ensure minimum length
+  if (baseUsername.length < 3) {
+    baseUsername = baseUsername + 'user';
+  }
+
+  // Check for existing usernames and handle duplicates
+  const existingResult = await client.query(
+    `SELECT username FROM users WHERE username LIKE $1`,
+    [`${baseUsername}%`]
+  );
+
+  const existingUsernames = new Set(existingResult.rows.map((r: any) => r.username));
+
+  let username = baseUsername;
+  let counter = 2;
+  while (existingUsernames.has(username)) {
+    username = `${baseUsername}${counter}`;
+    counter++;
+  }
+
+  return username;
+};
+
 export const createPatient = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
 
@@ -81,11 +111,14 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     const bcrypt = require('bcrypt');
     const password_hash = await bcrypt.hash(defaultPassword, 10);
 
+    // Generate unique username for patient
+    const username = await generatePatientUsername(client, first_name, last_name);
+
     const userResult = await client.query(
-      `INSERT INTO users (email, password_hash, role, first_name, last_name, phone)
-       VALUES ($1, $2, 'patient', $3, $4, $5)
+      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone)
+       VALUES ($1, $2, $3, 'patient', $4, $5, $6)
        RETURNING id`,
-      [patientEmail, password_hash, first_name, last_name, phone]
+      [username, patientEmail, password_hash, first_name, last_name, phone]
     );
     const user_id = userResult.rows[0].id;
 
