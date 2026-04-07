@@ -85,7 +85,7 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
 
 export const getAppointments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, provider_id, status, from_date, to_date, limit = 100, offset = 0 } = req.query;
+    const { patient_id, provider_id, status, from_date, to_date, future, limit = 100, offset = 0 } = req.query;
 
     let query = `
       SELECT a.*,
@@ -117,6 +117,11 @@ export const getAppointments = async (req: Request, res: Response): Promise<void
       query += ` AND a.status = $${paramCount}`;
       params.push(status);
       paramCount++;
+    }
+
+    // Filter for future appointments (after today)
+    if (future === 'true') {
+      query += ` AND a.appointment_date > CURRENT_DATE AND a.status NOT IN ('completed', 'cancelled', 'no-show')`;
     }
 
     if (from_date) {

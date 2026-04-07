@@ -181,7 +181,9 @@ const Dashboard: React.FC = () => {
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
   const [auditEntityFilter, setAuditEntityFilter] = useState<string>('all');
   const auditItemsPerPage = 25;
-  const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
+  const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'future' | 'past'>('current');
+  const [futureAppointments, setFutureAppointments] = useState<TodayAppointment[]>([]);
+  const [loadingFutureAppointments, setLoadingFutureAppointments] = useState(false);
 
   // Invoice state
   const [invoices, setInvoices] = useState<DashboardInvoice[]>([]);
@@ -257,12 +259,31 @@ const Dashboard: React.FC = () => {
 
   const loadTodayAppointments = async () => {
     try {
-      const response = await appointmentsAPI.getTodayAppointments(user?.id);
-      setTodayAppointments(response.appointments || []);
+      // Admin sees all appointments, not filtered by user
+      const response = await apiClient.get('/appointments/today');
+      setTodayAppointments(response.data.appointments || []);
     } catch (error) {
       console.error('Error loading appointments:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFutureAppointments = async () => {
+    try {
+      setLoadingFutureAppointments(true);
+      const response = await apiClient.get('/appointments', {
+        params: {
+          future: true,
+          limit: 100,
+        },
+      });
+      setFutureAppointments(response.data.appointments || []);
+    } catch (error) {
+      console.error('Error loading future appointments:', error);
+      setFutureAppointments([]);
+    } finally {
+      setLoadingFutureAppointments(false);
     }
   };
 
@@ -272,7 +293,7 @@ const Dashboard: React.FC = () => {
       const response = await apiClient.get('/appointments', {
         params: {
           status: 'completed',
-          limit: 50,
+          limit: 100,
         },
       });
       setPastAppointments(response.data.appointments || []);
@@ -284,10 +305,14 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Load past appointments when the subtab changes
+  // Load appointments when the subtab changes
   useEffect(() => {
-    if (activeTab === 'appointments' && appointmentsSubTab === 'past') {
-      loadPastAppointments();
+    if (activeTab === 'appointments') {
+      if (appointmentsSubTab === 'past') {
+        loadPastAppointments();
+      } else if (appointmentsSubTab === 'future') {
+        loadFutureAppointments();
+      }
     }
   }, [activeTab, appointmentsSubTab]);
 
@@ -970,7 +995,8 @@ const Dashboard: React.FC = () => {
                   },
                 }}
               >
-                <Tab label="Current Appointments" value="current" />
+                <Tab label="Today's Appointments" value="current" />
+                <Tab label="Future Appointments" value="future" />
                 <Tab label="Past Appointments" value="past" />
               </Tabs>
             </Box>
@@ -1034,6 +1060,95 @@ const Dashboard: React.FC = () => {
                                       ? 'info'
                                       : appointment.status === 'cancelled'
                                       ? 'error'
+                                      : 'default'
+                                  }
+                                  sx={{ fontWeight: 600 }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  component={Link}
+                                  to={`/patients/${appointment.patient_id}`}
+                                  variant="text"
+                                  size="small"
+                                >
+                                  View Patient
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+
+              {appointmentsSubTab === 'future' && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" fontWeight={600}>
+                      Future Appointments
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Upcoming scheduled appointments
+                    </Typography>
+                  </Box>
+
+                  {loadingFutureAppointments ? (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
+                      <CircularProgress size={40} />
+                      <Typography sx={{ mt: 2 }} color="text.secondary">
+                        Loading future appointments...
+                      </Typography>
+                    </Box>
+                  ) : futureAppointments.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 8 }}>
+                      <Typography color="text.secondary">No future appointments scheduled</Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer>
+                      <Table>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                            <TableCell sx={{ fontWeight: 600 }}>Date & Time</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Provider</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {futureAppointments.map((appointment) => (
+                            <TableRow key={appointment.id} hover>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {format(new Date(appointment.appointment_date), 'MMM d, yyyy')}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {format(new Date(appointment.appointment_date), 'h:mm a')}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {appointment.patient_name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {appointment.patient_number}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
+                              <TableCell>{appointment.provider_name || '-'}</TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={appointment.status}
+                                  size="small"
+                                  color={
+                                    appointment.status === 'confirmed'
+                                      ? 'success'
+                                      : appointment.status === 'scheduled'
+                                      ? 'info'
                                       : 'default'
                                   }
                                   sx={{ fontWeight: 600 }}
