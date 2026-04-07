@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { validateIntervalDays } from '../utils/sqlSecurity';
 
 // Get all lab inventory items with optional filters
 export const getLabInventory = async (req: Request, res: Response): Promise<void> => {
@@ -404,7 +405,8 @@ export const getLowLabStockAlerts = async (req: Request, res: Response): Promise
 export const getExpiringLabSupplies = async (req: Request, res: Response): Promise<void> => {
   try {
     const { days } = req.query;
-    const daysAhead = days ? parseInt(days as string) : 90;
+    // Validate and sanitize the days parameter to prevent SQL injection
+    const daysAhead = validateIntervalDays(days, 90, 365);
 
     const result = await pool.query(
       `SELECT *,
@@ -413,8 +415,9 @@ export const getExpiringLabSupplies = async (req: Request, res: Response): Promi
        WHERE is_active = true
          AND item_type != 'equipment'
          AND expiry_date IS NOT NULL
-         AND expiry_date <= CURRENT_DATE + INTERVAL '${daysAhead} days'
-       ORDER BY expiry_date ASC`
+         AND expiry_date <= CURRENT_DATE + INTERVAL '1 day' * $1
+       ORDER BY expiry_date ASC`,
+      [daysAhead]
     );
 
     res.json({ expiring: result.rows });
@@ -428,7 +431,8 @@ export const getExpiringLabSupplies = async (req: Request, res: Response): Promi
 export const getEquipmentCalibrationDue = async (req: Request, res: Response): Promise<void> => {
   try {
     const { days } = req.query;
-    const daysAhead = days ? parseInt(days as string) : 30;
+    // Validate and sanitize the days parameter to prevent SQL injection
+    const daysAhead = validateIntervalDays(days, 30, 365);
 
     const result = await pool.query(
       `SELECT *,
@@ -437,8 +441,9 @@ export const getEquipmentCalibrationDue = async (req: Request, res: Response): P
        WHERE is_active = true
          AND item_type = 'equipment'
          AND next_calibration_date IS NOT NULL
-         AND next_calibration_date <= CURRENT_DATE + INTERVAL '${daysAhead} days'
-       ORDER BY next_calibration_date ASC`
+         AND next_calibration_date <= CURRENT_DATE + INTERVAL '1 day' * $1
+       ORDER BY next_calibration_date ASC`,
+      [daysAhead]
     );
 
     res.json({ equipment: result.rows });

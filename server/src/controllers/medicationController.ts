@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
 export const prescribeMedication = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -95,14 +96,11 @@ export const updateMedication = async (req: Request, res: Response): Promise<voi
     const { id } = req.params;
     const updateData = req.body;
 
-    const fields = Object.keys(updateData)
-      .map((key, index) => `${key} = $${index + 2}`)
-      .join(', ');
-
-    const values = Object.values(updateData);
+    // Use field whitelisting to prevent SQL injection
+    const { setClause, values } = buildSafeUpdateClause('medications', updateData, 2);
 
     const result = await pool.query(
-      `UPDATE medications SET ${fields}, updated_at = CURRENT_TIMESTAMP
+      `UPDATE medications SET ${setClause}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING *`,
       [id, ...values]

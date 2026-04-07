@@ -427,17 +427,14 @@ export const requestPasswordReset = async (req: Request, res: Response): Promise
       [user.id, tokenHash, expiresAt, getClientIP(req), req.headers['user-agent'] || null]
     );
 
-    // In production, send email here
-    // For now, log the token (REMOVE IN PRODUCTION)
-    console.log(`Password reset token for ${email}: ${token}`);
-
     // TODO: Send email with reset link
     // await sendResetEmail(user.email, user.first_name, token);
 
+    // SECURITY: Never log or expose tokens in responses
+    // In development, check database directly if needed for testing
+
     res.json({
-      message: 'If the email exists, a reset link will be sent.',
-      // REMOVE IN PRODUCTION - only for testing
-      ...(process.env.NODE_ENV === 'development' && { debug_token: token })
+      message: 'If the email exists, a reset link will be sent.'
     });
   } catch (error) {
     console.error('Password reset request error:', error);

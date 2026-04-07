@@ -18,7 +18,13 @@ router.get('/stream', (req: Request, res: Response) => {
 
   let userId: number;
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key') as any;
+    // SECURITY: JWT_SECRET must be set - no fallback allowed
+    if (!process.env.JWT_SECRET) {
+      console.error('CRITICAL: JWT_SECRET environment variable is not set');
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
     userId = decoded.id || decoded.userId;
   } catch (error) {
     res.status(401).json({ error: 'Invalid token' });

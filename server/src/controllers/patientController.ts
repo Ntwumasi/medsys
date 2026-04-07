@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
 // Database migration needed for PCP fields:
 // ALTER TABLE patients ADD COLUMN pcp_name VARCHAR(255);
@@ -348,34 +349,36 @@ export const updatePatient = async (req: Request, res: Response): Promise<void> 
 
     const userId = patientResult.rows[0].user_id;
 
-    // Update user table if there are user fields
+    // Update user table if there are user fields (with field whitelisting)
     if (Object.keys(userData).length > 0 && userId) {
-      const userFieldsList = Object.keys(userData)
-        .map((key, index) => `${key} = $${index + 2}`)
-        .join(', ');
-      const userValues = Object.values(userData);
-
-      await client.query(
-        `UPDATE users SET ${userFieldsList} WHERE id = $1`,
-        [userId, ...userValues]
-      );
+      try {
+        const { setClause, values } = buildSafeUpdateClause('users', userData, 2);
+        await client.query(
+          `UPDATE users SET ${setClause} WHERE id = $1`,
+          [userId, ...values]
+        );
+      } catch (err) {
+        // No valid user fields to update, continue
+      }
     }
 
-    // Update patient table if there are patient fields
+    // Update patient table if there are patient fields (with field whitelisting)
     let updatedPatient;
     if (Object.keys(patientData).length > 0) {
-      const patientFieldsList = Object.keys(patientData)
-        .map((key, index) => `${key} = $${index + 2}`)
-        .join(', ');
-      const patientValues = Object.values(patientData);
-
-      const result = await client.query(
-        `UPDATE patients SET ${patientFieldsList}, updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1
-         RETURNING *`,
-        [id, ...patientValues]
-      );
-      updatedPatient = result.rows[0];
+      try {
+        const { setClause, values } = buildSafeUpdateClause('patients', patientData, 2);
+        const result = await client.query(
+          `UPDATE patients SET ${setClause}, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1
+           RETURNING *`,
+          [id, ...values]
+        );
+        updatedPatient = result.rows[0];
+      } catch (err) {
+        // No valid patient fields, just fetch
+        const result = await client.query('SELECT * FROM patients WHERE id = $1', [id]);
+        updatedPatient = result.rows[0];
+      }
     } else {
       // Just fetch the patient if no patient fields to update
       const result = await client.query('SELECT * FROM patients WHERE id = $1', [id]);

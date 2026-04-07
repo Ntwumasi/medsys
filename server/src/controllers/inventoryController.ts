@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { validateIntervalDays } from '../utils/sqlSecurity';
 
 // Get all inventory items with optional filters
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
@@ -409,7 +410,8 @@ export const getLowStockAlerts = async (req: Request, res: Response): Promise<vo
 export const getExpiringMedications = async (req: Request, res: Response): Promise<void> => {
   try {
     const { days } = req.query;
-    const daysAhead = days ? parseInt(days as string) : 90;
+    // Validate and sanitize the days parameter to prevent SQL injection
+    const daysAhead = validateIntervalDays(days, 90, 365);
 
     const result = await pool.query(
       `SELECT *,
@@ -417,8 +419,9 @@ export const getExpiringMedications = async (req: Request, res: Response): Promi
        FROM pharmacy_inventory
        WHERE is_active = true
          AND expiry_date IS NOT NULL
-         AND expiry_date <= CURRENT_DATE + INTERVAL '${daysAhead} days'
-       ORDER BY expiry_date ASC`
+         AND expiry_date <= CURRENT_DATE + INTERVAL '1 day' * $1
+       ORDER BY expiry_date ASC`,
+      [daysAhead]
     );
 
     res.json({ expiring: result.rows });
