@@ -11,6 +11,7 @@ import AppLayout from '../components/AppLayout';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
+import { TableRowSkeleton } from '../components/Skeleton';
 import {
   Select,
   MenuItem,
@@ -195,6 +196,7 @@ const Dashboard: React.FC = () => {
 
   // Corporate clients state
   const [corporateClients, setCorporateClients] = useState<CorporateClient[]>([]);
+  const [loadingCorporateClients, setLoadingCorporateClients] = useState(true);
   const [showCorporateForm, setShowCorporateForm] = useState(false);
   const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
 
@@ -203,11 +205,13 @@ const Dashboard: React.FC = () => {
 
   // Insurance providers state
   const [insuranceProviders, setInsuranceProviders] = useState<InsuranceProvider[]>([]);
+  const [loadingInsuranceProviders, setLoadingInsuranceProviders] = useState(true);
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
 
   // Staff management state
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
   const [showStaffForm, setShowStaffForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   const [staffForm, setStaffForm] = useState({
@@ -316,20 +320,26 @@ const Dashboard: React.FC = () => {
   }, [activeTab, appointmentsSubTab]);
 
   const loadCorporateClients = async () => {
+    setLoadingCorporateClients(true);
     try {
       const response = await apiClient.get('/payer-sources/corporate-clients');
       setCorporateClients(response.data.corporate_clients || []);
     } catch (error) {
       console.error('Error loading corporate clients:', error);
+    } finally {
+      setLoadingCorporateClients(false);
     }
   };
 
   const loadInsuranceProviders = async () => {
+    setLoadingInsuranceProviders(true);
     try {
       const response = await apiClient.get('/payer-sources/insurance-providers');
       setInsuranceProviders(response.data.insurance_providers || []);
     } catch (error) {
       console.error('Error loading insurance providers:', error);
+    } finally {
+      setLoadingInsuranceProviders(false);
     }
   };
 
@@ -345,11 +355,14 @@ const Dashboard: React.FC = () => {
   };
 
   const loadStaff = async () => {
+    setLoadingStaff(true);
     try {
       const response = await apiClient.get('/users');
       setStaff(response.data.users || []);
     } catch (error) {
       console.error('Error loading staff:', error);
+    } finally {
+      setLoadingStaff(false);
     }
   };
 
@@ -1475,7 +1488,11 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {corporateClients.map((client) => (
+                  {loadingCorporateClients ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRowSkeleton key={i} columns={6} />
+                    ))
+                  ) : corporateClients.map((client) => (
                     <tr key={client.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {client.name}
@@ -1609,7 +1626,11 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {insuranceProviders.map((provider) => (
+                  {loadingInsuranceProviders ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRowSkeleton key={i} columns={5} />
+                    ))
+                  ) : insuranceProviders.map((provider) => (
                     <tr key={provider.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {provider.name}
@@ -1936,7 +1957,12 @@ const Dashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {getPaginatedStaff().map((member) => (
+                  {loadingStaff ? (
+                    // Skeleton loading rows
+                    Array.from({ length: 10 }).map((_, i) => (
+                      <TableRowSkeleton key={i} columns={7} />
+                    ))
+                  ) : getPaginatedStaff().map((member) => (
                     <tr key={member.id} className={`${member.is_active ? '' : 'bg-gray-50 opacity-60'} ${selectedStaff.has(member.id) ? 'bg-primary-50' : ''}`}>
                       <td className="px-3 py-4 whitespace-nowrap">
                         <input
