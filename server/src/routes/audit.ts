@@ -32,7 +32,7 @@ router.get('/my-activity', authenticateToken, async (req: Request, res: Response
   }
 });
 
-// Get recent audit logs (admin only)
+// Get recent audit logs (admin only) with pagination and filtering
 router.get('/recent', authenticateToken, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
@@ -41,9 +41,14 @@ router.get('/recent', authenticateToken, async (req: Request, res: Response) => 
       return;
     }
 
-    const { limit } = req.query;
-    const logs = await auditService.getRecentLogs(parseInt(limit as string) || 100);
-    res.json({ logs });
+    const { limit, offset, action, entity_type } = req.query;
+    const result = await auditService.getRecentLogs(
+      parseInt(limit as string) || 25,
+      parseInt(offset as string) || 0,
+      action as string,
+      entity_type as string
+    );
+    res.json(result);
   } catch (error) {
     console.error('Error getting recent audit logs:', error);
     res.status(500).json({ error: 'Failed to get audit logs' });

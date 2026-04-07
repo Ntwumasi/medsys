@@ -72,18 +72,44 @@ export const auditService = {
   },
 
   /**
-   * Get recent audit logs (for admin dashboard)
+   * Get recent audit logs (for admin dashboard) with pagination and filtering
    */
-  async getRecentLogs(limit = 100): Promise<any[]> {
+  async getRecentLogs(limit = 25, offset = 0, action?: string, entityType?: string): Promise<{ logs: any[], total: number }> {
+    // Build WHERE clause
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIndex = 1;
+
+    if (action && action !== 'all') {
+      conditions.push(`al.action = $${paramIndex++}`);
+      params.push(action);
+    }
+    if (entityType && entityType !== 'all') {
+      conditions.push(`al.entity_type = $${paramIndex++}`);
+      params.push(entityType);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // Get total count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM audit_logs al ${whereClause}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].count);
+
+    // Get paginated results
     const result = await pool.query(
       `SELECT al.*, u.first_name || ' ' || u.last_name as user_name, u.role as user_role
        FROM audit_logs al
        LEFT JOIN users u ON al.user_id = u.id
+       ${whereClause}
        ORDER BY al.created_at DESC
-       LIMIT $1`,
-      [limit]
+       LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+      [...params, limit, offset]
     );
-    return result.rows;
+
+    return { logs: result.rows, total };
   },
 };
 

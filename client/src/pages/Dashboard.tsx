@@ -175,6 +175,12 @@ const Dashboard: React.FC = () => {
     created_at: string;
   }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditTotalPages, setAuditTotalPages] = useState(1);
+  const [auditTotalCount, setAuditTotalCount] = useState(0);
+  const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
+  const [auditEntityFilter, setAuditEntityFilter] = useState<string>('all');
+  const auditItemsPerPage = 25;
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'past'>('current');
 
   // Invoice state
@@ -220,6 +226,7 @@ const Dashboard: React.FC = () => {
   const [staffSortOrder, setStaffSortOrder] = useState<'asc' | 'desc'>('asc');
   const [staffPage, setStaffPage] = useState(1);
   const staffItemsPerPage = 10;
+  const [selectedStaff, setSelectedStaff] = useState<Set<number>>(new Set());
 
   // Past Patients state
   const [pastPatients, setPastPatients] = useState<PastPatientEncounter[]>([]);
@@ -304,19 +311,12 @@ const Dashboard: React.FC = () => {
 
   const loadDoctors = async () => {
     try {
-      // For now, use hardcoded doctors from seeded data
-      // In production, this should fetch from /users?role=doctor endpoint
-      setDoctors([
-        { id: 5, first_name: 'John', last_name: 'Williams' }, // doctor@medsys.com
-        { id: 6, first_name: 'Emily', last_name: 'Davis' }, // doctor2@medsys.com
-      ]);
+      const response = await apiClient.get('/users?role=doctor');
+      const doctorsList = response.data.users || [];
+      setDoctors(doctorsList);
     } catch (error) {
       console.error('Error loading doctors:', error);
-      // Fallback to known doctors
-      setDoctors([
-        { id: 5, first_name: 'John', last_name: 'Williams' },
-        { id: 6, first_name: 'Emily', last_name: 'Davis' },
-      ]);
+      setDoctors([]);
     }
   };
 
@@ -498,12 +498,16 @@ const Dashboard: React.FC = () => {
       showToast(`Now logged in as ${member.first_name} ${member.last_name}`, 'success');
       // Navigate to the appropriate dashboard based on role
       const roleRoutes: Record<string, string> = {
+        admin: '/dashboard',
         doctor: '/doctor',
         nurse: '/nurse',
         receptionist: '/receptionist',
         lab: '/lab',
         pharmacy: '/pharmacy',
+        pharmacist: '/pharmacy',
+        pharmacy_tech: '/pharmacy',
         imaging: '/imaging',
+        accountant: '/dashboard',
         patient: '/patient-portal',
       };
       navigate(roleRoutes[member.role] || '/dashboard');
@@ -514,12 +518,105 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Bulk staff actions
+  const handleSelectAllStaff = (checked: boolean) => {
+    if (checked) {
+      const currentPageStaff = getPaginatedStaff();
+      setSelectedStaff(new Set(currentPageStaff.map(s => s.id)));
+    } else {
+      setSelectedStaff(new Set());
+    }
+  };
+
+  const handleSelectStaff = (staffId: number, checked: boolean) => {
+    const newSelected = new Set(selectedStaff);
+    if (checked) {
+      newSelected.add(staffId);
+    } else {
+      newSelected.delete(staffId);
+    }
+    setSelectedStaff(newSelected);
+  };
+
+  const handleBulkDeactivate = async () => {
+    if (selectedStaff.size === 0) return;
+
+    const count = selectedStaff.size;
+    if (!confirm(`Deactivate ${count} selected staff member${count > 1 ? 's' : ''}?`)) {
+      return;
+    }
+
+    try {
+      const promises = Array.from(selectedStaff).map(id =>
+        apiClient.delete(`/users/${id}`)
+      );
+      await Promise.all(promises);
+      showToast(`${count} staff member${count > 1 ? 's' : ''} deactivated`, 'success');
+      setSelectedStaff(new Set());
+      loadStaff();
+    } catch (err) {
+      showToast('Failed to deactivate some staff members', 'error');
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedStaff.size === 0) return;
+
+    const count = selectedStaff.size;
+    if (!confirm(`Activate ${count} selected staff member${count > 1 ? 's' : ''}?`)) {
+      return;
+    }
+
+    try {
+      const promises = Array.from(selectedStaff).map(id =>
+        apiClient.post(`/users/${id}/activate`)
+      );
+      await Promise.all(promises);
+      showToast(`${count} staff member${count > 1 ? 's' : ''} activated`, 'success');
+      setSelectedStaff(new Set());
+      loadStaff();
+    } catch (err) {
+      showToast('Failed to activate some staff members', 'error');
+    }
+  };
+
+  const handleBulkResetPassword = async () => {
+    if (selectedStaff.size === 0) return;
+
+    const count = selectedStaff.size;
+    if (!confirm(`Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? All passwords will be set to "demo123".`)) {
+      return;
+    }
+
+    try {
+      const promises = Array.from(selectedStaff).map(id =>
+        apiClient.post(`/users/${id}/reset-password`)
+      );
+      await Promise.all(promises);
+      showToast(`Passwords reset for ${count} staff member${count > 1 ? 's' : ''}`, 'success');
+      setSelectedStaff(new Set());
+    } catch (err) {
+      showToast('Failed to reset some passwords', 'error');
+    }
+  };
+
   const handleCreateCorporateClient = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!corporateForm.name.trim()) {
+      showToast('Company name is required', 'error');
+      return;
+    }
+    if (!corporateForm.assigned_doctor_id) {
+      showToast('Assigned doctor is required', 'error');
+      return;
+    }
+
     try {
       const payload = {
         ...corporateForm,
-        assigned_doctor_id: corporateForm.assigned_doctor_id ? Number(corporateForm.assigned_doctor_id) : null,
+        assigned_doctor_id: Number(corporateForm.assigned_doctor_id),
       };
       await apiClient.post('/payer-sources/corporate-clients', payload);
       setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
@@ -658,12 +755,23 @@ const Dashboard: React.FC = () => {
     }
   }, [activeTab, pastPatientsPage, pastPatientsSearchTerm, pastPatientsDateFrom, pastPatientsDateTo, pastPatientsSortField, pastPatientsSortOrder]);
 
-  // Fetch audit logs
-  const fetchAuditLogs = async () => {
+  // Fetch audit logs with pagination
+  const fetchAuditLogs = async (page: number = 1) => {
     setAuditLoading(true);
     try {
-      const response = await apiClient.get('/audit/recent?limit=100');
+      const offset = (page - 1) * auditItemsPerPage;
+      let url = `/audit/recent?limit=${auditItemsPerPage}&offset=${offset}`;
+      if (auditActionFilter !== 'all') {
+        url += `&action=${auditActionFilter}`;
+      }
+      if (auditEntityFilter !== 'all') {
+        url += `&entity_type=${auditEntityFilter}`;
+      }
+      const response = await apiClient.get(url);
       setAuditLogs(response.data.logs || []);
+      setAuditTotalCount(response.data.total || response.data.logs?.length || 0);
+      setAuditTotalPages(Math.ceil((response.data.total || response.data.logs?.length || 0) / auditItemsPerPage));
+      setAuditPage(page);
     } catch (error) {
       console.error('Error fetching audit logs:', error);
     } finally {
@@ -671,12 +779,63 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Load audit logs when tab is active
+  // Export audit logs to CSV
+  const exportAuditLogs = async (format: 'csv' | 'json') => {
+    try {
+      // Fetch all logs for export (up to 1000)
+      let url = '/audit/recent?limit=1000';
+      if (auditActionFilter !== 'all') {
+        url += `&action=${auditActionFilter}`;
+      }
+      if (auditEntityFilter !== 'all') {
+        url += `&entity_type=${auditEntityFilter}`;
+      }
+      const response = await apiClient.get(url);
+      const logs = response.data.logs || [];
+
+      if (format === 'csv') {
+        const headers = ['Timestamp', 'User', 'Role', 'Action', 'Entity Type', 'Entity ID', 'Details'];
+        const csvRows = logs.map((log: any) => [
+          new Date(log.created_at).toISOString(),
+          log.user_name || 'System',
+          log.user_role || 'N/A',
+          log.action,
+          log.entity_type,
+          log.entity_id,
+          JSON.stringify(log.new_values || {}).replace(/"/g, '""')
+        ].map(field => `"${field}"`).join(','));
+
+        const csvContent = [headers.join(','), ...csvRows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `audit-logs-${format === 'csv' ? new Date().toISOString().split('T')[0] : ''}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      } else {
+        const jsonContent = JSON.stringify(logs, null, 2);
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+      showToast(`Audit logs exported as ${format.toUpperCase()}`, 'success');
+    } catch (error) {
+      console.error('Error exporting audit logs:', error);
+      showToast('Failed to export audit logs', 'error');
+    }
+  };
+
+  // Load audit logs when tab is active or filters change
   useEffect(() => {
     if (activeTab === 'audit') {
-      fetchAuditLogs();
+      fetchAuditLogs(1);
     }
-  }, [activeTab]);
+  }, [activeTab, auditActionFilter, auditEntityFilter]);
 
 
   return (
@@ -1371,18 +1530,49 @@ const Dashboard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Staff Management</h2>
-              <button
-                onClick={() => {
-                  setShowStaffForm(!showStaffForm);
-                  if (showStaffForm) {
-                    setEditingStaff(null);
-                    setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
-                  }
-                }}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-              >
-                {showStaffForm ? 'Cancel' : 'Add New Staff Member'}
-              </button>
+              <div className="flex items-center gap-3">
+                {selectedStaff.size > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">{selectedStaff.size} selected</span>
+                    <button
+                      onClick={handleBulkActivate}
+                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      Activate
+                    </button>
+                    <button
+                      onClick={handleBulkDeactivate}
+                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Deactivate
+                    </button>
+                    <button
+                      onClick={handleBulkResetPassword}
+                      className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                    >
+                      Reset Passwords
+                    </button>
+                    <button
+                      onClick={() => setSelectedStaff(new Set())}
+                      className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setShowStaffForm(!showStaffForm);
+                    if (showStaffForm) {
+                      setEditingStaff(null);
+                      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  {showStaffForm ? 'Cancel' : 'Add New Staff Member'}
+                </button>
+              </div>
             </div>
 
             {/* Filter and Search Controls */}
@@ -1573,6 +1763,14 @@ const Dashboard: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-3 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={getPaginatedStaff().length > 0 && getPaginatedStaff().every(s => selectedStaff.has(s.id))}
+                        onChange={(e) => handleSelectAllStaff(e.target.checked)}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                    </th>
                     <th
                       onClick={() => handleStaffSort('name')}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
@@ -1625,7 +1823,15 @@ const Dashboard: React.FC = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {getPaginatedStaff().map((member) => (
-                    <tr key={member.id} className={member.is_active ? '' : 'bg-gray-50 opacity-60'}>
+                    <tr key={member.id} className={`${member.is_active ? '' : 'bg-gray-50 opacity-60'} ${selectedStaff.has(member.id) ? 'bg-primary-50' : ''}`}>
+                      <td className="px-3 py-4 whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={selectedStaff.has(member.id)}
+                          onChange={(e) => handleSelectStaff(member.id, e.target.checked)}
+                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           {member.first_name} {member.last_name}
@@ -2057,18 +2263,74 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Audit Logs</h2>
-                    <p className="text-sm text-gray-500">Track all clinical actions and system changes</p>
+                    <p className="text-sm text-gray-500">Track all clinical actions and system changes ({auditTotalCount} total)</p>
                   </div>
                 </div>
-                <button
-                  onClick={fetchAuditLogs}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => exportAuditLogs('csv')}
+                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    CSV
+                  </button>
+                  <button
+                    onClick={() => exportAuditLogs('json')}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    JSON
+                  </button>
+                  <button
+                    onClick={() => fetchAuditLogs(auditPage)}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh
+                  </button>
+                </div>
+              </div>
+              {/* Filters */}
+              <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Action:</label>
+                  <select
+                    value={auditActionFilter}
+                    onChange={(e) => setAuditActionFilter(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="all">All Actions</option>
+                    <option value="create">Create</option>
+                    <option value="update">Update</option>
+                    <option value="delete">Delete</option>
+                    <option value="complete">Complete</option>
+                    <option value="login">Login</option>
+                    <option value="logout">Logout</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Entity:</label>
+                  <select
+                    value={auditEntityFilter}
+                    onChange={(e) => setAuditEntityFilter(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="all">All Entities</option>
+                    <option value="patient">Patient</option>
+                    <option value="encounter">Encounter</option>
+                    <option value="appointment">Appointment</option>
+                    <option value="lab_order">Lab Order</option>
+                    <option value="prescription">Prescription</option>
+                    <option value="invoice">Invoice</option>
+                    <option value="user">User</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2138,6 +2400,47 @@ const Dashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                {/* Pagination */}
+                {auditTotalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {((auditPage - 1) * auditItemsPerPage) + 1} - {Math.min(auditPage * auditItemsPerPage, auditTotalCount)} of {auditTotalCount} logs
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => fetchAuditLogs(1)}
+                        disabled={auditPage === 1}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        First
+                      </button>
+                      <button
+                        onClick={() => fetchAuditLogs(auditPage - 1)}
+                        disabled={auditPage === 1}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-3 py-1.5 text-sm font-medium text-gray-900">
+                        Page {auditPage} of {auditTotalPages}
+                      </span>
+                      <button
+                        onClick={() => fetchAuditLogs(auditPage + 1)}
+                        disabled={auditPage === auditTotalPages}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                      <button
+                        onClick={() => fetchAuditLogs(auditTotalPages)}
+                        disabled={auditPage === auditTotalPages}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Last
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
