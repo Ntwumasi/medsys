@@ -248,16 +248,24 @@ Before committing:
 4. **Super admin bypass** - `is_super_admin` users skip role checks
 5. **Date handling** - Use `date-fns` for formatting
 6. **Currency** - Ghana Cedis (GHS), format: `GHS 123.45`
+7. **Username generation** - First initial + last name, check for duplicates
+8. **Future date queries** - Use `NOW()` not `CURRENT_DATE` for time-aware filtering
+9. **Type imports** - Use `import type` for TypeScript interfaces
+10. **Unused imports** - Remove or TypeScript build will fail
 
 ---
 
 ## Recent Major Features
 
-- **Super Admin Impersonation** - Role switching for admins
+- **Super Admin Impersonation** - Role switching (super admins only can use "Login As")
 - **Secure Messaging** - Provider-to-provider messaging
 - **Password Security** - Lockout, expiry, history
 - **Invoice Printing** - New window print approach
-- **Staff Management** - Create, edit, reset password, deactivate
+- **Staff Management** - Create, edit, reset password, deactivate, bulk actions
+- **Future Appointments Tab** - View all upcoming appointments (admin sees all)
+- **Audit Log Enhancements** - Pagination, filtering, CSV/JSON export
+- **Skeleton Loading** - Improved UX with loading skeletons for tables
+- **Follow-up Visit Tracking** - Track patient follow-up appointments
 
 ---
 
@@ -269,4 +277,4 @@ Before committing:
 
 ---
 
-*Last updated: April 2026*
+*Last updated: April 7, 2026*
