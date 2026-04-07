@@ -119,9 +119,9 @@ export const getAppointments = async (req: Request, res: Response): Promise<void
       paramCount++;
     }
 
-    // Filter for future appointments (after today)
+    // Filter for future appointments (after current time)
     if (future === 'true') {
-      query += ` AND a.appointment_date > CURRENT_DATE AND a.status NOT IN ('completed', 'cancelled', 'no-show')`;
+      query += ` AND a.appointment_date > NOW() AND a.status NOT IN ('completed', 'cancelled', 'no-show', 'checked-in')`;
     }
 
     if (from_date) {
