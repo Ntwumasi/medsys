@@ -1877,7 +1877,7 @@ const Dashboard: React.FC = () => {
                         >
                           Reset PW
                         </button>
-                        {member.is_active && member.role !== 'admin' && (
+                        {user?.is_super_admin && member.is_active && member.role !== 'admin' && (
                           <button
                             onClick={() => handleImpersonate(member)}
                             className="text-secondary-600 hover:text-purple-900"
