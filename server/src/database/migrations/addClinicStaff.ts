@@ -70,7 +70,7 @@ async function addClinicStaff() {
     console.log('Starting to add clinic staff members...\n');
 
     const saltRounds = 10;
-    const defaultPassword = 'MedSys2024!'; // Users should change this on first login
+    const defaultPassword = 'demo123'; // Users should change this on first login
     const passwordHash = await bcrypt.hash(defaultPassword, saltRounds);
 
     let successCount = 0;
