@@ -277,6 +277,19 @@ import {
 } from '../controllers/followUpController';
 import { processFollowUpReminders } from '../services/followUpReminderService';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import {
+  validateBody,
+  loginSchema,
+  registerSchema,
+  changePasswordSchema,
+  resetPasswordSchema,
+  createPatientSchema,
+  updatePatientSchema,
+  createAppointmentSchema,
+  uploadDocumentSchema,
+  createMessageSchema,
+  clinicalNoteSchema,
+} from '../utils/validation';
 import notificationRoutes from './notifications';
 import auditRoutes from './audit';
 import accountantRoutes from './accountant';
@@ -298,14 +311,14 @@ router.get('/health', (req, res) => {
   });
 });
 
-// Auth routes
-router.post('/auth/register', register);
-router.post('/auth/login', login);
+// Auth routes (with input validation)
+router.post('/auth/register', validateBody(registerSchema), register);
+router.post('/auth/login', validateBody(loginSchema), login);
 router.get('/auth/me', authenticateToken, getCurrentUser);
 router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
-router.post('/auth/change-password', authenticateToken, changePassword);
+router.post('/auth/change-password', authenticateToken, validateBody(changePasswordSchema), changePassword);
 router.post('/auth/request-reset', requestPasswordReset);
-router.post('/auth/reset-password', resetPassword);
+router.post('/auth/reset-password', validateBody(resetPasswordSchema), resetPassword);
 router.get('/auth/login-history', authenticateToken, getLoginHistory);
 
 // Admin security routes
@@ -322,8 +335,8 @@ router.put('/notifications/read-all', authenticateToken, markAllNotificationsRea
 router.delete('/notifications/:id', authenticateToken, deleteNotification);
 router.delete('/notifications', authenticateToken, clearAllNotifications);
 
-// Messaging routes
-router.post('/messages', authenticateToken, sendMessage);
+// Messaging routes (with input validation)
+router.post('/messages', authenticateToken, validateBody(createMessageSchema), sendMessage);
 router.get('/messages/inbox', authenticateToken, getInbox);
 router.get('/messages/unread-count', authenticateToken, getUnreadCount);
 router.get('/messages/users', authenticateToken, getMessageableUsers);
@@ -343,11 +356,11 @@ router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUs
 router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);
 router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin'), resetUserPassword);
 
-// Patient routes
-router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), createPatient);
+// Patient routes (with input validation)
+router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(createPatientSchema), createPatient);
 router.get('/patients', authenticateToken, getPatients);
 router.get('/patients/:id', authenticateToken, getPatientById);
-router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), updatePatient);
+router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
 router.get('/patients/:id/summary', authenticateToken, getPatientSummary);
 
 // Encounter routes
@@ -358,11 +371,11 @@ router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
 
-// Appointment routes
-router.post('/appointments', authenticateToken, createAppointment);
+// Appointment routes (with input validation)
+router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);
 router.get('/appointments', authenticateToken, getAppointments);
 router.get('/appointments/today', authenticateToken, getTodayAppointments);
-router.put('/appointments/:id', authenticateToken, updateAppointment);
+router.put('/appointments/:id', authenticateToken, validateBody(createAppointmentSchema.partial()), updateAppointment);
 router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
 router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
 
@@ -405,11 +418,11 @@ router.post('/workflow/doctor/start', authenticateToken, authorizeRoles('doctor'
 router.get('/workflow/doctor/rooms', authenticateToken, authorizeRoles('doctor'), getEncountersByRoom);
 router.post('/workflow/doctor/complete-encounter', authenticateToken, authorizeRoles('doctor'), doctorCompleteEncounter);
 
-// Clinical notes routes
-router.post('/clinical-notes', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), createClinicalNote);
+// Clinical notes routes (with input validation)
+router.post('/clinical-notes', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema), createClinicalNote);
 router.get('/clinical-notes/encounter/:encounter_id', authenticateToken, getEncounterNotes);
 router.get('/clinical-notes/patient/:patient_id', authenticateToken, getPatientNotes);
-router.put('/clinical-notes/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateClinicalNote);
+router.put('/clinical-notes/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema.partial()), updateClinicalNote);
 router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('doctor'), signClinicalNote);
 router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, getSignedNotes);
 
@@ -591,9 +604,9 @@ router.get('/lab/critical-alerts', authenticateToken, authorizeRoles('lab', 'doc
 router.post('/lab/critical-alerts', authenticateToken, authorizeRoles('lab'), createCriticalResultAlert);
 router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor'), acknowledgeCriticalResult);
 
-// Patient Documents routes
+// Patient Documents routes (with input validation)
 router.get('/documents/patient/:patient_id', authenticateToken, getPatientDocuments);
-router.post('/documents', authenticateToken, uploadDocument);
+router.post('/documents', authenticateToken, validateBody(uploadDocumentSchema), uploadDocument);
 router.get('/documents/:id', authenticateToken, getDocument);
 router.delete('/documents/:id', authenticateToken, authorizeRoles('lab', 'doctor', 'admin'), deleteDocument);
 

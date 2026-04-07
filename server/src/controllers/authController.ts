@@ -189,12 +189,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Check if account is locked
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      const remainingMinutes = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
       await logLoginAttempt(username, user.id, false, 'account_locked', req);
+      // SECURITY: Don't reveal exact lock time to prevent timing attacks
       res.status(403).json({
-        error: 'Account is temporarily locked',
-        locked_until: user.locked_until,
-        remaining_minutes: remainingMinutes
+        error: 'Account is temporarily locked due to multiple failed login attempts. Please try again later or contact an administrator.',
       });
       return;
     }
@@ -231,9 +229,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           [newAttempts, user.id]
         );
         await logLoginAttempt(username, user.id, false, 'invalid_password', req);
+        // SECURITY: Don't reveal attempt count to prevent enumeration attacks
         res.status(401).json({
-          error: 'Invalid credentials',
-          attempts_remaining: MAX_LOGIN_ATTEMPTS - newAttempts
+          error: 'Invalid credentials'
         });
       }
       return;
