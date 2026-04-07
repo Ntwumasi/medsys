@@ -2,6 +2,8 @@ import express from 'express';
 import {
   register,
   login,
+  logout,
+  logoutAll,
   getCurrentUser,
   impersonateUser,
   changePassword,
@@ -314,6 +316,8 @@ router.get('/health', (req, res) => {
 // Auth routes (with input validation)
 router.post('/auth/register', validateBody(registerSchema), register);
 router.post('/auth/login', validateBody(loginSchema), login);
+router.post('/auth/logout', authenticateToken, logout);
+router.post('/auth/logout-all', authenticateToken, logoutAll);
 router.get('/auth/me', authenticateToken, getCurrentUser);
 router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
 router.post('/auth/change-password', authenticateToken, validateBody(changePasswordSchema), changePassword);

@@ -2,8 +2,10 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import routes from './routes';
+import { cleanupExpiredTokens } from './services/tokenService';
 
 dotenv.config();
 
@@ -87,6 +89,7 @@ app.use('/api/auth/reset-password', authLimiter);
 
 app.use(express.json({ limit: '10mb' })); // Add request body size limit
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cookieParser()); // Parse cookies for HttpOnly auth tokens
 
 // Request logging middleware (exclude sensitive data)
 app.use((req: Request, res: Response, next) => {
@@ -125,6 +128,14 @@ if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
     console.log(`🏥 MedSys Server running on port ${PORT}`);
     console.log(`📍 Health check: http://localhost:${PORT}/health`);
     console.log(`📍 API base URL: http://localhost:${PORT}/api`);
+
+    // Clean up expired blacklist tokens every hour
+    setInterval(() => {
+      cleanupExpiredTokens().catch(console.error);
+    }, 60 * 60 * 1000);
+
+    // Initial cleanup on startup
+    cleanupExpiredTokens().catch(console.error);
   });
 
   // Handle server errors

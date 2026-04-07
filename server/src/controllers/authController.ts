@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import pool from '../database/db';
 import { validatePassword, generateResetToken, hashResetToken, getPasswordRequirementsMessage } from '../utils/passwordValidation';
+import { revokeToken, revokeAllUserTokens } from '../services/tokenService';
 
 // Security constants
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -135,6 +136,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '24h' }
     );
 
+    // Set HttpOnly cookie for secure token storage
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/',
+    });
+
     res.status(201).json({
       message: 'User registered successfully',
       user: {
@@ -145,7 +155,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         last_name: user.last_name,
         employee_id: user.employee_id,
       },
-      token,
+      token, // Still include for backward compatibility
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -268,6 +278,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check if user must change password
     const mustChangePassword = user.must_change_password || passwordExpired;
 
+    // Set HttpOnly cookie for secure token storage
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: '/',
+    });
+
     res.json({
       message: 'Login successful',
       user: {
@@ -280,7 +299,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         is_breakglass: user.is_breakglass,
         is_super_admin: user.is_super_admin,
       },
-      token,
+      token, // Still include for backward compatibility with frontend
       must_change_password: mustChangePassword,
       password_expired: passwordExpired,
     });
@@ -769,6 +788,15 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
       { expiresIn: '2h' } // Shorter expiry for impersonation sessions
     );
 
+    // Set HttpOnly cookie for secure token storage (shorter expiry for impersonation)
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 2 * 60 * 60 * 1000, // 2 hours for impersonation
+      path: '/',
+    });
+
     res.json({
       message: 'Impersonation successful',
       user: {
@@ -778,7 +806,7 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
         first_name: targetUser.first_name,
         last_name: targetUser.last_name,
       },
-      token,
+      token, // Still include for backward compatibility
       impersonation: {
         adminId: adminId,
         startedAt: new Date().toISOString(),
@@ -791,5 +819,80 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
       return;
     }
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Logout - revoke current token
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const token = authReq.token;
+    const userId = authReq.user?.id;
+
+    if (!token) {
+      res.status(400).json({ error: 'No token to revoke' });
+      return;
+    }
+
+    // Decode token to get expiration
+    const decoded = jwt.decode(token) as { exp?: number } | null;
+    const expiresAt = decoded?.exp
+      ? new Date(decoded.exp * 1000)
+      : new Date(Date.now() + 24 * 60 * 60 * 1000); // Default 24h
+
+    // Add token to blacklist
+    await revokeToken(token, userId, expiresAt, 'logout');
+
+    // Clear HttpOnly cookie if set
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Failed to logout' });
+  }
+};
+
+// Logout all sessions - revoke all tokens for user
+export const logoutAll = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const token = authReq.token;
+    const userId = authReq.user?.id;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    // Revoke current token
+    if (token) {
+      const decoded = jwt.decode(token) as { exp?: number } | null;
+      const expiresAt = decoded?.exp
+        ? new Date(decoded.exp * 1000)
+        : new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await revokeToken(token, userId, expiresAt, 'security');
+    }
+
+    // Mark all user tokens as revoked
+    await revokeAllUserTokens(userId, 'security');
+
+    // Clear HttpOnly cookie
+    res.clearCookie('auth_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+
+    res.json({ message: 'All sessions logged out successfully' });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({ error: 'Failed to logout all sessions' });
   }
 };
