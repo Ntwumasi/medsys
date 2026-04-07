@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { appointmentsAPI } from '../api/appointments';
 import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
@@ -182,7 +181,7 @@ const Dashboard: React.FC = () => {
   const [auditEntityFilter, setAuditEntityFilter] = useState<string>('all');
   const auditItemsPerPage = 25;
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'future' | 'past'>('current');
-  const [futureAppointments, setFutureAppointments] = useState<TodayAppointment[]>([]);
+  const [futureAppointments, setFutureAppointments] = useState<Appointment[]>([]);
   const [loadingFutureAppointments, setLoadingFutureAppointments] = useState(false);
 
   // Invoice state
