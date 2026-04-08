@@ -156,7 +156,7 @@ export const getInbox = async (req: Request, res: Response): Promise<void> => {
 export const getThread = async (req: Request, res: Response): Promise<void> => {
   const authReq = req as AuthRequest;
   const userId = authReq.user?.id;
-  const { otherUserId } = req.params;
+  const otherUserId = req.params.otherUserId as string;
 
   try {
     if (!userId) {

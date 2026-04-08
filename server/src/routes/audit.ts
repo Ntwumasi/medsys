@@ -7,10 +7,11 @@ const router = Router();
 // Get audit logs for an entity (requires admin role)
 router.get('/entity/:type/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const { type, id } = req.params;
-    const { limit } = req.query;
+    const type = req.params.type as string;
+    const id = req.params.id as string;
+    const limit = req.query.limit as string;
 
-    const logs = await auditService.getEntityLogs(type, parseInt(id), parseInt(limit as string) || 50);
+    const logs = await auditService.getEntityLogs(type, parseInt(id), parseInt(limit) || 50);
     res.json({ logs });
   } catch (error) {
     console.error('Error getting entity audit logs:', error);

@@ -528,8 +528,8 @@ export const getRevenueByPayer = async (req: Request, res: Response): Promise<vo
 // Get department-specific revenue
 export const getDepartmentRevenue = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { department } = req.params;
-    const { period = 'month' } = req.query;
+    const department = req.params.department as string;
+    const period = (req.query.period as string) || 'month';
 
     // Map department to invoice_items category
     const categoryMap: Record<string, string> = {
@@ -654,8 +654,9 @@ export const getDepartmentRevenue = async (req: Request, res: Response): Promise
 // Get line items for drill-down
 export const getDepartmentLineItems = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { department } = req.params;
-    const { period = 'month', description } = req.query;
+    const department = req.params.department as string;
+    const period = (req.query.period as string) || 'month';
+    const description = req.query.description as string;
 
     if (!description) {
       res.status(400).json({ error: 'Description is required' });

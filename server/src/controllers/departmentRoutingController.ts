@@ -97,7 +97,7 @@ export const getPharmacyWalkIns = async (req: Request, res: Response): Promise<v
 // Get walk-in patients for any department (lab, imaging, etc.)
 export const getDepartmentWalkIns = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { department } = req.params;
+    const department = req.params.department as string;
 
     const validDepartments = ['lab', 'imaging', 'pharmacy'];
     if (!validDepartments.includes(department)) {

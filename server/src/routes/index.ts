@@ -667,7 +667,8 @@ router.post('/drug-interactions/check-multiple', authenticateToken, authorizeRol
 
 router.get('/drug-interactions/:drugName', authenticateToken, async (req, res) => {
   try {
-    const interactions = await drugInteractionService.getDrugInteractions(req.params.drugName);
+    const drugName = req.params.drugName as string;
+    const interactions = await drugInteractionService.getDrugInteractions(drugName);
     res.json({ interactions });
   } catch (error) {
     console.error('Error getting drug interactions:', error);
@@ -692,11 +693,13 @@ router.post('/lab-results/evaluate', authenticateToken, authorizeRoles('lab', 'd
 
 router.get('/lab-results/reference/:testName', authenticateToken, async (req, res) => {
   try {
-    const { gender, age } = req.query;
+    const testName = req.params.testName as string;
+    const gender = typeof req.query.gender === 'string' ? req.query.gender : undefined;
+    const age = typeof req.query.age === 'string' ? parseInt(req.query.age) : undefined;
     const range = await labResultsService.getReferenceRange(
-      req.params.testName,
-      gender as string,
-      age ? parseInt(age as string) : undefined
+      testName,
+      gender,
+      age
     );
     res.json({ range });
   } catch (error) {
@@ -707,7 +710,8 @@ router.get('/lab-results/reference/:testName', authenticateToken, async (req, re
 
 router.get('/lab-results/critical/:orderId', authenticateToken, authorizeRoles('lab', 'doctor'), async (req, res) => {
   try {
-    const hasCritical = await labResultsService.checkCriticalResults(parseInt(req.params.orderId));
+    const orderId = parseInt(req.params.orderId as string);
+    const hasCritical = await labResultsService.checkCriticalResults(orderId);
     res.json({ hasCritical });
   } catch (error) {
     console.error('Error checking critical results:', error);

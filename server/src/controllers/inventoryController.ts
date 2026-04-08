@@ -984,7 +984,8 @@ export const getPurchaseHistory = async (req: Request, res: Response): Promise<v
 export const updateBatchQuantity = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
   try {
-    const { id, batchId } = req.params;
+    const id = req.params.id as string;
+    const batchId = req.params.batchId as string;
     const { quantity, reason } = req.body;
     const authReq = req as any;
 

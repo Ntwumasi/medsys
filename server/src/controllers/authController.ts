@@ -727,7 +727,7 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
     const authReq = req as any;
     const adminId = authReq.user?.id;
     const adminRole = authReq.user?.role;
-    const targetUserId = parseInt(req.params.userId);
+    const targetUserId = parseInt(req.params.userId as string);
 
     // Verify the requesting user is an admin
     if (adminRole !== 'admin') {

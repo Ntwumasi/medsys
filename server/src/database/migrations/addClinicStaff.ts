@@ -31,6 +31,8 @@ const staffList: StaffMember[] = [
   { firstName: 'Elsie', lastName: 'Amaning', department: 'MEDICINE', position: 'Psychiatrist', role: 'doctor' },
   { firstName: 'Edwin', lastName: 'Boakye-Yiadom', department: 'MEDICINE', position: 'Psychologist', role: 'doctor' },
 
+  { firstName: 'Sedo', lastName: 'Tamakloe', department: 'MEDICINE', position: 'Medical Director & Clinic Owner', role: 'doctor' },
+
   // Health & Wellness Allied Health
   { firstName: 'David', lastName: 'Owusu', department: 'PHYSIOTHERAPY', position: 'Physiotherapist', role: 'doctor' },
   { firstName: 'Caroll', lastName: 'Owu', department: 'NUTRITION', position: 'Dietician', role: 'doctor' },

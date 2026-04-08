@@ -234,7 +234,8 @@ export const queueInvoices = async (req: Request, res: Response): Promise<void> 
 
 export const queueSingleEntity = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { type, id } = req.params;
+    const type = req.params.type as string;
+    const id = req.params.id as string;
     const entityId = parseInt(id);
 
     if (isNaN(entityId)) {
@@ -338,7 +339,7 @@ export const getMappings = async (req: Request, res: Response): Promise<void> =>
 
 export const deleteMapping = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id as string);
     if (isNaN(id)) {
       res.status(400).json({ error: 'Invalid mapping ID' });
       return;

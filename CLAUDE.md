@@ -229,7 +229,17 @@ cd server && npx ts-node src/database/migrations/<migration>.ts
 
 ---
 
-## Testing Checklist
+## Workflow Rules
+
+### After completing each task:
+1. **Run migrations** — If you created or modified a migration, run it against the database immediately. Do not ask for permission.
+   ```bash
+   cd server && npx ts-node src/database/migrations/<migration>.ts
+   ```
+2. **Build check** — Verify both server and client build before committing.
+3. **Commit and push** — Commit the changes and push to `main`. Do not ask for permission.
+
+### Testing Checklist
 
 Before committing:
 - [ ] `cd client && npm run build` passes

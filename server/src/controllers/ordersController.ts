@@ -211,7 +211,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
 
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const updateData = { ...req.body };
 
     // Map frontend status values to database status values
@@ -515,7 +515,7 @@ export const getImagingOrders = async (req: Request, res: Response): Promise<voi
 
 export const updateImagingOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const updateData = req.body;
 
     const fields = Object.keys(updateData)
@@ -740,7 +740,7 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
 
 export const updatePharmacyOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const updateData = req.body;
     const authReq = req as any;
 
@@ -959,7 +959,7 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
   const client = await pool.connect();
 
   try {
-    const { id } = req.params; // Original order ID
+    const id = req.params.id as string; // Original order ID
     const authReq = req as any;
     const userId = authReq.user?.id;
 
@@ -1260,7 +1260,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
 // Acknowledge a critical result alert
 export const acknowledgeCriticalResult = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const authReq = req as any;
     const userId = authReq.user?.id;
 
