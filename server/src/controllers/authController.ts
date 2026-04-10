@@ -822,6 +822,97 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Super admin role switcher - log in as the demo user for a given role.
+// This makes cross-department workflow testing seamless: workflows
+// routed to "the nurse" go to the demo nurse user (Sarah Johnson), etc.
+export const switchToDemoRole = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const adminId = authReq.user?.id;
+    const isSuperAdmin = authReq.user?.is_super_admin === true;
+    const targetRole = req.params.role;
+
+    if (!isSuperAdmin) {
+      res.status(403).json({ error: 'Only super admins can switch roles' });
+      return;
+    }
+
+    if (!targetRole) {
+      res.status(400).json({ error: 'Role is required' });
+      return;
+    }
+
+    const targetResult = await pool.query(
+      `SELECT id, email, username, role, first_name, last_name, is_active
+         FROM users
+        WHERE role = $1 AND is_demo_user = TRUE AND is_active = TRUE
+        ORDER BY id ASC
+        LIMIT 1`,
+      [targetRole]
+    );
+
+    if (targetResult.rows.length === 0) {
+      res.status(404).json({ error: `No demo user configured for role '${targetRole}'` });
+      return;
+    }
+
+    const targetUser = targetResult.rows[0];
+
+    // Audit
+    const ipAddress = getClientIP(req);
+    await pool.query(
+      `INSERT INTO impersonation_logs (admin_id, impersonated_user_id, impersonated_role, ip_address)
+       VALUES ($1, $2, $3, $4)`,
+      [adminId, targetUser.id, targetUser.role, ipAddress]
+    );
+
+    // Issue a token for the demo user. Crucially, is_super_admin is FALSE on
+    // this token so the demo session sees only what their role would see.
+    const secret = getJwtSecret();
+    const token = jwt.sign(
+      {
+        id: targetUser.id,
+        username: targetUser.username,
+        role: targetUser.role,
+        is_super_admin: false,
+        impersonatedBy: adminId,
+      },
+      secret,
+      { expiresIn: '8h' }
+    );
+
+    res.cookie('auth_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 8 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    res.json({
+      message: 'Role switch successful',
+      user: {
+        id: targetUser.id,
+        username: targetUser.username,
+        email: targetUser.email,
+        role: targetUser.role,
+        first_name: targetUser.first_name,
+        last_name: targetUser.last_name,
+        is_super_admin: false,
+        is_demo_user: true,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Role switch error:', error);
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      res.status(500).json({ error: 'Server configuration error' });
+      return;
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Logout - revoke current token
 export const logout = async (req: Request, res: Response): Promise<void> => {
   try {

@@ -57,6 +57,11 @@ export const authAPI = {
     return response.data;
   },
 
+  switchToDemoRole: async (role: string) => {
+    const response = await apiClient.post(`/auth/switch-to-demo/${role}`);
+    return response.data;
+  },
+
   changePassword: async (data: ChangePasswordData) => {
     const response = await apiClient.post('/auth/change-password', data);
     return response.data;

@@ -6,6 +6,7 @@ import {
   logoutAll,
   getCurrentUser,
   impersonateUser,
+  switchToDemoRole,
   changePassword,
   requestPasswordReset,
   resetPassword,
@@ -320,6 +321,7 @@ router.post('/auth/logout', authenticateToken, logout);
 router.post('/auth/logout-all', authenticateToken, logoutAll);
 router.get('/auth/me', authenticateToken, getCurrentUser);
 router.post('/auth/impersonate/:userId', authenticateToken, authorizeRoles('admin'), impersonateUser);
+router.post('/auth/switch-to-demo/:role', authenticateToken, switchToDemoRole);
 router.post('/auth/change-password', authenticateToken, validateBody(changePasswordSchema), changePassword);
 router.post('/auth/request-reset', requestPasswordReset);
 router.post('/auth/reset-password', validateBody(resetPasswordSchema), resetPassword);

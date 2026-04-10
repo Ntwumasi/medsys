@@ -26,7 +26,7 @@ interface AuthContextType {
   endImpersonation: () => void;
   // Super admin role switching
   activeRole: string | null;
-  setActiveRole: (role: string | null) => void;
+  setActiveRole: (role: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -108,12 +108,63 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return response;
   };
 
-  const setActiveRole = (role: string | null) => {
-    setActiveRoleState(role);
-    if (role) {
-      localStorage.setItem('activeRole', role);
-    } else {
+  // Super admin "view as" — actually impersonates the demo user for that role
+  // so workflows route to predictable test users (e.g. nurse → Sarah Johnson).
+  const setActiveRole = async (role: string | null) => {
+    // Returning to super admin home: restore the original session.
+    if (!role) {
+      if (impersonation.originalUser && impersonation.originalToken) {
+        setUser(impersonation.originalUser);
+        setToken(impersonation.originalToken);
+        localStorage.setItem('token', impersonation.originalToken);
+        localStorage.setItem('user', JSON.stringify(impersonation.originalUser));
+      }
+      setImpersonation({ isImpersonating: false, originalUser: null, originalToken: null });
+      localStorage.removeItem('impersonation');
+      setActiveRoleState(null);
       localStorage.removeItem('activeRole');
+      return;
+    }
+
+    // Determine the original super admin session we'll restore later.
+    const originalUser = impersonation.originalUser ?? user;
+    const originalToken = impersonation.originalToken ?? token;
+
+    if (!originalUser || !originalToken) {
+      throw new Error('No active session to switch from');
+    }
+
+    // The /switch-to-demo endpoint requires a super-admin JWT. If we are
+    // currently sitting on a demo-user token (already impersonating), we
+    // briefly put the super admin token back in localStorage so the axios
+    // interceptor sends it on this one call.
+    const savedToken = localStorage.getItem('token');
+    localStorage.setItem('token', originalToken);
+
+    try {
+      const response = await authAPI.switchToDemoRole(role);
+
+      setUser(response.user);
+      setToken(response.token);
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+
+      const impersonationState = {
+        isImpersonating: true,
+        originalUser,
+        originalToken,
+      };
+      setImpersonation(impersonationState);
+      localStorage.setItem('impersonation', JSON.stringify(impersonationState));
+
+      setActiveRoleState(role);
+      localStorage.setItem('activeRole', role);
+    } catch (err) {
+      // Restore whatever token was in localStorage so the user isn't logged out.
+      if (savedToken) {
+        localStorage.setItem('token', savedToken);
+      }
+      throw err;
     }
   };
 
@@ -180,6 +231,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       originalToken: null,
     });
     localStorage.removeItem('impersonation');
+
+    // Also clear any super-admin role-switch hint
+    setActiveRoleState(null);
+    localStorage.removeItem('activeRole');
   };
 
   return (

@@ -15,16 +15,22 @@ const roleLabels: Record<string, string> = {
 };
 
 const SuperAdminRoleSwitcher: React.FC = () => {
-  const { user, activeRole, setActiveRole } = useAuth();
+  const { user, activeRole, setActiveRole, impersonation } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Only show for super admins
-  if (!user?.is_super_admin) {
+  // Show for super admins, OR while impersonating *as* a super admin so the
+  // user can keep switching between demo roles without logging out first.
+  const isSuperAdminMode =
+    user?.is_super_admin || impersonation.originalUser?.is_super_admin;
+
+  if (!isSuperAdminMode) {
     return null;
   }
 
-  const currentRole = activeRole || user.role;
+  const currentRole = activeRole || user?.role || '';
   const currentLabel = roleLabels[currentRole] || currentRole;
 
   // Close dropdown when clicking outside
@@ -39,21 +45,36 @@ const SuperAdminRoleSwitcher: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleRoleChange = (role: string | null) => {
-    setActiveRole(role);
-    setIsOpen(false);
+  const handleRoleChange = async (role: string | null) => {
+    setError(null);
+    setSwitching(true);
+    try {
+      await setActiveRole(role);
+      setIsOpen(false);
+      // Land on the dashboard so the new role's home renders.
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to switch role';
+      setError(msg);
+    } finally {
+      setSwitching(false);
+    }
   };
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors border border-purple-200"
+        disabled={switching}
+        className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors border border-purple-200 disabled:opacity-60"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
         </svg>
-        <span>Viewing as: {currentLabel}</span>
+        <span>{switching ? 'Switching…' : `Viewing as: ${currentLabel}`}</span>
         <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
@@ -65,7 +86,14 @@ const SuperAdminRoleSwitcher: React.FC = () => {
             Switch Dashboard
           </div>
 
+          {error && (
+            <div className="px-3 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">
+              {error}
+            </div>
+          )}
+
           <button
+            disabled={switching}
             onClick={() => handleRoleChange(null)}
             className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600 font-medium"
           >
@@ -80,8 +108,9 @@ const SuperAdminRoleSwitcher: React.FC = () => {
           {Object.entries(roleLabels).map(([role, label]) => (
             <button
               key={role}
+              disabled={switching}
               onClick={() => handleRoleChange(role)}
-              className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
+              className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center justify-between disabled:opacity-60 ${
                 currentRole === role ? 'bg-gray-50 text-primary-600' : 'text-gray-700'
               }`}
             >
