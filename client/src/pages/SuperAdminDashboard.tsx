@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import Logo from '../components/Logo';
+import AppLayout from '../components/AppLayout';
 
 interface RoleOption {
   role: string;
@@ -70,79 +70,87 @@ const roleOptions: RoleOption[] = [
 ];
 
 const SuperAdminDashboard: React.FC = () => {
-  const { user, setActiveRole, logout } = useAuth();
+  const { user, setActiveRole } = useAuth();
+  const [switchingRole, setSwitchingRole] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRoleSelect = (role: string) => {
-    setActiveRole(role);
+  const handleRoleSelect = async (role: string) => {
+    setError(null);
+    setSwitchingRole(role);
+    try {
+      await setActiveRole(role);
+      // After switching, the new user is the demo for that role and the
+      // /dashboard route will rerender into that role's dashboard.
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      const msg =
+        err?.response?.data?.error || err?.message || 'Failed to switch dashboard';
+      setError(msg);
+      setSwitchingRole(null);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Logo size="md" />
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Super Admin Portal</h1>
-                <p className="text-sm text-gray-500">
-                  Welcome, {user?.first_name} {user?.last_name}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Select a Dashboard
+    <AppLayout title="Super Admin Portal">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">
+            Welcome, {user?.first_name} {user?.last_name}
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             As a super admin, you have access to all role dashboards. Choose which view you'd like to access.
           </p>
         </div>
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
         {/* Role Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {roleOptions.map((option) => (
-            <button
-              key={option.role}
-              onClick={() => handleRoleSelect(option.role)}
-              className="group relative bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-            >
-              {/* Icon */}
-              <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${option.color} text-white mb-4 group-hover:scale-110 transition-transform`}>
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={option.icon} />
-                </svg>
-              </div>
+          {roleOptions.map((option) => {
+            const isSwitching = switchingRole === option.role;
+            const isAnySwitching = switchingRole !== null;
+            return (
+              <button
+                key={option.role}
+                onClick={() => handleRoleSelect(option.role)}
+                disabled={isAnySwitching}
+                className="group relative bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {/* Icon */}
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${option.color} text-white mb-4 group-hover:scale-110 transition-transform`}>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={option.icon} />
+                  </svg>
+                </div>
 
-              {/* Content */}
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
-                {option.label}
-              </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                {option.description}
-              </p>
+                {/* Content */}
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
+                  {option.label}
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  {option.description}
+                </p>
 
-              {/* Arrow indicator */}
-              <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-            </button>
-          ))}
+                {/* Arrow / loading indicator */}
+                <div className="absolute top-6 right-6">
+                  {isSwitching ? (
+                    <svg className="w-5 h-5 text-primary-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Quick Info */}
@@ -158,13 +166,13 @@ const SuperAdminDashboard: React.FC = () => {
                 Super Admin Access
               </h4>
               <p className="text-sm text-primary-700">
-                You can switch between dashboards at any time. Look for the role switcher in the header of each dashboard to return here or switch to another role.
+                You can switch between dashboards at any time. Use the "Viewing as" role switcher in the header of any dashboard to return here or jump to another role.
               </p>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
