@@ -12,6 +12,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Vercel sits in front of the app and forwards real client IPs in the
+// X-Forwarded-For header. Trusting the first proxy hop lets express-rate-limit
+// (and any IP-based logic) bucket per real client instead of treating every
+// request as if it came from the same edge IP.
+app.set('trust proxy', 1);
+
 // Security middleware - Helmet adds various HTTP headers for security
 app.use(helmet({
   contentSecurityPolicy: {
@@ -25,10 +31,14 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Allow embedding for medical imaging
 }));
 
-// Rate limiting - General API limit
+// Rate limiting - General API limit.
+// EMR dashboards poll every 30s with 6+ endpoints per poll, and a single
+// clinic typically has 20-40 staff sharing one NAT IP, so the bucket has
+// to be sized for the whole clinic. 10000 / 15 min ≈ 11 req/sec per IP,
+// which is comfortably above realistic peak load while still catching abuse.
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 10000,
   message: { error: 'Too many requests, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
