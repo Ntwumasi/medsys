@@ -1137,54 +1137,65 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
     const authReq = req as any;
     const doctorId = authReq.user?.id;
 
-    // Get lab orders with completed status or results in the last 48 hours
+    // Lab results completed in the last 7 days for this doctor's orders.
+    // Patient name lives on the users table (patients.user_id), and room info
+    // comes from the rooms table via encounters.room_id.
     const labAlerts = await pool.query(
-      `SELECT lo.*,
-        p.first_name || ' ' || p.last_name as patient_name,
-        p.patient_number,
-        e.room_number
-       FROM lab_orders lo
-       LEFT JOIN patients p ON lo.patient_id = p.id
-       LEFT JOIN encounters e ON lo.encounter_id = e.id
-       WHERE lo.ordering_provider = $1
-         AND lo.status = 'completed'
-         AND lo.completed_date >= NOW() - INTERVAL '48 hours'
-       ORDER BY lo.completed_date DESC
-       LIMIT 20`,
+      `SELECT lo.id, lo.patient_id, lo.encounter_id, lo.test_name, lo.test_code,
+              lo.priority, lo.status, lo.ordered_date, lo.result_date, lo.result,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number,
+              r.room_number
+         FROM lab_orders lo
+         LEFT JOIN patients p ON lo.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+         LEFT JOIN encounters e ON lo.encounter_id = e.id
+         LEFT JOIN rooms r ON e.room_id = r.id
+        WHERE lo.ordering_provider = $1
+          AND lo.status = 'completed'
+          AND lo.result_date >= NOW() - INTERVAL '7 days'
+        ORDER BY lo.result_date DESC
+        LIMIT 20`,
       [doctorId]
     );
 
-    // Get imaging orders with completed status or results in the last 48 hours
+    // Imaging results completed in the last 7 days for this doctor's orders.
     const imagingAlerts = await pool.query(
-      `SELECT io.*,
-        p.first_name || ' ' || p.last_name as patient_name,
-        p.patient_number,
-        e.room_number
-       FROM imaging_orders io
-       LEFT JOIN patients p ON io.patient_id = p.id
-       LEFT JOIN encounters e ON io.encounter_id = e.id
-       WHERE io.ordering_provider = $1
-         AND io.status = 'completed'
-         AND io.completed_date >= NOW() - INTERVAL '48 hours'
-       ORDER BY io.completed_date DESC
-       LIMIT 20`,
+      `SELECT io.id, io.patient_id, io.encounter_id, io.imaging_type, io.body_part,
+              io.priority, io.status, io.ordered_date, io.completed_date, io.findings,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number,
+              r.room_number
+         FROM imaging_orders io
+         LEFT JOIN patients p ON io.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+         LEFT JOIN encounters e ON io.encounter_id = e.id
+         LEFT JOIN rooms r ON e.room_id = r.id
+        WHERE io.ordering_provider = $1
+          AND io.status = 'completed'
+          AND io.completed_date >= NOW() - INTERVAL '7 days'
+        ORDER BY io.completed_date DESC
+        LIMIT 20`,
       [doctorId]
     );
 
-    // Get pharmacy orders that are ready/dispensed in the last 48 hours
+    // Pharmacy orders that are ready / dispensed in the last 7 days.
     const pharmacyAlerts = await pool.query(
-      `SELECT po.*,
-        p.first_name || ' ' || p.last_name as patient_name,
-        p.patient_number,
-        e.room_number
-       FROM pharmacy_orders po
-       LEFT JOIN patients p ON po.patient_id = p.id
-       LEFT JOIN encounters e ON po.encounter_id = e.id
-       WHERE po.ordering_provider = $1
-         AND po.status IN ('ready', 'dispensed')
-         AND po.updated_at >= NOW() - INTERVAL '48 hours'
-       ORDER BY po.updated_at DESC
-       LIMIT 20`,
+      `SELECT po.id, po.patient_id, po.encounter_id, po.medication_name, po.dosage,
+              po.frequency, po.status, po.ordered_date, po.dispensed_date, po.updated_at,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number,
+              r.room_number
+         FROM pharmacy_orders po
+         LEFT JOIN patients p ON po.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+         LEFT JOIN encounters e ON po.encounter_id = e.id
+         LEFT JOIN rooms r ON e.room_id = r.id
+        WHERE po.ordering_provider = $1
+          AND po.status IN ('ready', 'dispensed')
+          AND po.updated_at >= NOW() - INTERVAL '7 days'
+        ORDER BY po.updated_at DESC
+        LIMIT 20`,
       [doctorId]
     );
 
@@ -1192,7 +1203,8 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
       lab_alerts: labAlerts.rows,
       imaging_alerts: imagingAlerts.rows,
       pharmacy_alerts: pharmacyAlerts.rows,
-      total_alerts: labAlerts.rows.length + imagingAlerts.rows.length + pharmacyAlerts.rows.length,
+      total_alerts:
+        labAlerts.rows.length + imagingAlerts.rows.length + pharmacyAlerts.rows.length,
     });
   } catch (error) {
     console.error('Get doctor alerts error:', error);

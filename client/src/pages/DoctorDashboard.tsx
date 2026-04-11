@@ -274,7 +274,17 @@ const DoctorDashboard: React.FC = () => {
   const handleSignSOAP = async () => {
     if (!selectedEncounter) return;
 
-    if (!confirm('Are you sure you want to sign this SOAP note? Once signed, it cannot be edited.')) {
+    const patientLabel = selectedEncounter.patient_name || 'this patient';
+    const encounterLabel = selectedEncounter.encounter_number
+      ? ` (Encounter ${selectedEncounter.encounter_number})`
+      : '';
+
+    if (
+      !confirm(
+        `Sign the SOAP note for ${patientLabel}${encounterLabel}?\n\n` +
+          `Once signed it cannot be edited.`
+      )
+    ) {
       return;
     }
 
@@ -283,7 +293,7 @@ const DoctorDashboard: React.FC = () => {
       setSoapSigned(true);
       setSoapSignedAt(new Date().toLocaleString());
       setSoapSignedBy(user?.first_name && user?.last_name ? `Dr. ${user.first_name} ${user.last_name}` : 'Doctor');
-      showToast('SOAP note signed successfully', 'success');
+      showToast(`SOAP note signed for ${patientLabel}`, 'success');
     } catch (error) {
       console.error('Error signing SOAP note:', error);
       showToast('Failed to sign SOAP note', 'error');
@@ -900,20 +910,29 @@ const DoctorDashboard: React.FC = () => {
                   {!soapSigned ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between p-3 bg-warning-50 rounded-lg border border-warning-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center flex-shrink-0">
                             <svg className="w-4 h-4 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </div>
-                          <div>
-                            <div className="text-sm font-semibold text-warning-800">SOAP Note</div>
-                            <div className="text-xs text-warning-600">Requires physician signature</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-semibold text-warning-800 truncate">
+                              SOAP Note — {selectedEncounter.patient_name}
+                            </div>
+                            <div className="text-xs text-warning-600 truncate">
+                              {selectedEncounter.encounter_number
+                                ? `Encounter ${selectedEncounter.encounter_number}`
+                                : 'Current visit'}
+                              {selectedEncounter.room_number
+                                ? ` · Room ${selectedEncounter.room_number}`
+                                : ''}
+                            </div>
                           </div>
                         </div>
                         <button
                           onClick={handleSignSOAP}
-                          className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors"
+                          className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0 ml-2"
                         >
                           Sign Now
                         </button>
@@ -921,14 +940,19 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 p-3 bg-success-50 rounded-lg border border-success-200">
-                      <div className="w-8 h-8 rounded-full bg-success-100 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-success-100 flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
-                      <div>
-                        <div className="text-sm font-semibold text-success-800">All documents signed</div>
-                        <div className="text-xs text-success-600">No pending signatures</div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-success-800 truncate">
+                          SOAP signed — {selectedEncounter.patient_name}
+                        </div>
+                        <div className="text-xs text-success-600 truncate">
+                          {soapSignedBy ? `By ${soapSignedBy}` : 'Signed'}
+                          {soapSignedAt ? ` · ${soapSignedAt}` : ''}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1189,7 +1213,85 @@ const DoctorDashboard: React.FC = () => {
                   <div className="min-h-[400px] pb-6">
                     {/* SOAP Tab */}
                     {clinicalNotesTab === 'soap' && selectedEncounter && (
-                      <div className="-mx-6">
+                      <div className="-mx-6 space-y-4">
+                        {/* Results for this visit — surfaces completed labs
+                            and imaging findings inline so the doctor can
+                            reference them while charting the SOAP note. */}
+                        {(() => {
+                          const completedLabs = encounterLabOrders.filter(
+                            (o) => o.status === 'completed' && o.results
+                          );
+                          const completedImaging = encounterImagingOrders.filter(
+                            (o: any) => o.status === 'completed' && (o.findings || o.results)
+                          );
+                          if (completedLabs.length === 0 && completedImaging.length === 0) {
+                            return null;
+                          }
+                          return (
+                            <div className="mx-6 bg-primary-50 border border-primary-200 rounded-lg p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                                </svg>
+                                <h4 className="text-sm font-bold text-primary-800">
+                                  Results for this visit
+                                </h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {completedLabs.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-primary-700 uppercase mb-1.5">
+                                      Lab ({completedLabs.length})
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {completedLabs.map((o) => (
+                                        <li
+                                          key={o.id}
+                                          className="bg-white rounded border border-primary-100 px-2.5 py-2"
+                                        >
+                                          <div className="text-xs font-semibold text-gray-900">
+                                            {o.test_name}
+                                          </div>
+                                          <div className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">
+                                            {o.results}
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {completedImaging.length > 0 && (
+                                  <div>
+                                    <div className="text-xs font-semibold text-primary-700 uppercase mb-1.5">
+                                      Imaging ({completedImaging.length})
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {completedImaging.map((o: any) => (
+                                        <li
+                                          key={o.id}
+                                          className="bg-white rounded border border-primary-100 px-2.5 py-2"
+                                        >
+                                          <div className="text-xs font-semibold text-gray-900">
+                                            {o.imaging_type}
+                                            {o.body_part ? ` — ${o.body_part}` : ''}
+                                          </div>
+                                          <div className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">
+                                            {o.findings || o.results}
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-primary-600 mt-2">
+                                These results live in the Orders tab — copy anything
+                                relevant into the Objective section of your SOAP note.
+                              </p>
+                            </div>
+                          );
+                        })()}
+
                         <HPAccordion
                           encounterId={selectedEncounter.id}
                           patientId={selectedEncounter.patient_id}
