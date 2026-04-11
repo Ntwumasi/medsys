@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ReceptionistDashboard from './pages/ReceptionistDashboard';
@@ -137,21 +136,15 @@ const AppContent: React.FC = () => {
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
 
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <Layout />
-            </ProtectedRoute>
-          }
-        >
-          <Route index element={<Navigate to="/dashboard" />} />
-          <Route path="patients" element={<PatientList />} />
-          <Route path="patients/new" element={<PatientRegistration />} />
-          <Route path="patients/:id" element={<PatientDetails />} />
-          <Route path="appointments" element={<AppointmentsCalendar />} />
-          <Route path="reports" element={<div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div>} />
-        </Route>
+        {/* Pages below already wrap themselves in <AppLayout>; they used
+            to be nested under a legacy <Layout /> which double-stacked the
+            top nav. Routes are now flat so only AppLayout's sidebar shows. */}
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
+        <Route path="/patients/new" element={<ProtectedRoute><PatientRegistration /></ProtectedRoute>} />
+        <Route path="/patients/:id" element={<ProtectedRoute><PatientDetails /></ProtectedRoute>} />
+        <Route path="/appointments" element={<ProtectedRoute><AppointmentsCalendar /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
