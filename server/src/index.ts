@@ -50,28 +50,34 @@ const authLimiter = rateLimit({
 // Apply general rate limiter to all requests
 app.use(generalLimiter);
 
-// CORS configuration - Fail-safe: reject if FRONTEND_URL not set in production
+// CORS configuration
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     const allowedOrigins = process.env.FRONTEND_URL
       ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
-      : ['http://localhost:5173', 'http://localhost:3000']; // Dev defaults only
+      : ['http://localhost:5173', 'http://localhost:3000'];
 
-    // Allow requests with no origin (mobile apps, Postman, etc.) in development
-    if (!origin && process.env.NODE_ENV !== 'production') {
+    // Allow same-origin / server-to-server / curl requests with no Origin header
+    if (!origin) {
       return callback(null, true);
     }
 
-    if (origin && allowedOrigins.includes(origin)) {
+    // Exact-match against the allow list
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    // In production, reject unknown origins
+    // Allow any deployment URL belonging to this Vercel project
+    // (e.g. medsys-XXXX-fair-votes-projects.vercel.app, medsys-five.vercel.app)
+    if (/^https:\/\/medsys[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
+      return callback(null, true);
+    }
+
     if (process.env.NODE_ENV === 'production') {
+      console.warn(`CORS rejected origin: ${origin} (allowed: ${allowedOrigins.join(', ')})`);
       return callback(new Error('CORS not allowed'), false);
     }
 
-    // In development, allow but warn
     console.warn(`CORS warning: Origin ${origin} not in allowed list`);
     return callback(null, true);
   },
