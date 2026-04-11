@@ -42,9 +42,9 @@ export const registerSchema = z.object({
   password: passwordSchema,
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
-  role: z.enum(['patient', 'receptionist', 'nurse', 'doctor', 'pharmacist', 'lab', 'imaging', 'admin', 'accountant']),
+  role: z.enum(['patient', 'receptionist', 'nurse', 'doctor', 'pharmacist', 'pharmacy', 'pharmacy_tech', 'lab', 'imaging', 'admin', 'accountant']),
   phone: phoneSchema,
-});
+}).passthrough();
 
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1, 'Current password is required'),
@@ -133,29 +133,30 @@ export const updatePatientSchema = createPatientSchema.partial();
 // ============ Appointment Schemas ============
 
 export const createAppointmentSchema = z.object({
-  patient_id: z.number().int().positive().optional(),
+  patient_id: z.number().int().positive().optional().nullable(),
   patient_name: z.string().max(200).optional(),
-  provider_id: z.number().int().positive(),
+  // provider_id is optional/nullable: receptionist can pick "Any available doctor"
+  provider_id: z.number().int().positive().optional().nullable(),
   appointment_date: dateSchema,
   duration_minutes: z.number().int().min(5).max(480).optional(),
   appointment_type: z.string().max(100).optional(),
   reason: z.string().max(500).optional(),
   notes: z.string().max(2000).optional(),
-});
+}).passthrough();
 
 // ============ Document Upload Schema ============
 
 export const uploadDocumentSchema = z.object({
   patient_id: z.number().int().positive(),
-  encounter_id: z.number().int().positive().optional(),
-  lab_order_id: z.number().int().positive().optional(),
+  encounter_id: z.number().int().positive().optional().nullable(),
+  lab_order_id: z.number().int().positive().optional().nullable(),
   document_type: z.enum(['lab_result', 'imaging', 'prescription', 'referral', 'consent', 'insurance', 'other']).optional(),
   document_name: z.string().min(1).max(255),
   file_data: z.string().min(1, 'File data is required'),
   file_type: z.string().max(100).optional(),
   description: z.string().max(500).optional(),
   is_confidential: z.boolean().optional(),
-});
+}).passthrough();
 
 // ============ Message Schema ============
 
@@ -163,17 +164,18 @@ export const createMessageSchema = z.object({
   recipient_id: z.number().int().positive(),
   subject: z.string().min(1, 'Subject is required').max(255),
   body: z.string().min(1, 'Message body is required').max(10000),
-  parent_id: z.number().int().positive().optional(),
-  patient_id: z.number().int().positive().optional(),
-});
+  parent_id: z.number().int().positive().optional().nullable(),
+  patient_id: z.number().int().positive().optional().nullable(),
+}).passthrough();
 
 // ============ Clinical Notes Schema ============
 
 export const clinicalNoteSchema = z.object({
   encounter_id: z.number().int().positive(),
+  patient_id: z.number().int().positive().optional().nullable(),
   note_type: z.enum(['progress', 'procedure', 'consultation', 'discharge', 'soap', 'other']),
   content: z.string().min(1, 'Note content is required').max(50000),
-});
+}).passthrough();
 
 // ============ Middleware Factory ============
 
