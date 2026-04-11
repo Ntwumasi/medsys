@@ -53,9 +53,16 @@ interface ImagingOrder {
   body_part?: string;
   priority: string;
   status: string;
+  // The backend aliases io.findings → results and io.completed_date →
+  // completed_at / io.ordered_date → ordered_at so this shape matches
+  // LabOrder. `findings` is kept for any consumer that reads the native
+  // column name directly.
   results?: string;
+  findings?: string;
   ordered_at: string;
+  ordered_date?: string;
   completed_at?: string;
+  completed_date?: string;
 }
 
 interface PharmacyOrder {
@@ -403,7 +410,7 @@ const DoctorDashboard: React.FC = () => {
     }
 
     try {
-      await apiClient.post(`/api/clinical-notes/${noteId}/sign`);
+      await apiClient.post(`/clinical-notes/${noteId}/sign`);
       showToast('Note signed and chart updated', 'success');
       if (selectedEncounter) {
         loadEncounterNotes(selectedEncounter.id);
@@ -799,7 +806,10 @@ const DoctorDashboard: React.FC = () => {
                           <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
                             <div className="flex justify-between items-start">
                               <div>
-                                <div className="font-semibold text-gray-900 text-sm">{alert.imaging_type} - {alert.body_part}</div>
+                                <div className="font-semibold text-gray-900 text-sm">
+                                  {alert.imaging_type}
+                                  {alert.body_part ? ` — ${alert.body_part}` : ''}
+                                </div>
                                 <div className="text-xs text-gray-500">{alert.patient_name}</div>
                                 {alert.room_number && (
                                   <span className="text-xs text-primary-600">Room {alert.room_number}</span>
@@ -1222,7 +1232,7 @@ const DoctorDashboard: React.FC = () => {
                             (o) => o.status === 'completed' && o.results
                           );
                           const completedImaging = encounterImagingOrders.filter(
-                            (o: any) => o.status === 'completed' && (o.findings || o.results)
+                            (o) => o.status === 'completed' && (o.results || o.findings)
                           );
                           if (completedLabs.length === 0 && completedImaging.length === 0) {
                             return null;
@@ -1266,7 +1276,7 @@ const DoctorDashboard: React.FC = () => {
                                       Imaging ({completedImaging.length})
                                     </div>
                                     <ul className="space-y-2">
-                                      {completedImaging.map((o: any) => (
+                                      {completedImaging.map((o) => (
                                         <li
                                           key={o.id}
                                           className="bg-white rounded border border-primary-100 px-2.5 py-2"
@@ -1276,7 +1286,7 @@ const DoctorDashboard: React.FC = () => {
                                             {o.body_part ? ` — ${o.body_part}` : ''}
                                           </div>
                                           <div className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">
-                                            {o.findings || o.results}
+                                            {o.results || o.findings}
                                           </div>
                                         </li>
                                       ))}

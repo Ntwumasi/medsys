@@ -1103,7 +1103,30 @@ export const getAllEncounterOrders = async (req: Request, res: Response): Promis
         [encounter_id]
       ),
       pool.query(
-        `SELECT io.*, u.first_name || ' ' || u.last_name as ordering_provider_name
+        // Alias imaging columns to match lab_orders' shape (ordered_at,
+        // completed_at, results) so the frontend can treat both order
+        // types uniformly. Without these aliases the imaging results tab
+        // would show "Invalid Date" and never render findings.
+        `SELECT io.id,
+           io.patient_id,
+           io.encounter_id,
+           io.ordering_provider,
+           io.imaging_type,
+           io.body_part,
+           io.priority,
+           io.status,
+           io.notes,
+           io.clinical_indication,
+           io.ordered_date,
+           io.ordered_date as ordered_at,
+           io.scheduled_date,
+           io.completed_date,
+           io.completed_date as completed_at,
+           io.findings,
+           io.findings as results,
+           io.created_at,
+           io.updated_at,
+           u.first_name || ' ' || u.last_name as ordering_provider_name
          FROM imaging_orders io
          LEFT JOIN users u ON io.ordering_provider = u.id
          WHERE io.encounter_id = $1
