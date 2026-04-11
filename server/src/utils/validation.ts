@@ -63,12 +63,19 @@ const optStr = (max: number) =>
   z.string().max(max).optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v));
 
 // Gender accepts any case ("Male", "male", "MALE") and normalizes to lowercase.
+// Empty string is treated as "not provided".
 const genderSchema = z
   .preprocess(
-    (v) => (typeof v === 'string' ? v.toLowerCase() : v),
-    z.enum(['male', 'female', 'other'])
-  )
-  .optional();
+    (v) => {
+      if (v == null) return undefined;
+      if (typeof v === 'string') {
+        const lc = v.trim().toLowerCase();
+        return lc === '' ? undefined : lc;
+      }
+      return v;
+    },
+    z.enum(['male', 'female', 'other']).optional()
+  );
 
 const payerSourceSchema = z.object({
   payer_type: z.enum(['self_pay', 'corporate', 'insurance']).optional(),
@@ -162,7 +169,8 @@ export const uploadDocumentSchema = z.object({
 
 export const createMessageSchema = z.object({
   recipient_id: z.number().int().positive(),
-  subject: z.string().min(1, 'Subject is required').max(255),
+  // Controller stores `subject || null`, so empty subject is allowed.
+  subject: z.string().max(255).optional().or(z.literal('')),
   body: z.string().min(1, 'Message body is required').max(10000),
   parent_id: z.number().int().positive().optional().nullable(),
   patient_id: z.number().int().positive().optional().nullable(),
@@ -173,7 +181,10 @@ export const createMessageSchema = z.object({
 export const clinicalNoteSchema = z.object({
   encounter_id: z.number().int().positive(),
   patient_id: z.number().int().positive().optional().nullable(),
-  note_type: z.enum(['progress', 'procedure', 'consultation', 'discharge', 'soap', 'other']),
+  // note_type is a free-form categorization (e.g. 'doctor_general',
+  // 'nurse_to_doctor', 'doctor_procedural', 'progress', 'soap'). Don't
+  // hardcode an enum here — the app introduces new types over time.
+  note_type: z.string().min(1).max(50),
   content: z.string().min(1, 'Note content is required').max(50000),
 }).passthrough();
 
@@ -194,6 +205,12 @@ export const validateBody = <T extends z.ZodType>(schema: T) => {
           message: err.message,
         }));
 
+        // Log so we can find schema/form mismatches in production logs
+        // before users hit them.
+        console.warn(
+          `[validateBody] ${req.method} ${req.path} rejected: ${JSON.stringify(errors)}`
+        );
+
         res.status(400).json({
           error: 'Validation failed',
           details: errors,
@@ -201,8 +218,12 @@ export const validateBody = <T extends z.ZodType>(schema: T) => {
         return;
       }
 
-      // Replace req.body with validated/sanitized data
-      req.body = result.data;
+      // IMPORTANT: do NOT replace req.body with result.data.
+      // Zod by default strips unknown fields (and even with .passthrough(),
+      // any field not explicitly listed in the schema can drop). Replacing
+      // req.body has caused several "validation passes but data is missing"
+      // bugs in production. Schemas here exist to *reject* obviously bad
+      // input, not to be the canonical shape of the body the controller sees.
       next();
     } catch (error) {
       console.error('Validation error:', error);
