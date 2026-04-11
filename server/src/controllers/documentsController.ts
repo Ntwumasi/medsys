@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import path from 'path';
-import fs from 'fs';
 
-// Use /tmp in serverless environments (Vercel), local uploads dir otherwise
-const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-const UPLOAD_DIR = isServerless ? '/tmp/uploads' : path.join(__dirname, '../../uploads');
+// Files are stored as BYTEA in patient_documents.file_blob.
+// The previous filesystem approach (/tmp/uploads) does not persist on
+// Vercel serverless — files vanish between function invocations — so
+// the canonical storage is now the database.
 
 // Security: File upload configuration
 const MAX_FILE_SIZE_MB = 10;
@@ -39,23 +39,7 @@ const validateFileType = (mimeType: string, fileName: string): { valid: boolean;
   return { valid: true };
 };
 
-// Security: Validate path doesn't escape upload directory
-const validateFilePath = (filePath: string): boolean => {
-  const resolvedPath = path.resolve(filePath);
-  const resolvedUploadDir = path.resolve(UPLOAD_DIR);
-  return resolvedPath.startsWith(resolvedUploadDir);
-};
-
-// Ensure upload directory exists (wrapped in try-catch for serverless environments)
-try {
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  }
-} catch (err) {
-  console.warn('Could not create upload directory:', err);
-}
-
-// Get documents for a patient
+// Get documents for a patient (metadata only — never returns file_blob)
 export const getPatientDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
     const { patient_id } = req.params;
@@ -63,7 +47,10 @@ export const getPatientDocuments = async (req: Request, res: Response): Promise<
 
     let query = `
       SELECT
-        pd.*,
+        pd.id, pd.patient_id, pd.encounter_id, pd.lab_order_id,
+        pd.document_type, pd.document_name, pd.file_type, pd.file_size,
+        pd.description, pd.uploaded_by, pd.is_confidential,
+        pd.created_at, pd.updated_at,
         u.first_name || ' ' || u.last_name as uploaded_by_name,
         lo.test_name as lab_test_name
       FROM patient_documents pd
@@ -146,29 +133,26 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Generate unique filename with sanitization
+    // Generate a sanitized filename (kept only as a label for downloads).
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const ext = path.extname(document_name).toLowerCase();
-    const baseName = path.basename(document_name, ext).replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+    const baseName = path
+      .basename(document_name, ext)
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 50);
     const fileName = `${timestamp}_${randomSuffix}_${baseName}${ext}`;
-    const filePath = path.join(UPLOAD_DIR, fileName);
 
-    // SECURITY: Validate path doesn't escape upload directory
-    if (!validateFilePath(filePath)) {
-      res.status(400).json({ error: 'Invalid file path' });
-      return;
-    }
-
-    // Write file
-    fs.writeFileSync(filePath, buffer);
-
-    // Save to database
+    // Save metadata + raw bytes to the database.
     const result = await pool.query(
       `INSERT INTO patient_documents
-       (patient_id, encounter_id, lab_order_id, document_type, document_name, file_path, file_type, file_size, description, uploaded_by, is_confidential)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING *`,
+       (patient_id, encounter_id, lab_order_id, document_type, document_name,
+        file_path, file_type, file_size, description, uploaded_by,
+        is_confidential, file_blob)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING id, patient_id, encounter_id, lab_order_id, document_type,
+                 document_name, file_path, file_type, file_size, description,
+                 uploaded_by, is_confidential, created_at, updated_at`,
       [
         patient_id,
         encounter_id || null,
@@ -180,7 +164,8 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         fileSize,
         description || null,
         userId,
-        is_confidential || false
+        is_confidential || false,
+        buffer,
       ]
     );
 
@@ -202,13 +187,17 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// Download/view a document
+// Download/view a document. Returns the raw bytes inline as base64 so the
+// front end can render the file without a separate streaming endpoint.
 export const getDocument = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
     const result = await pool.query(
-      `SELECT * FROM patient_documents WHERE id = $1`,
+      `SELECT id, patient_id, encounter_id, lab_order_id, document_type,
+              document_name, file_path, file_type, file_size, description,
+              uploaded_by, is_confidential, created_at, updated_at, file_blob
+         FROM patient_documents WHERE id = $1`,
       [id]
     );
 
@@ -218,28 +207,24 @@ export const getDocument = async (req: Request, res: Response): Promise<void> =>
     }
 
     const document = result.rows[0];
-    const filePath = path.join(UPLOAD_DIR, document.file_path);
 
-    // SECURITY: Validate path doesn't escape upload directory
-    if (!validateFilePath(filePath)) {
-      res.status(400).json({ error: 'Invalid file path' });
+    if (!document.file_blob) {
+      res.status(404).json({ error: 'File data not available for this document' });
       return;
     }
 
-    if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: 'File not found on server' });
-      return;
-    }
+    const buffer: Buffer = document.file_blob;
+    const base64Data = buffer.toString('base64');
+    const fileType = document.file_type || 'application/octet-stream';
 
-    // Read file and send as base64
-    const fileBuffer = fs.readFileSync(filePath);
-    const base64Data = fileBuffer.toString('base64');
+    // Strip the blob from the metadata payload before sending it back.
+    const { file_blob: _ignored, ...metadata } = document;
 
     res.json({
       document: {
-        ...document,
-        file_data: `data:${document.file_type};base64,${base64Data}`
-      }
+        ...metadata,
+        file_data: `data:${fileType};base64,${base64Data}`,
+      },
     });
   } catch (error) {
     console.error('Error fetching document:', error);
@@ -253,30 +238,13 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
     const { id } = req.params;
 
     const result = await pool.query(
-      `SELECT * FROM patient_documents WHERE id = $1`,
+      `DELETE FROM patient_documents WHERE id = $1 RETURNING id`,
       [id]
     );
 
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Document not found' });
       return;
-    }
-
-    const document = result.rows[0];
-    const filePath = path.join(UPLOAD_DIR, document.file_path);
-
-    // SECURITY: Validate path doesn't escape upload directory
-    if (!validateFilePath(filePath)) {
-      res.status(400).json({ error: 'Invalid file path' });
-      return;
-    }
-
-    // Delete from database first
-    await pool.query(`DELETE FROM patient_documents WHERE id = $1`, [id]);
-
-    // Then delete file if exists
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
     }
 
     res.json({ message: 'Document deleted successfully' });
