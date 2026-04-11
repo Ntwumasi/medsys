@@ -58,22 +58,75 @@ export const resetPasswordSchema = z.object({
 
 // ============ Patient Schemas ============
 
+// Helper: optional string that accepts empty string and trims
+const optStr = (max: number) =>
+  z.string().max(max).optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v));
+
+// Gender accepts any case ("Male", "male", "MALE") and normalizes to lowercase.
+const genderSchema = z
+  .preprocess(
+    (v) => (typeof v === 'string' ? v.toLowerCase() : v),
+    z.enum(['male', 'female', 'other'])
+  )
+  .optional();
+
+const payerSourceSchema = z.object({
+  payer_type: z.enum(['self_pay', 'corporate', 'insurance']).optional(),
+  corporate_client_id: z.number().int().positive().optional().nullable(),
+  insurance_provider_id: z.number().int().positive().optional().nullable(),
+}).passthrough();
+
 export const createPatientSchema = z.object({
   first_name: z.string().min(1, 'First name is required').max(100),
   last_name: z.string().min(1, 'Last name is required').max(100),
-  email: emailSchema.optional().or(z.literal('')),
+  email: emailSchema.optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v)),
   phone: phoneSchema,
-  date_of_birth: dateSchema.optional(),
-  gender: z.enum(['male', 'female', 'other']).optional(),
-  address: z.string().max(500).optional(),
-  emergency_contact: z.string().max(100).optional(),
-  emergency_phone: phoneSchema,
-  insurance_provider: z.string().max(100).optional(),
-  insurance_id: z.string().max(50).optional(),
-  allergies: z.string().max(1000).optional(),
-  blood_group: z.string().max(10).optional(),
-  notes: z.string().max(2000).optional(),
-});
+  date_of_birth: dateSchema.optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v)),
+  gender: genderSchema,
+
+  // Address / location
+  address: optStr(500),
+  city: optStr(100),
+  state: optStr(100),
+  region: optStr(100),
+  nationality: optStr(100),
+  gps_address: optStr(100),
+  preferred_clinic: optStr(100),
+
+  // Emergency contact (form sends *_name / *_phone / *_relationship)
+  emergency_contact_name: optStr(100),
+  emergency_contact_phone: optStr(20),
+  emergency_contact_relationship: optStr(100),
+
+  // Insurance (legacy single fields still supported)
+  insurance_provider: optStr(100),
+  insurance_number: optStr(50),
+
+  // Personal
+  marital_status: optStr(50),
+  occupation: optStr(100),
+
+  // Clinical
+  allergies: optStr(2000),
+  blood_group: optStr(10),
+  notes: optStr(2000),
+
+  // Primary care physician
+  pcp_name: optStr(255),
+  pcp_phone: optStr(20),
+
+  // VIP / health status fields
+  vip_status: z.enum(['silver', 'gold', 'platinum']).optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v)),
+  hiv_status: optStr(50),
+  hepatitis_b_status: optStr(50),
+  hepatitis_c_status: optStr(50),
+  tb_status: optStr(50),
+  sickle_cell_status: optStr(50),
+  other_health_conditions: optStr(2000),
+
+  // New payer sources array
+  payer_sources: z.array(payerSourceSchema).optional(),
+}).passthrough();
 
 export const updatePatientSchema = createPatientSchema.partial();
 
