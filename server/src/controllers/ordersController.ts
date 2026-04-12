@@ -1464,7 +1464,10 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
 
     // Add each medication as an invoice line item
     for (const order of createdOrders) {
-      const med = medicationList.find((m: any) => m.medication_name === order.medication_name || m.inventory_id);
+      // Match the original medication entry back to this order by name.
+      // (Previously the || m.inventory_id always evaluated true, so every
+      // line item got the first medication's price.)
+      const med = medicationList.find((m: any) => m.medication_name === order.medication_name);
       const unitPrice = med?.unit_price || 0;
       const quantity = order.quantity;
       const itemTotal = unitPrice * quantity;

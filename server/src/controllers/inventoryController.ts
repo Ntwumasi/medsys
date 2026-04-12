@@ -536,13 +536,15 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
       params.push(end_date);
     }
 
-    // Get revenue by day - using inventory transactions for accurate tracking
+    // Revenue by day. inventory_transactions has no unit_cost column — the
+    // price lives on pharmacy_inventory.selling_price. Join to get it.
     const dailyRevenue = await pool.query(
       `SELECT
         DATE(it.created_at) as date,
         COUNT(*) as orders_count,
-        SUM(ABS(it.quantity) * it.unit_cost) as revenue
+        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as revenue
        FROM inventory_transactions it
+       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
        GROUP BY DATE(it.created_at)
        ORDER BY date DESC
@@ -550,7 +552,7 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
       params
     );
 
-    // Get totals from pharmacy orders
+    // Totals from pharmacy orders
     const totals = await pool.query(
       `SELECT
         COUNT(*) as total_orders,
@@ -562,22 +564,23 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
       params
     );
 
-    // Get total revenue from dispense transactions
+    // Total revenue from dispense transactions
     const revenueTotal = await pool.query(
       `SELECT
-        COALESCE(SUM(ABS(it.quantity) * it.unit_cost), 0) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
        FROM inventory_transactions it
+       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}`,
       params
     );
 
-    // Get top medications by dispensed quantity
+    // Top medications by dispensed quantity
     const topMedications = await pool.query(
       `SELECT
         pi.medication_name,
         COUNT(*) as order_count,
         SUM(ABS(it.quantity)) as total_quantity,
-        SUM(ABS(it.quantity) * it.unit_cost) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
@@ -945,12 +948,13 @@ export const dispenseFromBatches = async (
 // Get purchase history
 export const getPurchaseHistory = async (req: Request, res: Response): Promise<void> => {
   try {
+    // inventory_transactions has no unit_cost — pull it from pharmacy_inventory.
     const result = await pool.query(
       `SELECT
         it.id,
         it.inventory_id,
         it.quantity,
-        it.unit_cost,
+        pi.unit_cost,
         it.notes,
         it.created_at,
         pi.medication_name,
