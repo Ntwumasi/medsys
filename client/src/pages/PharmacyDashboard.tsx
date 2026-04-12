@@ -517,7 +517,6 @@ const PharmacyDashboard: React.FC = () => {
 
     setSubmittingWalkIn(true);
     try {
-      // Send as JSON - prescription file upload can be added later
       await apiClient.post('/pharmacy/walk-in-dispense', {
         patient_id: servingWalkIn.patient_id,
         encounter_id: servingWalkIn.encounter_id,
@@ -525,9 +524,40 @@ const PharmacyDashboard: React.FC = () => {
         medications: walkInMedications,
       });
 
-      // Show success with prescription upload note if files were selected
+      // Upload any prescription files as patient documents (stored in DB)
       if (walkInPrescriptionFiles.length > 0) {
-        showToast('Walk-in order completed. Note: Prescription upload will be available soon.', 'success');
+        let uploadedCount = 0;
+        for (const file of walkInPrescriptionFiles) {
+          try {
+            const dataUrl: string = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(file);
+            });
+
+            await apiClient.post('/documents', {
+              patient_id: servingWalkIn.patient_id,
+              encounter_id: servingWalkIn.encounter_id,
+              document_type: 'prescription',
+              document_name: file.name,
+              file_type: file.type,
+              file_data: dataUrl,
+              description: 'Walk-in prescription',
+            });
+            uploadedCount++;
+          } catch (uploadErr) {
+            console.error(`Failed to upload ${file.name}:`, uploadErr);
+          }
+        }
+
+        if (uploadedCount === walkInPrescriptionFiles.length) {
+          showToast(`Walk-in order completed. ${uploadedCount} prescription file(s) uploaded.`, 'success');
+        } else if (uploadedCount > 0) {
+          showToast(`Walk-in order completed. ${uploadedCount}/${walkInPrescriptionFiles.length} prescription file(s) uploaded.`, 'warning');
+        } else {
+          showToast('Walk-in order completed, but prescription uploads failed. You can re-upload from the Documents tab.', 'warning');
+        }
       } else {
         showToast('Walk-in order completed successfully', 'success');
       }
