@@ -50,9 +50,13 @@ export const isTokenRevoked = async (token: string): Promise<boolean> => {
     );
     return result.rows.length > 0;
   } catch (error) {
-    console.error('Failed to check token blacklist:', error);
-    // On error, treat as revoked for security (fail-closed)
-    return true;
+    // Fail-OPEN: a transient DB hiccup (Neon cold start, connection pool
+    // exhaustion) should not boot every logged-in user. The practical risk
+    // of a specifically-blacklisted token slipping through for the 1-2
+    // seconds the DB is unreachable is negligible. The fail-closed policy
+    // was causing real users (Wendy) to get kicked out repeatedly.
+    console.error('Failed to check token blacklist (allowing request):', error);
+    return false;
   }
 };
 
