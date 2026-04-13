@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
 
 // Dashboard stats
 export const getDashboard = async (req: Request, res: Response) => {
@@ -361,15 +362,25 @@ export const recordPayment = async (req: Request, res: Response) => {
       `, [paymentResult.rows[0].id]);
     }
 
+    // Auto-checkout if invoice is now fully paid (helps post-paid patients)
+    let autoCheckedOut = false;
+    if (newStatus === 'paid') {
+      const result = await autoCheckoutIfFullyPaid(parseInt(id as string), userId);
+      autoCheckedOut = result.didCheckout;
+    }
+
     res.json({
-      message: 'Payment recorded successfully',
+      message: autoCheckedOut
+        ? 'Payment recorded — patient auto-checked out'
+        : 'Payment recorded successfully',
       payment: paymentResult.rows[0],
       invoice: {
         id: invoice.id,
         amount_paid: newAmountPaid,
         balance_due: newBalanceDue,
         status: newStatus,
-      }
+      },
+      auto_checkout: autoCheckedOut,
     });
   } catch (error) {
     console.error('Error recording payment:', error);

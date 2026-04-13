@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { sendReceiptEmail, validateEmail } from '../services/emailService';
+import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
 
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
@@ -457,9 +458,23 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
 
     await client.query('COMMIT');
 
+    // Auto-checkout if the invoice is now fully paid (helps post-paid patients)
+    const updatedInvoice = result.rows[0];
+    let autoCheckedOut = false;
+    if (updatedInvoice.status === 'paid') {
+      const autoResult = await autoCheckoutIfFullyPaid(
+        parseInt(id as string),
+        userId
+      );
+      autoCheckedOut = autoResult.didCheckout;
+    }
+
     res.json({
-      message: 'Invoice updated successfully',
-      invoice: result.rows[0],
+      message: autoCheckedOut
+        ? 'Invoice updated — patient auto-checked out'
+        : 'Invoice updated successfully',
+      invoice: updatedInvoice,
+      auto_checkout: autoCheckedOut,
     });
   } catch (error) {
     await client.query('ROLLBACK');
