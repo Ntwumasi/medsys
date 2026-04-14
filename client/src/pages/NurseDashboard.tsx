@@ -219,8 +219,8 @@ const NurseDashboard: React.FC = () => {
   // Track routing status for each encounter (key: encounterId-department)
   const [routedDepartments, setRoutedDepartments] = useState<Set<string>>(new Set());
 
-  // Auto-save timer for vitals
-  const [autoSaveTimer, setAutoSaveTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // Auto-save for vitals — the debounce timer lives inside the useEffect,
+  // so we only need a flag to know whether the user has touched anything.
   const [vitalsModified, setVitalsModified] = useState(false);
 
   // Short Stay Unit state
@@ -770,23 +770,20 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
-  // Trigger auto-save when vitals change (with 3 second debounce)
+  // Trigger auto-save when vitals change (with 3 second debounce).
+  // Stringify vitals so React compares by value, not object reference —
+  // otherwise this effect fires on every render and floods the API.
+  const vitalsJson = JSON.stringify(vitals);
   useEffect(() => {
-    if (vitalsModified && selectedPatient) {
-      if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-      }
-      const timer = setTimeout(() => {
-        autoSaveVitals();
-      }, 3000);
-      setAutoSaveTimer(timer);
-    }
-    return () => {
-      if (autoSaveTimer) {
-        clearTimeout(autoSaveTimer);
-      }
-    };
-  }, [vitals, vitalsModified, selectedPatient]);
+    if (!vitalsModified || !selectedPatient) return;
+
+    const timer = setTimeout(() => {
+      autoSaveVitals();
+    }, 3000);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vitalsJson, vitalsModified, selectedPatient]);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -855,9 +852,9 @@ const NurseDashboard: React.FC = () => {
         status: 'dispensed'
       });
       showToast('Medication pickup confirmed', 'success');
-      // Refresh pharmacy orders
+      // Refresh pharmacy orders using the correct encounter-based endpoint
       if (selectedPatient) {
-        const res = await apiClient.get(`/orders/patient/${selectedPatient.patient_id}?encounter_id=${selectedPatient.id}`);
+        const res = await apiClient.get(`/orders/encounter/${selectedPatient.id}`);
         setPharmacyOrders(res.data.pharmacy_orders || []);
       }
     } catch (error) {
