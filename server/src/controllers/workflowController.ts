@@ -784,6 +784,28 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
 // Get all available rooms
 export const getAvailableRooms = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Auto-release stale rooms: any room held by an encounter that's been
+    // discharged OR whose encounter_date is >24h ago with no doctor activity.
+    // This prevents "occupied ghost" rooms from accumulating.
+    await pool.query(`
+      UPDATE rooms SET is_available = true, updated_at = CURRENT_TIMESTAMP
+       WHERE is_available = false
+         AND id NOT IN (
+           SELECT DISTINCT e.room_id FROM encounters e
+            WHERE e.room_id IS NOT NULL
+              AND e.status NOT IN ('discharged', 'cancelled')
+              AND e.encounter_date >= NOW() - INTERVAL '24 hours'
+         )
+    `);
+
+    // Also null out room_id on encounters that are discharged but still
+    // reference a room (belt-and-suspenders with the above).
+    await pool.query(`
+      UPDATE encounters SET room_id = NULL
+       WHERE status IN ('discharged', 'cancelled')
+         AND room_id IS NOT NULL
+    `);
+
     const result = await pool.query(
       `SELECT * FROM rooms ORDER BY room_number`
     );
