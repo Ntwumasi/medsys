@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
+import DepartmentGuide from '../components/DepartmentGuide';
+import { pharmacyGuideSections } from '../components/guides/pharmacyGuideContent';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
@@ -171,6 +173,7 @@ const PharmacyDashboard: React.FC = () => {
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
   const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
+  const [showGuide, setShowGuide] = useState(false);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
   const [loading, setLoading] = useState(true);
 
@@ -1075,6 +1078,13 @@ const PharmacyDashboard: React.FC = () => {
 
   return (
     <AppLayout title={title}>
+      <div className="flex justify-end mb-4">
+        <button onClick={() => setShowGuide(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+          How-To Guide
+        </button>
+      </div>
+      <DepartmentGuide isOpen={showGuide} onClose={() => setShowGuide(false)} title="Pharmacy Dashboard Guide" sections={pharmacyGuideSections} />
       {/* Navigation Tabs */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-6">
