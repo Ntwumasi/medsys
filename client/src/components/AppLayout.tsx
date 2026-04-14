@@ -12,6 +12,7 @@ interface NavItem {
   path: string;
   icon: React.ReactNode;
   roles?: string[];
+  headNurseOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -83,6 +84,27 @@ const navItems: NavItem[] = [
       </svg>
     ),
     roles: ['nurse'],
+  },
+  {
+    label: 'Follow-Up Calls',
+    path: '/nurse/follow-up-calls',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+      </svg>
+    ),
+    roles: ['nurse'],
+  },
+  {
+    label: 'Procurement',
+    path: '/nurse/procurement',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
+      </svg>
+    ),
+    roles: ['nurse'],
+    headNurseOnly: true,
   },
   {
     label: 'Lab',
@@ -240,9 +262,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   // Use activeRole for super admins, otherwise use user's actual role
   const effectiveRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
 
-  const filteredNavItems = navItems.filter(
-    (item) => !item.roles || item.roles.includes(effectiveRole || '')
-  );
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.roles && !item.roles.includes(effectiveRole || '')) return false;
+    if (item.headNurseOnly && !user?.is_head_nurse && !user?.is_super_admin) return false;
+    return true;
+  });
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {

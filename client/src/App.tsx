@@ -26,6 +26,8 @@ import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
 import QuickBooksSettings from './pages/QuickBooksSettings';
 import QuickBooksData from './pages/QuickBooksData';
 import MessagesPage from './pages/MessagesPage';
+import NurseFollowUpCalls from './pages/NurseFollowUpCalls';
+import NurseProcurement from './pages/NurseProcurement';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
@@ -128,6 +130,8 @@ const AppContent: React.FC = () => {
 
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
         <Route path="/nurse/inventory" element={<ProtectedRoute><NurseDashboard /></ProtectedRoute>} />
+        <Route path="/nurse/follow-up-calls" element={<ProtectedRoute><NurseFollowUpCalls /></ProtectedRoute>} />
+        <Route path="/nurse/procurement" element={<ProtectedRoute><NurseProcurement /></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/pending-payments" element={<ProtectedRoute><PendingPaymentsPage /></ProtectedRoute>} />

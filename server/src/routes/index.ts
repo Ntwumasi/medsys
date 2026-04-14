@@ -279,6 +279,18 @@ import {
   skipFollowUp,
 } from '../controllers/followUpController';
 import { processFollowUpReminders } from '../services/followUpReminderService';
+import {
+  getFollowUpQueue,
+  logFollowUpCall,
+  getCallHistory,
+} from '../controllers/nurseCallLogController';
+import {
+  getNurseInventory,
+  createNurseInventoryItem,
+  updateNurseInventoryItem,
+  recordNursePurchase,
+  getNursePurchases,
+} from '../controllers/nurseInventoryController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import {
   validateBody,
@@ -728,6 +740,18 @@ router.get('/follow-up/unscheduled', authenticateToken, authorizeRoles('receptio
 router.get('/follow-up/stats', authenticateToken, authorizeRoles('receptionist', 'admin'), getFollowUpStats);
 router.post('/follow-up/schedule', authenticateToken, authorizeRoles('receptionist', 'admin'), scheduleFollowUp);
 router.post('/follow-up/skip', authenticateToken, authorizeRoles('receptionist', 'admin'), skipFollowUp);
+
+// Nurse follow-up call log
+router.get('/nurse/call-log/queue', authenticateToken, authorizeRoles('nurse', 'admin'), getFollowUpQueue);
+router.post('/nurse/call-log', authenticateToken, authorizeRoles('nurse', 'admin'), logFollowUpCall);
+router.get('/nurse/call-log/history', authenticateToken, authorizeRoles('nurse', 'admin'), getCallHistory);
+
+// Nurse inventory & procurement (head nurse manages procurement, all nurses see stock)
+router.get('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), getNurseInventory);
+router.post('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), createNurseInventoryItem);
+router.put('/nurse/inventory/:id', authenticateToken, authorizeRoles('nurse', 'admin'), updateNurseInventoryItem);
+router.post('/nurse/inventory/purchase', authenticateToken, authorizeRoles('nurse', 'admin'), recordNursePurchase);
+router.get('/nurse/inventory/purchases', authenticateToken, authorizeRoles('nurse', 'admin'), getNursePurchases);
 
 // Manual trigger for follow-up reminders (admin only, for testing)
 router.post('/follow-up/send-reminders', authenticateToken, authorizeRoles('admin'), async (req, res) => {
