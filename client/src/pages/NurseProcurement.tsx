@@ -34,7 +34,7 @@ interface Purchase {
 }
 
 const NurseProcurement: React.FC = () => {
-  const { user } = useAuth();
+  const { user, impersonation } = useAuth();
   const { showToast } = useNotification();
 
   const [activeTab, setActiveTab] = useState<'stock' | 'purchase' | 'history' | 'add'>('stock');
@@ -163,8 +163,10 @@ const NurseProcurement: React.FC = () => {
 
   const categories = [...new Set(items.map(i => i.category))];
 
-  // Only head nurse should see this page
-  if (user?.role === 'nurse' && !user?.is_head_nurse) {
+  // Only head nurse or super admin impersonating a nurse should see this page
+  const isSuperAdminSession =
+    user?.is_super_admin || (impersonation as any)?.originalUser?.is_super_admin;
+  if (user?.role === 'nurse' && !user?.is_head_nurse && !isSuperAdminSession) {
     return (
       <AppLayout title="Procurement">
         <div className="text-center py-16">

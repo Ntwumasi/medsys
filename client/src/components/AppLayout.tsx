@@ -194,7 +194,7 @@ interface SearchResult {
 }
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
-  const { user, logout, activeRole } = useAuth();
+  const { user, logout, activeRole, impersonation } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -262,9 +262,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   // Use activeRole for super admins, otherwise use user's actual role
   const effectiveRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
 
+  const isSuperAdminSession =
+    user?.is_super_admin || impersonation.originalUser?.is_super_admin;
+
   const filteredNavItems = navItems.filter((item) => {
     if (item.roles && !item.roles.includes(effectiveRole || '')) return false;
-    if (item.headNurseOnly && !user?.is_head_nurse && !user?.is_super_admin) return false;
+    if (item.headNurseOnly && !user?.is_head_nurse && !isSuperAdminSession) return false;
     return true;
   });
 
