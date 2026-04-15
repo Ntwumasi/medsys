@@ -517,7 +517,7 @@ router.get('/search/encounters', authenticateToken, searchEncounters);
 router.get('/search/quick', authenticateToken, quickSearch);
 
 // Nurse Procedures routes
-router.post('/nurse-procedures', authenticateToken, authorizeRoles('doctor'), orderNurseProcedure);
+router.post('/nurse-procedures', authenticateToken, authorizeRoles('doctor', 'nurse'), orderNurseProcedure);
 router.get('/nurse-procedures', authenticateToken, authorizeRoles('nurse', 'doctor'), getNurseProcedures);
 router.get('/nurse-procedures/available', authenticateToken, authorizeRoles('doctor', 'nurse'), getAvailableNurseProcedures);
 router.post('/nurse-procedures/:id/start', authenticateToken, authorizeRoles('nurse'), startNurseProcedure);

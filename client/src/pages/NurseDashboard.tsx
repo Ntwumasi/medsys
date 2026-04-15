@@ -51,7 +51,18 @@ interface NurseProcedure {
   status: string;
   notes: string;
   ordered_at: string;
+  started_at: string;
+  completed_at: string;
   ordered_by_name: string;
+  performed_by_name: string;
+  price: number;
+}
+
+interface AvailableProcedure {
+  id: number;
+  service_code: string;
+  service_name: string;
+  category: string;
   price: number;
 }
 
@@ -178,6 +189,13 @@ const NurseDashboard: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
+  const [availableProcedures, setAvailableProcedures] = useState<AvailableProcedure[]>([]);
+  const [showAddProcedure, setShowAddProcedure] = useState(false);
+  const [selectedProcedureId, setSelectedProcedureId] = useState<number | null>(null);
+  const [procedureNotes, setProcedureNotes] = useState('');
+  const [showProcedureHistory, setShowProcedureHistory] = useState(false);
+  const [procedureHistory, setProcedureHistory] = useState<NurseProcedure[]>([]);
+  const [orderingProcedure, setOrderingProcedure] = useState(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
@@ -294,6 +312,7 @@ const NurseDashboard: React.FC = () => {
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
+    loadAvailableProcedures();
     loadRooms();
     loadShortStayBeds();
     loadDoctorNotifications();
@@ -346,6 +365,24 @@ const NurseDashboard: React.FC = () => {
       setNurseProcedures(res.data.procedures || []);
     } catch (error) {
       console.error('Error loading nurse procedures:', error);
+    }
+  };
+
+  const loadAvailableProcedures = async () => {
+    try {
+      const res = await apiClient.get('/nurse-procedures/available');
+      setAvailableProcedures(res.data.procedures || []);
+    } catch (error) {
+      console.error('Error loading available procedures:', error);
+    }
+  };
+
+  const loadProcedureHistory = async (encounterId: number) => {
+    try {
+      const res = await apiClient.get(`/nurse-procedures?encounter_id=${encounterId}&status=all`);
+      setProcedureHistory(res.data.procedures || []);
+    } catch (error) {
+      console.error('Error loading procedure history:', error);
     }
   };
 
@@ -634,7 +671,47 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
-  // Removed unused handleStartEncounter function
+  const handleOrderProcedure = async () => {
+    if (!selectedPatient || !selectedProcedureId) return;
+
+    const procedure = availableProcedures.find(p => p.id === selectedProcedureId);
+    if (!procedure) return;
+
+    setOrderingProcedure(true);
+    try {
+      await apiClient.post('/nurse-procedures', {
+        encounter_id: selectedPatient.id,
+        patient_id: selectedPatient.patient_id,
+        charge_master_id: procedure.id,
+        procedure_name: procedure.service_name,
+        notes: procedureNotes || null,
+      });
+      showToast(`${procedure.service_name} added successfully`, 'success');
+      setShowAddProcedure(false);
+      setSelectedProcedureId(null);
+      setProcedureNotes('');
+      loadNurseProcedures();
+    } catch (error) {
+      console.error('Error ordering procedure:', error);
+      showToast('Failed to add procedure', 'error');
+    } finally {
+      setOrderingProcedure(false);
+    }
+  };
+
+  const handleCancelProcedure = async (procedureId: number) => {
+    const reason = prompt('Reason for cancellation (optional):');
+    if (reason === null) return; // User clicked Cancel on prompt
+
+    try {
+      await apiClient.post(`/nurse-procedures/${procedureId}/cancel`, { reason: reason || 'Cancelled by nurse' });
+      showToast('Procedure cancelled', 'success');
+      loadNurseProcedures();
+    } catch (error) {
+      console.error('Error cancelling procedure:', error);
+      showToast('Failed to cancel procedure', 'error');
+    }
+  };
 
   const handleSubmitVitals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2518,6 +2595,99 @@ const NurseDashboard: React.FC = () => {
                     {/* Nurse Procedures Tab */}
                     {activeTab === 'procedures' && (
                       <div className="space-y-4">
+                        {/* Add Procedure Button */}
+                        <div className="flex justify-between items-center">
+                          <h3 className="text-lg font-semibold text-gray-800">Procedures</h3>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setShowProcedureHistory(!showProcedureHistory);
+                                if (!showProcedureHistory) {
+                                  loadProcedureHistory(selectedPatient.id);
+                                }
+                              }}
+                              className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                            >
+                              {showProcedureHistory ? 'Hide History' : 'View History'}
+                            </button>
+                            <button
+                              onClick={() => setShowAddProcedure(!showAddProcedure)}
+                              className="px-4 py-2 text-sm font-medium text-white bg-success-600 rounded-lg hover:bg-success-700 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add Procedure
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Add Procedure Form */}
+                        {showAddProcedure && (
+                          <div className="bg-success-50 border-2 border-success-200 rounded-xl p-4">
+                            <h4 className="font-bold text-success-800 mb-3">Select Procedure</h4>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Procedure</label>
+                                <select
+                                  value={selectedProcedureId || ''}
+                                  onChange={(e) => setSelectedProcedureId(e.target.value ? parseInt(e.target.value) : null)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-success-500"
+                                >
+                                  <option value="">-- Select a procedure --</option>
+                                  {availableProcedures.map((proc) => (
+                                    <option key={proc.id} value={proc.id}>
+                                      {proc.service_name} — GHS {proc.price.toFixed(2)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                                <textarea
+                                  value={procedureNotes}
+                                  onChange={(e) => setProcedureNotes(e.target.value)}
+                                  placeholder="e.g., Left forearm, wound from fall..."
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-success-500"
+                                  rows={2}
+                                />
+                              </div>
+                              {selectedProcedureId && (
+                                <div className="bg-white rounded-lg p-3 border border-success-200">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-medium text-gray-800">
+                                      {availableProcedures.find(p => p.id === selectedProcedureId)?.service_name}
+                                    </span>
+                                    <span className="font-bold text-success-700">
+                                      GHS {availableProcedures.find(p => p.id === selectedProcedureId)?.price.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={handleOrderProcedure}
+                                  disabled={!selectedProcedureId || orderingProcedure}
+                                  className="px-4 py-2 text-sm font-medium text-white bg-success-600 rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {orderingProcedure ? 'Adding...' : 'Add & Start'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setShowAddProcedure(false);
+                                    setSelectedProcedureId(null);
+                                    setProcedureNotes('');
+                                  }}
+                                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Active Procedures List */}
                         {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 ? (
                           <div className="space-y-3">
                             {nurseProcedures
@@ -2525,7 +2695,9 @@ const NurseDashboard: React.FC = () => {
                               .map((procedure) => (
                                 <div
                                   key={procedure.id}
-                                  className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                                  className={`border rounded-lg p-4 ${
+                                    procedure.status === 'in_progress' ? 'border-primary-300 bg-primary-50' : 'border-gray-200 bg-gray-50'
+                                  }`}
                                 >
                                   <div className="flex justify-between items-start">
                                     <div className="flex-1">
@@ -2533,37 +2705,57 @@ const NurseDashboard: React.FC = () => {
                                       {procedure.notes && (
                                         <p className="text-sm text-gray-600 mt-1">{procedure.notes}</p>
                                       )}
-                                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                      <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-gray-600">
                                         <span>Ordered by: {procedure.ordered_by_name}</span>
-                                        <span>Price: ${procedure.price.toFixed(2)}</span>
+                                        {procedure.performed_by_name && (
+                                          <span>Performed by: {procedure.performed_by_name}</span>
+                                        )}
+                                        <span>GHS {procedure.price?.toFixed(2)}</span>
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
                                           procedure.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                                           procedure.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
                                           'bg-success-100 text-success-800'
                                         }`}>
-                                          {procedure.status.replace('_', ' ').toUpperCase()}
+                                          {procedure.status === 'in_progress' ? 'IN PROGRESS' : procedure.status.toUpperCase()}
                                         </span>
                                       </div>
                                       <p className="text-xs text-gray-400 mt-1">
-                                        {safeFormatDate(procedure.ordered_at, 'MMM d, yyyy h:mm a')}
+                                        Ordered: {safeFormatDate(procedure.ordered_at, 'MMM d, yyyy h:mm a')}
+                                        {procedure.started_at && ` | Started: ${safeFormatDate(procedure.started_at, 'h:mm a')}`}
                                       </p>
                                     </div>
                                     <div className="ml-4 flex gap-2">
                                       {procedure.status === 'pending' && (
-                                        <button
-                                          onClick={() => handleStartProcedure(procedure.id)}
-                                          className="px-3 py-1 text-sm font-medium text-white bg-primary-600 rounded hover:bg-primary-700"
-                                        >
-                                          Start
-                                        </button>
+                                        <>
+                                          <button
+                                            onClick={() => handleStartProcedure(procedure.id)}
+                                            className="px-3 py-1 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                                          >
+                                            Start
+                                          </button>
+                                          <button
+                                            onClick={() => handleCancelProcedure(procedure.id)}
+                                            className="px-3 py-1 text-sm font-medium text-danger-600 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </>
                                       )}
                                       {procedure.status === 'in_progress' && (
-                                        <button
-                                          onClick={() => handleCompleteProcedure(procedure.id)}
-                                          className="px-3 py-1 text-sm font-medium text-white bg-success-600 rounded hover:bg-success-700"
-                                        >
-                                          Complete & Bill
-                                        </button>
+                                        <>
+                                          <button
+                                            onClick={() => handleCompleteProcedure(procedure.id)}
+                                            className="px-3 py-1 text-sm font-medium text-white bg-success-600 rounded-lg hover:bg-success-700"
+                                          >
+                                            Complete & Bill
+                                          </button>
+                                          <button
+                                            onClick={() => handleCancelProcedure(procedure.id)}
+                                            className="px-3 py-1 text-sm font-medium text-danger-600 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </>
                                       )}
                                     </div>
                                   </div>
@@ -2571,8 +2763,63 @@ const NurseDashboard: React.FC = () => {
                               ))}
                           </div>
                         ) : (
-                          <div className="text-center py-8 text-gray-500">
-                            No nurse procedures for this patient
+                          !showAddProcedure && (
+                            <div className="text-center py-8">
+                              <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                              </svg>
+                              <p className="text-gray-500 mb-3">No active procedures for this patient</p>
+                              <button
+                                onClick={() => setShowAddProcedure(true)}
+                                className="px-4 py-2 text-sm font-medium text-success-700 bg-success-50 border border-success-200 rounded-lg hover:bg-success-100 transition-colors"
+                              >
+                                Add a Procedure
+                              </button>
+                            </div>
+                          )
+                        )}
+
+                        {/* Procedure History */}
+                        {showProcedureHistory && (
+                          <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h4 className="font-semibold text-gray-700 mb-3">Procedure History</h4>
+                            {procedureHistory.filter(p => p.status === 'completed' || p.status === 'cancelled').length > 0 ? (
+                              <div className="space-y-2">
+                                {procedureHistory
+                                  .filter(p => p.status === 'completed' || p.status === 'cancelled')
+                                  .map((procedure) => (
+                                    <div
+                                      key={procedure.id}
+                                      className={`border rounded-lg p-3 ${
+                                        procedure.status === 'completed' ? 'border-success-200 bg-success-50' : 'border-gray-200 bg-gray-50 opacity-60'
+                                      }`}
+                                    >
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <span className="font-medium text-gray-900">{procedure.procedure_name}</span>
+                                          {procedure.notes && (
+                                            <p className="text-xs text-gray-500 mt-0.5">{procedure.notes}</p>
+                                          )}
+                                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                                            {procedure.performed_by_name && <span>By: {procedure.performed_by_name}</span>}
+                                            <span>GHS {procedure.price?.toFixed(2)}</span>
+                                            {procedure.completed_at && (
+                                              <span>{safeFormatDate(procedure.completed_at, 'MMM d, yyyy h:mm a')}</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                          procedure.status === 'completed' ? 'bg-success-100 text-success-800' : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                          {procedure.status.toUpperCase()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-400 text-center py-4">No procedure history</p>
+                            )}
                           </div>
                         )}
                       </div>

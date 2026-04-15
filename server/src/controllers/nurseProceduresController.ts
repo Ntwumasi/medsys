@@ -78,13 +78,14 @@ export const getNurseProcedures = async (req: Request, res: Response): Promise<v
       query += ` AND np.encounter_id = $${params.length}`;
     }
 
-    if (status) {
+    if (status && status !== 'all') {
       params.push(status);
       query += ` AND np.status = $${params.length}`;
-    } else {
+    } else if (!status) {
       // Default: show pending and in-progress
       query += ` AND np.status IN ('pending', 'in_progress')`;
     }
+    // status=all shows everything including completed/cancelled
 
     // Only show procedures for encounters assigned to this nurse
     if (!encounter_id) {
