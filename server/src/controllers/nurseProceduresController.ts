@@ -87,10 +87,10 @@ export const getNurseProcedures = async (req: Request, res: Response): Promise<v
     }
     // status=all shows everything including completed/cancelled
 
-    // Only show procedures for encounters assigned to this nurse
+    // Show procedures for encounters assigned to this nurse OR ordered by this nurse
     if (!encounter_id) {
       params.push(nurse_id);
-      query += ` AND e.nurse_id = $${params.length}`;
+      query += ` AND (e.nurse_id = $${params.length} OR np.ordered_by = $${params.length})`;
     }
 
     query += ' ORDER BY np.ordered_at ASC';

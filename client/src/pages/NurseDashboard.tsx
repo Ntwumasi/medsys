@@ -426,6 +426,9 @@ const NurseDashboard: React.FC = () => {
   const handleSelectPatient = async (patient: AssignedPatient) => {
     setSelectedPatient(patient);
     setEditingRoom(false);
+    setShowProcedureHistory(false);
+    setProcedureHistory([]);
+    setShowAddProcedure(false);
 
     // Only call start if patient hasn't been started yet (status is not 'with_nurse' or from_doctor)
     // This updates nurse_started_at in the database
@@ -679,14 +682,18 @@ const NurseDashboard: React.FC = () => {
 
     setOrderingProcedure(true);
     try {
-      await apiClient.post('/nurse-procedures', {
+      const res = await apiClient.post('/nurse-procedures', {
         encounter_id: selectedPatient.id,
         patient_id: selectedPatient.patient_id,
         charge_master_id: procedure.id,
         procedure_name: procedure.service_name,
         notes: procedureNotes || null,
       });
-      showToast(`${procedure.service_name} added successfully`, 'success');
+      // Auto-start the procedure so nurse doesn't have to click Start separately
+      if (res.data.procedure?.id) {
+        await apiClient.post(`/nurse-procedures/${res.data.procedure.id}/start`);
+      }
+      showToast(`${procedure.service_name} started successfully`, 'success');
       setShowAddProcedure(false);
       setSelectedProcedureId(null);
       setProcedureNotes('');
@@ -2710,7 +2717,7 @@ const NurseDashboard: React.FC = () => {
                                         {procedure.performed_by_name && (
                                           <span>Performed by: {procedure.performed_by_name}</span>
                                         )}
-                                        <span>GHS {procedure.price?.toFixed(2)}</span>
+                                        <span>GHS {(procedure.price || 0).toFixed(2)}</span>
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
                                           procedure.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                                           procedure.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
@@ -2802,7 +2809,7 @@ const NurseDashboard: React.FC = () => {
                                           )}
                                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                                             {procedure.performed_by_name && <span>By: {procedure.performed_by_name}</span>}
-                                            <span>GHS {procedure.price?.toFixed(2)}</span>
+                                            <span>GHS {(procedure.price || 0).toFixed(2)}</span>
                                             {procedure.completed_at && (
                                               <span>{safeFormatDate(procedure.completed_at, 'MMM d, yyyy h:mm a')}</span>
                                             )}
