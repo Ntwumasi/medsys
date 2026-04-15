@@ -2644,7 +2644,7 @@ const NurseDashboard: React.FC = () => {
                                   <option value="">-- Select a procedure --</option>
                                   {availableProcedures.map((proc) => (
                                     <option key={proc.id} value={proc.id}>
-                                      {proc.service_name} — GHS {proc.price.toFixed(2)}
+                                      {proc.service_name} — GHS {Number(proc.price).toFixed(2)}
                                     </option>
                                   ))}
                                 </select>
@@ -2666,7 +2666,7 @@ const NurseDashboard: React.FC = () => {
                                       {availableProcedures.find(p => p.id === selectedProcedureId)?.service_name}
                                     </span>
                                     <span className="font-bold text-success-700">
-                                      GHS {availableProcedures.find(p => p.id === selectedProcedureId)?.price.toFixed(2)}
+                                      GHS {Number(availableProcedures.find(p => p.id === selectedProcedureId)?.price || 0).toFixed(2)}
                                     </span>
                                   </div>
                                 </div>
