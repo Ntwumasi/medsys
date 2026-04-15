@@ -273,11 +273,12 @@ const PatientRegistration: React.FC = () => {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Input
-                    label="Email"
+                    label="Email (Optional)"
                     name="email"
-                    type="email"
+                    type="text"
                     value={formData.email}
                     onChange={handleChange}
+                    placeholder="Leave blank if not available"
                   />
                   <Input
                     label="Phone Number"

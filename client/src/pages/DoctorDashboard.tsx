@@ -1277,6 +1277,50 @@ const DoctorDashboard: React.FC = () => {
                             {selectedEncounter.vital_signs.oxygen_saturation}%
                           </div>
                         </div>
+                        {selectedEncounter.vital_signs.respiratory_rate && (
+                          <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <div className="text-xs text-gray-500 mb-1">RR</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.respiratory_rate} <span className="text-xs font-normal">/min</span>
+                            </div>
+                          </div>
+                        )}
+                        {selectedEncounter.vital_signs.weight && (
+                          <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <div className="text-xs text-gray-500 mb-1">Weight</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.weight} <span className="text-xs font-normal">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
+                            </div>
+                          </div>
+                        )}
+                        {selectedEncounter.vital_signs.height && (
+                          <div className="bg-gray-50 rounded-lg p-3 text-center">
+                            <div className="text-xs text-gray-500 mb-1">Height</div>
+                            <div className="font-bold text-gray-900">
+                              {selectedEncounter.vital_signs.height} <span className="text-xs font-normal">{selectedEncounter.vital_signs.height_unit || 'in'}</span>
+                            </div>
+                          </div>
+                        )}
+                        {selectedEncounter.vital_signs.weight && selectedEncounter.vital_signs.height && (() => {
+                          const vs = selectedEncounter.vital_signs;
+                          const w = vs.weight!;
+                          const h = vs.height!;
+                          const weightKg = vs.weight_unit === 'kg' ? w : w * 0.453592;
+                          const heightM = vs.height_unit === 'cm' ? h / 100 : h * 0.0254;
+                          if (!heightM || !weightKg) return null;
+                          const bmi = weightKg / (heightM * heightM);
+                          const category = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+                          const color = bmi < 18.5 ? 'text-warning-600' : bmi < 25 ? 'text-success-600' : bmi < 30 ? 'text-warning-600' : 'text-danger-600';
+                          return (
+                            <div className="bg-gray-50 rounded-lg p-3 text-center">
+                              <div className="text-xs text-gray-500 mb-1">BMI</div>
+                              <div className={`font-bold ${color}`}>
+                                {bmi.toFixed(1)}
+                              </div>
+                              <div className={`text-xs ${color}`}>{category}</div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}

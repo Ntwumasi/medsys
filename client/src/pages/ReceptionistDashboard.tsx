@@ -270,6 +270,11 @@ const ReceptionistDashboard: React.FC = () => {
   const [queueSortBy, setQueueSortBy] = useState<'wait_time' | 'check_in' | 'status'>('check_in');
   const [refreshingQueue, setRefreshingQueue] = useState(false);
 
+  // Edit patient modal state
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editPatientData, setEditPatientData] = useState<Partial<Patient>>({});
+  const [savingPatient, setSavingPatient] = useState(false);
+
   // Follow-up checkout modal state
   const [showFollowUpCheckoutModal, setShowFollowUpCheckoutModal] = useState(false);
   const [followUpCheckoutItem, setFollowUpCheckoutItem] = useState<QueueItem | null>(null);
@@ -1012,6 +1017,44 @@ const ReceptionistDashboard: React.FC = () => {
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to cancel visit';
       showToast(errorMessage, 'error');
+    }
+  };
+
+  const openEditPatient = () => {
+    if (!selectedPatient) return;
+    setEditPatientData({
+      first_name: selectedPatient.first_name || '',
+      last_name: selectedPatient.last_name || '',
+      phone: selectedPatient.phone || '',
+      email: selectedPatient.email || '',
+      date_of_birth: selectedPatient.date_of_birth || '',
+      gender: selectedPatient.gender || '',
+      address: selectedPatient.address || '',
+      city: selectedPatient.city || '',
+      state: selectedPatient.state || '',
+      emergency_contact_name: selectedPatient.emergency_contact_name || '',
+      emergency_contact_phone: selectedPatient.emergency_contact_phone || '',
+    });
+    setShowEditPatientModal(true);
+  };
+
+  const handleSavePatient = async () => {
+    if (!selectedPatient) return;
+    setSavingPatient(true);
+    try {
+      await apiClient.put(`/patients/${selectedPatient.id}`, editPatientData);
+      showToast('Patient information updated successfully', 'success');
+      setShowEditPatientModal(false);
+      // Refresh the selected patient data
+      const res = await apiClient.get(`/patients/${selectedPatient.id}`);
+      setSelectedPatient(res.data.patient || res.data);
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.error || 'Failed to update patient';
+      showToast(errorMessage, 'error');
+    } finally {
+      setSavingPatient(false);
     }
   };
 
@@ -1865,22 +1908,34 @@ const ReceptionistDashboard: React.FC = () => {
                   <div className="bg-primary-50 p-4 rounded-lg border border-primary-200">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="font-semibold text-primary-900">Selected Patient</h3>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPatient(null);
-                          setSearchTerm('');
-                          setPatientHistory([]);
-                          setOutstandingBalance(0);
-                          setSelectedClinic('');
-                        }}
-                        className="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
-                        title="Clear selection"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={openEditPatient}
+                          className="p-1.5 text-primary-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
+                          title="Edit patient info"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPatient(null);
+                            setSearchTerm('');
+                            setPatientHistory([]);
+                            setOutstandingBalance(0);
+                            setSelectedClinic('');
+                          }}
+                          className="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                          title="Clear selection"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     <div className="text-sm space-y-1">
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
@@ -3255,6 +3310,156 @@ const ReceptionistDashboard: React.FC = () => {
           onClose={() => setShowInvoice(false)}
           onPaymentComplete={handlePaymentComplete}
         />
+      )}
+      {/* Edit Patient Modal */}
+      {showEditPatientModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-xl">
+              <h3 className="text-lg font-bold text-gray-900">Edit Patient Information</h3>
+              <button
+                onClick={() => setShowEditPatientModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <input
+                    type="text"
+                    value={editPatientData.first_name || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, first_name: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <input
+                    type="text"
+                    value={editPatientData.last_name || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, last_name: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input
+                    type="tel"
+                    value={editPatientData.phone || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, phone: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="text"
+                    value={editPatientData.email || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, email: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    placeholder="Optional"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    value={editPatientData.date_of_birth ? editPatientData.date_of_birth.split('T')[0] : ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, date_of_birth: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select
+                    value={editPatientData.gender || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, gender: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input
+                  type="text"
+                  value={editPatientData.address || ''}
+                  onChange={(e) => setEditPatientData({ ...editPatientData, address: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={editPatientData.city || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, city: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
+                  <input
+                    type="text"
+                    value={editPatientData.state || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, state: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <h4 className="font-semibold text-gray-800 pt-2">Emergency Contact</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                  <input
+                    type="text"
+                    value={editPatientData.emergency_contact_name || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, emergency_contact_name: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                  <input
+                    type="tel"
+                    value={editPatientData.emergency_contact_phone || ''}
+                    onChange={(e) => setEditPatientData({ ...editPatientData, emergency_contact_phone: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowEditPatientModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSavePatient}
+                  disabled={savingPatient}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                >
+                  {savingPatient ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );
