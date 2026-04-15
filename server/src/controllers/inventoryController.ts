@@ -76,6 +76,36 @@ export const getInventory = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Search inventory for medication autocomplete (used by doctors when prescribing)
+export const searchInventoryMedications = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q } = req.query;
+
+    if (!q || (q as string).length < 1) {
+      res.json({ medications: [] });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT id, medication_name, generic_name, category, unit,
+              quantity_on_hand, selling_price, requires_prescription
+       FROM pharmacy_inventory
+       WHERE is_active = true
+         AND (medication_name ILIKE $1 OR generic_name ILIKE $1)
+       ORDER BY
+         CASE WHEN medication_name ILIKE $2 THEN 0 ELSE 1 END,
+         medication_name ASC
+       LIMIT 15`,
+      [`%${q}%`, `${q}%`]
+    );
+
+    res.json({ medications: result.rows });
+  } catch (error) {
+    console.error('Search inventory medications error:', error);
+    res.status(500).json({ error: 'Failed to search medications' });
+  }
+};
+
 // Get single inventory item
 export const getInventoryItem = async (req: Request, res: Response): Promise<void> => {
   try {

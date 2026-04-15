@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -122,12 +122,18 @@ const DoctorDashboard: React.FC = () => {
   // Multi-order state - arrays to hold pending orders
   const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string}>>([]);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
+
+  // Medication search state
+  const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
+  const [showMedSuggestions, setShowMedSuggestions] = useState(false);
+  const medSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const medContainerRef = useRef<HTMLDivElement>(null);
 
   // Drug interaction state
   const [drugInteractions, setDrugInteractions] = useState<Array<{drug1: string, drug2: string, severity: string, description: string, recommendation: string}>>([]);
@@ -445,6 +451,52 @@ const DoctorDashboard: React.FC = () => {
     setPendingImagingOrders([...pendingImagingOrders, currentImagingOrder]);
     setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine'});
   };
+
+  // Search pharmacy inventory for medication autocomplete
+  const searchMedications = (query: string) => {
+    setCurrentPharmacyOrder(prev => ({ ...prev, medication_name: query, inventory_id: undefined, selling_price: undefined, quantity_on_hand: undefined }));
+
+    if (medSearchTimeout.current) clearTimeout(medSearchTimeout.current);
+
+    if (query.length < 2) {
+      setMedSearchResults([]);
+      setShowMedSuggestions(false);
+      return;
+    }
+
+    medSearchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/inventory/search?q=${encodeURIComponent(query)}`);
+        setMedSearchResults(res.data.medications || []);
+        setShowMedSuggestions((res.data.medications || []).length > 0);
+      } catch (error) {
+        console.error('Error searching medications:', error);
+      }
+    }, 300);
+  };
+
+  const selectMedication = (med: { id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number }) => {
+    setCurrentPharmacyOrder(prev => ({
+      ...prev,
+      medication_name: med.medication_name,
+      inventory_id: med.id,
+      selling_price: med.selling_price,
+      quantity_on_hand: med.quantity_on_hand,
+    }));
+    setShowMedSuggestions(false);
+    setMedSearchResults([]);
+  };
+
+  // Close medication suggestions on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (medContainerRef.current && !medContainerRef.current.contains(e.target as Node)) {
+        setShowMedSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleAddPharmacyOrder = async () => {
     if (!currentPharmacyOrder.medication_name) {
@@ -1877,13 +1929,54 @@ const DoctorDashboard: React.FC = () => {
                       </h3>
 
                       <div className="space-y-3">
-                        <AutocompleteInput
-                          value={currentPharmacyOrder.medication_name}
-                          onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, medication_name: value})}
-                          sectionId="pharmacy_medications"
-                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
-                          placeholder="Medication name"
-                        />
+                        {/* Medication search with live inventory lookup */}
+                        <div ref={medContainerRef} className="relative">
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.medication_name}
+                            onChange={(e) => searchMedications(e.target.value)}
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
+                            placeholder="Search medication from inventory..."
+                            autoComplete="off"
+                          />
+                          {showMedSuggestions && medSearchResults.length > 0 && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                              {medSearchResults.map((med) => (
+                                <button
+                                  key={med.id}
+                                  type="button"
+                                  onClick={() => selectMedication(med)}
+                                  className="w-full px-3 py-2 text-left hover:bg-success-50 border-b border-gray-100 last:border-0"
+                                >
+                                  <div className="flex justify-between items-center">
+                                    <div>
+                                      <span className="font-medium text-gray-900">{med.medication_name}</span>
+                                      {med.generic_name && med.generic_name !== med.medication_name && (
+                                        <span className="text-xs text-gray-500 ml-2">({med.generic_name})</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs">
+                                      <span className={`font-semibold ${med.quantity_on_hand > 0 ? 'text-success-600' : 'text-danger-600'}`}>
+                                        {med.quantity_on_hand > 0 ? `${med.quantity_on_hand} in stock` : 'Out of stock'}
+                                      </span>
+                                      <span className="text-gray-500">GHS {Number(med.selling_price).toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          {currentPharmacyOrder.inventory_id && (
+                            <div className="flex items-center gap-3 mt-1 text-xs">
+                              <span className="text-success-600 font-medium">
+                                In stock: {currentPharmacyOrder.quantity_on_hand}
+                              </span>
+                              <span className="text-gray-500">
+                                Unit price: GHS {Number(currentPharmacyOrder.selling_price || 0).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         <div className="grid grid-cols-2 gap-2">
                           <input
                             type="text"
@@ -1977,7 +2070,15 @@ const DoctorDashboard: React.FC = () => {
                                     {parseInt(order.refills) > 0 && <span className="text-primary-600">{order.refills} refill(s)</span>}
                                     {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
                                   </div>
-                                  <div className="text-xs text-success-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-success-600 font-medium">{order.priority.toUpperCase()}</span>
+                                    {order.selling_price && (
+                                      <span className="text-xs text-gray-500">GHS {Number(order.selling_price).toFixed(2)}/unit</span>
+                                    )}
+                                    {!order.inventory_id && (
+                                      <span className="text-xs text-warning-600 font-medium">Not linked to inventory</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <button
                                   onClick={() => handleRemovePharmacyOrder(index)}

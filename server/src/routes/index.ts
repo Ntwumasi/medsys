@@ -208,6 +208,7 @@ import {
   getDispensingAnalytics,
   getExpiryCalendar,
   getPatientMedicationTimeline,
+  searchInventoryMedications,
 } from '../controllers/inventoryController';
 import {
   getSuppliers,
@@ -547,6 +548,7 @@ router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRo
 // Pharmacy Inventory routes
 router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);
 router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryCategories);
+router.get('/inventory/search', authenticateToken, searchInventoryMedications);
 router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getLowStockAlerts);
 router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiringMedications);
 // Static /inventory/* paths MUST come before /inventory/:id so Express

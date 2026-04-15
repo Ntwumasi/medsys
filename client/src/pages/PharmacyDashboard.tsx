@@ -53,6 +53,12 @@ interface PharmacyOrder {
   dispensed_by_name?: string;
   payer_type?: string;
   payer_name?: string;
+  inventory_id?: number;
+  inventory_quantity?: number;
+  inventory_price?: number;
+  inventory_medication_name?: string;
+  substitute_medication?: string;
+  substitute_reason?: string;
 }
 
 interface InventoryItem {
@@ -673,12 +679,11 @@ const PharmacyDashboard: React.FC = () => {
     if (!editingOrder) return;
     try {
       await apiClient.put(`/orders/pharmacy/${editingOrder.id}`, {
-        medication_name: editingOrder.medication_name,
         dosage: editingOrder.dosage,
-        frequency: editingOrder.frequency,
-        route: editingOrder.route,
         quantity: editingOrder.quantity,
-        notes: editingOrder.notes
+        notes: editingOrder.notes,
+        substitute_medication: editingOrder.substitute_medication || null,
+        substitute_reason: editingOrder.substitute_reason || null,
       });
       showToast('Prescription updated', 'success');
       setShowEditOrderModal(false);
@@ -1402,6 +1407,24 @@ const PharmacyDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="font-semibold text-gray-700">Qty: {order.quantity}</span>
+                                  {order.inventory_price != null && (
+                                    <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
+                                  )}
+                                  {order.inventory_quantity != null ? (
+                                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                      order.inventory_quantity >= parseInt(order.quantity)
+                                        ? 'bg-success-100 text-success-700'
+                                        : order.inventory_quantity > 0
+                                        ? 'bg-warning-100 text-warning-700'
+                                        : 'bg-danger-100 text-danger-700'
+                                    }`}>
+                                      {order.inventory_quantity} in stock
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                                      Not in inventory
+                                    </span>
+                                  )}
                                   <svg
                                     className={`w-4 h-4 text-gray-400 transition-transform ${
                                       expandedMedication === order.id ? 'rotate-180' : ''
@@ -1424,6 +1447,9 @@ const PharmacyDashboard: React.FC = () => {
                                     )}
                                     {order.notes && (
                                       <span className="ml-3 text-gray-500">Notes: {order.notes}</span>
+                                    )}
+                                    {order.substitute_medication && (
+                                      <span className="ml-3 text-warning-600 font-medium">Substituted: {order.substitute_medication}</span>
                                     )}
                                   </div>
                                   <div className="flex gap-2">
@@ -2977,13 +3003,55 @@ const PharmacyDashboard: React.FC = () => {
       >
         {editingOrder && (
           <div className="space-y-4">
+            {/* Doctor's Original Order — Read Only */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Doctor's Order (Read Only)</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Medication</label>
+                  <div className="font-medium text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                    {editingOrder.medication_name}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Dosage</label>
+                  <div className="font-medium text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                    {editingOrder.dosage || '—'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Frequency</label>
+                  <div className="text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                    {editingOrder.frequency || '—'}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-0.5">Route</label>
+                  <div className="text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                    {editingOrder.route || '—'}
+                  </div>
+                </div>
+              </div>
+              {editingOrder.inventory_price != null && (
+                <div className="flex items-center gap-4 mt-2 text-sm">
+                  <span className="text-gray-500">Unit Price: <span className="font-medium text-gray-800">GHS {Number(editingOrder.inventory_price).toFixed(2)}</span></span>
+                  {editingOrder.inventory_quantity != null && (
+                    <span className={`font-medium ${editingOrder.inventory_quantity > 0 ? 'text-success-600' : 'text-danger-600'}`}>
+                      {editingOrder.inventory_quantity} in stock
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Editable Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Medication</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Dispense</label>
                 <input
                   type="text"
-                  value={editingOrder.medication_name}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, medication_name: e.target.value })}
+                  value={editingOrder.quantity}
+                  onChange={(e) => setEditingOrder({ ...editingOrder, quantity: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
@@ -2996,41 +3064,34 @@ const PharmacyDashboard: React.FC = () => {
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                <input
-                  type="text"
-                  value={editingOrder.frequency}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, frequency: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Route</label>
-                <input
-                  type="text"
-                  value={editingOrder.route}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, route: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                <input
-                  type="text"
-                  value={editingOrder.quantity}
-                  onChange={(e) => setEditingOrder({ ...editingOrder, quantity: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
-              </div>
             </div>
+
+            {/* Substitute Medication */}
+            <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+              <h4 className="text-sm font-semibold text-warning-800 mb-2">Substitute Medication (if exact med is unavailable)</h4>
+              <input
+                type="text"
+                value={editingOrder.substitute_medication || ''}
+                onChange={(e) => setEditingOrder({ ...editingOrder, substitute_medication: e.target.value })}
+                className="w-full border border-warning-300 rounded-lg px-3 py-2 mb-2"
+                placeholder="Alternative medication name..."
+              />
+              <textarea
+                value={editingOrder.substitute_reason || ''}
+                onChange={(e) => setEditingOrder({ ...editingOrder, substitute_reason: e.target.value })}
+                className="w-full border border-warning-300 rounded-lg px-3 py-2"
+                rows={2}
+                placeholder="Reason for substitution..."
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea
                 value={editingOrder.notes || ''}
                 onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                rows={3}
+                rows={2}
               />
             </div>
             <div className="flex justify-end gap-3 pt-4">

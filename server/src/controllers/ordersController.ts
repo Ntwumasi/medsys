@@ -593,13 +593,14 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       days_supply,
       priority,
       notes,
+      inventory_id,
     } = req.body;
 
     const result = await pool.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, days_supply, priority, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        dosage, frequency, route, quantity, refills, days_supply, priority, notes, inventory_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *`,
       [
         patient_id,
@@ -614,6 +615,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
         days_supply || null,
         priority || 'routine',
         notes,
+        inventory_id || null,
       ]
     );
 
@@ -665,6 +667,9 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         p.allergies as patient_allergies,
         pu.first_name || ' ' || pu.last_name as patient_name,
         du.first_name || ' ' || du.last_name as dispensed_by_name,
+        pi.quantity_on_hand as inventory_quantity,
+        pi.selling_price as inventory_price,
+        pi.medication_name as inventory_medication_name,
         COALESCE(
           (SELECT pps.payer_type FROM patient_payer_sources pps
            WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
@@ -699,6 +704,7 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
       LEFT JOIN patients p ON po.patient_id = p.id
       LEFT JOIN users pu ON p.user_id = pu.id
       LEFT JOIN users du ON po.dispensed_by = du.id
+      LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -851,12 +857,22 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       try {
         await client.query('BEGIN');
 
-        // Get medication from inventory
-        const inventoryResult = await client.query(
-          `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
-           WHERE medication_name ILIKE $1 LIMIT 1`,
-          [updatedOrder.medication_name]
-        );
+        // Get medication from inventory - prefer inventory_id FK, fallback to name match
+        let inventoryResult;
+        if (updatedOrder.inventory_id) {
+          inventoryResult = await client.query(
+            `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+             WHERE id = $1`,
+            [updatedOrder.inventory_id]
+          );
+        } else {
+          // Fallback: try matching by name (for legacy orders without inventory_id)
+          inventoryResult = await client.query(
+            `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+             WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
+            [updatedOrder.medication_name]
+          );
+        }
 
         if (inventoryResult.rows.length > 0) {
           const inventoryItem = inventoryResult.rows[0];
@@ -898,11 +914,14 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           if (invoiceResult.rows.length > 0) {
             const invoiceId = invoiceResult.rows[0].id;
 
-            // Add medication as invoice item
+            // Add medication as invoice item (use substitute name if provided)
+            const medDescription = updatedOrder.substitute_medication
+              ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage}) [sub for: ${updatedOrder.medication_name}]`
+              : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
             await client.query(
               `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
                VALUES ($1, $2, $3, $4, $5, 'medication')`,
-              [invoiceId, `${updatedOrder.medication_name} (${updatedOrder.dosage})`, quantity, unitPrice, totalPrice]
+              [invoiceId, medDescription, quantity, unitPrice, totalPrice]
             );
 
             // Update invoice total
