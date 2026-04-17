@@ -173,6 +173,9 @@ const DoctorDashboard: React.FC = () => {
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpTimeframe, setFollowUpTimeframe] = useState('2 weeks');
   const [followUpReason, setFollowUpReason] = useState('');
+  const [reviewRequired, setReviewRequired] = useState(false);
+  const [reviewDate, setReviewDate] = useState('');
+  const [reviewReason, setReviewReason] = useState('');
 
   useEffect(() => {
     loadRoomEncounters();
@@ -612,6 +615,9 @@ const DoctorDashboard: React.FC = () => {
     setFollowUpRequired(false);
     setFollowUpTimeframe('2 weeks');
     setFollowUpReason('');
+    setReviewRequired(false);
+    setReviewDate('');
+    setReviewReason('');
     setShowFollowUpModal(true);
   };
 
@@ -625,10 +631,15 @@ const DoctorDashboard: React.FC = () => {
         follow_up_required: followUpRequired,
         follow_up_timeframe: followUpRequired ? followUpTimeframe : null,
         follow_up_reason: followUpRequired ? followUpReason : null,
+        review_required: reviewRequired,
+        review_date: reviewRequired ? reviewDate : null,
+        review_reason: reviewRequired ? reviewReason : null,
       });
       console.log('Alert nurse response:', response.data);
 
-      const message = followUpRequired
+      const message = reviewRequired
+        ? 'Nurse alerted. Review call scheduled for ' + reviewDate + '.'
+        : followUpRequired
         ? 'Nurse alerted. Follow-up visit marked for scheduling.'
         : 'Nurse has been alerted. Patient is ready for follow-up care.';
       showToast(message, 'success');
@@ -2690,18 +2701,19 @@ const DoctorDashboard: React.FC = () => {
                 The patient will be sent back to the nurse for follow-up care.
               </p>
 
-              {/* Follow-up checkbox */}
+              <p className="text-xs text-gray-500">A standard follow-up call will be scheduled automatically on the next Monday or Thursday. Use the options below for additional scheduling.</p>
+
+              {/* Follow-up visit checkbox */}
               <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
                 <input
                   type="checkbox"
                   checked={followUpRequired}
-                  onChange={(e) => setFollowUpRequired(e.target.checked)}
+                  onChange={(e) => { setFollowUpRequired(e.target.checked); if (e.target.checked) setReviewRequired(false); }}
                   className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
-                <span className="font-medium text-gray-700">Follow-up visit required</span>
+                <span className="font-medium text-gray-700">Schedule follow-up visit</span>
               </label>
 
-              {/* Follow-up details (shown when checkbox is checked) */}
               {followUpRequired && (
                 <div className="space-y-4 pl-2 border-l-4 border-primary-200 ml-2">
                   <div>
@@ -2719,13 +2731,52 @@ const DoctorDashboard: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for follow-up</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
                     <input
                       type="text"
                       value={followUpReason}
                       onChange={(e) => setFollowUpReason(e.target.value)}
                       placeholder="e.g., Review lab results, Check wound healing"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Review call checkbox */}
+              <label className="flex items-center gap-3 p-3 bg-warning-50 rounded-lg cursor-pointer hover:bg-warning-100 transition-colors border border-warning-200">
+                <input
+                  type="checkbox"
+                  checked={reviewRequired}
+                  onChange={(e) => { setReviewRequired(e.target.checked); if (e.target.checked) setFollowUpRequired(false); }}
+                  className="w-5 h-5 text-warning-600 border-gray-300 rounded focus:ring-warning-500"
+                />
+                <div>
+                  <span className="font-medium text-warning-800">Mark for nurse review call</span>
+                  <p className="text-xs text-warning-600">Nurse will call the patient on the specified date instead of the standard follow-up</p>
+                </div>
+              </label>
+
+              {reviewRequired && (
+                <div className="space-y-4 pl-2 border-l-4 border-warning-300 ml-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Review Date *</label>
+                    <input
+                      type="date"
+                      value={reviewDate}
+                      onChange={(e) => setReviewDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for review *</label>
+                    <input
+                      type="text"
+                      value={reviewReason}
+                      onChange={(e) => setReviewReason(e.target.value)}
+                      placeholder="e.g., Check blood pressure, Verify medication compliance"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
                     />
                   </div>
                 </div>

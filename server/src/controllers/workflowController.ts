@@ -1004,7 +1004,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
   try {
     const authReq = req as any;
     const doctor_id = authReq.user?.id;
-    const { encounter_id, follow_up_required, follow_up_timeframe, follow_up_reason } = req.body;
+    const { encounter_id, follow_up_required, follow_up_timeframe, follow_up_reason, review_required, review_date, review_reason } = req.body;
 
     // Get encounter details to find nurse_id and patient_id
     const encounterResult = await pool.query(
@@ -1054,11 +1054,23 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       );
     }
 
+    // If doctor marks for review, create a review task (replaces auto follow-up at checkout)
+    if (review_required && review_date && patient_id) {
+      await pool.query(
+        `INSERT INTO nurse_follow_up_tasks (encounter_id, patient_id, type, scheduled_date, review_requested_by, review_reason)
+         VALUES ($1, $2, 'review', $3, $4, $5)`,
+        [encounter_id, patient_id, review_date, doctor_id, review_reason || null]
+      );
+    }
+
     res.json({
-      message: follow_up_required
+      message: review_required
+        ? 'Encounter completed. Review call scheduled for nurse.'
+        : follow_up_required
         ? 'Encounter completed. Patient sent back to nurse. Follow-up visit scheduled.'
         : 'Encounter completed. Patient sent back to nurse.',
       follow_up_required: follow_up_required || false,
+      review_required: review_required || false,
     });
   } catch (error) {
     console.error('Doctor complete encounter error:', error);
@@ -1324,7 +1336,7 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
 
     // Get encounter details including room_id, patient info
     const encounterResult = await client.query(
-      `SELECT e.id, e.room_id, e.patient_id, e.status,
+      `SELECT e.id, e.room_id, e.patient_id, e.status, e.provider_id,
               r.room_number,
               u.first_name || ' ' || u.last_name as patient_name,
               p.patient_number
@@ -1378,6 +1390,25 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
       entityId: encounter_id,
       details: { patient_id, patient_name, patient_number }
     });
+
+    // Auto-create follow-up call task (if doctor saw the patient and no review already exists)
+    const { provider_id } = encounterResult.rows[0];
+    if (provider_id && patient_id) {
+      const existingReview = await client.query(
+        `SELECT id FROM nurse_follow_up_tasks WHERE encounter_id = $1 AND type = 'review'`,
+        [encounter_id]
+      );
+      if (existingReview.rows.length === 0) {
+        const { getNextMonOrThu } = require('./nurseFollowUpTaskController');
+        const scheduledDate = getNextMonOrThu();
+        await client.query(
+          `INSERT INTO nurse_follow_up_tasks (encounter_id, patient_id, type, scheduled_date)
+           VALUES ($1, $2, 'follow_up', $3)
+           ON CONFLICT DO NOTHING`,
+          [encounter_id, patient_id, scheduledDate]
+        );
+      }
+    }
 
     await client.query('COMMIT');
 

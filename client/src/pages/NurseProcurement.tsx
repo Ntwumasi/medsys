@@ -299,13 +299,23 @@ const NurseProcurement: React.FC = () => {
                   onChange={(e) => setPurchaseForm({ ...purchaseForm, inventory_id: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="">Select item...</option>
+                  <option value="">Select item or choose "Other"...</option>
                   {items.map(i => (
                     <option key={i.id} value={i.id}>
                       {i.item_name} ({i.quantity_on_hand} {i.unit} in stock)
                     </option>
                   ))}
+                  <option value="other">--- Other (type manually) ---</option>
                 </select>
+                {purchaseForm.inventory_id === 'other' && (
+                  <input
+                    type="text"
+                    value={(purchaseForm as any).custom_item_name || ''}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, custom_item_name: e.target.value } as any)}
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="Type item name..."
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -439,19 +449,25 @@ const NurseProcurement: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                  <select value={itemForm.category}
+                  <input type="text" value={itemForm.category}
                     onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option>Supplies</option><option>Equipment</option><option>PPE</option><option>Medications</option><option>Linen</option><option>Other</option>
-                  </select>
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="Type or select..."
+                    list="procurement-category-options" />
+                  <datalist id="procurement-category-options">
+                    <option value="Supplies" /><option value="Equipment" /><option value="PPE" /><option value="Medications" /><option value="Linen" /><option value="Cleaning" /><option value="Stationery" /><option value="Other" />
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Unit</label>
-                  <select value={itemForm.unit}
+                  <input type="text" value={itemForm.unit}
                     onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option>pcs</option><option>boxes</option><option>packs</option><option>rolls</option><option>bottles</option><option>pairs</option><option>sets</option>
-                  </select>
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="Type or select..."
+                    list="procurement-unit-options" />
+                  <datalist id="procurement-unit-options">
+                    <option value="pcs" /><option value="boxes" /><option value="packs" /><option value="rolls" /><option value="bottles" /><option value="pairs" /><option value="sets" /><option value="cartons" /><option value="sachets" />
+                  </datalist>
                 </div>
               </div>
 

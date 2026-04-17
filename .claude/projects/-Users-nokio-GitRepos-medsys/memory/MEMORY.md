@@ -1,0 +1,2 @@
+- [User Profile](user_profile.md) — Nokio Twumasi, super admin & core developer of MedSys EMR
+- [Workflow](feedback_workflow.md) — Always run migrations, commit, and push after each task without asking

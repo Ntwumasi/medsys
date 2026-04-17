@@ -286,6 +286,11 @@ import {
   getCallHistory,
 } from '../controllers/nurseCallLogController';
 import {
+  getFollowUpTasks,
+  completeTask as completeFollowUpTask,
+  getDueTasks,
+} from '../controllers/nurseFollowUpTaskController';
+import {
   getNurseInventory,
   createNurseInventoryItem,
   updateNurseInventoryItem,
@@ -747,6 +752,11 @@ router.post('/follow-up/skip', authenticateToken, authorizeRoles('receptionist',
 router.get('/nurse/call-log/queue', authenticateToken, authorizeRoles('nurse', 'admin'), getFollowUpQueue);
 router.post('/nurse/call-log', authenticateToken, authorizeRoles('nurse', 'admin'), logFollowUpCall);
 router.get('/nurse/call-log/history', authenticateToken, authorizeRoles('nurse', 'admin'), getCallHistory);
+
+// Nurse follow-up task system (auto follow-ups + doctor-initiated reviews)
+router.get('/nurse/follow-up-tasks', authenticateToken, authorizeRoles('nurse', 'admin'), getFollowUpTasks);
+router.get('/nurse/follow-up-tasks/due', authenticateToken, authorizeRoles('nurse', 'admin'), getDueTasks);
+router.post('/nurse/follow-up-tasks/complete', authenticateToken, authorizeRoles('nurse', 'admin'), completeFollowUpTask);
 
 // Nurse inventory & procurement (head nurse manages procurement, all nurses see stock)
 router.get('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), getNurseInventory);
