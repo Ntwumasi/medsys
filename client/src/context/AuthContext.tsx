@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '../types';
 import { authAPI } from '../api/auth';
+import { resetApiClientState } from '../api/client';
 import type { LoginCredentials, LoginResponse } from '../api/auth';
 
 interface ImpersonationInfo {
@@ -188,6 +189,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem('impersonation');
     localStorage.removeItem('mustChangePassword');
     localStorage.removeItem('activeRole');
+    // Reset the 401 counter so stale polling requests don't interfere with next login
+    resetApiClientState();
   };
 
   const impersonateUser = async (userId: number) => {

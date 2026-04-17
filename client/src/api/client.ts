@@ -25,6 +25,11 @@ apiClient.interceptors.request.use((config) => {
 let consecutive401s = 0;
 const AUTH_REDIRECT_THRESHOLD = 3; // need 3 in a row before we give up
 
+// Call this on logout to prevent stale 401s from interfering with the next login
+export const resetApiClientState = () => {
+  consecutive401s = 0;
+};
+
 apiClient.interceptors.response.use(
   (response) => {
     // Any success resets the counter
@@ -34,11 +39,16 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       const url = error.config?.url || '';
-      const isAuthEndpoint = url.includes('/auth/me') || url.includes('/auth/login');
+      // Don't redirect on login failures — let the login page handle its own errors
+      const isLoginEndpoint = url.includes('/auth/login');
+      if (isLoginEndpoint) {
+        return Promise.reject(error);
+      }
 
+      const isAuthEndpoint = url.includes('/auth/me');
       consecutive401s++;
 
-      // Immediately redirect for explicit auth endpoints (token is definitely bad)
+      // Immediately redirect for /auth/me (token is definitely bad)
       // or after several consecutive 401s from data endpoints (not a transient blip)
       if (isAuthEndpoint || consecutive401s >= AUTH_REDIRECT_THRESHOLD) {
         consecutive401s = 0;
