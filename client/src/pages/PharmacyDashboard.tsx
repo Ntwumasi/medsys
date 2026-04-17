@@ -3453,7 +3453,7 @@ const PharmacyDashboard: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
                 {filteredWalkInInventory.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                     {filteredWalkInInventory.map((item) => (
                       <button
                         key={item.id}
@@ -3500,7 +3500,8 @@ const PharmacyDashboard: React.FC = () => {
                             type="number"
                             min="1"
                             value={med.quantity}
-                            onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 1)}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 0)}
                             className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
                           />
                         </div>

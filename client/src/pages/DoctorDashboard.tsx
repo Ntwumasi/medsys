@@ -600,6 +600,11 @@ const DoctorDashboard: React.FC = () => {
       setPendingLabOrders([]);
       setPendingImagingOrders([]);
       setPendingPharmacyOrders([]);
+
+      // Refresh the orders display so doctor can see what they just ordered
+      if (selectedEncounter) {
+        loadEncounterOrders(selectedEncounter.id);
+      }
     } catch (error) {
       console.error('Error submitting orders:', error);
       showToast('Failed to submit some orders. Please try again.', 'error');
