@@ -1101,7 +1101,8 @@ const NurseDashboard: React.FC = () => {
 
       <NurseGuide isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
-      {/* Room Status - At Top */}
+      {/* Room Status - At Top (only on patients view) */}
+      {mainView === 'patients' && (
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="bg-gradient-to-r from-primary-600 to-secondary-600 p-2 rounded-lg">
@@ -1146,6 +1147,7 @@ const NurseDashboard: React.FC = () => {
             })}
           </div>
         </div>
+      )}
 
         {/* Patients View */}
         {mainView === 'patients' && (
