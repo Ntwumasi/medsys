@@ -3436,127 +3436,175 @@ const PharmacyDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Medication Search and Add */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                Add Medications
-              </h3>
-              <div className="relative">
+            {/* Medication Search + Added Medications — Side by Side */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ minHeight: '400px' }}>
+              {/* Left: Search & Select */}
+              <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search Medications
+                </h3>
                 <input
                   type="text"
-                  placeholder="Search medications by name..."
+                  placeholder="Type medication name..."
                   value={walkInMedSearch}
                   onChange={(e) => setWalkInMedSearch(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
+                  autoComplete="off"
                 />
-                {filteredWalkInInventory.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
-                    {filteredWalkInInventory.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => addWalkInMedication(item)}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50 flex justify-between items-center"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900">{item.medication_name}</p>
-                          <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
-                          <p className="text-xs text-gray-400">Stock: {item.quantity_on_hand}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {/* Results list — always visible, fills remaining space */}
+                <div className="mt-3 flex-1 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50">
+                  {walkInMedSearch.length < 2 ? (
+                    <div className="flex items-center justify-center h-full text-gray-400 text-sm p-8">
+                      <div className="text-center">
+                        <svg className="w-10 h-10 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Type at least 2 characters to search
+                      </div>
+                    </div>
+                  ) : filteredWalkInInventory.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-gray-400 text-sm p-8">
+                      No medications found for "{walkInMedSearch}"
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {filteredWalkInInventory.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => { addWalkInMedication(item); setWalkInMedSearch(''); }}
+                          className="w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex justify-between items-center"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900">{item.medication_name}</p>
+                            <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0 ml-3">
+                            <p className="text-sm font-bold text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
+                            <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-gray-400' : 'text-danger-500 font-medium'}`}>
+                              {item.quantity_on_hand > 0 ? `Stock: ${item.quantity_on_hand}` : 'Out of stock'}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* Added Medications List */}
-              {walkInMedications.length > 0 && (
-                <div className="mt-4 space-y-3">
-                  {walkInMedications.map((med, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-gray-900">{med.medication_name}</p>
-                          <p className="text-sm text-success-600">GH₵{Number(med.unit_price).toFixed(2)} each</p>
-                        </div>
-                        <button
-                          onClick={() => removeWalkInMedication(index)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        <div>
-                          <label className="text-xs text-gray-500">Quantity</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={med.quantity}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 0)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Dosage</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., 500mg"
-                            value={med.dosage}
-                            onChange={(e) => updateWalkInMedication(index, 'dosage', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Frequency</label>
-                          <input
-                            type="text"
-                            placeholder="e.g., TDS"
-                            value={med.frequency}
-                            onChange={(e) => updateWalkInMedication(index, 'frequency', e.target.value)}
-                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs text-gray-500">Subtotal</label>
-                          <p className="px-2 py-1 text-sm font-medium text-success-600">
-                            GH₵{(med.unit_price * med.quantity).toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="mt-2">
-                        <label className="text-xs text-gray-500">Instructions (Optional)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Take after meals"
-                          value={med.instructions}
-                          onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
-                        />
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Total */}
-                  <div className="bg-success-50 rounded-lg p-4 border border-success-200">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-success-800">Total Amount</span>
-                      <span className="text-2xl font-bold text-success-600">
-                        GH₵{walkInMedications.reduce((sum, med) => sum + (med.unit_price * med.quantity), 0).toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-success-600 mt-1">{walkInMedications.length} item(s)</p>
-                  </div>
+              {/* Right: Added Medications */}
+              <div className="bg-white border-2 border-success-200 rounded-xl p-4 flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Order Summary
+                  </h3>
+                  {walkInMedications.length > 0 && (
+                    <span className="bg-success-100 text-success-700 px-2.5 py-1 rounded-full text-xs font-bold">
+                      {walkInMedications.length} item{walkInMedications.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {walkInMedications.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      Search and select medications from the left
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex-1 overflow-y-auto space-y-2">
+                      {walkInMedications.map((med, index) => (
+                        <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="font-semibold text-gray-900">{med.medication_name}</p>
+                              <p className="text-xs text-success-600">GH₵{Number(med.unit_price).toFixed(2)}/unit</p>
+                            </div>
+                            <button
+                              onClick={() => removeWalkInMedication(index)}
+                              className="text-red-400 hover:text-red-600 transition-colors p-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-xs text-gray-500">Qty</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={med.quantity}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 0)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Dosage</label>
+                              <input
+                                type="text"
+                                placeholder="500mg"
+                                value={med.dosage}
+                                onChange={(e) => updateWalkInMedication(index, 'dosage', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Subtotal</label>
+                              <p className="px-2 py-1.5 text-sm font-bold text-success-600">
+                                GH₵{(med.unit_price * med.quantity).toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 mt-2">
+                            <div>
+                              <label className="text-xs text-gray-500">Frequency</label>
+                              <input
+                                type="text"
+                                placeholder="e.g., TDS"
+                                value={med.frequency}
+                                onChange={(e) => updateWalkInMedication(index, 'frequency', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Instructions</label>
+                              <input
+                                type="text"
+                                placeholder="After meals"
+                                value={med.instructions}
+                                onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Total — sticky at bottom */}
+                    <div className="bg-success-50 rounded-lg p-4 border border-success-200 mt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-success-800">Total</span>
+                        <span className="text-2xl font-bold text-success-600">
+                          GH₵{walkInMedications.reduce((sum, med) => sum + (med.unit_price * med.quantity), 0).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Action Buttons */}
