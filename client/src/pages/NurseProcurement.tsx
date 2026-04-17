@@ -179,7 +179,7 @@ const NurseProcurement: React.FC = () => {
 
   return (
     <AppLayout title="Nurse Station Procurement">
-      <div className="max-w-6xl mx-auto">
+      <div>
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -288,7 +288,7 @@ const NurseProcurement: React.FC = () => {
 
         {/* Record Purchase Tab */}
         {activeTab === 'purchase' && (
-          <div className="max-w-xl">
+          <div className="max-w-2xl">
             <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
               <h3 className="text-lg font-bold text-gray-900">Record Purchase</h3>
 
@@ -434,7 +434,7 @@ const NurseProcurement: React.FC = () => {
 
         {/* Add Item Tab */}
         {activeTab === 'add' && (
-          <div className="max-w-xl">
+          <div className="max-w-2xl">
             <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
               <h3 className="text-lg font-bold text-gray-900">Add New Inventory Item</h3>
 

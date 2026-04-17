@@ -559,23 +559,41 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         }`}
       >
         {/* Page header with breadcrumbs and title */}
-        {(title || breadcrumbs) && (
-          <div className="bg-surface border-b border-border px-4 lg:px-6 py-4">
-            {breadcrumbs && breadcrumbs.length > 0 && (
-              <nav className="breadcrumbs mb-2">
-                {breadcrumbs.map((crumb, index) => (
-                  <React.Fragment key={index}>
-                    {index > 0 && <span className="separator">/</span>}
-                    {crumb.path ? (
-                      <Link to={crumb.path}>{crumb.label}</Link>
-                    ) : (
-                      <span className="current">{crumb.label}</span>
-                    )}
-                  </React.Fragment>
-                ))}
-              </nav>
-            )}
-            {title && <h1 className="text-2xl font-bold text-text-primary">{title}</h1>}
+        {(title || location.pathname !== '/dashboard') && (
+          <div className="bg-surface border-b border-border px-4 lg:px-6 py-3">
+            {/* Auto breadcrumb */}
+            <nav className="flex items-center gap-1.5 text-sm mb-1">
+              <Link
+                to="/dashboard"
+                className="text-gray-400 hover:text-primary-600 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+                Dashboard
+              </Link>
+              {title && location.pathname !== '/dashboard' && (
+                <>
+                  <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span className="text-gray-700 font-medium">{title}</span>
+                </>
+              )}
+              {breadcrumbs && breadcrumbs.map((crumb, index) => (
+                <React.Fragment key={index}>
+                  <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  {crumb.path ? (
+                    <Link to={crumb.path} className="text-gray-400 hover:text-primary-600 transition-colors">{crumb.label}</Link>
+                  ) : (
+                    <span className="text-gray-700 font-medium">{crumb.label}</span>
+                  )}
+                </React.Fragment>
+              ))}
+            </nav>
+            {title && <h1 className="text-xl font-bold text-text-primary">{title}</h1>}
           </div>
         )}
 
