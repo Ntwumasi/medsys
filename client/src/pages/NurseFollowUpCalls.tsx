@@ -209,8 +209,8 @@ const NurseFollowUpCalls: React.FC = () => {
   const currentCounts = activeTab === 'follow_up' ? followUpCounts : reviewCounts;
 
   return (
-    <AppLayout title="Follow-Up Calls">
-      <div className="max-w-6xl mx-auto">
+    <AppLayout title="Calls">
+      <div>
         {/* Help button */}
         <div className="flex justify-end mb-4">
           <button

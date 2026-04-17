@@ -1153,67 +1153,70 @@ const NurseDashboard: React.FC = () => {
           {/* Left Column */}
           <div className="xl:col-span-1">
             {/* Follow-Up & Review Notifications */}
-            {(dueTasksToday.length > 0 || dueTasksTomorrow.length > 0) && (
-              <div className="bg-white rounded-xl shadow-lg border border-warning-200 overflow-hidden mb-4">
-                <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-white font-bold flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                      Notifications
-                    </h3>
+            <div className="bg-white rounded-xl shadow-lg border border-warning-200 overflow-hidden mb-4">
+              <div className="bg-gradient-to-r from-warning-500 to-orange-500 px-4 py-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-white text-sm font-bold flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    Notifications
+                  </h3>
+                  {(dueTasksToday.length + dueTasksTomorrow.length) > 0 && (
                     <span className="bg-white text-warning-700 px-2 py-0.5 rounded-full text-xs font-bold">
                       {dueTasksToday.length + dueTasksTomorrow.length}
                     </span>
-                  </div>
-                </div>
-                <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
-                  {dueTasksToday.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-danger-600 uppercase mb-1">Due Today ({dueTasksToday.length})</p>
-                      {dueTasksToday.map((task) => (
-                        <div key={task.id} className="flex items-center justify-between py-1.5 px-2 bg-danger-50 rounded mb-1">
-                          <div>
-                            <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
-                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
-                              {task.type === 'review' ? 'Review' : 'Follow-up'}
-                            </span>
-                          </div>
-                          {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
-                        </div>
-                      ))}
-                    </div>
                   )}
-                  {dueTasksTomorrow.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-warning-600 uppercase mb-1">Due Tomorrow ({dueTasksTomorrow.length})</p>
-                      {dueTasksTomorrow.map((task) => (
-                        <div key={task.id} className="flex items-center justify-between py-1.5 px-2 bg-warning-50 rounded mb-1">
-                          <div>
-                            <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
-                            <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
-                              {task.type === 'review' ? 'Review' : 'Follow-up'}
-                            </span>
-                          </div>
-                          {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <a href="/nurse/follow-up-calls" className="block text-center text-xs text-primary-600 hover:text-primary-800 font-medium pt-1">
-                    View all calls →
-                  </a>
                 </div>
               </div>
-            )}
+              <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+                {dueTasksToday.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-danger-600 uppercase mb-1">Due Today ({dueTasksToday.length})</p>
+                    {dueTasksToday.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between py-1.5 px-2 bg-danger-50 rounded mb-1">
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
+                          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
+                            {task.type === 'review' ? 'Review' : 'Follow-up'}
+                          </span>
+                        </div>
+                        {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {dueTasksTomorrow.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-warning-600 uppercase mb-1">Due Tomorrow ({dueTasksTomorrow.length})</p>
+                    {dueTasksTomorrow.map((task) => (
+                      <div key={task.id} className="flex items-center justify-between py-1.5 px-2 bg-warning-50 rounded mb-1">
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
+                          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
+                            {task.type === 'review' ? 'Review' : 'Follow-up'}
+                          </span>
+                        </div>
+                        {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {dueTasksToday.length === 0 && dueTasksTomorrow.length === 0 && (
+                  <p className="text-xs text-gray-400 text-center py-2">No calls due today or tomorrow</p>
+                )}
+                <a href="/nurse/follow-up-calls" className="block text-center text-xs text-primary-600 hover:text-primary-800 font-medium pt-1">
+                  View all calls →
+                </a>
+              </div>
+            </div>
 
             {/* Doctor Notifications */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-white font-bold flex items-center gap-2">
-                    <svg className="w-5 h-5 text-warning-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <h3 className="text-white text-sm font-bold flex items-center gap-2">
+                    <svg className="w-4 h-4 text-warning-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
                     Doctor Notifications
