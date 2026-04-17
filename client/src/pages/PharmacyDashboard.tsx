@@ -2844,16 +2844,35 @@ const PharmacyDashboard: React.FC = () => {
                   value={editingInventory.category || ''}
                   onChange={(e) => setEditingInventory({ ...editingInventory, category: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Type to search categories..."
+                  list="edit-category-suggestions"
                 />
+                <datalist id="edit-category-suggestions">
+                  {inventoryCategories.map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                <input
-                  type="text"
+                <select
                   value={editingInventory.unit}
                   onChange={(e) => setEditingInventory({ ...editingInventory, unit: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                />
+                >
+                  <option value="tablet">Tablet</option>
+                  <option value="capsule">Capsule</option>
+                  <option value="bottle">Bottle</option>
+                  <option value="vial">Vial</option>
+                  <option value="ampoule">Ampoule</option>
+                  <option value="tube">Tube</option>
+                  <option value="sachet">Sachet</option>
+                  <option value="box">Box</option>
+                  <option value="pack">Pack</option>
+                  <option value="piece">Piece</option>
+                  <option value="ml">mL</option>
+                  <option value="strip">Strip</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
