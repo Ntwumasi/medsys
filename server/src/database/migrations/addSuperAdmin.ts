@@ -17,6 +17,7 @@ const SUPER_ADMIN_USERNAMES = [
   'stamakloe',
   'rkyei',
   'ntwumasi',
+  'cgardner',
 ];
 
 export async function addSuperAdmin() {
