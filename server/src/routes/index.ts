@@ -202,6 +202,7 @@ import {
   getRefillsCalendar,
   recordPurchase,
   getPurchaseHistory,
+  deletePurchase,
   getInventoryBatches,
   updateBatchQuantity,
   updateBatchQuantities,
@@ -559,6 +560,7 @@ router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 
 // Static /inventory/* paths MUST come before /inventory/:id so Express
 // doesn't swallow "purchases", "dispense", etc. as an id parameter.
 router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPurchaseHistory);
+router.delete('/inventory/purchases/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), deletePurchase);
 router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
 router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
 router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItem);

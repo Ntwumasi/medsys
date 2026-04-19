@@ -794,7 +794,9 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
       original_unit_cost,
       new_selling_price,
       batch_number,
-      expiry_date
+      expiry_date,
+      invoice_number,
+      invoice_date
     } = req.body;
     const authReq = req as any;
     const userId = authReq.user?.id;
@@ -829,10 +831,11 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
       const seqNum = String(seqResult.rows[0].next_seq).padStart(3, '0');
       generatedBatchNumber = `${abbrev}-${yearMonth}-${seqNum}`;
     }
-    await client.query(
+    const batchResult = await client.query(
       `INSERT INTO inventory_batches
-        (inventory_id, batch_number, quantity, unit_cost, expiry_date, supplier_id, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        (inventory_id, batch_number, quantity, unit_cost, expiry_date, supplier_id, notes, invoice_number, invoice_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       RETURNING id`,
       [
         inventory_id,
         generatedBatchNumber,
@@ -840,20 +843,26 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
         unit_cost,
         expiry_date || null,
         supplier_id || null,
-        `Discount: ${discount_percent || 0}%, Original cost: ${original_unit_cost || unit_cost}`
+        `Discount: ${discount_percent || 0}%, Original cost: ${original_unit_cost || unit_cost}`,
+        invoice_number || null,
+        invoice_date || null
       ]
     );
+    const batchId = batchResult.rows[0].id;
 
     // Record the purchase transaction
     await client.query(
       `INSERT INTO inventory_transactions
-        (inventory_id, transaction_type, quantity, reference_type, notes, performed_by)
-       VALUES ($1, 'purchase', $2, 'procurement', $3, $4)`,
+        (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, invoice_number, invoice_date)
+       VALUES ($1, 'purchase', $2, 'procurement', $3, $4, $5, $6, $7)`,
       [
         inventory_id,
         quantity,
+        batchId,
         `Batch: ${generatedBatchNumber}, Cost: ${unit_cost}, Discount: ${discount_percent || 0}%`,
-        userId
+        userId,
+        invoice_number || null,
+        invoice_date || null
       ]
     );
 
@@ -978,30 +987,39 @@ export const dispenseFromBatches = async (
 // Get purchase history
 export const getPurchaseHistory = async (req: Request, res: Response): Promise<void> => {
   try {
-    // inventory_transactions has no unit_cost — pull it from pharmacy_inventory.
+    // Pull purchase history from transactions, joining batches for accurate per-purchase data
     const result = await pool.query(
       `SELECT
         it.id,
         it.inventory_id,
         it.quantity,
-        pi.unit_cost,
         it.notes,
         it.created_at,
+        it.invoice_number,
+        it.invoice_date,
+        it.reference_id as batch_id,
         pi.medication_name,
-        s.name as supplier_name,
+        COALESCE(ib.unit_cost, pi.unit_cost) as unit_cost,
+        COALESCE(s2.name, s.name) as supplier_name,
+        COALESCE(ib.supplier_id, pi.supplier_id) as supplier_id,
         CASE
           WHEN it.notes LIKE '%Discount: %'
           THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
           ELSE NULL
         END as discount_percent,
-        CASE
-          WHEN it.notes LIKE '%Batch: %'
-          THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
-          ELSE NULL
-        END as batch_number
+        COALESCE(ib.batch_number,
+          CASE
+            WHEN it.notes LIKE '%Batch: %'
+            THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+            ELSE NULL
+          END
+        ) as batch_number,
+        ib.expiry_date
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
        LEFT JOIN suppliers s ON pi.supplier_id = s.id
+       LEFT JOIN suppliers s2 ON ib.supplier_id = s2.id
        WHERE it.transaction_type = 'purchase'
        ORDER BY it.created_at DESC
        LIMIT 50`
@@ -1011,6 +1029,65 @@ export const getPurchaseHistory = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error('Get purchase history error:', error);
     res.status(500).json({ error: 'Failed to fetch purchase history' });
+  }
+};
+
+// Delete a purchase transaction and reverse inventory changes
+export const deletePurchase = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+
+    await client.query('BEGIN');
+
+    // Get the transaction details
+    const txResult = await client.query(
+      `SELECT it.*, pi.medication_name
+       FROM inventory_transactions it
+       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       WHERE it.id = $1 AND it.transaction_type = 'purchase'`,
+      [id]
+    );
+
+    if (txResult.rows.length === 0) {
+      res.status(404).json({ error: 'Purchase transaction not found' });
+      await client.query('ROLLBACK');
+      return;
+    }
+
+    const tx = txResult.rows[0];
+
+    // Reverse the inventory quantity
+    await client.query(
+      `UPDATE pharmacy_inventory
+       SET quantity_on_hand = GREATEST(0, quantity_on_hand - $1),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [tx.quantity, tx.inventory_id]
+    );
+
+    // Remove the associated batch if reference_id exists
+    if (tx.reference_id) {
+      await client.query(
+        `DELETE FROM inventory_batches WHERE id = $1`,
+        [tx.reference_id]
+      );
+    }
+
+    // Delete the transaction record
+    await client.query(
+      `DELETE FROM inventory_transactions WHERE id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Purchase deleted and inventory adjusted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Delete purchase error:', error);
+    res.status(500).json({ error: 'Failed to delete purchase' });
+  } finally {
+    client.release();
   }
 };
 
