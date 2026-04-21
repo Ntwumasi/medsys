@@ -45,9 +45,14 @@ const Login: React.FC = () => {
         setAttemptsRemaining(errorData.attempts_remaining);
       }
 
-      // Show locked time if account is locked
-      if (errorData?.locked_until) {
-        setLockedUntil(errorData.locked_until);
+      // Show lockout message if account is locked
+      if (errorData?.locked) {
+        setLockedUntil('locked');
+        // Auto-clear the lockout state after 15 minutes so the button re-enables
+        setTimeout(() => {
+          setLockedUntil(null);
+          setError('Lockout period has expired. You may try again.');
+        }, 15 * 60 * 1000);
       }
     } finally {
       setLoading(false);
@@ -58,11 +63,6 @@ const Login: React.FC = () => {
     setShowChangePassword(false);
     clearMustChangePassword();
     navigate('/dashboard');
-  };
-
-  const formatLockedTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -101,7 +101,7 @@ const Login: React.FC = () => {
               )}
               {lockedUntil && (
                 <p className="text-xs mt-2 text-danger-600">
-                  Account locked until {formatLockedTime(lockedUntil)}
+                  Account is locked. Please wait 15 minutes or contact an administrator.
                 </p>
               )}
             </div>

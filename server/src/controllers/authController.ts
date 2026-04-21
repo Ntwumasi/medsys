@@ -198,13 +198,23 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const user = result.rows[0];
 
     // Check if account is locked
-    if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      await logLoginAttempt(username, user.id, false, 'account_locked', req);
-      // SECURITY: Don't reveal exact lock time to prevent timing attacks
-      res.status(403).json({
-        error: 'Account is temporarily locked due to multiple failed login attempts. Please try again later or contact an administrator.',
-      });
-      return;
+    if (user.locked_until) {
+      if (new Date(user.locked_until) > new Date()) {
+        await logLoginAttempt(username, user.id, false, 'account_locked', req);
+        // SECURITY: Don't reveal exact lock time to prevent timing attacks
+        res.status(403).json({
+          error: 'Account is temporarily locked due to multiple failed login attempts. Please try again later or contact an administrator.',
+        });
+        return;
+      } else {
+        // Lockout expired — reset the counter so the user gets a fresh set of attempts
+        await pool.query(
+          `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
+          [user.id]
+        );
+        user.failed_login_attempts = 0;
+        user.locked_until = null;
+      }
     }
 
     // Check if user is active

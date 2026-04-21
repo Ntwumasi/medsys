@@ -192,6 +192,7 @@ export interface ApiError {
       details?: string[];
       attempts_remaining?: number;
       locked_until?: string;
+      locked?: boolean;
     };
   };
   message?: string;
