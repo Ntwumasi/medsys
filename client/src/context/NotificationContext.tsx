@@ -73,17 +73,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }
   }, []);
 
-  // Fetch notifications on mount and set up SSE for real-time updates
+  // Fetch notifications and set up SSE for real-time updates.
+  // Re-runs whenever localStorage token changes (via storage event listener below
+  // setting tokenVersion), so SSE reconnects with the correct token after login/logout.
+  const [tokenVersion, setTokenVersion] = useState(0);
+
   useEffect(() => {
+    if (!isLoggedIn()) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+
     fetchNotifications();
 
     // Set up Server-Sent Events for real-time notifications
     let eventSource: EventSource | null = null;
+    let sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
     const setupSSE = () => {
-      if (!isLoggedIn()) return;
+      if (disposed || !isLoggedIn()) return;
 
       const token = localStorage.getItem('token');
+      if (!token) return;
+
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
       // Note: EventSource doesn't support custom headers, so we pass token as query param
@@ -117,9 +131,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       };
 
       eventSource.onerror = () => {
-        // Reconnect after 5 seconds on error
         eventSource?.close();
-        setTimeout(setupSSE, 5000);
+        // Only reconnect if still logged in and effect hasn't been cleaned up
+        if (!disposed && isLoggedIn()) {
+          sseReconnectTimer = setTimeout(setupSSE, 5000);
+        }
       };
     };
 
@@ -133,16 +149,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     }, 60000);
 
     return () => {
+      disposed = true;
       clearInterval(interval);
+      if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
       eventSource?.close();
     };
-  }, [fetchNotifications]);
+  }, [fetchNotifications, tokenVersion]);
 
   // Listen for storage events (login/logout in other tabs)
+  // Bump tokenVersion so SSE reconnects with the new (or cleared) token
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'token') {
-        fetchNotifications();
+        setTokenVersion(v => v + 1);
       }
     };
 

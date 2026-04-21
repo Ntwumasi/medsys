@@ -204,6 +204,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         // SECURITY: Don't reveal exact lock time to prevent timing attacks
         res.status(403).json({
           error: 'Account is temporarily locked due to multiple failed login attempts. Please try again later or contact an administrator.',
+          locked: true,
         });
         return;
       } else {

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '../types';
 import { authAPI } from '../api/auth';
-import { resetApiClientState } from '../api/client';
+import { resetApiClientState, setActiveToken } from '../api/client';
 import type { LoginCredentials, LoginResponse } from '../api/auth';
 
 interface ImpersonationInfo {
@@ -52,12 +52,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const storedMustChangePassword = localStorage.getItem('mustChangePassword');
 
       if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        try {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+          setActiveToken(storedToken);
+        } catch {
+          // Corrupted localStorage — clear it and start fresh
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       }
 
       if (storedImpersonation) {
-        setImpersonation(JSON.parse(storedImpersonation));
+        try {
+          setImpersonation(JSON.parse(storedImpersonation));
+        } catch {
+          localStorage.removeItem('impersonation');
+        }
       }
 
       if (storedMustChangePassword === 'true') {
@@ -84,6 +95,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     localStorage.setItem('token', authToken);
     localStorage.setItem('user', JSON.stringify(userData));
+    setActiveToken(authToken);
 
     // Handle must_change_password flag
     if (must_change_password) {
