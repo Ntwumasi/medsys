@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { validateIntervalDays } from '../utils/sqlSecurity';
+import { notificationService } from '../services/notificationService';
 
 // Get all inventory items with optional filters
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
@@ -302,6 +303,19 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
     );
 
     await client.query('COMMIT');
+
+    // Notify pharmacists when a pharmacy tech adjusts inventory
+    if (authReq.user?.role === 'pharmacy_tech') {
+      const item = result.rows[0];
+      const direction = adjustment > 0 ? 'increased' : 'decreased';
+      await notificationService.notifyPharmacistOfTechAction(
+        authReq.user.id,
+        'Inventory Adjusted',
+        `${direction} ${item.medication_name} by ${Math.abs(adjustment)} units (now ${newQuantity}). Reason: ${notes || 'Not specified'}`,
+        'pharmacy_inventory',
+        parseInt(id as string)
+      );
+    }
 
     res.json({
       message: 'Stock adjusted successfully',

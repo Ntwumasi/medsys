@@ -789,6 +789,18 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       details: updateData
     });
 
+    // Notify pharmacists when a pharmacy tech modifies an order (beyond dispensing)
+    if (authReq.user?.role === 'pharmacy_tech' && updateData.status !== 'dispensed') {
+      const changedFields = Object.keys(updateData).filter(k => k !== 'updated_at').join(', ');
+      await notificationService.notifyPharmacistOfTechAction(
+        authReq.user.id,
+        'Order Modified',
+        `Modified order #${id} (${updatedOrder.medication_name}): ${changedFields}`,
+        'pharmacy_order',
+        parseInt(id)
+      );
+    }
+
     // Sync department_routing status with pharmacy order status
     if (updateData.status) {
       const routingStatus = updateData.status === 'dispensed' ? 'completed' :
@@ -1064,6 +1076,20 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
         refills_remaining: original.refills - 1,
       }
     });
+
+    // Notify pharmacists when a pharmacy tech processes a refill
+    if (authReq.user?.role === 'pharmacy_tech') {
+      const patientName = patientInfo.rows[0]
+        ? `${patientInfo.rows[0].first_name} ${patientInfo.rows[0].last_name}`
+        : 'Unknown';
+      await notificationService.notifyPharmacistOfTechAction(
+        userId,
+        'Refill Processed',
+        `Processed refill for ${original.medication_name} — Patient: ${patientName} (${original.refills - 1} refills remaining)`,
+        'pharmacy_order',
+        newOrder.id
+      );
+    }
 
     res.json({
       message: 'Refill processed successfully',

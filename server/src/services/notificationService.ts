@@ -6,7 +6,7 @@ const sseConnections: Map<number, Response[]> = new Map();
 
 export interface NotificationPayload {
   userId: number;
-  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert';
+  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert' | 'pharmacy_tech_action';
   title: string;
   message: string;
   entityType?: string;
@@ -513,6 +513,36 @@ export const notificationService = {
       }
     } catch (error) {
       console.error('Failed to notify pharmacy ready:', error);
+    }
+  },
+
+  /**
+   * Notify pharmacists when a pharmacy tech performs non-dispensing actions
+   */
+  async notifyPharmacistOfTechAction(
+    techUserId: number,
+    action: string,
+    details: string,
+    entityType: string,
+    entityId: number
+  ): Promise<void> {
+    try {
+      // Get the tech's name
+      const techResult = await pool.query(
+        `SELECT first_name || ' ' || last_name as name FROM users WHERE id = $1`,
+        [techUserId]
+      );
+      const techName = techResult.rows[0]?.name || 'A pharmacy tech';
+
+      await this.sendToRole('pharmacist', {
+        type: 'pharmacy_tech_action',
+        title: `Tech Action: ${action}`,
+        message: `${techName} — ${details}`,
+        entityType,
+        entityId,
+      });
+    } catch (error) {
+      console.error('Failed to notify pharmacist of tech action:', error);
     }
   },
 
