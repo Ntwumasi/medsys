@@ -259,6 +259,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
   const [selectedClinic, setSelectedClinic] = useState('');
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -732,6 +733,7 @@ const ReceptionistDashboard: React.FC = () => {
         encounter_type: encounterType,
         billing_amount: billingAmount,
         clinic: selectedClinic || null,
+        provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
       });
 
       // Store patient name for success message
@@ -745,6 +747,7 @@ const ReceptionistDashboard: React.FC = () => {
       setOutstandingBalance(0);
       setEncounterType('walk-in');
       setSelectedClinic('');
+      setSelectedDoctorId('');
 
       // Reload data first to get the updated queue
       await loadData();
@@ -810,6 +813,7 @@ const ReceptionistDashboard: React.FC = () => {
           chief_complaint: '', // Now entered by nurse
           encounter_type: encounterType,
           billing_amount: billingAmount,
+          provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
         });
       }
 
@@ -1994,6 +1998,24 @@ const ReceptionistDashboard: React.FC = () => {
                     <option value="">Select Clinic</option>
                     {clinics.map((clinic) => (
                       <option key={clinic} value={clinic}>{clinic}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Assign Doctor
+                  </label>
+                  <select
+                    value={selectedDoctorId}
+                    onChange={(e) => setSelectedDoctorId(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  >
+                    <option value="">Assign later</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={doctor.id}>
+                        Dr. {doctor.first_name} {doctor.last_name}
+                      </option>
                     ))}
                   </select>
                 </div>

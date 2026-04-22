@@ -13,7 +13,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     let receptionist_id = authReq.user?.id || null;
 
-    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id } = req.body;
 
     // Verify receptionist_id exists in users table (to avoid FK constraint violation)
     if (receptionist_id) {
@@ -66,8 +66,9 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id]
     );
 
-    let assigned_provider_id = null;
-    if (payerSourceResult.rows.length > 0 && payerSourceResult.rows[0].assigned_doctor_id) {
+    // Priority: receptionist's explicit choice > corporate payer default > null (assign later)
+    let assigned_provider_id = requested_provider_id || null;
+    if (!assigned_provider_id && payerSourceResult.rows.length > 0 && payerSourceResult.rows[0].assigned_doctor_id) {
       assigned_provider_id = payerSourceResult.rows[0].assigned_doctor_id;
     }
 
@@ -196,42 +197,10 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const appointmentDuration = 30;
     const appointmentEnd = new Date(appointmentTime.getTime() + appointmentDuration * 60 * 1000);
 
-    // Find a doctor to assign appointment to
-    let appointmentProviderId = assigned_provider_id;
+    // Use the assigned provider for the appointment (receptionist chose or corporate default)
+    const appointmentProviderId = assigned_provider_id;
 
-    // If no provider assigned, find an available doctor
-    if (!appointmentProviderId) {
-      // Find a doctor who doesn't have a conflicting appointment at this time
-      const availableDoctorResult = await client.query(
-        `SELECT u.id FROM users u
-         WHERE u.role = 'doctor' AND u.is_active = true
-         AND NOT EXISTS (
-           SELECT 1 FROM appointments a
-           WHERE a.provider_id = u.id
-             AND a.status NOT IN ('cancelled', 'no-show')
-             AND (
-               (a.appointment_date <= $1 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $1)
-               OR (a.appointment_date < $2 AND a.appointment_date + (a.duration_minutes || ' minutes')::interval > $1)
-               OR (a.appointment_date >= $1 AND a.appointment_date < $2)
-             )
-         )
-         ORDER BY u.first_name
-         LIMIT 1`,
-        [appointmentTime, appointmentEnd]
-      );
-
-      if (availableDoctorResult.rows.length > 0) {
-        appointmentProviderId = availableDoctorResult.rows[0].id;
-
-        // Also update the encounter with this provider
-        await client.query(
-          `UPDATE encounters SET provider_id = $1 WHERE id = $2`,
-          [appointmentProviderId, encounter.id]
-        );
-      }
-    }
-
-    // Create appointment if we found an available provider
+    // Create appointment if a provider was assigned
     if (appointmentProviderId) {
       // Double-check for conflicts with assigned provider
       const conflictCheck = await client.query(
