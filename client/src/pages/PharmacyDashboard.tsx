@@ -49,6 +49,8 @@ interface PharmacyOrder {
   chief_complaint?: string;
   primary_diagnosis?: string;
   provider_name?: string;
+  provider_first_name?: string;
+  provider_last_name?: string;
   dispensed_by?: string;
   dispensed_by_name?: string;
   payer_type?: string;
@@ -3333,7 +3335,7 @@ const PharmacyDashboard: React.FC = () => {
         isOpen={showDrugHistory}
         onClose={() => setShowDrugHistory(false)}
         title={`Drug History - ${drugHistoryPatientName}`}
-        size="xl"
+        size="full"
       >
         {loadingDrugHistory ? (
           <div className="py-12 text-center">
@@ -3399,7 +3401,7 @@ const PharmacyDashboard: React.FC = () => {
                   Active Medications ({drugHistory.active_medications.length})
                 </h3>
                 {drugHistory.active_medications.length > 0 ? (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2">
                     {drugHistory.active_medications.map((med) => (
                       <div key={med.id} className="p-3 bg-success-50 border border-success-200 rounded-lg">
                         <div className="font-semibold text-success-800">{med.medication_name}</div>
@@ -3432,7 +3434,7 @@ const PharmacyDashboard: React.FC = () => {
                   Prescription History ({drugHistory.orders.length})
                 </h3>
                 {drugHistory.orders.length > 0 ? (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                  <div className="space-y-2">
                     {drugHistory.orders.map((order) => (
                       <div key={order.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
                         <div className="flex justify-between items-start">
@@ -3450,9 +3452,14 @@ const PharmacyDashboard: React.FC = () => {
                           <span>Qty: <span className="font-medium">{order.quantity}</span> {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
                           <span>{format(new Date(order.ordered_date), 'MMM dd, yyyy')}</span>
                         </div>
-                        {order.provider_name && (
-                          <div className="text-xs text-gray-400 mt-1">By: {order.provider_name}</div>
-                        )}
+                        <div className="text-xs text-gray-400 mt-1 flex justify-between">
+                          {order.provider_first_name && (
+                            <span>Ordered by: Dr. {order.provider_first_name} {order.provider_last_name}</span>
+                          )}
+                          {order.dispensed_by_name && (
+                            <span>Dispensed by: {order.dispensed_by_name}</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

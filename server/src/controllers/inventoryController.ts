@@ -661,9 +661,11 @@ export const getPatientDrugHistory = async (req: Request, res: Response): Promis
         po.*,
         u.first_name as provider_first_name,
         u.last_name as provider_last_name,
+        du.first_name || ' ' || du.last_name as dispensed_by_name,
         e.encounter_number
        FROM pharmacy_orders po
        LEFT JOIN users u ON po.ordering_provider = u.id
+       LEFT JOIN users du ON po.dispensed_by = du.id
        LEFT JOIN encounters e ON po.encounter_id = e.id
        WHERE po.patient_id = $1 ${dateFilter}
        ORDER BY po.ordered_date DESC`,
