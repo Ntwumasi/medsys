@@ -157,6 +157,7 @@ interface WalkInMedication {
   unit_price: number;
   dosage: string;
   frequency: string;
+  duration_days: number | '';
   instructions: string;
 }
 
@@ -481,6 +482,7 @@ const PharmacyDashboard: React.FC = () => {
       unit_price: item.selling_price,
       dosage: '',
       frequency: '',
+      duration_days: '',
       instructions: ''
     }]);
     setWalkInMedSearch('');
@@ -3701,12 +3703,13 @@ const PharmacyDashboard: React.FC = () => {
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-500">Instructions</label>
+                              <label className="text-xs text-gray-500">Days</label>
                               <input
-                                type="text"
-                                placeholder="After meals"
-                                value={med.instructions}
-                                onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
+                                type="number"
+                                placeholder="e.g., 5"
+                                min="1"
+                                value={med.duration_days}
+                                onChange={(e) => updateWalkInMedication(index, 'duration_days', e.target.value ? Number(e.target.value) : '')}
                                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
                               />
                             </div>

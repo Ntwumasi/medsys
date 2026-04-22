@@ -1446,7 +1446,7 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
           med.dosage || '',
           med.frequency || '',
           med.quantity,
-          med.instructions || 'OTC Walk-in',
+          [med.duration_days ? `${med.duration_days} days` : '', med.instructions].filter(Boolean).join(' - ') || 'OTC Walk-in',
           dispensed_by
         ]
       );
