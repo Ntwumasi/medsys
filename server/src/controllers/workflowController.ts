@@ -384,7 +384,7 @@ export const assignDoctor = async (req: Request, res: Response): Promise<void> =
     // Create alert for doctor
     await pool.query(
       `INSERT INTO alerts (encounter_id, patient_id, to_user_id, alert_type, message)
-       SELECT $1, patient_id, $2, 'patient_assigned',
+       SELECT $1, patient_id, $2, 'general',
          'Patient assigned to you' || COALESCE(' in room ' || (SELECT room_number FROM rooms WHERE id = room_id), '')
        FROM encounters WHERE id = $1`,
       [encounter_id, doctor_id]
