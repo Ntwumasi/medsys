@@ -417,11 +417,8 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleBillingAlertClick = (alert: BillingAlert) => {
-    // Find the queue item matching this encounter and open the invoice view
-    const queueItem = queue.find(q => q.encounter_number === alert.encounter_number);
-    if (queueItem) {
-      handleViewInvoice(queueItem.id);
-    }
+    // Open the invoice using the encounter_id directly from the alert
+    handleViewInvoice(alert.encounter_id);
     // Dismiss the alert
     handleDismissBillingAlert(alert.id);
   };
@@ -1376,10 +1373,7 @@ const ReceptionistDashboard: React.FC = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const queueItem = queue.find(q => q.encounter_number === alert.encounter_number);
-                            if (queueItem) {
-                              handleViewInvoice(queueItem.id);
-                            }
+                            handleViewInvoice(alert.encounter_id);
                           }}
                           className="px-4 py-1.5 bg-success-600 text-white text-sm font-medium rounded-lg hover:bg-success-700 transition-colors"
                         >
