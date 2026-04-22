@@ -151,6 +151,7 @@ const LabDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins'>('orders');
   const [walkIns, setWalkIns] = useState<any[]>([]);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
+  const [statusFilter, setStatusFilter] = useState<string>(''); // '', 'pending', 'in_progress', 'stat'
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -846,6 +847,19 @@ const LabDashboard: React.FC = () => {
         order.test_name.toLowerCase().includes(searchLower);
       if (!matches) return false;
     }
+
+    // Apply specific status filter from stats card click
+    if (statusFilter === 'stat') {
+      return order.priority === 'stat' && order.status !== 'completed';
+    }
+    if (statusFilter === 'pending') {
+      return order.status === 'pending';
+    }
+    if (statusFilter === 'in_progress') {
+      return order.status === 'in_progress';
+    }
+
+    // Default sub-tab filtering
     if (ordersSubTab === 'pending') {
       return pendingStatuses.includes(order.status);
     } else {
@@ -946,43 +960,64 @@ const LabDashboard: React.FC = () => {
     <AppLayout title="Lab Dashboard">
       {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-warning-50 ${activeTab === 'orders' && statusFilter === 'pending' ? 'border-warning-400 ring-2 ring-warning-200' : 'border-gray-200'}`}
+            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('pending'); }}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending</div>
             <div className="text-2xl font-bold text-warning-600 mt-1">
               {labOrders.filter(o => o.status === 'pending').length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-primary-50 ${activeTab === 'orders' && statusFilter === 'in_progress' ? 'border-primary-400 ring-2 ring-primary-200' : 'border-gray-200'}`}
+            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('in_progress'); }}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">In Progress</div>
             <div className="text-2xl font-bold text-primary-600 mt-1">
               {labOrders.filter(o => o.status === 'in_progress').length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-success-50 ${activeTab === 'orders' && ordersSubTab === 'completed' && !statusFilter ? 'border-success-400 ring-2 ring-success-200' : 'border-gray-200'}`}
+            onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); setStatusFilter(''); }}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completed</div>
             <div className="text-2xl font-bold text-success-600 mt-1">
               {labOrders.filter(o => o.status === 'completed').length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-danger-50 ${activeTab === 'orders' && statusFilter === 'stat' ? 'border-danger-400 ring-2 ring-danger-200' : 'border-gray-200'}`}
+            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('stat'); }}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">STAT Orders</div>
             <div className="text-2xl font-bold text-danger-600 mt-1">
               {labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 cursor-pointer hover:bg-danger-50" onClick={() => setActiveTab('alerts')}>
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-danger-50 ${activeTab === 'alerts' ? 'border-danger-400 ring-2 ring-danger-200' : 'border-gray-200'}`}
+            onClick={() => setActiveTab('alerts')}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Critical Pending</div>
             <div className="text-2xl font-bold text-danger-600 mt-1">
               {criticalAlerts.filter(a => !a.is_acknowledged).length}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-secondary-50 ${activeTab === 'analytics' ? 'border-secondary-400 ring-2 ring-secondary-200' : 'border-gray-200'}`}
+            onClick={() => setActiveTab('analytics')}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Avg TAT</div>
             <div className="text-2xl font-bold text-secondary-600 mt-1">
               {analytics?.turnaround_time?.average_tat_hours ? formatTAT(analytics.turnaround_time.average_tat_hours) : 'N/A'}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 cursor-pointer hover:bg-orange-50" onClick={() => setActiveTab('inventory')}>
+          <div
+            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-orange-50 ${activeTab === 'inventory' ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-200'}`}
+            onClick={() => setActiveTab('inventory')}
+          >
             <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Low Stock</div>
             <div className="text-2xl font-bold text-orange-600 mt-1">
               {inventoryStats?.low_stock_count || 0}
@@ -1182,11 +1217,11 @@ const LabDashboard: React.FC = () => {
             )}
 
             {/* Orders Sub-tabs */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex gap-2 mb-4 flex-wrap">
               <button
-                onClick={() => setOrdersSubTab('pending')}
+                onClick={() => { setOrdersSubTab('pending'); setStatusFilter(''); }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  ordersSubTab === 'pending'
+                  ordersSubTab === 'pending' && !statusFilter
                     ? 'bg-warning-500 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
@@ -1194,15 +1229,26 @@ const LabDashboard: React.FC = () => {
                 Pending & In Progress ({labOrders.filter(o => o.status === 'pending' || o.status === 'in_progress').length})
               </button>
               <button
-                onClick={() => setOrdersSubTab('completed')}
+                onClick={() => { setOrdersSubTab('completed'); setStatusFilter(''); }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  ordersSubTab === 'completed'
+                  ordersSubTab === 'completed' && !statusFilter
                     ? 'bg-success-500 text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 Completed ({labOrders.filter(o => o.status === 'completed').length})
               </button>
+              {statusFilter && (
+                <button
+                  onClick={() => setStatusFilter('')}
+                  className="px-4 py-2 rounded-lg font-medium bg-gray-800 text-white flex items-center gap-2"
+                >
+                  Filtered: {statusFilter === 'stat' ? 'STAT Orders' : statusFilter === 'pending' ? 'Pending Only' : 'In Progress Only'}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {/* Orders List with Patient Details Panel */}
