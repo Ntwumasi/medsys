@@ -1751,6 +1751,25 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
                       )}
 
+                      {!isCompleted && !item.doctor_name && editingDoctorForEncounter !== item.id && (
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleAssignDoctor(item.id, Number(e.target.value));
+                            }
+                          }}
+                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                          defaultValue=""
+                        >
+                          <option value="">Assign Doctor</option>
+                          {doctors.map((doctor) => (
+                            <option key={doctor.id} value={doctor.id}>
+                              Dr. {doctor.first_name} {doctor.last_name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
                       {!isCompleted && editingDoctorForEncounter === item.id && (
                         <div className="flex items-center gap-2">
                           {assigningDoctor === item.id ? (
