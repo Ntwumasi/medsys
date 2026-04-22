@@ -346,12 +346,18 @@ const ReceptionistDashboard: React.FC = () => {
   }
   const [billingAlerts, setBillingAlerts] = useState<BillingAlert[]>([]);
 
+  // Track whether an assignment is in-flight so polling doesn't overwrite
+  // optimistic UI with stale server data.
+  const assigningRef = React.useRef(false);
+
   useEffect(() => {
     loadData();
     loadBillingAlerts();
     loadTodayAppointments(); // Load today's appointments for counter
     const interval = setInterval(() => {
-      loadData();
+      if (!assigningRef.current) {
+        loadData();
+      }
       loadBillingAlerts();
       loadTodayAppointments();
     }, 30000); // Refresh every 30 seconds
@@ -858,6 +864,7 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleAssignNurse = async (encounterId: number, nurseId: number) => {
+    assigningRef.current = true;
     try {
       await apiClient.post('/workflow/assign-nurse', {
         encounter_id: encounterId,
@@ -871,10 +878,13 @@ const ReceptionistDashboard: React.FC = () => {
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to assign nurse';
       showToast(errorMessage, 'error');
+    } finally {
+      assigningRef.current = false;
     }
   };
 
   const handleAssignDoctor = async (encounterId: number, doctorId: number) => {
+    assigningRef.current = true;
     setAssigningDoctor(encounterId);
     try {
       await apiClient.post('/workflow/assign-doctor', {
@@ -891,6 +901,7 @@ const ReceptionistDashboard: React.FC = () => {
       showToast(errorMessage, 'error');
     } finally {
       setAssigningDoctor(null);
+      assigningRef.current = false;
     }
   };
 

@@ -591,25 +591,22 @@ export const alertDoctor = async (req: Request, res: Response): Promise<void> =>
 
     const { patient_id, provider_id } = encounterResult.rows[0];
 
-    // If no doctor assigned, find available doctor
+    // If no doctor assigned, require assignment first
     let doctor_id = provider_id;
     if (!doctor_id) {
-      const doctorResult = await pool.query(
-        `SELECT id FROM users WHERE role = 'doctor' AND is_active = true LIMIT 1`
-      );
-      if (doctorResult.rows.length > 0) {
-        doctor_id = doctorResult.rows[0].id;
-      }
+      res.status(400).json({
+        error: 'No doctor assigned to this encounter. Please ask the receptionist to assign a doctor first.'
+      });
+      return;
     }
 
-    // Update encounter: assign doctor and set status to ready_for_doctor
+    // Update encounter status to ready_for_doctor
     await pool.query(
       `UPDATE encounters
-       SET provider_id = COALESCE(provider_id, $1),
-           status = 'ready_for_doctor',
+       SET status = 'ready_for_doctor',
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [doctor_id, encounter_id]
+       WHERE id = $1`,
+      [encounter_id]
     );
 
     const result = await pool.query(
