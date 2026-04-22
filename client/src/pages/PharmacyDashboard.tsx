@@ -1150,7 +1150,10 @@ const PharmacyDashboard: React.FC = () => {
           <div>
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className={`bg-white rounded-xl shadow-lg border p-6 cursor-pointer transition-all hover:shadow-xl hover:bg-warning-50 ${ordersSubTab === 'pending' ? 'border-warning-400 ring-2 ring-warning-200' : 'border-gray-200'}`}
+                onClick={() => { setOrdersSubTab('pending'); fetchPendingOrders(); }}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-warning-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1165,7 +1168,10 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className={`bg-white rounded-xl shadow-lg border p-6 cursor-pointer transition-all hover:shadow-xl hover:bg-primary-50 ${ordersSubTab === 'in_progress' ? 'border-primary-400 ring-2 ring-primary-200' : 'border-gray-200'}`}
+                onClick={() => { setOrdersSubTab('in_progress'); fetchInProgressOrders(); }}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1180,7 +1186,10 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className={`bg-white rounded-xl shadow-lg border p-6 cursor-pointer transition-all hover:shadow-xl hover:bg-success-50 ${ordersSubTab === 'history' ? 'border-success-400 ring-2 ring-success-200' : 'border-gray-200'}`}
+                onClick={() => { setOrdersSubTab('history'); fetchOrderHistory(); }}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1195,7 +1204,10 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div
+                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 cursor-pointer transition-all hover:shadow-xl hover:bg-danger-50"
+                onClick={() => setActiveTab('inventory' as typeof activeTab)}
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex-shrink-0 bg-danger-100 rounded-lg p-3">
                     <svg className="h-6 w-6 text-danger-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
