@@ -878,7 +878,10 @@ const AccountantDashboard: React.FC = () => {
                   <>
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-6 text-white shadow-lg">
+                      <div
+                        className="bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-primary-500 hover:to-primary-700 transition-all hover:shadow-xl"
+                        onClick={() => { setActiveTab('invoices'); setInvoiceFilter('all'); }}
+                      >
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium opacity-90">Total Billed</h3>
                           <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -888,7 +891,10 @@ const AccountantDashboard: React.FC = () => {
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_billed || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.total_invoices || 0} invoices</p>
                       </div>
-                      <div className="bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-6 text-white shadow-lg">
+                      <div
+                        className="bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-success-500 hover:to-success-700 transition-all hover:shadow-xl"
+                        onClick={() => { setActiveTab('invoices'); setInvoiceFilter('paid'); }}
+                      >
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium opacity-90">Total Collected</h3>
                           <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -898,7 +904,10 @@ const AccountantDashboard: React.FC = () => {
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_collected || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.paid_count || 0} fully paid</p>
                       </div>
-                      <div className="bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-6 text-white shadow-lg">
+                      <div
+                        className="bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-warning-500 hover:to-warning-700 transition-all hover:shadow-xl"
+                        onClick={() => { setActiveTab('invoices'); setInvoiceFilter('pending'); }}
+                      >
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium opacity-90">Outstanding</h3>
                           <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -908,7 +917,10 @@ const AccountantDashboard: React.FC = () => {
                         <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_outstanding || 0)}</p>
                         <p className="text-sm opacity-75 mt-1">{summary?.pending_count || 0} pending</p>
                       </div>
-                      <div className="bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-6 text-white shadow-lg">
+                      <div
+                        className="bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-secondary-500 hover:to-secondary-700 transition-all hover:shadow-xl"
+                        onClick={() => { setActiveTab('invoices'); setInvoiceFilter('partial'); }}
+                      >
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium opacity-90">Collection Rate</h3>
                           <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
