@@ -53,11 +53,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (storedToken && storedUser) {
         try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-          setActiveToken(storedToken);
+          // Check if token is expired before restoring session
+          const payload = JSON.parse(atob(storedToken.split('.')[1]));
+          const isExpired = payload.exp && payload.exp * 1000 < Date.now();
+
+          if (isExpired) {
+            // Token expired — clear everything and send to login
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('impersonation');
+            localStorage.removeItem('mustChangePassword');
+            localStorage.removeItem('activeRole');
+          } else {
+            setToken(storedToken);
+            setUser(JSON.parse(storedUser));
+            setActiveToken(storedToken);
+          }
         } catch {
-          // Corrupted localStorage — clear it and start fresh
+          // Corrupted localStorage or malformed token — clear and start fresh
           localStorage.removeItem('token');
           localStorage.removeItem('user');
         }

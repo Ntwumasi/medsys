@@ -18,7 +18,8 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'phone', 'email', 'address', 'emergency_contact', 'emergency_phone',
     'insurance_provider', 'insurance_id', 'notes', 'is_active',
     'health_conditions', 'current_medications', 'is_vip', 'vip_note',
-    'payer_source', 'corporate_client_id', 'assigned_doctor_id'
+    'payer_source', 'corporate_client_id', 'assigned_doctor_id',
+    'pcp_name', 'pcp_phone'
   ],
   appointments: [
     'patient_id', 'patient_name', 'provider_id', 'appointment_date',

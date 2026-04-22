@@ -1034,6 +1034,8 @@ const ReceptionistDashboard: React.FC = () => {
       state: selectedPatient.state || '',
       emergency_contact_name: selectedPatient.emergency_contact_name || '',
       emergency_contact_phone: selectedPatient.emergency_contact_phone || '',
+      pcp_name: selectedPatient.pcp_name || '',
+      pcp_phone: selectedPatient.pcp_phone || '',
     });
     setShowEditPatientModal(true);
   };
@@ -1372,6 +1374,13 @@ const ReceptionistDashboard: React.FC = () => {
                           </svg>
                         </button>
                         <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const queueItem = queue.find(q => q.encounter_number === alert.encounter_number);
+                            if (queueItem) {
+                              handleViewInvoice(queueItem.id);
+                            }
+                          }}
                           className="px-4 py-1.5 bg-success-600 text-white text-sm font-medium rounded-lg hover:bg-success-700 transition-colors"
                         >
                           View Invoice
