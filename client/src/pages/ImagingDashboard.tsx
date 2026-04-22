@@ -156,6 +156,7 @@ const ImagingDashboard: React.FC = () => {
               title="Pending Studies"
               value={pendingCount}
               variant="warning"
+              onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -166,6 +167,7 @@ const ImagingDashboard: React.FC = () => {
               title="In Progress"
               value={inProgressCount}
               variant="primary"
+              onClick={() => { setActiveTab('orders'); setOrdersSubTab('in_progress'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -176,6 +178,7 @@ const ImagingDashboard: React.FC = () => {
               title="Completed Today"
               value={completedCount}
               variant="success"
+              onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
