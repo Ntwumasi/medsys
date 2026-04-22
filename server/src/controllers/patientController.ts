@@ -188,6 +188,34 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    // Create registration fee invoice if requested
+    const { registration_payment } = req.body;
+    if (registration_payment === 'pay_now' || registration_payment === 'pay_later') {
+      const registrationFee = 75.00;
+      const invoiceStatus = registration_payment === 'pay_now' ? 'paid' : 'pending';
+      const amountPaid = registration_payment === 'pay_now' ? registrationFee : 0;
+
+      // Generate invoice number
+      const maxInvResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
+      const invoiceNumber = `INV${String(maxInvResult.rows[0].next_id).padStart(6, '0')}`;
+
+      const invoiceResult = await client.query(
+        `INSERT INTO invoices (
+          patient_id, invoice_number, invoice_date, subtotal, tax, total_amount,
+          amount_paid, status
+        ) VALUES ($1, $2, CURRENT_DATE, $3, 0, $3, $4, $5)
+        RETURNING id`,
+        [patient_id, invoiceNumber, registrationFee, amountPaid, invoiceStatus]
+      );
+
+      // Create invoice item for registration fee
+      await client.query(
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+         VALUES ($1, 'Patient Registration Fee', 1, $2, $2, 'registration')`,
+        [invoiceResult.rows[0].id, registrationFee]
+      );
+    }
+
     await client.query('COMMIT');
 
     res.status(201).json({

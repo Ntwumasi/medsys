@@ -260,6 +260,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [encounterType, setEncounterType] = useState('walk-in');
   const [selectedClinic, setSelectedClinic] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [registrationPayment, setRegistrationPayment] = useState<'pay_now' | 'pay_later'>('pay_now');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -770,7 +771,7 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const handleNewPatientSubmit = async (e: React.FormEvent, checkInAfter: boolean = true) => {
+  const handleNewPatientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -795,27 +796,13 @@ const ReceptionistDashboard: React.FC = () => {
         });
       }
 
-      // Create new patient
+      // Create new patient (registration only — no check-in)
       const patientResponse = await apiClient.post('/patients', {
         ...newPatient,
         payer_sources,
+        registration_payment: registrationPayment,
       });
       const newPatientData = patientResponse.data.patient;
-
-      let billingAmount = 0;
-
-      // Only check in if requested
-      if (checkInAfter) {
-        billingAmount = 75; // $75 for new patients
-
-        await apiClient.post('/workflow/check-in', {
-          patient_id: newPatientData.id,
-          chief_complaint: '', // Now entered by nurse
-          encounter_type: encounterType,
-          billing_amount: billingAmount,
-          provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
-        });
-      }
 
       // Reset form
       setNewPatient({
@@ -839,30 +826,22 @@ const ReceptionistDashboard: React.FC = () => {
         allergies: '',
         nationality: '',
       });
-      setChiefComplaint('');
-      setEncounterType('walk-in');
       setSelectedPayerTypes([]);
       setSelectedCorporateClient(null);
       setSelectedInsuranceProvider(null);
+      setRegistrationPayment('pay_now');
 
       // Reload data
       await loadData();
 
-      if (checkInAfter) {
-        // Switch to queue view to show the patient
-        setActiveView('queue');
-        showToast(`Patient registered & checked in! Patient #: ${newPatientData.patient_number}, Billing: GH₵${billingAmount}`, 'success');
-      } else {
-        // Stay on current view or go to patients list
-        showToast(`Patient registered successfully! Patient #: ${newPatientData.patient_number}`, 'success');
-      }
+      const paymentMsg = registrationPayment === 'pay_now'
+        ? 'Registration fee: GH₵75.00 (Paid)'
+        : 'Registration fee: GH₵75.00 (Pending)';
+      showToast(`Patient registered! #${newPatientData.patient_number}. ${paymentMsg}. Check them in from Returning Patient or Appointments.`, 'success');
     } catch (error) {
       console.error('Error creating new patient:', error);
-
-      // Extract error message from API response
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to register new patient';
-
       showToast(errorMessage, 'error');
     }
   };
@@ -2635,40 +2614,24 @@ const ReceptionistDashboard: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Encounter Type
+                  Registration Fee (GH₵75.00)
                 </label>
                 <select
-                  value={encounterType}
-                  onChange={(e) => setEncounterType(e.target.value)}
+                  value={registrationPayment}
+                  onChange={(e) => setRegistrationPayment(e.target.value as 'pay_now' | 'pay_later')}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
-                  <option value="walk-in">Walk-in</option>
-                  <option value="scheduled">Scheduled</option>
-                  <option value="emergency">Emergency</option>
+                  <option value="pay_now">Pay Now</option>
+                  <option value="pay_later">Pay Later</option>
                 </select>
               </div>
 
-              <div className="bg-success-50 p-4 rounded-lg border border-success-200">
-                <p className="text-sm text-success-800">
-                  <span className="font-semibold">Billing:</span> GH₵75.00 (New Patient) - Applied on check-in
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={(e) => handleNewPatientSubmit(e, false)}
-                  className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition-colors border border-gray-300"
-                >
-                  Register Only
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
-                >
-                  Register & Check In
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+              >
+                Register Patient
+              </button>
             </form>
           </div>
         )}
