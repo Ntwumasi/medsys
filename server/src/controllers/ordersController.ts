@@ -4,6 +4,7 @@ import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
 import drugInteractionService from '../services/drugInteractionService';
 import { dispenseFromBatches } from './inventoryController';
+import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
 // Lab Orders
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
@@ -244,14 +245,10 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       updateData.result_date = new Date().toISOString();
     }
 
-    const fields = Object.keys(updateData)
-      .map((key, index) => `${key} = $${index + 2}`)
-      .join(', ');
-
-    const values = Object.values(updateData);
+    const { setClause, values } = buildSafeUpdateClause('lab_orders', updateData, 2);
 
     const result = await pool.query(
-      `UPDATE lab_orders SET ${fields}, updated_at = CURRENT_TIMESTAMP
+      `UPDATE lab_orders SET ${setClause}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING *`,
       [id, ...values]
@@ -518,14 +515,10 @@ export const updateImagingOrder = async (req: Request, res: Response): Promise<v
     const id = req.params.id as string;
     const updateData = req.body;
 
-    const fields = Object.keys(updateData)
-      .map((key, index) => `${key} = $${index + 2}`)
-      .join(', ');
-
-    const values = Object.values(updateData);
+    const { setClause, values } = buildSafeUpdateClause('imaging_orders', updateData, 2);
 
     const result = await pool.query(
-      `UPDATE imaging_orders SET ${fields}, updated_at = CURRENT_TIMESTAMP
+      `UPDATE imaging_orders SET ${setClause}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING *`,
       [id, ...values]
@@ -760,14 +753,10 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       updateData.prepared_by = authReq.user.id;
     }
 
-    const fields = Object.keys(updateData)
-      .map((key, index) => `${key} = $${index + 2}`)
-      .join(', ');
-
-    const values = Object.values(updateData);
+    const { setClause, values } = buildSafeUpdateClause('pharmacy_orders', updateData, 2);
 
     const result = await pool.query(
-      `UPDATE pharmacy_orders SET ${fields}, updated_at = CURRENT_TIMESTAMP
+      `UPDATE pharmacy_orders SET ${setClause}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING *`,
       [id, ...values]

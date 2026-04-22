@@ -39,17 +39,22 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
   lab_orders: [
     'patient_id', 'encounter_id', 'ordering_provider', 'test_name',
     'test_code', 'priority', 'status', 'notes', 'clinical_info',
-    'collected_at', 'collected_by', 'completed_at', 'result_notes'
+    'collected_at', 'collected_by', 'completed_at', 'result_notes',
+    'result_date', 'result_value', 'result_unit', 'reference_range',
+    'abnormal_flag', 'verified_by', 'verified_at'
   ],
   imaging_orders: [
     'patient_id', 'encounter_id', 'ordering_provider', 'modality',
-    'body_part', 'priority', 'status', 'notes', 'clinical_info',
-    'scheduled_date', 'completed_at', 'findings', 'impression'
+    'imaging_type', 'study_type', 'body_part', 'priority', 'status',
+    'notes', 'clinical_info', 'scheduled_date', 'completed_at',
+    'findings', 'impression', 'radiologist_notes'
   ],
   pharmacy_orders: [
     'patient_id', 'encounter_id', 'medication_name', 'dosage',
     'frequency', 'route', 'quantity', 'duration', 'priority',
-    'status', 'notes', 'dispensed_at', 'dispensed_by'
+    'status', 'notes', 'dispensed_at', 'dispensed_by', 'dispensed_date',
+    'prepared_by', 'substitute_medication', 'substitute_reason',
+    'refills', 'days_supply', 'inventory_id'
   ],
   invoices: [
     'patient_id', 'encounter_id', 'status', 'subtotal', 'tax_amount',
