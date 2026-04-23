@@ -180,6 +180,7 @@ const Dashboard: React.FC = () => {
   const [auditTotalCount, setAuditTotalCount] = useState(0);
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
   const [auditEntityFilter, setAuditEntityFilter] = useState<string>('all');
+  const [selectedAuditLog, setSelectedAuditLog] = useState<typeof auditLogs[0] | null>(null);
   const auditItemsPerPage = 25;
   const [appointmentsSubTab, setAppointmentsSubTab] = useState<'current' | 'future' | 'past'>('current');
   const [futureAppointments, setFutureAppointments] = useState<Appointment[]>([]);
@@ -2527,9 +2528,7 @@ const Dashboard: React.FC = () => {
                         <td className="px-4 py-3">
                           {log.new_values && (
                             <button
-                              onClick={() => {
-                                alert(JSON.stringify(log.new_values, null, 2));
-                              }}
+                              onClick={() => setSelectedAuditLog(log)}
                               className="text-xs text-primary-600 hover:text-primary-800 font-medium"
                             >
                               View Details
@@ -2583,6 +2582,73 @@ const Dashboard: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Audit Log Detail Modal */}
+        {selectedAuditLog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedAuditLog(null)}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Activity Details</h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedAuditLog.user_name || 'System'} ({selectedAuditLog.user_role}) &mdash; {format(new Date(selectedAuditLog.created_at), 'MMM dd, yyyy h:mm a')}
+                    </p>
+                  </div>
+                  <span className={`px-3 py-1 text-xs font-semibold rounded-full uppercase ${
+                    selectedAuditLog.action === 'create' ? 'bg-success-100 text-success-700' :
+                    selectedAuditLog.action === 'update' ? 'bg-primary-100 text-primary-700' :
+                    selectedAuditLog.action === 'delete' ? 'bg-danger-100 text-danger-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {selectedAuditLog.action}
+                  </span>
+                </div>
+              </div>
+              <div className="p-6">
+                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm font-medium text-gray-500">Entity: </span>
+                  <span className="text-sm font-semibold text-gray-900 capitalize">{selectedAuditLog.entity_type?.replace(/_/g, ' ')}</span>
+                  <span className="text-sm text-gray-500"> (ID: {selectedAuditLog.entity_id})</span>
+                </div>
+                {selectedAuditLog.new_values && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                      {selectedAuditLog.action === 'create' ? 'Created With' : 'Changes Made'}
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(
+                        typeof selectedAuditLog.new_values === 'string'
+                          ? JSON.parse(selectedAuditLog.new_values)
+                          : selectedAuditLog.new_values
+                      ).map(([key, value]) => (
+                        <div key={key} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                          <span className="text-sm font-medium text-gray-500 capitalize min-w-[140px]">
+                            {key.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-sm text-gray-900 break-all">
+                            {value === null || value === undefined ? <span className="text-gray-400 italic">Not set</span> :
+                             typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
+                             typeof value === 'object' ? JSON.stringify(value) :
+                             String(value)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end">
+                <button
+                  onClick={() => setSelectedAuditLog(null)}
+                  className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
