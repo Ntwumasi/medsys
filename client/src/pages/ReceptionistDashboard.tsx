@@ -650,12 +650,21 @@ const ReceptionistDashboard: React.FC = () => {
         showToast('Appointment booked successfully', 'success');
       }
 
+      // Close modal and reset form first
       setShowBookingModal(false);
       setBookingPatientSearch('');
       setBookingPatient(null);
+      setBookingClinic('');
+      setBookingType('follow-up');
+      setBookingReason('');
+      setBookingNotes('');
+      setBookingDoctor(null);
+      setSelectedSlot(null);
+
+      // Then reload data in background
       loadAppointments();
       loadTodayAppointments();
-      loadData(); // Reload queue to reflect checkout
+      loadData();
     } catch (error) {
       console.error('Error booking appointment:', error);
       const apiError = error as ApiError;
