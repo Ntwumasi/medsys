@@ -252,6 +252,14 @@ const ReceptionistDashboard: React.FC = () => {
   const [savingAppointment, setSavingAppointment] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedRefill, setSelectedRefill] = useState<RefillEvent | null>(null);
+  const [showEditAppointmentModal, setShowEditAppointmentModal] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [editAppointmentDate, setEditAppointmentDate] = useState('');
+  const [editAppointmentTime, setEditAppointmentTime] = useState('');
+  const [editAppointmentType, setEditAppointmentType] = useState('');
+  const [editAppointmentReason, setEditAppointmentReason] = useState('');
+  const [editAppointmentDoctor, setEditAppointmentDoctor] = useState<number | null>(null);
+  const [savingEditAppointment, setSavingEditAppointment] = useState(false);
 
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
@@ -705,6 +713,48 @@ const ReceptionistDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error marking no-show:', error);
       showToast('Failed to mark as no-show', 'error');
+    }
+  };
+
+  const openEditAppointmentModal = (appointment: Appointment) => {
+    setEditingAppointment(appointment);
+    const apptDate = new Date(appointment.appointment_date);
+    setEditAppointmentDate(format(apptDate, 'yyyy-MM-dd'));
+    setEditAppointmentTime(format(apptDate, 'HH:mm'));
+    setEditAppointmentType(appointment.appointment_type);
+    setEditAppointmentReason(appointment.reason || '');
+    setEditAppointmentDoctor(appointment.provider_id || null);
+    setSelectedAppointment(null);
+    setShowEditAppointmentModal(true);
+  };
+
+  const handleSaveEditAppointment = async () => {
+    if (!editingAppointment) return;
+
+    setSavingEditAppointment(true);
+    try {
+      const [hours, minutes] = editAppointmentTime.split(':').map(Number);
+      const newDate = new Date(editAppointmentDate);
+      newDate.setHours(hours, minutes, 0, 0);
+
+      await apiClient.put(`/appointments/${editingAppointment.id}`, {
+        appointment_date: newDate.toISOString(),
+        appointment_type: editAppointmentType,
+        reason: editAppointmentReason,
+        provider_id: editAppointmentDoctor || null,
+      });
+
+      showToast('Appointment updated successfully', 'success');
+      setShowEditAppointmentModal(false);
+      setEditingAppointment(null);
+      loadAppointments();
+      loadTodayAppointments();
+    } catch (error) {
+      console.error('Error updating appointment:', error);
+      const apiError = error as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to update appointment', 'error');
+    } finally {
+      setSavingEditAppointment(false);
     }
   };
 
@@ -3157,6 +3207,12 @@ const ReceptionistDashboard: React.FC = () => {
                   {(selectedAppointment.status === 'scheduled' || selectedAppointment.status === 'confirmed') && (
                     <>
                       <button
+                        onClick={() => openEditAppointmentModal(selectedAppointment)}
+                        className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
                         onClick={() => {
                           handleCheckInFromAppointment(selectedAppointment);
                           setSelectedAppointment(null);
@@ -3184,6 +3240,126 @@ const ReceptionistDashboard: React.FC = () => {
                     className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                   >
                     Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Appointment Modal */}
+        {showEditAppointmentModal && editingAppointment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Edit Appointment</h3>
+                <button
+                  onClick={() => { setShowEditAppointmentModal(false); setEditingAppointment(null); }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Patient (read-only) */}
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm text-gray-500">Patient</p>
+                  <p className="font-semibold text-gray-900">{editingAppointment.patient_name}</p>
+                  <p className="text-sm text-gray-600">{editingAppointment.patient_number}</p>
+                </div>
+
+                {/* Date & Time */}
+                <div className="bg-secondary-50 p-4 rounded-lg">
+                  <p className="text-sm text-violet-700 font-medium mb-2">Appointment Date & Time</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-violet-600 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={editAppointmentDate}
+                        onChange={(e) => setEditAppointmentDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-violet-200 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-violet-900 font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-violet-600 mb-1">Time</label>
+                      <input
+                        type="time"
+                        value={editAppointmentTime}
+                        onChange={(e) => setEditAppointmentTime(e.target.value)}
+                        className="w-full px-3 py-2 border border-violet-200 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-violet-900 font-medium"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Appointment Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Type</label>
+                  <select
+                    value={editAppointmentType}
+                    onChange={(e) => setEditAppointmentType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                  >
+                    <option value="follow-up">Follow-up Visit</option>
+                    <option value="new-patient">New Patient</option>
+                    <option value="consultation">Consultation</option>
+                    <option value="procedure">Procedure</option>
+                    <option value="checkup">General Checkup</option>
+                  </select>
+                </div>
+
+                {/* Doctor (Optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Doctor (Optional)</label>
+                  <select
+                    value={editAppointmentDoctor || ''}
+                    onChange={(e) => setEditAppointmentDoctor(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
+                  >
+                    <option value="">Any available doctor</option>
+                    {doctors.map((doctor) => (
+                      <option key={doctor.id} value={doctor.id}>Dr. {doctor.first_name} {doctor.last_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Reason / Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Reason for Visit</label>
+                  <textarea
+                    value={editAppointmentReason}
+                    onChange={(e) => setEditAppointmentReason(e.target.value)}
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent resize-none"
+                    placeholder="Brief description of the appointment reason..."
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => { setShowEditAppointmentModal(false); setEditingAppointment(null); }}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEditAppointment}
+                    disabled={savingEditAppointment}
+                    className="flex-1 px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-violet-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {savingEditAppointment ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
                   </button>
                 </div>
               </div>

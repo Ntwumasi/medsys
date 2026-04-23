@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
@@ -235,6 +235,9 @@ const NurseDashboard: React.FC = () => {
 
   // Vital Signs History state
   const [showVitalsHistory, setShowVitalsHistory] = useState(false);
+
+  // Ref for scrolling to vitals form
+  const vitalsFormRef = useRef<HTMLDivElement>(null);
 
   // Track which patients have had their doctor alerted
   const [doctorAlertedPatients, setDoctorAlertedPatients] = useState<Set<number>>(new Set());
@@ -2017,15 +2020,47 @@ const NurseDashboard: React.FC = () => {
                                 </svg>
                                 Current Vital Signs
                               </h3>
-                              <button
-                                onClick={() => setShowVitalsHistory(true)}
-                                className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-800 font-medium"
-                              >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                View History
-                              </button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => {
+                                    if (selectedPatient?.vital_signs) {
+                                      setVitals({
+                                        temperature: selectedPatient.vital_signs.temperature,
+                                        temperature_unit: selectedPatient.vital_signs.temperature_unit || 'F',
+                                        heart_rate: selectedPatient.vital_signs.heart_rate,
+                                        blood_pressure_systolic: selectedPatient.vital_signs.blood_pressure_systolic,
+                                        blood_pressure_diastolic: selectedPatient.vital_signs.blood_pressure_diastolic,
+                                        respiratory_rate: selectedPatient.vital_signs.respiratory_rate,
+                                        oxygen_saturation: selectedPatient.vital_signs.oxygen_saturation,
+                                        weight: selectedPatient.vital_signs.weight,
+                                        weight_unit: selectedPatient.vital_signs.weight_unit || 'lbs',
+                                        height: selectedPatient.vital_signs.height,
+                                        height_unit: selectedPatient.vital_signs.height_unit || 'in',
+                                        pain_level: selectedPatient.vital_signs.pain_level,
+                                      });
+                                      setVitalErrors({});
+                                      setTimeout(() => {
+                                        vitalsFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                      }, 100);
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 text-sm text-success-600 hover:text-success-800 font-medium"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit Vitals
+                                </button>
+                                <button
+                                  onClick={() => setShowVitalsHistory(true)}
+                                  className="flex items-center gap-1 text-sm text-primary-600 hover:text-primary-800 font-medium"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  View History
+                                </button>
+                              </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                               {selectedPatient.vital_signs.temperature && (
@@ -2132,7 +2167,7 @@ const NurseDashboard: React.FC = () => {
                         )}
 
                         {/* Vital Signs Entry Form */}
-                        <div className="bg-white border border-gray-200 rounded-xl p-5">
+                        <div ref={vitalsFormRef} className="bg-white border border-gray-200 rounded-xl p-5">
                           <div className="flex justify-between items-center mb-4">
                             <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                               <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

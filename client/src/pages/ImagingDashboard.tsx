@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } from '../components/ui';
+import { useNotification } from '../context/NotificationContext';
 
 interface RoutingRequest {
   id: number;
@@ -31,6 +32,9 @@ interface ImagingOrder {
   clinical_indication?: string;
   notes?: string;
   results?: string;
+  findings?: string;
+  impression?: string;
+  radiologist_notes?: string;
   patient_name: string;
   patient_number: string;
   patient_allergies?: string;
@@ -55,6 +59,16 @@ const ImagingDashboard: React.FC = () => {
   // Patient Quick View modal
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
   const [showPatientQuickView, setShowPatientQuickView] = useState(false);
+
+  // Results modal state
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [resultsOrder, setResultsOrder] = useState<ImagingOrder | null>(null);
+  const [resultsFindings, setResultsFindings] = useState('');
+  const [resultsImpression, setResultsImpression] = useState('');
+  const [resultsRadiologistNotes, setResultsRadiologistNotes] = useState('');
+  const [resultsSaving, setResultsSaving] = useState(false);
+
+  const { showToast } = useNotification();
 
   useEffect(() => {
     fetchWalkIns();
@@ -125,6 +139,39 @@ const ImagingDashboard: React.FC = () => {
       // If completed, may auto-route patient back to nurse
     } catch (error) {
       console.error('Error updating order status:', error);
+    }
+  };
+
+  const openResultsModal = (order: ImagingOrder) => {
+    setResultsOrder(order);
+    setResultsFindings(order.findings || '');
+    setResultsImpression(order.impression || '');
+    setResultsRadiologistNotes(order.radiologist_notes || '');
+    setShowResultsModal(true);
+  };
+
+  const saveResults = async (markCompleted: boolean) => {
+    if (!resultsOrder) return;
+    setResultsSaving(true);
+    try {
+      const payload: Record<string, string> = {
+        findings: resultsFindings,
+        impression: resultsImpression,
+        radiologist_notes: resultsRadiologistNotes,
+      };
+      if (markCompleted) {
+        payload.status = 'completed';
+      }
+      await apiClient.put(`/orders/imaging/${resultsOrder.id}`, payload);
+      showToast(markCompleted ? 'Results saved and study marked as completed' : 'Results saved successfully', 'success');
+      setShowResultsModal(false);
+      setResultsOrder(null);
+      fetchImagingOrders();
+    } catch (error) {
+      console.error('Error saving results:', error);
+      showToast('Failed to save results', 'error');
+    } finally {
+      setResultsSaving(false);
     }
   };
 
@@ -451,7 +498,7 @@ const ImagingDashboard: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        <div className="ml-4 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="ml-4 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                           {(order.status === 'pending' || order.status === 'ordered') && (
                             <Button
                               variant="primary"
@@ -463,11 +510,20 @@ const ImagingDashboard: React.FC = () => {
                           )}
                           {order.status === 'in_progress' && (
                             <Button
-                              variant="success"
+                              variant="secondary"
                               size="sm"
-                              onClick={() => updateOrderStatus(order.id, 'completed')}
+                              onClick={() => openResultsModal(order)}
                             >
-                              Complete
+                              Enter Results
+                            </Button>
+                          )}
+                          {order.status === 'completed' && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openResultsModal(order)}
+                            >
+                              Edit Results
                             </Button>
                           )}
                         </div>
@@ -638,6 +694,142 @@ const ImagingDashboard: React.FC = () => {
                   <p>Select an order to view patient details</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Results Entry Modal */}
+      {showResultsModal && resultsOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-50 rounded-t-xl">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {resultsOrder.status === 'completed' ? 'Edit' : 'Enter'} Imaging Results
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {resultsOrder.patient_name} - {resultsOrder.imaging_type} ({resultsOrder.body_part})
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowResultsModal(false); setResultsOrder(null); }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Close modal"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Order Info Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">Study Type:</span>
+                  <span className="ml-2 font-medium text-gray-900">{resultsOrder.imaging_type}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Body Part:</span>
+                  <span className="ml-2 font-medium text-gray-900">{resultsOrder.body_part}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Priority:</span>
+                  <span className={`ml-2 font-medium ${
+                    resultsOrder.priority === 'stat' ? 'text-danger-700' :
+                    resultsOrder.priority === 'urgent' ? 'text-orange-700' : 'text-gray-700'
+                  }`}>
+                    {resultsOrder.priority.toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Ordered by:</span>
+                  <span className="ml-2 font-medium text-gray-900">{resultsOrder.ordering_provider_name}</span>
+                </div>
+                {resultsOrder.clinical_indication && (
+                  <div className="col-span-2">
+                    <span className="text-gray-500">Clinical Indication:</span>
+                    <p className="mt-1 text-gray-700">{resultsOrder.clinical_indication}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Findings */}
+              <div>
+                <label htmlFor="results-findings" className="block text-sm font-semibold text-gray-700 mb-1">
+                  Findings <span className="text-danger-500">*</span>
+                </label>
+                <textarea
+                  id="results-findings"
+                  value={resultsFindings}
+                  onChange={(e) => setResultsFindings(e.target.value)}
+                  rows={5}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-vertical text-sm"
+                  placeholder="Describe the imaging findings in detail..."
+                />
+              </div>
+
+              {/* Impression */}
+              <div>
+                <label htmlFor="results-impression" className="block text-sm font-semibold text-gray-700 mb-1">
+                  Impression <span className="text-danger-500">*</span>
+                </label>
+                <textarea
+                  id="results-impression"
+                  value={resultsImpression}
+                  onChange={(e) => setResultsImpression(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-vertical text-sm"
+                  placeholder="Summary impression / conclusion..."
+                />
+              </div>
+
+              {/* Radiologist Notes */}
+              <div>
+                <label htmlFor="results-radiologist-notes" className="block text-sm font-semibold text-gray-700 mb-1">
+                  Radiologist Notes
+                </label>
+                <textarea
+                  id="results-radiologist-notes"
+                  value={resultsRadiologistNotes}
+                  onChange={(e) => setResultsRadiologistNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-vertical text-sm"
+                  placeholder="Additional notes, recommendations, follow-up suggestions..."
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-between items-center">
+              <button
+                onClick={() => { setShowResultsModal(false); setResultsOrder(null); }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                disabled={resultsSaving}
+              >
+                Cancel
+              </button>
+              <div className="flex gap-3">
+                {resultsOrder.status !== 'completed' && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => saveResults(false)}
+                    disabled={resultsSaving}
+                  >
+                    {resultsSaving ? 'Saving...' : 'Save Draft'}
+                  </Button>
+                )}
+                <Button
+                  variant="success"
+                  onClick={() => saveResults(resultsOrder.status !== 'completed')}
+                  disabled={resultsSaving || (!resultsFindings.trim() && !resultsImpression.trim())}
+                >
+                  {resultsSaving ? 'Saving...' : resultsOrder.status === 'completed' ? 'Update Results' : 'Save & Complete'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

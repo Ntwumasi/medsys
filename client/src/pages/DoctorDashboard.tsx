@@ -558,11 +558,29 @@ const DoctorDashboard: React.FC = () => {
     setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
   };
 
+  const handleEditLabOrder = (index: number) => {
+    const order = pendingLabOrders[index];
+    setCurrentLabOrder({ ...order });
+    setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
+  };
+
   const handleRemoveImagingOrder = (index: number) => {
     setPendingImagingOrders(pendingImagingOrders.filter((_, i) => i !== index));
   };
 
+  const handleEditImagingOrder = (index: number) => {
+    const order = pendingImagingOrders[index];
+    setCurrentImagingOrder({ ...order });
+    setPendingImagingOrders(pendingImagingOrders.filter((_, i) => i !== index));
+  };
+
   const handleRemovePharmacyOrder = (index: number) => {
+    setPendingPharmacyOrders(pendingPharmacyOrders.filter((_, i) => i !== index));
+  };
+
+  const handleEditPharmacyOrder = (index: number) => {
+    const order = pendingPharmacyOrders[index];
+    setCurrentPharmacyOrder({ ...order });
     setPendingPharmacyOrders(pendingPharmacyOrders.filter((_, i) => i !== index));
   };
 
@@ -1851,8 +1869,18 @@ const DoctorDashboard: React.FC = () => {
                                   <div className="text-xs text-primary-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
+                                  onClick={() => handleEditLabOrder(index)}
+                                  className="text-primary-600 hover:text-primary-800 ml-2"
+                                  title="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
                                   onClick={() => handleRemoveLabOrder(index)}
-                                  className="text-danger-600 hover:text-danger-800 ml-2"
+                                  className="text-danger-600 hover:text-danger-800 ml-1"
+                                  title="Remove"
                                 >
                                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1924,10 +1952,20 @@ const DoctorDashboard: React.FC = () => {
                                   <div className="text-xs text-gray-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
                                 </div>
                                 <button
-                                  onClick={() => handleRemoveImagingOrder(index)}
-                                  className="text-danger-600 hover:text-danger-800 ml-2"
+                                  onClick={() => handleEditImagingOrder(index)}
+                                  className="text-primary-600 hover:text-primary-800 ml-2"
+                                  title="Edit"
                                 >
-                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveImagingOrder(index)}
+                                  className="text-danger-600 hover:text-danger-800 ml-1"
+                                  title="Remove"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                   </svg>
                                 </button>
@@ -2104,14 +2142,26 @@ const DoctorDashboard: React.FC = () => {
                                     )}
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleRemovePharmacyOrder(index)}
-                                  className="text-danger-600 hover:text-danger-800 ml-2"
-                                >
-                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
+                                <div className="flex flex-col gap-1 ml-2">
+                                  <button
+                                    onClick={() => handleEditPharmacyOrder(index)}
+                                    className="text-primary-600 hover:text-primary-800"
+                                    title="Edit"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleRemovePharmacyOrder(index)}
+                                    className="text-danger-600 hover:text-danger-800"
+                                    title="Remove"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
