@@ -188,12 +188,11 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    // Create registration fee invoice if requested
+    // Create registration fee invoice (always pending — payment collected separately)
     const { registration_payment } = req.body;
+    let registrationInvoice = null;
     if (registration_payment === 'pay_now' || registration_payment === 'pay_later') {
       const registrationFee = 75.00;
-      const invoiceStatus = registration_payment === 'pay_now' ? 'paid' : 'pending';
-      const amountPaid = registration_payment === 'pay_now' ? registrationFee : 0;
 
       // Generate invoice number
       const maxInvResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
@@ -203,9 +202,9 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
         `INSERT INTO invoices (
           patient_id, invoice_number, invoice_date, subtotal, tax, total_amount,
           amount_paid, status
-        ) VALUES ($1, $2, CURRENT_DATE, $3, 0, $3, $4, $5)
-        RETURNING id`,
-        [patient_id, invoiceNumber, registrationFee, amountPaid, invoiceStatus]
+        ) VALUES ($1, $2, CURRENT_DATE, $3, 0, $3, 0, 'pending')
+        RETURNING *`,
+        [patient_id, invoiceNumber, registrationFee]
       );
 
       // Create invoice item for registration fee
@@ -214,6 +213,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
          VALUES ($1, 'Patient Registration Fee', 1, $2, $2, 'registration')`,
         [invoiceResult.rows[0].id, registrationFee]
       );
+
+      registrationInvoice = invoiceResult.rows[0];
     }
 
     await client.query('COMMIT');
@@ -221,6 +222,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     res.status(201).json({
       message: 'Patient created successfully',
       patient: result.rows[0],
+      registration_invoice: registrationInvoice,
+      open_invoice: registration_payment === 'pay_now',
     });
   } catch (error: any) {
     await client.query('ROLLBACK');

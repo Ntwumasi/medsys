@@ -834,10 +834,15 @@ const ReceptionistDashboard: React.FC = () => {
       // Reload data
       await loadData();
 
-      const paymentMsg = registrationPayment === 'pay_now'
-        ? 'Registration fee: GH₵75.00 (Paid)'
-        : 'Registration fee: GH₵75.00 (Pending)';
-      showToast(`Patient registered! #${newPatientData.patient_number}. ${paymentMsg}. Check them in from Returning Patient or Appointments.`, 'success');
+      const responseData = patientResponse.data;
+
+      if (registrationPayment === 'pay_now' && responseData.registration_invoice) {
+        // Open the invoice so receptionist can collect payment
+        showToast(`Patient registered! #${newPatientData.patient_number}. Opening invoice for payment...`, 'success');
+        handleViewInvoiceById(responseData.registration_invoice.id);
+      } else {
+        showToast(`Patient registered! #${newPatientData.patient_number}. Registration fee: GH₵75.00 (Balance owed). Check them in from Returning Patient or Appointments.`, 'success');
+      }
     } catch (error) {
       console.error('Error creating new patient:', error);
       const apiError = error as ApiError;
@@ -895,6 +900,22 @@ const ReceptionistDashboard: React.FC = () => {
       setInvoiceItems(response.data.items || []);
       setInvoicePayerSources(response.data.payer_sources || []);
       setCurrentEncounterId(encounterId);
+      setShowInvoice(true);
+    } catch (error) {
+      console.error('Error loading invoice:', error);
+      const apiError = error as ApiError;
+      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to load invoice';
+      showToast(errorMessage, 'error');
+    }
+  };
+
+  const handleViewInvoiceById = async (invoiceId: number) => {
+    try {
+      const response = await apiClient.get(`/invoices/${invoiceId}`);
+      setInvoiceData(response.data.invoice || response.data);
+      setInvoiceItems(response.data.items || []);
+      setInvoicePayerSources(response.data.payer_sources || []);
+      setCurrentEncounterId(0);
       setShowInvoice(true);
     } catch (error) {
       console.error('Error loading invoice:', error);
