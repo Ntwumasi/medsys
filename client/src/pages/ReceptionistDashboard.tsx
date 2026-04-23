@@ -803,6 +803,8 @@ const ReceptionistDashboard: React.FC = () => {
         registration_payment: registrationPayment,
       });
       const newPatientData = patientResponse.data.patient;
+      const responseData = patientResponse.data;
+      const paymentChoice = registrationPayment;
 
       // Reset form
       setNewPatient({
@@ -834,12 +836,9 @@ const ReceptionistDashboard: React.FC = () => {
       // Reload data
       await loadData();
 
-      const responseData = patientResponse.data;
-
-      if (registrationPayment === 'pay_now' && responseData.registration_invoice) {
-        // Open the invoice so receptionist can collect payment
+      if (paymentChoice === 'pay_now' && responseData.registration_invoice) {
         showToast(`Patient registered! #${newPatientData.patient_number}. Opening invoice for payment...`, 'success');
-        handleViewInvoiceById(responseData.registration_invoice.id);
+        await handleViewInvoiceById(responseData.registration_invoice.id);
       } else {
         showToast(`Patient registered! #${newPatientData.patient_number}. Registration fee: GH₵75.00 (Balance owed). Check them in from Returning Patient or Appointments.`, 'success');
       }
@@ -3336,12 +3335,12 @@ const ReceptionistDashboard: React.FC = () => {
       )}
 
       {/* Invoice Modal */}
-      {showInvoice && invoiceData && currentEncounterId && (
+      {showInvoice && invoiceData && (
         <PrintableInvoice
           invoice={invoiceData}
           items={invoiceItems}
           payerSources={invoicePayerSources}
-          encounterId={currentEncounterId}
+          encounterId={currentEncounterId || undefined}
           onClose={() => setShowInvoice(false)}
           onPaymentComplete={handlePaymentComplete}
         />
