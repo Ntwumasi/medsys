@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
+import { useNotification } from '../context/NotificationContext';
 
 interface LabResult {
   id: number;
@@ -31,6 +32,10 @@ const PatientDetails: React.FC = () => {
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editData, setEditData] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useNotification();
 
   useEffect(() => {
     if (id) {
@@ -84,6 +89,44 @@ const PatientDetails: React.FC = () => {
     return colors[severity || ''] || 'bg-gray-100 text-gray-800';
   };
 
+  const openEditModal = () => {
+    if (!summary) return;
+    const p = summary.patient;
+    setEditData({
+      first_name: p.first_name || '',
+      last_name: p.last_name || '',
+      phone: p.phone || '',
+      email: p.email || '',
+      date_of_birth: p.date_of_birth || '',
+      gender: p.gender || '',
+      address: p.address || '',
+      city: p.city || '',
+      allergies: p.allergies || '',
+      emergency_contact_name: p.emergency_contact_name || '',
+      emergency_contact_phone: p.emergency_contact_phone || '',
+      emergency_contact_relationship: p.emergency_contact_relationship || '',
+      pcp_name: p.pcp_name || '',
+      pcp_phone: p.pcp_phone || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!summary) return;
+    setSaving(true);
+    try {
+      await apiClient.put(`/patients/${summary.patient.id}`, editData);
+      showToast('Patient information updated', 'success');
+      setShowEditModal(false);
+      loadPatientSummary(summary.patient.id);
+    } catch (error) {
+      console.error('Error updating patient:', error);
+      showToast('Failed to update patient', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <AppLayout title="Patient Details">
@@ -124,7 +167,18 @@ const PatientDetails: React.FC = () => {
 
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={openEditModal}
+              className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Patient
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
                 <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -174,8 +228,8 @@ const PatientDetails: React.FC = () => {
                   <span className="text-gray-500 text-sm w-24">Address:</span>
                   <span className="font-semibold text-gray-900">
                     {patient.address || 'N/A'}
-                    {patient.city && patient.state && (
-                      <span className="block text-gray-600">{patient.city}, {patient.state}</span>
+                    {patient.city && (
+                      <span className="block text-gray-600">{patient.city}</span>
                     )}
                   </span>
                 </div>
@@ -202,6 +256,50 @@ const PatientDetails: React.FC = () => {
                   <span className="text-gray-500 text-sm w-24">Relationship:</span>
                   <span className="font-semibold text-gray-900 capitalize">{patient.emergency_contact_relationship || 'N/A'}</span>
                 </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                Insurance & Billing
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-gray-500 text-sm w-24">Payer:</span>
+                  <div>
+                    {summary.payer_sources && summary.payer_sources.length > 0 ? (
+                      summary.payer_sources.map((ps) => (
+                        <div key={ps.id} className="font-semibold text-gray-900 capitalize">
+                          {ps.payer_type === 'corporate' ? ps.corporate_client_name :
+                           ps.payer_type === 'insurance' ? ps.insurance_provider_name :
+                           'Self Pay'}
+                          {ps.is_primary && <span className="text-xs text-primary-500 ml-1">(Primary)</span>}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-gray-400">Not set</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-500 text-sm w-24">Balance:</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded ${
+                    (summary.outstanding_balance || 0) > 0 ? 'bg-danger-100 text-danger-800' : 'bg-success-100 text-success-800'
+                  }`}>
+                    {(summary.outstanding_balance || 0) > 0
+                      ? `GH₵${Number(summary.outstanding_balance).toFixed(2)} owed`
+                      : 'No balance'}
+                  </span>
+                </div>
+                {patient.pcp_name && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-gray-500 text-sm w-24">PCP:</span>
+                    <span className="font-semibold text-gray-900">{patient.pcp_name}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -709,6 +807,98 @@ const PatientDetails: React.FC = () => {
           patientId={patient.id}
           onClose={() => setShowVitalSignsHistory(false)}
         />
+      )}
+      {/* Edit Patient Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowEditModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl sticky top-0">
+              <h3 className="text-lg font-bold text-gray-900">Edit Patient Information</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <input type="text" value={editData.first_name || ''} onChange={(e) => setEditData({ ...editData, first_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <input type="text" value={editData.last_name || ''} onChange={(e) => setEditData({ ...editData, last_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="text" value={editData.phone || ''} onChange={(e) => setEditData({ ...editData, phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input type="email" value={editData.email || ''} onChange={(e) => setEditData({ ...editData, email: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <input type="date" value={editData.date_of_birth || ''} onChange={(e) => setEditData({ ...editData, date_of_birth: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select value={editData.gender || ''} onChange={(e) => setEditData({ ...editData, gender: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input type="text" value={editData.address || ''} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input type="text" value={editData.city || ''} onChange={(e) => setEditData({ ...editData, city: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
+                <input type="text" value={editData.allergies || ''} onChange={(e) => setEditData({ ...editData, allergies: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" placeholder="e.g., Penicillin, Nuts" />
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Emergency Contact</h4>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input type="text" value={editData.emergency_contact_name || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="text" value={editData.emergency_contact_phone || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                  <input type="text" value={editData.emergency_contact_relationship || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_relationship: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Primary Care Physician</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">PCP Name</label>
+                  <input type="text" value={editData.pcp_name || ''} onChange={(e) => setEditData({ ...editData, pcp_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">PCP Phone</label>
+                  <input type="text" value={editData.pcp_phone || ''} onChange={(e) => setEditData({ ...editData, pcp_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end sticky bottom-0">
+              <button onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={saving} className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );

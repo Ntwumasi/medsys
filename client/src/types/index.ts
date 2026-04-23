@@ -32,6 +32,8 @@ export interface Patient {
   marital_status?: string;
   occupation?: string;
   vip_status?: 'silver' | 'gold' | 'platinum' | null;
+  pcp_name?: string;
+  pcp_phone?: string;
   created_at: string;
   updated_at: string;
 }
@@ -132,6 +134,14 @@ export interface PatientSummary {
   active_medications: Medication[];
   allergies: Allergy[];
   upcoming_appointments: Appointment[];
+  payer_sources?: Array<{
+    id: number;
+    payer_type: string;
+    corporate_client_name?: string;
+    insurance_provider_name?: string;
+    is_primary: boolean;
+  }>;
+  outstanding_balance?: number;
 }
 
 // Extended Encounter for HP Form with additional display fields

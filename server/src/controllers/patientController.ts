@@ -487,12 +487,35 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       [id]
     );
 
+    // Get payer sources (insurance, corporate, self-pay)
+    const payerSourcesResult = await pool.query(
+      `SELECT pps.*,
+              cc.name as corporate_client_name,
+              ip.name as insurance_provider_name
+       FROM patient_payer_sources pps
+       LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+       LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+       WHERE pps.patient_id = $1
+       ORDER BY pps.is_primary DESC`,
+      [id]
+    );
+
+    // Get outstanding balance
+    const balanceResult = await pool.query(
+      `SELECT COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as outstanding_balance
+       FROM invoices
+       WHERE patient_id = $1 AND status IN ('pending', 'partial')`,
+      [id]
+    );
+
     res.json({
       patient: patientResult.rows[0],
       recent_encounters: encountersResult.rows,
       active_medications: medicationsResult.rows,
       allergies: allergiesResult.rows,
       upcoming_appointments: appointmentsResult.rows,
+      payer_sources: payerSourcesResult.rows,
+      outstanding_balance: parseFloat(balanceResult.rows[0].outstanding_balance) || 0,
     });
   } catch (error) {
     console.error('Get patient summary error:', error);
