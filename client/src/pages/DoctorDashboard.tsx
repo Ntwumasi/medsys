@@ -642,11 +642,11 @@ const DoctorDashboard: React.FC = () => {
       });
       console.log('Alert nurse response:', response.data);
 
-      const message = reviewRequired
-        ? 'Nurse alerted. Review call scheduled for ' + reviewDate + '.'
-        : followUpRequired
-        ? 'Nurse alerted. Follow-up visit marked for scheduling.'
-        : 'Nurse has been alerted. Patient is ready for follow-up care.';
+      const parts: string[] = ['Nurse alerted.'];
+      if (followUpRequired) parts.push(`Follow-up visit marked (${followUpTimeframe}).`);
+      if (reviewRequired) parts.push(`Review call scheduled for ${reviewDate}.`);
+      if (!followUpRequired && !reviewRequired) parts.push('Patient is ready for follow-up care.');
+      const message = parts.join(' ');
       showToast(message, 'success');
 
       setShowFollowUpModal(false);
@@ -2713,7 +2713,7 @@ const DoctorDashboard: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={followUpRequired}
-                  onChange={(e) => { setFollowUpRequired(e.target.checked); if (e.target.checked) setReviewRequired(false); }}
+                  onChange={(e) => setFollowUpRequired(e.target.checked)}
                   className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
                 />
                 <span className="font-medium text-gray-700">Schedule follow-up visit</span>
@@ -2753,7 +2753,7 @@ const DoctorDashboard: React.FC = () => {
                 <input
                   type="checkbox"
                   checked={reviewRequired}
-                  onChange={(e) => { setReviewRequired(e.target.checked); if (e.target.checked) setFollowUpRequired(false); }}
+                  onChange={(e) => setReviewRequired(e.target.checked)}
                   className="w-5 h-5 text-warning-600 border-gray-300 rounded focus:ring-warning-500"
                 />
                 <div>
