@@ -202,6 +202,14 @@ const DoctorDashboard: React.FC = () => {
       // Sort by newest first (highest ID = most recent)
       const encounters = (res.data.encounters || []).sort((a: RoomEncounter, b: RoomEncounter) => b.id - a.id);
       setRoomEncounters(encounters);
+
+      // Keep selectedEncounter in sync with latest data (e.g., nurse adds vitals)
+      if (selectedEncounter) {
+        const updated = encounters.find((e: RoomEncounter) => e.id === selectedEncounter.id);
+        if (updated) {
+          setSelectedEncounter(updated);
+        }
+      }
     } catch (error) {
       console.error('Error loading room encounters:', error);
     } finally {
@@ -949,7 +957,7 @@ const DoctorDashboard: React.FC = () => {
                 across the doctor's active patients so they don't have to
                 click into each patient to find out which notes need signing. */}
             {(() => {
-              const unsigned = roomEncounters.filter((e) => !e.soap_signed);
+              const unsigned = roomEncounters.filter((e) => !e.soap_signed && e.status === 'with_doctor');
               if (unsigned.length === 0) return null;
               return (
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
@@ -1071,72 +1079,20 @@ const DoctorDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Pending Signatures Section */}
-            {selectedEncounter && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      <h2 className="text-sm font-semibold text-white">Pending Signatures</h2>
-                    </div>
-                    <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
-                      {!soapSigned ? 1 : 0}
-                    </span>
+            {/* Signature status shown inline when a patient is selected and SOAP is signed */}
+            {selectedEncounter && soapSigned && (
+              <div className="mt-4 flex items-center gap-3 p-3 bg-success-50 rounded-xl border border-success-200">
+                <svg className="w-5 h-5 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-success-800">
+                    SOAP signed — {selectedEncounter.patient_name}
                   </div>
-                </div>
-                <div className="p-3">
-                  {!soapSigned ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between p-3 bg-warning-50 rounded-lg border border-warning-200">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-warning-800 truncate">
-                              SOAP Note — {selectedEncounter.patient_name}
-                            </div>
-                            <div className="text-xs text-warning-600 truncate">
-                              {selectedEncounter.encounter_number
-                                ? `Encounter ${selectedEncounter.encounter_number}`
-                                : 'Current visit'}
-                              {selectedEncounter.room_number
-                                ? ` · Room ${selectedEncounter.room_number}`
-                                : ''}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={handleSignSOAP}
-                          className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0 ml-2"
-                        >
-                          Sign Now
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 p-3 bg-success-50 rounded-lg border border-success-200">
-                      <div className="w-8 h-8 rounded-full bg-success-100 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-success-800 truncate">
-                          SOAP signed — {selectedEncounter.patient_name}
-                        </div>
-                        <div className="text-xs text-success-600 truncate">
-                          {soapSignedBy ? `By ${soapSignedBy}` : 'Signed'}
-                          {soapSignedAt ? ` · ${soapSignedAt}` : ''}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <div className="text-xs text-success-600">
+                    {soapSignedBy ? `By ${soapSignedBy}` : 'Signed'}
+                    {soapSignedAt ? ` · ${soapSignedAt}` : ''}
+                  </div>
                 </div>
               </div>
             )}
