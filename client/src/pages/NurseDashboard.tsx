@@ -2092,10 +2092,18 @@ const NurseDashboard: React.FC = () => {
                                   </div>
                                 </div>
                               )}
-                              {selectedPatient.vital_signs.weight && selectedPatient.vital_signs.height && (() => {
+                              {(() => {
                                 const vs = selectedPatient.vital_signs;
-                                const w = vs.weight!;
-                                const h = vs.height!;
+                                const w = vs.weight;
+                                const h = vs.height;
+                                if (!w || !h) {
+                                  return (
+                                    <div className="bg-white rounded-lg p-3 shadow-sm">
+                                      <div className="text-xs text-gray-500 uppercase font-medium">BMI</div>
+                                      <div className="text-sm text-gray-400 mt-1">Enter weight & height</div>
+                                    </div>
+                                  );
+                                }
                                 const weightKg = vs.weight_unit === 'kg' ? w : w * 0.453592;
                                 const heightM = vs.height_unit === 'cm' ? h / 100 : h * 0.0254;
                                 if (!heightM || !weightKg) return null;

@@ -1317,10 +1317,18 @@ const DoctorDashboard: React.FC = () => {
                             </div>
                           </div>
                         )}
-                        {selectedEncounter.vital_signs.weight && selectedEncounter.vital_signs.height && (() => {
+                        {(() => {
                           const vs = selectedEncounter.vital_signs;
-                          const w = vs.weight!;
-                          const h = vs.height!;
+                          const w = vs.weight;
+                          const h = vs.height;
+                          if (!w || !h) {
+                            return (
+                              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                                <div className="text-xs text-gray-500 mb-1">BMI</div>
+                                <div className="text-sm text-gray-400">No weight/height</div>
+                              </div>
+                            );
+                          }
                           const weightKg = vs.weight_unit === 'kg' ? w : w * 0.453592;
                           const heightM = vs.height_unit === 'cm' ? h / 100 : h * 0.0254;
                           if (!heightM || !weightKg) return null;
