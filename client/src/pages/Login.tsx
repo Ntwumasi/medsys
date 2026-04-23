@@ -15,14 +15,23 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [showDemoCredentials, setShowDemoCredentials] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null);
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+  const [lockoutCountdown, setLockoutCountdown] = useState(0);
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  const { login, clearMustChangePassword } = useAuth();
+  const { login, clearMustChangePassword, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   // Auto-focus username on mount, or password if username is already filled
   useEffect(() => {
@@ -34,11 +43,33 @@ const Login: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutCountdown(prev => {
+        if (prev <= 1) {
+          setLockedUntil(null);
+          setError('Lockout period has expired. You may try again.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutCountdown]);
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setAttemptsRemaining(null);
-    setLockedUntil(null);
+    setShowForgotPassword(false);
     setLoading(true);
 
     try {
@@ -66,14 +97,10 @@ const Login: React.FC = () => {
         setAttemptsRemaining(errorData.attempts_remaining);
       }
 
-      // Show lockout message if account is locked
+      // Show lockout with countdown
       if (errorData?.locked) {
         setLockedUntil('locked');
-        // Auto-clear the lockout state after 15 minutes so the button re-enables
-        setTimeout(() => {
-          setLockedUntil(null);
-          setError('Lockout period has expired. You may try again.');
-        }, 15 * 60 * 1000);
+        setLockoutCountdown(15 * 60); // 15 minutes in seconds
       }
 
       // Focus password field on error so user can retype quickly
@@ -125,10 +152,28 @@ const Login: React.FC = () => {
                 </p>
               )}
               {lockedUntil && (
-                <p className="text-xs mt-2 text-danger-600">
-                  Account is locked. Please wait 15 minutes or contact an administrator.
+                <p className="text-xs mt-2 text-danger-600 font-medium">
+                  Account is locked. Try again in {formatCountdown(lockoutCountdown)} or contact an administrator.
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Forgot Password Info */}
+          {showForgotPassword && (
+            <div className="bg-primary-50 border border-primary-200 text-primary-700 px-4 py-3 rounded-lg mb-6 animate-slide-in-up">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm">
+                  <p className="font-semibold mb-1">Forgot your password?</p>
+                  <p>Please contact your system administrator to reset your password.</p>
+                  <p className="mt-1 text-xs text-primary-500">
+                    Your username format is: first initial + last name (e.g., John Smith = jsmith)
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -145,7 +190,7 @@ const Login: React.FC = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 className="form-input"
                 required
-                placeholder="e.g., jsmith"
+                placeholder="first initial + last name"
                 autoComplete="username"
               />
             </div>
@@ -163,6 +208,7 @@ const Login: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="form-input pr-10"
                   required
+                  placeholder="Enter your password"
                   autoComplete="current-password"
                 />
                 <button
@@ -184,6 +230,15 @@ const Login: React.FC = () => {
                   )}
                 </button>
               </div>
+              <div className="flex justify-end mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(!showForgotPassword)}
+                  className="text-xs text-primary-600 hover:text-primary-800 font-medium transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
             </div>
 
             <button
@@ -199,6 +254,8 @@ const Login: React.FC = () => {
                   </svg>
                   Signing In...
                 </span>
+              ) : lockedUntil ? (
+                `Locked (${formatCountdown(lockoutCountdown)})`
               ) : (
                 'Sign In'
               )}
