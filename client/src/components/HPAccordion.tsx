@@ -717,6 +717,31 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                         </div>
                       </div>
                     )}
+                    {(() => {
+                      const w = vitalSigns.weight;
+                      const h = vitalSigns.height;
+                      if (!w || !h) {
+                        return (
+                          <div className="bg-white rounded-lg p-3 shadow-sm">
+                            <div className="text-xs text-gray-500 uppercase font-medium">BMI</div>
+                            <div className="text-sm text-gray-400 mt-1">Enter weight & height</div>
+                          </div>
+                        );
+                      }
+                      const weightKg = vitalSigns.weight_unit === 'kg' ? w : w * 0.453592;
+                      const heightM = vitalSigns.height_unit === 'cm' ? h / 100 : h * 0.0254;
+                      if (!heightM || !weightKg) return null;
+                      const bmi = weightKg / (heightM * heightM);
+                      const category = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
+                      const color = bmi < 18.5 ? 'text-warning-600' : bmi < 25 ? 'text-success-600' : bmi < 30 ? 'text-warning-600' : 'text-danger-600';
+                      return (
+                        <div className="bg-white rounded-lg p-3 shadow-sm">
+                          <div className="text-xs text-gray-500 uppercase font-medium">BMI</div>
+                          <div className={`text-lg font-bold ${color}`}>{bmi.toFixed(1)}</div>
+                          <div className={`text-xs ${color}`}>{category}</div>
+                        </div>
+                      );
+                    })()}
                     {vitalSigns.pain_level !== undefined && vitalSigns.pain_level !== null && (
                       <div className="bg-white rounded-lg p-3 shadow-sm">
                         <div className="text-xs text-gray-500 uppercase font-medium">Pain Level</div>
