@@ -167,6 +167,8 @@ const Dashboard: React.FC = () => {
   const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
   const [showAddCharge, setShowAddCharge] = useState(false);
   const [newCharge, setNewCharge] = useState({ service_name: '', service_code: '', category: 'consultation', price: '', description: '' });
+  const [chargesPage, setChargesPage] = useState(1);
+  const chargesPerPage = 20;
 
   // Audit logs state
   const [auditLogs, setAuditLogs] = useState<Array<{
@@ -924,10 +926,12 @@ const Dashboard: React.FC = () => {
     if (chargeCategoryFilter !== 'all' && c.category !== chargeCategoryFilter) return false;
     if (chargeSearch) {
       const s = chargeSearch.toLowerCase();
-      return c.service_name.toLowerCase().includes(s) || c.service_code.toLowerCase().includes(s);
+      return c.service_name.toLowerCase().includes(s) || c.service_code.toLowerCase().includes(s) || c.description?.toLowerCase().includes(s);
     }
     return true;
   });
+  const chargesTotalPages = Math.ceil(filteredCharges.length / chargesPerPage);
+  const paginatedCharges = filteredCharges.slice((chargesPage - 1) * chargesPerPage, chargesPage * chargesPerPage);
 
 
   return (
@@ -2744,12 +2748,12 @@ const Dashboard: React.FC = () => {
                 type="text"
                 placeholder="Search by name or code..."
                 value={chargeSearch}
-                onChange={(e) => setChargeSearch(e.target.value)}
+                onChange={(e) => { setChargeSearch(e.target.value); setChargesPage(1); }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
               />
               <select
                 value={chargeCategoryFilter}
-                onChange={(e) => setChargeCategoryFilter(e.target.value)}
+                onChange={(e) => { setChargeCategoryFilter(e.target.value); setChargesPage(1); }}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
               >
                 <option value="all">All Categories</option>
@@ -2777,7 +2781,7 @@ const Dashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredCharges.map((charge) => (
+                    {paginatedCharges.map((charge) => (
                       <tr key={charge.id} className="hover:bg-gray-50">
                         <td className="px-6 py-3 text-sm font-mono text-gray-600">{charge.service_code}</td>
                         <td className="px-6 py-3 text-sm font-medium text-gray-900">{charge.service_name}</td>
@@ -2809,6 +2813,47 @@ const Dashboard: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+                {/* Pagination */}
+                {chargesTotalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {((chargesPage - 1) * chargesPerPage) + 1}–{Math.min(chargesPage * chargesPerPage, filteredCharges.length)} of {filteredCharges.length} services
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setChargesPage(1)}
+                        disabled={chargesPage === 1}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        First
+                      </button>
+                      <button
+                        onClick={() => setChargesPage(p => p - 1)}
+                        disabled={chargesPage === 1}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-3 py-1.5 text-sm font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg">
+                        {chargesPage} / {chargesTotalPages}
+                      </span>
+                      <button
+                        onClick={() => setChargesPage(p => p + 1)}
+                        disabled={chargesPage === chargesTotalPages}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                      <button
+                        onClick={() => setChargesPage(chargesTotalPages)}
+                        disabled={chargesPage === chargesTotalPages}
+                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Last
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
