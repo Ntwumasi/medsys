@@ -200,22 +200,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
-    setMustChangePassword(false);
-    setActiveRoleState(null);
-    setImpersonation({
-      isImpersonating: false,
-      originalUser: null,
-      originalToken: null,
-    });
+    // Clear all auth state from localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('impersonation');
     localStorage.removeItem('mustChangePassword');
     localStorage.removeItem('activeRole');
-    // Reset the 401 counter so stale polling requests don't interfere with next login
     resetApiClientState();
+
+    // Hard redirect to /login — this fully resets all React state,
+    // SSE connections, polling intervals, and stale closures.
+    // A soft navigate() leaves orphaned connections that interfere
+    // with the next login session.
+    window.location.href = '/login';
   };
 
   const impersonateUser = async (userId: number) => {

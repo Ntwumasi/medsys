@@ -1,15 +1,13 @@
 import React from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    logout(); // Hard redirects to /login
   };
 
   return (

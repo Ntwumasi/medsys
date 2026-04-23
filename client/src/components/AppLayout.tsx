@@ -255,8 +255,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   };
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    logout(); // Hard redirects to /login
   };
 
   // Use activeRole for super admins, otherwise use user's actual role
