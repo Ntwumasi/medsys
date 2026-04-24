@@ -23,8 +23,9 @@ const FORM_ROUTE_MAP: Array<{ patterns: RegExp[]; form: string; route: string }>
   { patterns: [/\bPATCH\b/], form: 'Patch', route: 'Transdermal' },
 ];
 
-// Regex to capture dosage: "500MG", "120MG/5ML", "0.3%", "75MG/3ML", "10MG/ML"
-const DOSAGE_REGEX = /\b(\d+(?:\.\d+)?(?:MG|MCG|G|ML|IU|%|MMOL)(?:\/\d+(?:\.\d+)?(?:ML|MG|G))?)\b/i;
+// Regex to capture dosage with optional spaces between number and unit
+// Matches: "500MG", "500 MG", "120MG/5ML", "120 MG/5 ML", "0.3%", "75MG/3ML", "10MG/ML", "500MG/250MG"
+const DOSAGE_REGEX = /\b(\d+(?:\.\d+)?\s*(?:MG|MCG|G|ML|IU|%|MMOL)(?:\s*\/\s*\d+(?:\.\d+)?\s*(?:ML|MG|G))?)\b/i;
 
 export function parseMedicationName(name: string): ParsedMedication {
   const upper = name.toUpperCase();
@@ -33,7 +34,8 @@ export function parseMedicationName(name: string): ParsedMedication {
   // Extract dosage
   const dosageMatch = upper.match(DOSAGE_REGEX);
   if (dosageMatch) {
-    result.dosage = dosageMatch[1];
+    // Normalize: remove internal spaces for clean display (e.g., "120 MG/5 ML" → "120MG/5ML")
+    result.dosage = dosageMatch[1].replace(/\s+/g, '');
   }
 
   // Determine form and route

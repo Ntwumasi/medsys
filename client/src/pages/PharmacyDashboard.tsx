@@ -8,6 +8,7 @@ import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
+import { parseMedicationName } from '../utils/medicationParser';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -484,12 +485,13 @@ const PharmacyDashboard: React.FC = () => {
       showToast('Medication already added', 'warning');
       return;
     }
+    const parsed = parseMedicationName(item.medication_name);
     setWalkInMedications([...walkInMedications, {
       inventory_id: item.id,
       medication_name: item.medication_name,
       quantity: 1,
       unit_price: item.selling_price,
-      dosage: '',
+      dosage: parsed.dosage || '',
       frequency: '',
       duration_days: '',
       instructions: ''
@@ -3870,6 +3872,16 @@ const PharmacyDashboard: React.FC = () => {
                                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
                               />
                             </div>
+                          </div>
+                          <div className="mt-2">
+                            <label className="text-xs text-gray-500">Instructions</label>
+                            <input
+                              type="text"
+                              placeholder="e.g., Take after meals"
+                              value={med.instructions}
+                              onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                            />
                           </div>
                         </div>
                       ))}

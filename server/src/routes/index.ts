@@ -383,7 +383,7 @@ router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), a
 router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin'), resetUserPassword);
 
 // Patient routes (with input validation)
-router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(createPatientSchema), createPatient);
+router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
 router.get('/patients', authenticateToken, getPatients);
 router.get('/patients/:id', authenticateToken, getPatientById);
 router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
