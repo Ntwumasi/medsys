@@ -687,6 +687,7 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         pi.quantity_on_hand as inventory_quantity,
         pi.selling_price as inventory_price,
         pi.medication_name as inventory_medication_name,
+        pi.unit as inventory_unit,
         COALESCE(
           (SELECT pps.payer_type FROM patient_payer_sources pps
            WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
@@ -766,6 +767,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     const id = req.params.id as string;
     const updateData = req.body;
     const authReq = req as any;
+
+    // Prevent editing dispensed orders (only returns are allowed via separate endpoint)
+    const currentOrder = await pool.query('SELECT status FROM pharmacy_orders WHERE id = $1', [id]);
+    if (currentOrder.rows.length > 0 && currentOrder.rows[0].status === 'dispensed') {
+      res.status(403).json({ error: 'Cannot edit a dispensed order. Use the return process instead.' });
+      return;
+    }
 
     // If dispensing, track who dispensed
     if (updateData.status === 'dispensed' && authReq.user?.id) {
@@ -995,6 +1003,109 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
   } catch (error) {
     console.error('Update pharmacy order error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Process a drug return — restores inventory and adjusts invoice
+export const processReturn = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const id = req.params.id as string;
+    const { return_quantity, return_reason } = req.body;
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+
+    await client.query('BEGIN');
+
+    const original = await client.query('SELECT * FROM pharmacy_orders WHERE id = $1', [id]);
+    if (original.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Order not found' });
+      return;
+    }
+    const order = original.rows[0];
+
+    if (order.status !== 'dispensed') {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Only dispensed orders can be returned' });
+      return;
+    }
+
+    const qty = parseInt(return_quantity);
+    const originalQty = parseInt(order.quantity);
+    if (!qty || qty <= 0 || qty > originalQty) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: `Return quantity must be between 1 and ${originalQty}` });
+      return;
+    }
+
+    // Full return → 'returned', partial return → stays 'dispensed'
+    const newStatus = qty === originalQty ? 'returned' : 'dispensed';
+
+    await client.query(
+      `UPDATE pharmacy_orders SET status = $2, return_quantity = COALESCE(return_quantity, 0) + $3,
+       return_reason = $4, returned_at = CURRENT_TIMESTAMP, returned_by = $5, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id, newStatus, qty, return_reason, userId]
+    );
+
+    // Restore inventory
+    if (order.inventory_id) {
+      await client.query(
+        `UPDATE pharmacy_inventory SET quantity_on_hand = quantity_on_hand + $2 WHERE id = $1`,
+        [order.inventory_id, qty]
+      );
+
+      await client.query(
+        `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
+         VALUES ($1, 'return', $2, 'pharmacy_order', $3, $4, $5)`,
+        [order.inventory_id, qty, parseInt(id), `Return: ${return_reason}`, userId]
+      );
+    }
+
+    // Adjust invoice if possible
+    try {
+      const invoiceResult = await client.query(
+        `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+        [order.encounter_id]
+      );
+      if (invoiceResult.rows.length > 0) {
+        const invoiceId = invoiceResult.rows[0].id;
+        const unitPrice = order.inventory_id
+          ? (await client.query('SELECT selling_price FROM pharmacy_inventory WHERE id = $1', [order.inventory_id])).rows[0]?.selling_price || 0
+          : 0;
+        const refundAmount = parseFloat(unitPrice) * qty;
+
+        if (refundAmount > 0) {
+          await client.query(
+            `UPDATE invoices SET subtotal = GREATEST(0, subtotal - $2),
+             total_amount = GREATEST(0, total_amount - $2), updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [invoiceId, refundAmount]
+          );
+        }
+      }
+    } catch (invoiceError) {
+      console.error('Error adjusting invoice for return:', invoiceError);
+    }
+
+    await client.query('COMMIT');
+
+    await auditService.log({
+      userId,
+      action: 'update' as const,
+      entityType: 'pharmacy_order',
+      entityId: parseInt(id),
+      details: { action: 'return', return_quantity: qty, return_reason }
+    });
+
+    res.json({ message: 'Return processed successfully', return_quantity: qty, new_status: newStatus });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Process return error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 

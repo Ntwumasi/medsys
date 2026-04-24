@@ -59,6 +59,7 @@ interface PharmacyOrder {
   inventory_quantity?: number;
   inventory_price?: number;
   inventory_medication_name?: string;
+  inventory_unit?: string;
   substitute_medication?: string;
   substitute_reason?: string;
 }
@@ -205,6 +206,12 @@ const PharmacyDashboard: React.FC = () => {
   // Print label modal
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
+
+  // Drug return modal
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returningOrder, setReturningOrder] = useState<PharmacyOrder | null>(null);
+  const [returnQuantity, setReturnQuantity] = useState('');
+  const [returnReason, setReturnReason] = useState('');
 
   // OTC walk-in patients
   const [walkInPatients, setWalkInPatients] = useState<WalkInPatient[]>([]);
@@ -1448,7 +1455,7 @@ const PharmacyDashboard: React.FC = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="font-semibold text-gray-700">Qty: {order.quantity}</span>
+                                  <span className="font-semibold text-gray-700">Qty: {order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
                                   {order.inventory_price != null && (
                                     <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
                                   )}
@@ -1528,16 +1535,32 @@ const PharmacyDashboard: React.FC = () => {
                                         Dispense
                                       </button>
                                     )}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingOrder(order);
-                                        setShowEditOrderModal(true);
-                                      }}
-                                      className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
-                                    >
-                                      Edit
-                                    </button>
+                                    {order.status !== 'dispensed' && order.status !== 'returned' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingOrder(order);
+                                          setShowEditOrderModal(true);
+                                        }}
+                                        className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                      >
+                                        Edit
+                                      </button>
+                                    )}
+                                    {order.status === 'dispensed' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setReturningOrder(order);
+                                          setReturnQuantity(order.quantity);
+                                          setReturnReason('');
+                                          setShowReturnModal(true);
+                                        }}
+                                        className="px-3 py-1 bg-warning-100 text-warning-700 text-sm rounded hover:bg-warning-200"
+                                      >
+                                        Return
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -1742,6 +1765,47 @@ const PharmacyDashboard: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg border border-gray-200">
               <div className="px-6 py-4 border-b flex justify-between items-center">
                 <h2 className="text-lg font-semibold">OTC / Walk-in Patients</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      const name = prompt('Enter patient name (First Last):');
+                      if (!name?.trim()) return;
+                      const parts = name.trim().split(/\s+/);
+                      const firstName = parts[0] || '';
+                      const lastName = parts.slice(1).join(' ') || '';
+                      const phone = prompt('Enter phone number (optional):') || '';
+                      try {
+                        // Create patient
+                        const patientRes = await apiClient.post('/patients', {
+                          first_name: firstName,
+                          last_name: lastName,
+                          phone: phone || undefined,
+                          gender: '',
+                          date_of_birth: '',
+                          registration_payment: 'pay_later',
+                        });
+                        const patient = patientRes.data.patient;
+                        // Create encounter and route to pharmacy
+                        await apiClient.post('/workflow/check-in', {
+                          patient_id: patient.id,
+                          chief_complaint: 'OTC Purchase',
+                          encounter_type: 'walk-in',
+                          billing_amount: 0,
+                          clinic: 'Pharmacy (OTC/Walk-in)',
+                        });
+                        showToast(`${firstName} ${lastName} added as walk-in patient`, 'success');
+                        fetchWalkIns();
+                      } catch (error: any) {
+                        showToast(error.response?.data?.error || error.response?.data?.message || 'Failed to create walk-in patient', 'error');
+                      }
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    New Walk-in
+                  </button>
                 <button
                   onClick={fetchWalkIns}
                   className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
@@ -1751,6 +1815,7 @@ const PharmacyDashboard: React.FC = () => {
                   </svg>
                   Refresh
                 </button>
+                </div>
               </div>
               <div className="p-6">
                 {walkInPatients.length === 0 ? (
@@ -3342,6 +3407,79 @@ const PharmacyDashboard: React.FC = () => {
         )}
       </Modal>
 
+      {/* Drug Return Modal */}
+      {showReturnModal && returningOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowReturnModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Process Drug Return</h3>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <div className="font-semibold text-gray-900">{returningOrder.medication_name}</div>
+              <div className="text-sm text-gray-600 mt-1">
+                Dispensed quantity: {returningOrder.quantity}{returningOrder.inventory_unit ? ` ${returningOrder.inventory_unit}` : ''}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Return Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={parseInt(returningOrder.quantity)}
+                  value={returnQuantity}
+                  onChange={(e) => setReturnQuantity(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Return *</label>
+                <textarea
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 resize-none"
+                  placeholder="e.g., Patient adverse reaction, wrong medication, excess quantity..."
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowReturnModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!returnReason.trim()) {
+                    showToast('Please enter a reason for the return', 'warning');
+                    return;
+                  }
+                  try {
+                    await apiClient.post(`/orders/pharmacy/${returningOrder.id}/return`, {
+                      return_quantity: parseInt(returnQuantity),
+                      return_reason: returnReason,
+                    });
+                    showToast('Return processed successfully', 'success');
+                    setShowReturnModal(false);
+                    setReturningOrder(null);
+                    fetchOrderHistory();
+                  } catch (error: any) {
+                    showToast(error.response?.data?.error || 'Failed to process return', 'error');
+                  }
+                }}
+                disabled={!returnReason.trim() || !returnQuantity}
+                className="flex-1 px-4 py-2 bg-warning-500 text-white rounded-lg hover:bg-warning-600 font-semibold disabled:opacity-50"
+              >
+                Process Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Drug History Modal */}
       <Modal
         isOpen={showDrugHistory}
@@ -3461,7 +3599,7 @@ const PharmacyDashboard: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                          <span>Qty: <span className="font-medium">{order.quantity}</span> {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
+                          <span>Qty: <span className="font-medium">{order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span> {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
                           <span>{format(new Date(order.ordered_date), 'MMM dd, yyyy')}</span>
                         </div>
                         <div className="text-xs text-gray-400 mt-1 flex justify-between">

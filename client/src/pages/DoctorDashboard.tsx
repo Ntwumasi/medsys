@@ -8,6 +8,7 @@ import { doctorGuideSections } from '../components/guides/doctorGuideContent';
 import { useNotification } from '../context/NotificationContext';
 import AppLayout from '../components/AppLayout';
 import { SmartTextArea } from '../components/SmartTextArea';
+import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
@@ -487,12 +488,15 @@ const DoctorDashboard: React.FC = () => {
   };
 
   const selectMedication = (med: { id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number }) => {
+    const parsed = parseMedicationName(med.medication_name);
     setCurrentPharmacyOrder(prev => ({
       ...prev,
       medication_name: med.medication_name,
       inventory_id: med.id,
       selling_price: med.selling_price,
       quantity_on_hand: med.quantity_on_hand,
+      dosage: parsed.dosage || prev.dosage,
+      route: parsed.route || prev.route,
     }));
     setShowMedSuggestions(false);
     setMedSearchResults([]);
@@ -508,6 +512,23 @@ const DoctorDashboard: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Auto-calculate quantity when frequency and days_supply change
+  useEffect(() => {
+    const freq = currentPharmacyOrder.frequency;
+    const days = parseInt(currentPharmacyOrder.days_supply);
+    if (freq && days > 0) {
+      const calc = calculateQuantity(freq, days);
+      if (calc !== null) {
+        setCurrentPharmacyOrder(prev => {
+          if (prev.quantity !== String(calc)) {
+            return { ...prev, quantity: String(calc) };
+          }
+          return prev;
+        });
+      }
+    }
+  }, [currentPharmacyOrder.frequency, currentPharmacyOrder.days_supply]);
 
   const handleAddPharmacyOrder = async () => {
     if (!currentPharmacyOrder.medication_name) {
@@ -2495,6 +2516,29 @@ const DoctorDashboard: React.FC = () => {
                                         )}
                                       </div>
                                     </div>
+                                  )}
+                                  {/* Refill button for dispensed orders with remaining refills */}
+                                  {order.status === 'dispensed' && order.refills > 0 && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          await apiClient.post(`/orders/pharmacy/${order.id}/refill`);
+                                          showToast('Refill order created successfully', 'success');
+                                          if (selectedEncounter) {
+                                            const res = await apiClient.get(`/orders/encounter/${selectedEncounter.id}`);
+                                            setEncounterPharmacyOrders(res.data.pharmacy_orders || []);
+                                          }
+                                        } catch (error: any) {
+                                          showToast(error.response?.data?.error || 'Failed to create refill', 'error');
+                                        }
+                                      }}
+                                      className="mt-3 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                      Refill ({order.refills} remaining)
+                                    </button>
                                   )}
                                 </div>
                               </div>
