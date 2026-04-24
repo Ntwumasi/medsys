@@ -785,14 +785,12 @@ const ReceptionistDashboard: React.FC = () => {
     if (!selectedPatient) return;
 
     try {
-      const billingAmount = 50; // $50 for returning patients
-
       setCheckingIn(true);
       await apiClient.post('/workflow/check-in', {
         patient_id: selectedPatient.id,
         chief_complaint: chiefComplaint.trim() || '',
         encounter_type: encounterType,
-        billing_amount: billingAmount,
+        billing_amount: 0,
         clinic: selectedClinic || null,
         provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
       });
@@ -817,7 +815,7 @@ const ReceptionistDashboard: React.FC = () => {
       setActiveView('queue');
 
       // Show success message
-      showToast(`${patientName} checked in successfully! Billing: GH₵${billingAmount}`, 'success');
+      showToast(`${patientName} checked in successfully!`, 'success');
     } catch (error) {
       console.error('Error checking in patient:', error);
 
@@ -900,7 +898,20 @@ const ReceptionistDashboard: React.FC = () => {
         showToast(`Patient registered! #${newPatientData.patient_number}. Opening invoice for payment...`, 'success');
         await handleViewInvoiceById(responseData.registration_invoice.id);
       } else {
-        showToast(`Patient registered! #${newPatientData.patient_number}. Registration fee: GH₵75.00 (Balance owed). Check them in from Returning Patient or Appointments.`, 'success');
+        showToast(`Patient registered! #${newPatientData.patient_number}. Registration fee deferred.`, 'success');
+      }
+
+      // Redirect to check-in view with the new patient pre-selected
+      try {
+        const patientRes = await apiClient.get(`/patients/${newPatientData.id}`);
+        const fullPatient = patientRes.data.patient || patientRes.data;
+        setSelectedPatient(fullPatient);
+        setSearchTerm(`${fullPatient.first_name} ${fullPatient.last_name} (${fullPatient.patient_number})`);
+        await loadOutstandingBalance(fullPatient.id);
+        setActiveView('checkin');
+      } catch {
+        // If patient fetch fails, just go to queue
+        setActiveView('queue');
       }
     } catch (error) {
       console.error('Error creating new patient:', error);
@@ -2151,11 +2162,13 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className="bg-success-50 p-4 rounded-lg border border-success-200">
-                  <p className="text-sm text-success-800">
-                    <span className="font-semibold">Billing:</span> GH₵50.00 (Returning Patient)
-                  </p>
-                </div>
+                {outstandingBalance > 0 && (
+                  <div className="bg-warning-50 p-4 rounded-lg border border-warning-200">
+                    <p className="text-sm text-warning-800">
+                      <span className="font-semibold">Outstanding Balance:</span> GH₵{outstandingBalance.toFixed(2)} from previous visit(s)
+                    </p>
+                  </div>
+                )}
 
                 <button
                   type="submit"

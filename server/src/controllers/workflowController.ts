@@ -103,16 +103,28 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const nextInvoiceId = parseInt(maxIdResult.rows[0].next_id);
     const invoiceNumber = `INV${String(nextInvoiceId).padStart(6, '0')}`;
 
-    // Get consultation charge from charge master
-    const consultationCode = isNewPatient ? 'CONS-NEW' : 'CONS-FU';
-    const chargeResult = await client.query(
-      'SELECT id, price, service_name FROM charge_master WHERE service_code = $1',
-      [consultationCode]
-    );
+    // Only charge consultation fee for new patients (first visit)
+    // Returning patients check in without a fee — charges come from lab/pharmacy/etc.
+    let consultationFee = 0;
+    let chargeMasterId = null;
+    let consultationDescription = '';
 
-    const consultationFee = chargeResult.rows.length > 0
-      ? parseFloat(chargeResult.rows[0].price)
-      : (billing_amount || (isNewPatient ? 50 : 30));
+    if (isNewPatient || billing_amount > 0) {
+      const consultationCode = isNewPatient ? 'CONS-NEW' : 'CONS-FU';
+      const chargeResult = await client.query(
+        'SELECT id, price, service_name FROM charge_master WHERE service_code = $1',
+        [consultationCode]
+      );
+
+      consultationFee = chargeResult.rows.length > 0
+        ? parseFloat(chargeResult.rows[0].price)
+        : (billing_amount || (isNewPatient ? 50 : 30));
+
+      chargeMasterId = chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null;
+      consultationDescription = chargeResult.rows.length > 0
+        ? chargeResult.rows[0].service_name
+        : (isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation');
+    }
 
     const invoiceResult = await client.query(
       `INSERT INTO invoices (
@@ -123,22 +135,19 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id, encounter.id, invoiceNumber, consultationFee]
     );
 
-    // Create invoice item for consultation
-    const chargeMasterId = chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null;
-    const consultationDescription = chargeResult.rows.length > 0
-      ? chargeResult.rows[0].service_name
-      : (isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation');
-
-    await client.query(
-      `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
-       VALUES ($1, $2, $3, 1, $4, $4)`,
-      [
-        invoiceResult.rows[0].id,
-        chargeMasterId,
-        consultationDescription,
-        consultationFee,
-      ]
-    );
+    // Only create invoice item if there's a consultation fee
+    if (consultationFee > 0) {
+      await client.query(
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
+         VALUES ($1, $2, $3, 1, $4, $4)`,
+        [
+          invoiceResult.rows[0].id,
+          chargeMasterId,
+          consultationDescription,
+          consultationFee,
+        ]
+      );
+    }
 
     // Get patient info for appointment and notification
     const patientInfoResult = await client.query(
