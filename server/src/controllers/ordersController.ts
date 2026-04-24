@@ -35,47 +35,8 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes]
     );
 
-    // Look up price from charge_master (LANCET price list)
-    const chargeResult = await pool.query(
-      `SELECT id, service_name, price FROM charge_master
-       WHERE (service_code = $1 OR service_name ILIKE $2)
-       AND category = 'lab' AND is_active = true
-       LIMIT 1`,
-      [test_code, `%${test_name}%`]
-    );
-
-    // Get the price - use charge_master price or default to 75
-    const charge = chargeResult.rows[0];
-    const labPrice = charge ? parseFloat(charge.price) : 75.00;
-    const chargeDescription = charge ? charge.service_name : test_name;
-    const chargeMasterId = charge ? charge.id : null;
-
-    // Get or create invoice for the encounter
-    const invoiceResult = await pool.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-      [encounter_id]
-    );
-
-    if (invoiceResult.rows.length > 0) {
-      const invoiceId = invoiceResult.rows[0].id;
-
-      // Create invoice item with charge_master reference
-      await pool.query(
-        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
-        [invoiceId, chargeMasterId, `Lab: ${chargeDescription}`, labPrice]
-      );
-
-      // Update invoice totals
-      await pool.query(
-        `UPDATE invoices
-         SET subtotal = subtotal + $2,
-             total_amount = total_amount + $2,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [invoiceId, labPrice]
-      );
-    }
+    // Billing deferred to completion — lab orders are only added to the invoice
+    // when the lab tech completes the test (see updateLabOrder)
 
     const order = result.rows[0];
 
@@ -314,8 +275,61 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       details: updateData
     });
 
-    // Send notification when lab order is completed
+    // When lab order is completed: bill the test and send notifications
     if (updateData.status === 'completed') {
+      // Bill the completed lab order
+      try {
+        // Look up price from charge_master
+        const chargeResult = await pool.query(
+          `SELECT id, service_name, price FROM charge_master
+           WHERE (service_code = $1 OR service_name ILIKE $2)
+           AND category = 'lab' AND is_active = true
+           LIMIT 1`,
+          [updatedOrder.test_code, `%${updatedOrder.test_name}%`]
+        );
+
+        const charge = chargeResult.rows[0];
+        const labPrice = charge ? parseFloat(charge.price) : 75.00;
+        const chargeDescription = charge ? charge.service_name : updatedOrder.test_name;
+        const chargeMasterId = charge ? charge.id : null;
+
+        const invoiceResult = await pool.query(
+          `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+          [updatedOrder.encounter_id]
+        );
+
+        if (invoiceResult.rows.length > 0) {
+          const invoiceId = invoiceResult.rows[0].id;
+
+          // Guard against double-billing
+          const existingItem = await pool.query(
+            `SELECT id FROM invoice_items
+             WHERE invoice_id = $1 AND description = $2`,
+            [invoiceId, `Lab: ${chargeDescription}`]
+          );
+
+          if (existingItem.rows.length === 0) {
+            await pool.query(
+              `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+               VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
+              [invoiceId, chargeMasterId, `Lab: ${chargeDescription}`, labPrice]
+            );
+
+            await pool.query(
+              `UPDATE invoices
+               SET subtotal = subtotal + $2,
+                   total_amount = total_amount + $2,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [invoiceId, labPrice]
+            );
+          }
+        }
+      } catch (billingError) {
+        console.error('Error billing completed lab order:', billingError);
+        // Don't fail the main update if billing fails
+      }
+
       await notificationService.notifyLabComplete(parseInt(id));
 
       // Check if all lab orders for this encounter are complete
@@ -369,65 +383,8 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
       [patient_id, encounter_id, orderingProvider, studyType, body_part, priority || 'routine', clinical_indication, notes]
     );
 
-    // Look up price from charge_master (LANCET price list)
-    // Try to match imaging type and body part for specific pricing
-    const chargeResult = await pool.query(
-      `SELECT id, service_name, price FROM charge_master
-       WHERE (service_name ILIKE $1 OR service_name ILIKE $2)
-       AND category = 'imaging' AND is_active = true
-       ORDER BY
-         CASE WHEN service_name ILIKE $1 THEN 1 ELSE 2 END
-       LIMIT 1`,
-      [`%${studyType}%${body_part}%`, `%${studyType}%`]
-    );
-
-    // Get the price - use charge_master price or fallback based on imaging type
-    const charge = chargeResult.rows[0];
-    let imagingPrice = 150.00; // Default
-    if (charge) {
-      imagingPrice = parseFloat(charge.price);
-    } else {
-      // Fallback prices by imaging type if not in charge_master
-      const fallbackPrices: Record<string, number> = {
-        'X-Ray': 80.00,
-        'CT Scan': 350.00,
-        'MRI': 800.00,
-        'Ultrasound': 150.00,
-        'Mammogram': 200.00,
-        'Fluoroscopy': 250.00,
-      };
-      imagingPrice = fallbackPrices[studyType] || 150.00;
-    }
-
-    const chargeDescription = charge ? charge.service_name : `${studyType} - ${body_part}`;
-    const chargeMasterId = charge ? charge.id : null;
-
-    // Get or create invoice for the encounter
-    const invoiceResult = await pool.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-      [encounter_id]
-    );
-
-    if (invoiceResult.rows.length > 0) {
-      const invoiceId = invoiceResult.rows[0].id;
-
-      // Create invoice item with charge_master reference
-      await pool.query(
-        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
-        [invoiceId, chargeMasterId, `Imaging: ${chargeDescription}`, imagingPrice]
-      );
-
-      // Update invoice totals
-      await pool.query(
-        `UPDATE invoices
-         SET subtotal = subtotal + $2,
-             total_amount = total_amount + $2,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [invoiceId, imagingPrice]
-      );
-    }
+    // Billing deferred to completion — imaging orders are only added to the invoice
+    // when the imaging tech completes the study (see updateImagingOrder)
 
     const order = result.rows[0];
 
@@ -541,8 +498,75 @@ export const updateImagingOrder = async (req: Request, res: Response): Promise<v
       details: updateData
     });
 
-    // Send notification when imaging order is completed
+    // When imaging order is completed: bill the study and send notifications
     if (updateData.status === 'completed') {
+      // Bill the completed imaging order
+      try {
+        const chargeResult = await pool.query(
+          `SELECT id, service_name, price FROM charge_master
+           WHERE (service_name ILIKE $1 OR service_name ILIKE $2)
+           AND category = 'imaging' AND is_active = true
+           ORDER BY
+             CASE WHEN service_name ILIKE $1 THEN 1 ELSE 2 END
+           LIMIT 1`,
+          [`%${updatedOrder.imaging_type}%${updatedOrder.body_part}%`, `%${updatedOrder.imaging_type}%`]
+        );
+
+        const charge = chargeResult.rows[0];
+        let imagingPrice = 150.00;
+        if (charge) {
+          imagingPrice = parseFloat(charge.price);
+        } else {
+          const fallbackPrices: Record<string, number> = {
+            'X-Ray': 80.00,
+            'CT Scan': 350.00,
+            'MRI': 800.00,
+            'Ultrasound': 150.00,
+            'Mammogram': 200.00,
+            'Fluoroscopy': 250.00,
+          };
+          imagingPrice = fallbackPrices[updatedOrder.imaging_type] || 150.00;
+        }
+
+        const chargeDescription = charge ? charge.service_name : `${updatedOrder.imaging_type} - ${updatedOrder.body_part}`;
+        const chargeMasterId = charge ? charge.id : null;
+
+        const invoiceResult = await pool.query(
+          `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+          [updatedOrder.encounter_id]
+        );
+
+        if (invoiceResult.rows.length > 0) {
+          const invoiceId = invoiceResult.rows[0].id;
+
+          // Guard against double-billing
+          const existingItem = await pool.query(
+            `SELECT id FROM invoice_items
+             WHERE invoice_id = $1 AND description = $2`,
+            [invoiceId, `Imaging: ${chargeDescription}`]
+          );
+
+          if (existingItem.rows.length === 0) {
+            await pool.query(
+              `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+               VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
+              [invoiceId, chargeMasterId, `Imaging: ${chargeDescription}`, imagingPrice]
+            );
+
+            await pool.query(
+              `UPDATE invoices
+               SET subtotal = subtotal + $2,
+                   total_amount = total_amount + $2,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`,
+              [invoiceId, imagingPrice]
+            );
+          }
+        }
+      } catch (billingError) {
+        console.error('Error billing completed imaging order:', billingError);
+      }
+
       await notificationService.notifyImagingComplete(parseInt(id));
 
       // Check if all imaging orders for this encounter are complete

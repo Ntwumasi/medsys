@@ -389,7 +389,7 @@ router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse',
 router.get('/patients/:id/summary', authenticateToken, getPatientSummary);
 
 // Encounter routes
-router.post('/encounters', authenticateToken, authorizeRoles('doctor', 'nurse'), createEncounter);
+router.post('/encounters', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);
 router.get('/encounters', authenticateToken, getEncounters);
 router.get('/encounters/:id', authenticateToken, getEncounterById);
 router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateEncounter);
@@ -509,7 +509,7 @@ router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse
 router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
 
 // Department Routing routes
-router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist'), routePatientToDepartment);
+router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist', 'lab', 'pharmacist', 'pharmacy_tech'), routePatientToDepartment);
 router.get('/department-routing/:department/queue', authenticateToken, getDepartmentQueue);
 router.get('/department-routing/:department/walk-ins', authenticateToken, getDepartmentWalkIns);
 router.put('/department-routing/:id/status', authenticateToken, updateRoutingStatus);
