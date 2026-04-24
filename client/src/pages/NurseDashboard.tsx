@@ -187,6 +187,7 @@ const NurseDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
+  const selectedPatientRef = useRef<AssignedPatient | null>(null);
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
   const [availableProcedures, setAvailableProcedures] = useState<AvailableProcedure[]>([]);
@@ -316,6 +317,7 @@ const NurseDashboard: React.FC = () => {
   });
   const [creatingImagingOrder, setCreatingImagingOrder] = useState(false);
 
+  // Initial load — runs once
   useEffect(() => {
     loadAssignedPatients();
     loadNurseProcedures();
@@ -325,23 +327,31 @@ const NurseDashboard: React.FC = () => {
     loadDoctorNotifications();
     loadDueTasks();
     loadDoctors();
+  }, []);
+
+  // Load orders/notes when selected patient changes
+  useEffect(() => {
     if (selectedPatient) {
       loadOrders();
       loadClinicalNotes();
     }
+  }, [selectedPatient?.id]);
+
+  // Polling — uses ref to avoid re-creating interval on patient selection
+  useEffect(() => {
     const interval = setInterval(() => {
       loadAssignedPatients();
       loadNurseProcedures();
       loadRooms();
       loadShortStayBeds();
       loadDoctorNotifications();
-      if (selectedPatient) {
+      if (selectedPatientRef.current) {
         loadOrders();
         loadClinicalNotes();
       }
     }, 30000);
     return () => clearInterval(interval);
-  }, [selectedPatient]);
+  }, []);
 
   const loadAssignedPatients = async () => {
     try {
@@ -354,10 +364,18 @@ const NurseDashboard: React.FC = () => {
       setAssignedPatients(uniquePatients);
 
       // Update selectedPatient with fresh data if currently selected
-      if (selectedPatient) {
-        const updatedSelectedPatient = uniquePatients.find((p: AssignedPatient) => p.id === selectedPatient.id);
+      // Use ref to avoid triggering useEffect loops
+      if (selectedPatientRef.current) {
+        const updatedSelectedPatient = uniquePatients.find((p: AssignedPatient) => p.id === selectedPatientRef.current!.id);
         if (updatedSelectedPatient) {
-          setSelectedPatient(updatedSelectedPatient);
+          // Only update state if data actually changed to avoid unnecessary re-renders
+          setSelectedPatient(prev => {
+            if (!prev || JSON.stringify(prev) !== JSON.stringify(updatedSelectedPatient)) {
+              selectedPatientRef.current = updatedSelectedPatient;
+              return updatedSelectedPatient;
+            }
+            return prev;
+          });
         }
       }
     } catch (error) {
@@ -443,6 +461,7 @@ const NurseDashboard: React.FC = () => {
   // Start encounter when nurse begins working with a patient
   const handleSelectPatient = async (patient: AssignedPatient) => {
     setSelectedPatient(patient);
+    selectedPatientRef.current = patient;
     setEditingRoom(false);
     setShowProcedureHistory(false);
     setProcedureHistory([]);
@@ -652,10 +671,11 @@ const NurseDashboard: React.FC = () => {
       setRooms(roomsRes.data.rooms || []);
 
       // Update selected patient with fresh data
-      if (selectedPatient) {
-        const updatedPatient = updatedPatients.find((p: AssignedPatient) => p.id === selectedPatient.id);
+      if (selectedPatientRef.current) {
+        const updatedPatient = updatedPatients.find((p: AssignedPatient) => p.id === selectedPatientRef.current!.id);
         if (updatedPatient) {
           setSelectedPatient(updatedPatient);
+          selectedPatientRef.current = updatedPatient;
         }
       }
     } catch (error) {
