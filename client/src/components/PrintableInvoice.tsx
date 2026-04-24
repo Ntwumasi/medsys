@@ -68,6 +68,20 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Post-payment summary state
+  const [showPaymentSummary, setShowPaymentSummary] = useState(false);
+  const [paymentSummaryData, setPaymentSummaryData] = useState<{
+    amountReceived: number;
+    amountApplied: number;
+    changeDue: number;
+    remainingBalance: number;
+    paymentMethodUsed: string;
+    isFullPayment: boolean;
+  } | null>(null);
+
   const handlePrint = () => {
     if (!printRef.current) return;
 
@@ -175,52 +189,59 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
 
-  const handleMarkAsPaid = async () => {
+  const handleMarkAsPaid = () => {
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
       showToast('Please enter a valid payment amount', 'error');
       return;
     }
 
-    if (amount > balanceDue) {
+    // For non-cash payments, amount cannot exceed balance due
+    if (paymentMethod !== 'cash' && amount > balanceDue) {
       showToast(`Payment amount cannot exceed balance due (GHS ${balanceDue.toFixed(2)})`, 'error');
       return;
     }
 
-    const isFullPayment = amount >= balanceDue;
-    const confirmMessage = isFullPayment
-      ? 'Record full payment and complete the encounter?'
-      : `Record partial payment of GHS ${amount.toFixed(2)}? Balance will be GHS ${(balanceDue - amount).toFixed(2)}`;
+    // Show styled confirmation modal instead of native confirm()
+    setShowConfirmModal(true);
+  };
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
+  const handleConfirmPayment = async () => {
+    setShowConfirmModal(false);
     setIsProcessing(true);
+
+    const amountReceived = parseFloat(paymentAmount);
+    // For cash, only apply up to balanceDue (excess is change to return)
+    const amountToApply = Math.min(amountReceived, balanceDue);
+    const changeDue = paymentMethod === 'cash' ? Math.max(0, amountReceived - balanceDue) : 0;
+    const isFullPayment = amountToApply >= balanceDue;
+
     try {
-      // Calculate new amount_paid
-      const newAmountPaid = Number(invoice.amount_paid || 0) + amount;
+      const newAmountPaid = Number(invoice.amount_paid || 0) + amountToApply;
       const newStatus = newAmountPaid >= Number(invoice.total_amount) ? 'paid' : 'partial';
 
-      // Record payment
       await apiClient.put(`/invoices/${invoice.id}`, {
         status: newStatus,
         amount_paid: newAmountPaid,
         payment_method: paymentMethod,
       });
 
-      // Complete the encounter only if fully paid
       if (isFullPayment && encounterId) {
         await apiClient.post('/workflow/release-room', {
           encounter_id: encounterId,
         });
-        showToast('Payment recorded and encounter completed successfully!', 'success');
-      } else {
-        showToast(`Partial payment of GHS ${amount.toFixed(2)} recorded. Balance: GHS ${(balanceDue - amount).toFixed(2)}`, 'success');
       }
 
-      onClose();
-      if (onPaymentComplete) onPaymentComplete();
+      // Show post-payment summary modal
+      setPaymentSummaryData({
+        amountReceived,
+        amountApplied: amountToApply,
+        changeDue,
+        remainingBalance: balanceDue - amountToApply,
+        paymentMethodUsed: paymentMethod,
+        isFullPayment,
+      });
+      setShowPaymentSummary(true);
     } catch (error) {
       console.error('Error completing payment:', error);
       const apiError = error as ApiError;
@@ -349,17 +370,20 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   {/* Payment Input Row */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Amount (GHS)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Amount Received (GHS)</label>
                       <input
                         type="number"
                         step="0.01"
                         min="0.01"
-                        max={balanceDue}
+                        max={paymentMethod === 'cash' ? undefined : balanceDue}
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="Enter amount"
                       />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Enter the amount received. You may enter less for partial payment.
+                      </p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
@@ -371,11 +395,32 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         <option value="cash">Cash</option>
                         <option value="card">Card</option>
                         <option value="mobile_money">Mobile Money</option>
+                        <option value="rpay">Rpay</option>
                         <option value="bank_transfer">Bank Transfer</option>
                         <option value="cheque">Cheque</option>
                       </select>
                     </div>
                   </div>
+
+                  {/* Partial Payment Indicator */}
+                  {parseFloat(paymentAmount) > 0 && parseFloat(paymentAmount) < balanceDue && (
+                    <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 flex justify-between items-center">
+                      <span className="text-sm text-warning-700 font-medium">Partial Payment</span>
+                      <span className="text-sm font-semibold text-warning-700">
+                        Remaining balance: GHS {(balanceDue - parseFloat(paymentAmount)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Cash Change Indicator */}
+                  {paymentMethod === 'cash' && parseFloat(paymentAmount) > balanceDue && (
+                    <div className="bg-success-50 border border-success-200 rounded-lg p-3 flex justify-between items-center">
+                      <span className="text-sm text-success-700 font-medium">Change to Return</span>
+                      <span className="text-sm font-semibold text-success-700">
+                        GHS {(parseFloat(paymentAmount) - balanceDue).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex gap-3">
@@ -584,6 +629,120 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
         </div>
       </div>
 
+      {/* Payment Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]" onClick={() => setShowConfirmModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Confirm Payment</h3>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Balance Due:</span>
+                <span className="font-semibold">GHS {balanceDue.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Amount Received:</span>
+                <span className="font-semibold">GHS {parseFloat(paymentAmount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Payment Method:</span>
+                <span className="font-semibold capitalize">{paymentMethod.replace(/_/g, ' ')}</span>
+              </div>
+
+              {/* Change for cash overpayment */}
+              {paymentMethod === 'cash' && parseFloat(paymentAmount) > balanceDue && (
+                <div className="border-t pt-3 flex justify-between text-lg font-bold text-success-700">
+                  <span>Change to Return:</span>
+                  <span>GHS {(parseFloat(paymentAmount) - balanceDue).toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* Remaining balance for partial payment */}
+              {parseFloat(paymentAmount) < balanceDue && (
+                <div className="border-t pt-3 flex justify-between text-lg font-bold text-warning-600">
+                  <span>Remaining Balance:</span>
+                  <span>GHS {(balanceDue - parseFloat(paymentAmount)).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                disabled={isProcessing}
+                className="flex-1 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold disabled:opacity-50"
+              >
+                {isProcessing ? 'Processing...' : 'Confirm Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Post-Payment Summary Modal */}
+      {showPaymentSummary && paymentSummaryData && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            {/* Success header */}
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-8 h-8 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Payment Recorded</h3>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3 mb-6">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Amount Received:</span>
+                <span className="font-semibold">GHS {paymentSummaryData.amountReceived.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Payment Method:</span>
+                <span className="font-semibold capitalize">{paymentSummaryData.paymentMethodUsed.replace(/_/g, ' ')}</span>
+              </div>
+
+              {paymentSummaryData.changeDue > 0 && (
+                <div className="border-t border-gray-200 pt-3 flex justify-between text-lg font-bold text-success-700">
+                  <span>Change Due:</span>
+                  <span>GHS {paymentSummaryData.changeDue.toFixed(2)}</span>
+                </div>
+              )}
+
+              {paymentSummaryData.remainingBalance > 0 && (
+                <div className="border-t border-gray-200 pt-3 flex justify-between text-lg font-bold text-warning-700">
+                  <span>Outstanding Balance:</span>
+                  <span>GHS {paymentSummaryData.remainingBalance.toFixed(2)}</span>
+                </div>
+              )}
+
+              {paymentSummaryData.isFullPayment && paymentSummaryData.changeDue === 0 && (
+                <div className="border-t border-gray-200 pt-3 text-center text-success-700 font-semibold">
+                  Fully Paid - No Balance
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowPaymentSummary(false);
+                onClose();
+                if (onPaymentComplete) onPaymentComplete();
+              }}
+              className="w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

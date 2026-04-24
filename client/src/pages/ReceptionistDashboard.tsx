@@ -284,6 +284,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [editPatientData, setEditPatientData] = useState<Partial<Patient>>({});
   const [savingPatient, setSavingPatient] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 
   // Follow-up checkout modal state
   const [showFollowUpCheckoutModal, setShowFollowUpCheckoutModal] = useState(false);
@@ -1090,36 +1091,44 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const openEditPatient = () => {
-    if (!selectedPatient) return;
+  const openEditPatient = (patient?: Patient) => {
+    const target = patient || selectedPatient;
+    if (!target) return;
+    setEditingPatient(target);
     setEditPatientData({
-      first_name: selectedPatient.first_name || '',
-      last_name: selectedPatient.last_name || '',
-      phone: selectedPatient.phone || '',
-      email: selectedPatient.email || '',
-      date_of_birth: selectedPatient.date_of_birth || '',
-      gender: selectedPatient.gender || '',
-      address: selectedPatient.address || '',
-      city: selectedPatient.city || '',
-      state: selectedPatient.state || '',
-      emergency_contact_name: selectedPatient.emergency_contact_name || '',
-      emergency_contact_phone: selectedPatient.emergency_contact_phone || '',
-      pcp_name: selectedPatient.pcp_name || '',
-      pcp_phone: selectedPatient.pcp_phone || '',
+      first_name: target.first_name || '',
+      last_name: target.last_name || '',
+      phone: target.phone || '',
+      email: target.email || '',
+      date_of_birth: target.date_of_birth || '',
+      gender: target.gender || '',
+      address: target.address || '',
+      city: target.city || '',
+      state: target.state || '',
+      emergency_contact_name: target.emergency_contact_name || '',
+      emergency_contact_phone: target.emergency_contact_phone || '',
+      pcp_name: target.pcp_name || '',
+      pcp_phone: target.pcp_phone || '',
     });
     setShowEditPatientModal(true);
   };
 
   const handleSavePatient = async () => {
-    if (!selectedPatient) return;
+    const target = editingPatient || selectedPatient;
+    if (!target) return;
     setSavingPatient(true);
     try {
-      await apiClient.put(`/patients/${selectedPatient.id}`, editPatientData);
+      await apiClient.put(`/patients/${target.id}`, editPatientData);
       showToast('Patient information updated successfully', 'success');
       setShowEditPatientModal(false);
-      // Refresh the selected patient data
-      const res = await apiClient.get(`/patients/${selectedPatient.id}`);
-      setSelectedPatient(res.data.patient || res.data);
+      setEditingPatient(null);
+      // Refresh the selected patient data if editing during check-in
+      if (selectedPatient && selectedPatient.id === target.id) {
+        const res = await apiClient.get(`/patients/${target.id}`);
+        setSelectedPatient(res.data.patient || res.data);
+      }
+      // Refresh the queue to reflect updated patient info
+      loadData();
     } catch (error) {
       console.error('Error updating patient:', error);
       const apiError = error as ApiError;
@@ -1868,6 +1877,27 @@ const ReceptionistDashboard: React.FC = () => {
                       )}
 
                       <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const res = await apiClient.get(`/patients/${item.patient_id}`);
+                            const patient = res.data.patient || res.data;
+                            openEditPatient(patient);
+                          } catch {
+                            showToast('Failed to load patient data', 'error');
+                          }
+                        }}
+                        leftIcon={
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        }
+                      >
+                        Edit Patient
+                      </Button>
+
+                      <Button
                         variant="success"
                         size="sm"
                         onClick={() => handleViewInvoice(item.id)}
@@ -2002,7 +2032,7 @@ const ReceptionistDashboard: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={openEditPatient}
+                          onClick={() => openEditPatient()}
                           className="p-1.5 text-primary-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
                           title="Edit patient info"
                         >
