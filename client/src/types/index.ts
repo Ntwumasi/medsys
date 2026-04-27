@@ -81,6 +81,10 @@ export interface Encounter {
   status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
+  // Enriched fields from patient summary
+  clinical_notes?: Array<{ id: number; note_type: string; content: string; author_name: string; created_at: string }>;
+  diagnoses?: Array<{ id: number; diagnosis_code: string; diagnosis_description: string; type: string; status: string }>;
+  prescriptions?: Array<{ id: number; medication_name: string; dosage: string; frequency: string; route: string; quantity: string; status: string }>;
 }
 
 export interface Medication {

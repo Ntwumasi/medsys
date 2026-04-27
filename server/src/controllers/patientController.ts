@@ -456,9 +456,57 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
        LEFT JOIN users u ON e.provider_id = u.id
        WHERE e.patient_id = $1
        ORDER BY e.encounter_date DESC
-       LIMIT 5`,
+       LIMIT 20`,
       [id]
     );
+
+    // Enrich encounters with clinical notes, diagnoses, and prescriptions
+    const encounterIds = encountersResult.rows.map((e: any) => e.id);
+    let notesMap: Record<number, any[]> = {};
+    let diagnosesMap: Record<number, any[]> = {};
+    let prescriptionsMap: Record<number, any[]> = {};
+
+    if (encounterIds.length > 0) {
+      const [notesResult, diagnosesResult, prescriptionsResult] = await Promise.all([
+        pool.query(
+          `SELECT cn.*, u.first_name || ' ' || u.last_name as author_name
+           FROM clinical_notes cn
+           LEFT JOIN users u ON cn.created_by = u.id
+           WHERE cn.encounter_id = ANY($1)
+           ORDER BY cn.created_at ASC`,
+          [encounterIds]
+        ),
+        pool.query(
+          `SELECT * FROM diagnoses
+           WHERE encounter_id = ANY($1)
+           ORDER BY type ASC, created_at ASC`,
+          [encounterIds]
+        ),
+        pool.query(
+          `SELECT * FROM pharmacy_orders
+           WHERE encounter_id = ANY($1)
+           ORDER BY created_at ASC`,
+          [encounterIds]
+        ),
+      ]);
+
+      for (const note of notesResult.rows) {
+        (notesMap[note.encounter_id] ||= []).push(note);
+      }
+      for (const dx of diagnosesResult.rows) {
+        (diagnosesMap[dx.encounter_id] ||= []).push(dx);
+      }
+      for (const rx of prescriptionsResult.rows) {
+        (prescriptionsMap[rx.encounter_id] ||= []).push(rx);
+      }
+    }
+
+    // Attach to each encounter
+    for (const enc of encountersResult.rows) {
+      enc.clinical_notes = notesMap[enc.id] || [];
+      enc.diagnoses = diagnosesMap[enc.id] || [];
+      enc.prescriptions = prescriptionsMap[enc.id] || [];
+    }
 
     // Get active medications
     const medicationsResult = await pool.query(

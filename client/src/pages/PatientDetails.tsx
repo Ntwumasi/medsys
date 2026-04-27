@@ -571,6 +571,40 @@ const PatientDetails: React.FC = () => {
                             </div>
                           )}
 
+                          {encounter.diagnoses && encounter.diagnoses.length > 0 && (
+                            <div className="bg-rose-50 rounded-lg p-4 border border-rose-100 md:col-span-2">
+                              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">Diagnoses</p>
+                              <div className="space-y-1">
+                                {encounter.diagnoses.map((dx: any) => (
+                                  <div key={dx.id} className="flex items-center gap-2 text-sm">
+                                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${dx.type === 'primary' ? 'bg-rose-200 text-rose-800' : 'bg-gray-200 text-gray-700'}`}>
+                                      {dx.type}
+                                    </span>
+                                    <span className="text-gray-900">{dx.diagnosis_description}</span>
+                                    {dx.diagnosis_code && <span className="text-gray-400 text-xs">({dx.diagnosis_code})</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {encounter.clinical_notes && encounter.clinical_notes.length > 0 && (
+                            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 md:col-span-2">
+                              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2">Clinical Notes</p>
+                              <div className="space-y-3">
+                                {encounter.clinical_notes.map((note: any) => (
+                                  <div key={note.id} className="border-l-2 border-purple-300 pl-3">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-medium text-purple-700 capitalize">{note.note_type.replace(/_/g, ' ')}</span>
+                                      <span className="text-xs text-gray-400">by {note.author_name}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{note.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {encounter.assessment && (
                             <div className="bg-amber-50 rounded-lg p-4 border border-amber-100 md:col-span-2">
                               <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">Assessment</p>
@@ -582,6 +616,31 @@ const PatientDetails: React.FC = () => {
                             <div className="bg-secondary-50 rounded-lg p-4 border border-secondary-100 md:col-span-2">
                               <p className="text-xs font-semibold text-secondary-600 uppercase tracking-wider mb-1">Plan</p>
                               <p className="text-sm text-gray-900">{encounter.plan}</p>
+                            </div>
+                          )}
+
+                          {encounter.prescriptions && encounter.prescriptions.length > 0 && (
+                            <div className="bg-teal-50 rounded-lg p-4 border border-teal-100 md:col-span-2">
+                              <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-2">Prescriptions</p>
+                              <div className="space-y-1">
+                                {encounter.prescriptions.map((rx: any) => (
+                                  <div key={rx.id} className="flex items-center justify-between text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-900">{rx.medication_name}</span>
+                                      {rx.dosage && <span className="text-gray-500">{rx.dosage}</span>}
+                                      {rx.frequency && <span className="text-gray-500">- {rx.frequency}</span>}
+                                      {rx.route && <span className="text-gray-400 text-xs">({rx.route})</span>}
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      rx.status === 'dispensed' || rx.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                      rx.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                      'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                      {rx.status}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
