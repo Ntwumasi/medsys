@@ -28,10 +28,11 @@ const PatientDetails: React.FC = () => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging'>('overview');
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
+  const [imagingResults, setImagingResults] = useState<Array<{id: number; imaging_type: string; body_part?: string; priority: string; status: string; ordered_date: string; completed_date?: string; findings?: string; ordering_provider_name?: string}>>([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -41,8 +42,29 @@ const PatientDetails: React.FC = () => {
     if (id) {
       loadPatientSummary(parseInt(id));
       loadLabResults(parseInt(id));
+      loadImagingResults(parseInt(id));
     }
   }, [id]);
+
+  const loadImagingResults = async (patientId: number) => {
+    try {
+      const response = await apiClient.get(`/orders/imaging?patient_id=${patientId}`);
+      setImagingResults(response.data.imaging_orders || []);
+    } catch (error) {
+      console.error('Error loading imaging results:', error);
+    }
+  };
+
+  const handleDiscontinueMedication = async (medicationId: number, medicationName: string) => {
+    if (!confirm(`Discontinue ${medicationName}?`)) return;
+    try {
+      await apiClient.post(`/medications/${medicationId}/discontinue`);
+      showToast(`${medicationName} discontinued`, 'success');
+      if (id) loadPatientSummary(parseInt(id));
+    } catch (error) {
+      showToast('Failed to discontinue medication', 'error');
+    }
+  };
 
   const loadLabResults = async (patientId: number) => {
     setLabsLoading(true);
@@ -428,6 +450,22 @@ const PatientDetails: React.FC = () => {
                   <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{labResults.length}</span>
                 )}
               </button>
+              <button
+                onClick={() => setActiveTab('imaging')}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  activeTab === 'imaging'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                </svg>
+                Imaging
+                {imagingResults.length > 0 && (
+                  <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{imagingResults.length}</span>
+                )}
+              </button>
             </nav>
           </div>
 
@@ -681,6 +719,9 @@ const PatientDetails: React.FC = () => {
                           <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                             Prescriber
                           </th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-100">
@@ -696,6 +737,14 @@ const PatientDetails: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
                               {medication.prescribing_doctor_name}
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                onClick={() => handleDiscontinueMedication(medication.id, medication.medication_name)}
+                                className="px-3 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                              >
+                                Discontinue
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -847,6 +896,81 @@ const PatientDetails: React.FC = () => {
                             <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
                               <span className="text-sm font-medium text-gray-600">Notes:</span>
                               <p className="text-sm text-gray-800 mt-1">{lab.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'imaging' && (
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Imaging Results</h2>
+                {imagingResults.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    <p className="text-lg font-medium">No imaging orders</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {imagingResults.map((img) => (
+                      <div key={img.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                        <div className={`px-6 py-3 ${
+                          img.status === 'completed'
+                            ? 'bg-gradient-to-r from-emerald-50 to-green-50'
+                            : img.status === 'in_progress'
+                              ? 'bg-gradient-to-r from-blue-50 to-sky-50'
+                              : 'bg-gradient-to-r from-gray-50 to-slate-50'
+                        }`}>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-bold text-gray-900">{img.imaging_type}</h3>
+                              {img.body_part && <span className="text-sm text-gray-600">- {img.body_part}</span>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                                img.priority === 'stat' ? 'bg-red-100 text-red-700' :
+                                img.priority === 'urgent' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {img.priority.toUpperCase()}
+                              </span>
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                                img.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                img.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                'bg-amber-100 text-amber-700'
+                              }`}>
+                                {img.status.replace('_', ' ').toUpperCase()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-6 py-4">
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                            <div>
+                              <span className="text-gray-500">Ordered:</span>
+                              <span className="ml-2 font-medium text-gray-900">
+                                {format(new Date(img.ordered_date), 'MMM d, yyyy h:mm a')}
+                              </span>
+                            </div>
+                            {img.completed_date && (
+                              <div>
+                                <span className="text-gray-500">Completed:</span>
+                                <span className="ml-2 font-medium text-gray-900">
+                                  {format(new Date(img.completed_date), 'MMM d, yyyy h:mm a')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {img.findings && (
+                            <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                              <h4 className="text-sm font-bold text-emerald-800 mb-2">Findings:</h4>
+                              <p className="text-gray-900 whitespace-pre-wrap">{img.findings}</p>
                             </div>
                           )}
                         </div>

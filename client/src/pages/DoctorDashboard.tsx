@@ -168,6 +168,10 @@ const DoctorDashboard: React.FC = () => {
   // Vital Signs History state
   const [showVitalsHistory, setShowVitalsHistory] = useState(false);
 
+  // Diagnosis state
+  const [encounterDiagnoses, setEncounterDiagnoses] = useState<Array<{id: number; diagnosis_code: string; diagnosis_description: string; type: string; status: string}>>([]);
+  const [currentDiagnosis, setCurrentDiagnosis] = useState({diagnosis_description: '', diagnosis_code: '', type: 'primary' as 'primary' | 'secondary'});
+
   // Follow-up modal state
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
@@ -194,6 +198,12 @@ const DoctorDashboard: React.FC = () => {
     if (selectedEncounter) {
       loadEncounterNotes(selectedEncounter.id);
       loadEncounterOrders(selectedEncounter.id);
+      loadEncounterDiagnoses(selectedEncounter.id);
+      // Auto-refresh orders every 30 seconds
+      const ordersInterval = setInterval(() => {
+        loadEncounterOrders(selectedEncounter.id);
+      }, 30000);
+      return () => clearInterval(ordersInterval);
     }
   }, [selectedEncounter]);
 
@@ -703,6 +713,80 @@ const DoctorDashboard: React.FC = () => {
       console.error('Error alerting nurse:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to alert nurse';
       showToast(errorMessage, 'error');
+    }
+  };
+
+  // Diagnosis management
+  const loadEncounterDiagnoses = async (encounterId: number) => {
+    try {
+      const response = await apiClient.get(`/encounters/${encounterId}`);
+      setEncounterDiagnoses(response.data.encounter?.diagnoses || response.data.diagnoses || []);
+    } catch (error) {
+      console.error('Error loading diagnoses:', error);
+    }
+  };
+
+  const handleAddDiagnosis = async () => {
+    if (!selectedEncounter || !currentDiagnosis.diagnosis_description) {
+      showToast('Please enter a diagnosis description', 'warning');
+      return;
+    }
+    try {
+      await apiClient.post('/encounters/diagnoses', {
+        encounter_id: selectedEncounter.id,
+        patient_id: selectedEncounter.patient_id,
+        diagnosis_description: currentDiagnosis.diagnosis_description,
+        diagnosis_code: currentDiagnosis.diagnosis_code || null,
+        type: currentDiagnosis.type,
+      });
+      showToast('Diagnosis added', 'success');
+      setCurrentDiagnosis({diagnosis_description: '', diagnosis_code: '', type: 'primary'});
+      loadEncounterDiagnoses(selectedEncounter.id);
+    } catch (error) {
+      showToast('Failed to add diagnosis', 'error');
+    }
+  };
+
+  // Cancel encounter (no-show / abandonment)
+  const handleCancelEncounter = async () => {
+    if (!selectedEncounter) return;
+    if (!confirm(`Cancel encounter for ${selectedEncounter.patient_name}? This will mark the visit as cancelled and release the room.`)) return;
+
+    try {
+      await apiClient.put(`/encounters/${selectedEncounter.id}`, { status: 'cancelled' });
+      // Release the room
+      try {
+        await apiClient.post('/workflow/release-room', { encounter_id: selectedEncounter.id, release_only: true });
+      } catch (_) { /* room may not be assigned */ }
+      showToast(`Encounter cancelled for ${selectedEncounter.patient_name}`, 'success');
+      setSelectedEncounter(null);
+      loadRoomEncounters();
+    } catch (error) {
+      showToast('Failed to cancel encounter', 'error');
+    }
+  };
+
+  // Cancel a lab order
+  const handleCancelLabOrder = async (orderId: number) => {
+    if (!confirm('Cancel this lab order?')) return;
+    try {
+      await apiClient.put(`/orders/lab/${orderId}`, { status: 'cancelled' });
+      showToast('Lab order cancelled', 'success');
+      if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
+    } catch (error) {
+      showToast('Failed to cancel lab order', 'error');
+    }
+  };
+
+  // Cancel an imaging order
+  const handleCancelImagingOrder = async (orderId: number) => {
+    if (!confirm('Cancel this imaging order?')) return;
+    try {
+      await apiClient.put(`/orders/imaging/${orderId}`, { status: 'cancelled' });
+      showToast('Imaging order cancelled', 'success');
+      if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
+    } catch (error) {
+      showToast('Failed to cancel imaging order', 'error');
     }
   };
 
@@ -1228,15 +1312,27 @@ const DoctorDashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <Link
-                      to={`/patients/${selectedEncounter.patient_id}`}
-                      className="px-4 py-2 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg hover:from-primary-700 hover:to-secondary-700 transition-all shadow-md hover:shadow-lg font-semibold flex items-center gap-2"
-                    >
-                      View Full Chart
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to="/messages"
+                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold flex items-center gap-2"
+                        title="Messages"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        Messages
+                      </Link>
+                      <Link
+                        to={`/patients/${selectedEncounter.patient_id}`}
+                        className="px-4 py-2 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-lg hover:from-primary-700 hover:to-secondary-700 transition-all shadow-md hover:shadow-lg font-semibold flex items-center gap-2"
+                      >
+                        View Full Chart
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </Link>
+                    </div>
                   </div>
                   <div className="pt-4 mt-4 border-t border-gray-200">
                     <div className="text-sm text-gray-600">Today's Visit</div>
@@ -1343,6 +1439,79 @@ const DoctorDashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Diagnoses */}
+                <div className="card">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                      <svg className="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                      Diagnoses
+                      {encounterDiagnoses.length > 0 && (
+                        <span className="bg-rose-600 text-white text-xs px-2 py-0.5 rounded-full">{encounterDiagnoses.length}</span>
+                      )}
+                    </h2>
+                  </div>
+
+                  {/* Current Diagnoses */}
+                  {encounterDiagnoses.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {encounterDiagnoses.map((dx) => (
+                        <div key={dx.id} className="flex items-center gap-2 p-2 bg-rose-50 rounded-lg border border-rose-200">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${dx.type === 'primary' ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                            {dx.type}
+                          </span>
+                          <span className="font-medium text-gray-900 flex-1">{dx.diagnosis_description}</span>
+                          {dx.diagnosis_code && <span className="text-gray-400 text-xs">({dx.diagnosis_code})</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Diagnosis Form */}
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-5">
+                      <AutocompleteInput
+                        value={currentDiagnosis.diagnosis_description}
+                        onChange={(value) => setCurrentDiagnosis(prev => ({...prev, diagnosis_description: value}))}
+                        sectionId="diagnoses"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
+                        placeholder="Diagnosis (e.g., Malaria, Hypertension)"
+                      />
+                    </div>
+                    <div className="sm:col-span-3">
+                      <input
+                        type="text"
+                        value={currentDiagnosis.diagnosis_code}
+                        onChange={(e) => setCurrentDiagnosis(prev => ({...prev, diagnosis_code: e.target.value}))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
+                        placeholder="ICD code (optional)"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <select
+                        value={currentDiagnosis.type}
+                        onChange={(e) => setCurrentDiagnosis(prev => ({...prev, type: e.target.value as 'primary' | 'secondary'}))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
+                      >
+                        <option value="primary">Primary</option>
+                        <option value="secondary">Secondary</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <button
+                        onClick={handleAddDiagnosis}
+                        className="w-full px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-semibold flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Clinical Notes */}
@@ -1836,6 +2005,18 @@ const DoctorDashboard: React.FC = () => {
                         </button>
                         <p className="text-xs text-success-700 text-center">
                           Notify nurse when patient is ready for follow-up care
+                        </p>
+                        <button
+                          onClick={handleCancelEncounter}
+                          className="w-full px-4 py-3 bg-white text-danger-600 border-2 border-danger-200 rounded-xl hover:bg-danger-50 transition-all font-semibold flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Cancel Encounter
+                        </button>
+                        <p className="text-xs text-gray-500 text-center">
+                          No-show or patient left before being seen
                         </p>
                       </div>
                     </div>
@@ -2356,6 +2537,14 @@ const DoctorDashboard: React.FC = () => {
                                     </div>
                                   )}
                                 </div>
+                                {(order.status === 'ordered' || order.status === 'pending') && (
+                                  <button
+                                    onClick={() => handleCancelLabOrder(order.id)}
+                                    className="ml-2 px-3 py-1.5 text-xs font-semibold text-danger-600 bg-white border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -2429,6 +2618,14 @@ const DoctorDashboard: React.FC = () => {
                                     </div>
                                   )}
                                 </div>
+                                {(order.status === 'ordered' || order.status === 'pending') && (
+                                  <button
+                                    onClick={() => handleCancelImagingOrder(order.id)}
+                                    className="ml-2 px-3 py-1.5 text-xs font-semibold text-danger-600 bg-white border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
