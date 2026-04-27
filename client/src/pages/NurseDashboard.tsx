@@ -951,6 +951,48 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  // Update triage priority
+  const handleUpdateTriagePriority = async (priority: 'green' | 'yellow' | 'red') => {
+    if (!selectedPatient) return;
+    if (priority === selectedPatient.current_priority) return;
+
+    const labels: Record<string, string> = { green: 'Green (Stable)', yellow: 'Yellow (Urgent)', red: 'Red (Critical)' };
+    if (!confirm(`Change priority to ${labels[priority]}?`)) return;
+
+    try {
+      await apiClient.post('/workflow/nurse/triage-priority', {
+        encounter_id: selectedPatient.id,
+        priority,
+      });
+      showToast(`Priority updated to ${priority.toUpperCase()}`, priority === 'red' ? 'warning' : 'success');
+      setSelectedPatient({ ...selectedPatient, current_priority: priority });
+      loadAssignedPatients();
+    } catch (error) {
+      showToast('Failed to update priority', 'error');
+    }
+  };
+
+  // Record medication administration
+  const handleAdministerMedication = async (orderId: number, medicationName: string) => {
+    const notes = prompt(`Record administration notes for ${medicationName} (optional):`);
+    if (notes === null) return; // cancelled
+
+    try {
+      await apiClient.post('/workflow/nurse/administer-medication', {
+        pharmacy_order_id: orderId,
+        notes: notes || null,
+      });
+      showToast(`${medicationName} administration recorded`, 'success');
+      // Refresh pharmacy orders
+      if (selectedPatient) {
+        const res = await apiClient.get(`/orders/encounter/${selectedPatient.id}`);
+        setPharmacyOrders(res.data.pharmacy_orders || []);
+      }
+    } catch (error) {
+      showToast('Failed to record administration', 'error');
+    }
+  };
+
   const handleAlertDoctor = async () => {
     if (!selectedPatient) return;
 
@@ -1262,7 +1304,13 @@ const NurseDashboard: React.FC = () => {
                         className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
                           !notification.is_read ? 'bg-warning-50' : ''
                         }`}
-                        onClick={() => {
+                        onClick={async () => {
+                          // Mark as read
+                          if (!notification.is_read) {
+                            try {
+                              await apiClient.post(`/workflow/alerts/${notification.id}/read`);
+                            } catch (_) { /* ignore */ }
+                          }
                           // Find and select the patient from the notification
                           const patient = assignedPatients.find(p => p.id === notification.encounter_id);
                           if (patient) {
@@ -1558,12 +1606,25 @@ const NurseDashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className={`px-5 py-3 rounded-xl font-bold text-sm shadow-md ${
-                      selectedPatient.current_priority === 'red' ? 'bg-danger-100 text-danger-800 border border-danger-300' :
-                      selectedPatient.current_priority === 'yellow' ? 'bg-warning-100 text-warning-800 border border-warning-300' :
-                      'bg-success-100 text-success-800 border border-success-300'
-                    }`}>
-                      PRIORITY: {selectedPatient.current_priority.toUpperCase()}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-bold text-gray-500 mr-1">TRIAGE:</span>
+                      {(['green', 'yellow', 'red'] as const).map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => handleUpdateTriagePriority(p)}
+                          className={`px-3 py-2 rounded-lg text-xs font-bold transition-all border-2 ${
+                            selectedPatient.current_priority === p
+                              ? p === 'red' ? 'bg-danger-600 text-white border-danger-600 shadow-md'
+                                : p === 'yellow' ? 'bg-warning-500 text-white border-warning-500 shadow-md'
+                                : 'bg-success-600 text-white border-success-600 shadow-md'
+                              : p === 'red' ? 'bg-white text-danger-600 border-danger-200 hover:bg-danger-50'
+                                : p === 'yellow' ? 'bg-white text-warning-600 border-warning-200 hover:bg-warning-50'
+                                : 'bg-white text-success-600 border-success-200 hover:bg-success-50'
+                          }`}
+                        >
+                          {p.toUpperCase()}
+                        </button>
+                      ))}
                     </div>
                   </div>
 
@@ -2740,6 +2801,14 @@ const NurseDashboard: React.FC = () => {
                                               className="px-3 py-1 bg-success-600 text-white text-xs rounded-lg hover:bg-success-700"
                                             >
                                               Confirm Pickup
+                                            </button>
+                                          )}
+                                          {order.status === 'dispensed' && (
+                                            <button
+                                              onClick={() => handleAdministerMedication(order.id, order.medication_name)}
+                                              className="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700"
+                                            >
+                                              Record Administration
                                             </button>
                                           )}
                                         </div>

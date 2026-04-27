@@ -548,6 +548,108 @@ export const getVitalSignsHistory = async (req: Request, res: Response): Promise
   }
 };
 
+// Nurse: Update triage priority
+export const updateTriagePriority = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const nurse_id = authReq.user?.id;
+    const { encounter_id, priority } = req.body;
+
+    if (!['green', 'yellow', 'red'].includes(priority)) {
+      res.status(400).json({ error: 'Priority must be green, yellow, or red' });
+      return;
+    }
+
+    const result = await pool.query(
+      `UPDATE encounters SET triage_priority = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2 RETURNING id, triage_priority`,
+      [priority, encounter_id]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    // If escalated to red, create alert for assigned doctor
+    if (priority === 'red') {
+      const enc = await pool.query(
+        `SELECT provider_id, patient_id FROM encounters WHERE id = $1`,
+        [encounter_id]
+      );
+      if (enc.rows[0]?.provider_id) {
+        await pool.query(
+          `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
+           VALUES ($1, $2, $3, $4, 'critical_priority', 'Patient has been escalated to RED priority')`,
+          [encounter_id, enc.rows[0].patient_id, nurse_id, enc.rows[0].provider_id]
+        );
+      }
+    }
+
+    await auditService.log({
+      userId: nurse_id,
+      action: 'update',
+      entityType: 'encounter',
+      entityId: encounter_id,
+      details: { priority },
+    });
+
+    res.json({ message: 'Triage priority updated', priority });
+  } catch (error) {
+    console.error('Update triage priority error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Nurse: Record medication administration
+export const recordMedicationAdministration = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const nurse_id = authReq.user?.id;
+    const { pharmacy_order_id, notes } = req.body;
+
+    // Verify the order exists and is dispensed
+    const orderResult = await pool.query(
+      `SELECT po.*, e.patient_id FROM pharmacy_orders po
+       JOIN encounters e ON po.encounter_id = e.id
+       WHERE po.id = $1`,
+      [pharmacy_order_id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      res.status(404).json({ error: 'Pharmacy order not found' });
+      return;
+    }
+
+    const order = orderResult.rows[0];
+
+    // Update pharmacy order with administration info
+    await pool.query(
+      `UPDATE pharmacy_orders
+       SET status = 'completed',
+           administered_by = $1,
+           administered_at = CURRENT_TIMESTAMP,
+           administration_notes = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [nurse_id, notes || null, pharmacy_order_id]
+    );
+
+    await auditService.log({
+      userId: nurse_id,
+      action: 'complete',
+      entityType: 'pharmacy_order',
+      entityId: pharmacy_order_id,
+      details: { medication_name: order.medication_name, patient_id: order.patient_id },
+    });
+
+    res.json({ message: 'Medication administration recorded' });
+  } catch (error) {
+    console.error('Record medication administration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Nurse: Alert doctor that patient is ready
 export const alertDoctor = async (req: Request, res: Response): Promise<void> => {
   try {
