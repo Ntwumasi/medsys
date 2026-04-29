@@ -385,7 +385,7 @@ router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), a
 router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin'), resetUserPassword);
 
 // Patient routes (with input validation)
-router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
+router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
 router.get('/patients', authenticateToken, getPatients);
 router.get('/patients/:id', authenticateToken, getPatientById);
 router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
@@ -415,7 +415,7 @@ router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('d
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
 
 // Workflow routes - Receptionist
-router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacist', 'pharmacy_tech'), checkInPatient);
+router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), checkInPatient);
 router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('receptionist'), assignDoctor);
