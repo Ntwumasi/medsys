@@ -1271,6 +1271,16 @@ const ReceptionistDashboard: React.FC = () => {
     if (patient.preferred_clinic) {
       setSelectedClinic(patient.preferred_clinic);
     }
+    // Auto-select doctor based on PCP
+    if (patient.pcp_name) {
+      const pcpNorm = patient.pcp_name.replace(/^Dr\.?\s*/i, '').toLowerCase().trim();
+      const match = doctors.find(d =>
+        `${d.first_name} ${d.last_name}`.toLowerCase() === pcpNorm
+      );
+      if (match) {
+        setSelectedDoctorId(String(match.id));
+      }
+    }
     await Promise.all([
       loadPatientHistory(patient.id),
       loadOutstandingBalance(patient.id)
@@ -2188,7 +2198,7 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
 
             {selectedPatient && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mt-6">
                 {/* PCP Information */}
                 <div className="mb-6 p-4 bg-primary-50 rounded-lg border border-primary-200">
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Primary Care Physician (PCP)</h3>
