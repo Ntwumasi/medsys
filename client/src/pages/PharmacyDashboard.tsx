@@ -226,6 +226,46 @@ const PharmacyDashboard: React.FC = () => {
   const [walkInPrescriptionPreviews, setWalkInPrescriptionPreviews] = useState<string[]>([]);
   const [submittingWalkIn, setSubmittingWalkIn] = useState(false);
 
+  // New walk-in patient modal
+  const [showNewWalkInModal, setShowNewWalkInModal] = useState(false);
+  const [newWalkInForm, setNewWalkInForm] = useState({ firstName: '', lastName: '', phone: '' });
+  const [creatingWalkIn, setCreatingWalkIn] = useState(false);
+
+  const handleCreateWalkIn = async () => {
+    const { firstName, lastName, phone } = newWalkInForm;
+    if (!firstName.trim() || !lastName.trim()) {
+      showToast('First name and last name are required', 'warning');
+      return;
+    }
+    setCreatingWalkIn(true);
+    try {
+      const patientRes = await apiClient.post('/patients', {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        phone: phone.trim() || undefined,
+        gender: '',
+        date_of_birth: '',
+        registration_payment: 'pay_later',
+      });
+      const patient = patientRes.data.patient;
+      await apiClient.post('/workflow/check-in', {
+        patient_id: patient.id,
+        chief_complaint: 'OTC Purchase',
+        encounter_type: 'walk-in',
+        billing_amount: 0,
+        clinic: 'Pharmacy (OTC/Walk-in)',
+      });
+      showToast(`${firstName} ${lastName} added as walk-in patient`, 'success');
+      setShowNewWalkInModal(false);
+      setNewWalkInForm({ firstName: '', lastName: '', phone: '' });
+      fetchWalkIns();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || error.response?.data?.message || 'Failed to create walk-in patient', 'error');
+    } finally {
+      setCreatingWalkIn(false);
+    }
+  };
+
   // Orders state
   const [, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
@@ -1769,38 +1809,7 @@ const PharmacyDashboard: React.FC = () => {
                 <h2 className="text-lg font-semibold">OTC / Walk-in Patients</h2>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={async () => {
-                      const name = prompt('Enter patient name (First Last):');
-                      if (!name?.trim()) return;
-                      const parts = name.trim().split(/\s+/);
-                      const firstName = parts[0] || '';
-                      const lastName = parts.slice(1).join(' ') || '';
-                      const phone = prompt('Enter phone number (optional):') || '';
-                      try {
-                        // Create patient
-                        const patientRes = await apiClient.post('/patients', {
-                          first_name: firstName,
-                          last_name: lastName,
-                          phone: phone || undefined,
-                          gender: '',
-                          date_of_birth: '',
-                          registration_payment: 'pay_later',
-                        });
-                        const patient = patientRes.data.patient;
-                        // Create encounter and route to pharmacy
-                        await apiClient.post('/workflow/check-in', {
-                          patient_id: patient.id,
-                          chief_complaint: 'OTC Purchase',
-                          encounter_type: 'walk-in',
-                          billing_amount: 0,
-                          clinic: 'Pharmacy (OTC/Walk-in)',
-                        });
-                        showToast(`${firstName} ${lastName} added as walk-in patient`, 'success');
-                        fetchWalkIns();
-                      } catch (error: any) {
-                        showToast(error.response?.data?.error || error.response?.data?.message || 'Failed to create walk-in patient', 'error');
-                      }
-                    }}
+                    onClick={() => setShowNewWalkInModal(true)}
                     className="flex items-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium text-white transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3932,6 +3941,82 @@ const PharmacyDashboard: React.FC = () => {
           </div>
         )}
       </Modal>
+
+      {/* New Walk-in Patient Modal */}
+      {showNewWalkInModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">New Walk-in Patient</h3>
+                  <p className="text-sm text-gray-600">Quick registration for OTC purchases</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                <input
+                  type="text"
+                  value={newWalkInForm.firstName}
+                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter first name"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                <input
+                  type="text"
+                  value={newWalkInForm.lastName}
+                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Enter last name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                <input
+                  type="tel"
+                  value={newWalkInForm.phone}
+                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="e.g., 0244123456"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowNewWalkInModal(false); setNewWalkInForm({ firstName: '', lastName: '', phone: '' }); }}
+                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateWalkIn}
+                disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
+                className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {creatingWalkIn ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Add Patient'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 };
