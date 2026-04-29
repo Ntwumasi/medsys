@@ -75,6 +75,9 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       other_health_conditions,
     } = req.body;
 
+    // Normalize empty strings to null for date/optional fields
+    const dob = date_of_birth && date_of_birth.trim() !== '' ? date_of_birth : null;
+
     // Check for duplicate patient (same first name, last name, and date of birth)
     const duplicateCheck = await client.query(
       `SELECT p.id, p.patient_number, u.first_name, u.last_name
@@ -83,7 +86,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
        WHERE LOWER(u.first_name) = LOWER($1)
          AND LOWER(u.last_name) = LOWER($2)
          AND p.date_of_birth = $3`,
-      [first_name, last_name, date_of_birth]
+      [first_name, last_name, dob]
     );
 
     if (duplicateCheck.rows.length > 0) {
@@ -136,8 +139,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       [
         user_id,
         patient_number,
-        date_of_birth,
-        gender,
+        dob,
+        gender || null,
         allergies,
         address,
         city,
