@@ -465,9 +465,10 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
     let notesMap: Record<number, any[]> = {};
     let diagnosesMap: Record<number, any[]> = {};
     let prescriptionsMap: Record<number, any[]> = {};
+    let hpSectionsMap: Record<number, any[]> = {};
 
     if (encounterIds.length > 0) {
-      const [notesResult, diagnosesResult, prescriptionsResult] = await Promise.all([
+      const [notesResult, diagnosesResult, prescriptionsResult, hpResult] = await Promise.all([
         pool.query(
           `SELECT cn.*, u.first_name || ' ' || u.last_name as author_name
            FROM clinical_notes cn
@@ -488,6 +489,13 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
            ORDER BY created_at ASC`,
           [encounterIds]
         ),
+        pool.query(
+          `SELECT hp.encounter_id, hp.section_id, hp.content, hp.completed
+           FROM hp_sections hp
+           WHERE hp.encounter_id = ANY($1) AND hp.content IS NOT NULL AND hp.content != ''
+           ORDER BY hp.encounter_id ASC, hp.section_id ASC`,
+          [encounterIds]
+        ),
       ]);
 
       for (const note of notesResult.rows) {
@@ -499,6 +507,9 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       for (const rx of prescriptionsResult.rows) {
         (prescriptionsMap[rx.encounter_id] ||= []).push(rx);
       }
+      for (const hp of hpResult.rows) {
+        (hpSectionsMap[hp.encounter_id] ||= []).push(hp);
+      }
     }
 
     // Attach to each encounter
@@ -506,6 +517,7 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       enc.clinical_notes = notesMap[enc.id] || [];
       enc.diagnoses = diagnosesMap[enc.id] || [];
       enc.prescriptions = prescriptionsMap[enc.id] || [];
+      enc.hp_sections = hpSectionsMap[enc.id] || [];
     }
 
     // Get active medications

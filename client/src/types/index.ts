@@ -85,6 +85,7 @@ export interface Encounter {
   clinical_notes?: Array<{ id: number; note_type: string; content: string; author_name: string; created_at: string }>;
   diagnoses?: Array<{ id: number; diagnosis_code: string; diagnosis_description: string; type: string; status: string }>;
   prescriptions?: Array<{ id: number; medication_name: string; dosage: string; frequency: string; route: string; quantity: string; status: string }>;
+  hp_sections?: Array<{ encounter_id: number; section_id: string; content: string; completed: boolean }>;
 }
 
 export interface Medication {

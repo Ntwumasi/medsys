@@ -609,6 +609,24 @@ const PatientDetails: React.FC = () => {
                             </div>
                           )}
 
+                          {encounter.hp_sections && encounter.hp_sections.length > 0 && (
+                            <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100 md:col-span-2">
+                              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">SOAP / History & Physical</p>
+                              <div className="space-y-2">
+                                {encounter.hp_sections
+                                  .filter((hp: any) => hp.content && hp.content.trim())
+                                  .map((hp: any) => (
+                                  <div key={hp.section_id} className="border-l-2 border-indigo-300 pl-3">
+                                    <span className="text-xs font-bold text-indigo-700 capitalize">
+                                      {hp.section_id.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                    </span>
+                                    <p className="text-sm text-gray-900 whitespace-pre-wrap mt-0.5">{hp.content}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {encounter.diagnoses && encounter.diagnoses.length > 0 && (
                             <div className="bg-rose-50 rounded-lg p-4 border border-rose-100 md:col-span-2">
                               <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">Diagnoses</p>
