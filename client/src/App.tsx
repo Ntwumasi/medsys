@@ -22,6 +22,7 @@ import PatientRegistrationPage from './pages/PatientRegistrationPage';
 import PatientPortal from './pages/PatientPortal';
 import PublicUpdates from './pages/PublicUpdates';
 import InvoicesPage from './pages/InvoicesPage';
+import ReceiptsPage from './pages/ReceiptsPage';
 import PendingPaymentsPage from './pages/PendingPaymentsPage';
 import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
 import QuickBooksSettings from './pages/QuickBooksSettings';
@@ -135,6 +136,7 @@ const AppContent: React.FC = () => {
         <Route path="/nurse/procurement" element={<ProtectedRoute><NurseProcurement /></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
+        <Route path="/receipts" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />
         <Route path="/pending-payments" element={<ProtectedRoute><PendingPaymentsPage /></ProtectedRoute>} />
         <Route path="/finances" element={<ProtectedRoute><DepartmentFinancesPage /></ProtectedRoute>} />
         <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />

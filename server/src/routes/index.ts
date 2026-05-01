@@ -144,6 +144,10 @@ import {
   getAllPayers,
 } from '../controllers/chargeMasterController';
 import {
+  getAllReceipts,
+  getReceiptById,
+} from '../controllers/receiptsController';
+import {
   routePatientToDepartment,
   getDepartmentQueue,
   getDepartmentWalkIns,
@@ -508,6 +512,10 @@ router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByE
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
+
+// Receipts
+router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getAllReceipts);
+router.get('/receipts/:id', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getReceiptById);
 
 // Charge Master routes
 router.get('/charge-master', authenticateToken, getAllCharges);
