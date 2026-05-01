@@ -18,6 +18,7 @@ import PatientList from './pages/PatientList';
 import PatientRegistration from './pages/PatientRegistration';
 import PatientDetails from './pages/PatientDetails';
 import AppointmentsCalendar from './pages/AppointmentsCalendar';
+import PatientRegistrationPage from './pages/PatientRegistrationPage';
 import PatientPortal from './pages/PatientPortal';
 import PublicUpdates from './pages/PublicUpdates';
 import InvoicesPage from './pages/InvoicesPage';
@@ -147,6 +148,7 @@ const AppContent: React.FC = () => {
         <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
         <Route path="/patients/new" element={<ProtectedRoute><PatientRegistration /></ProtectedRoute>} />
         <Route path="/patients/:id" element={<ProtectedRoute><PatientDetails /></ProtectedRoute>} />
+        <Route path="/register" element={<ProtectedRoute><PatientRegistrationPage /></ProtectedRoute>} />
         <Route path="/appointments" element={<ProtectedRoute><AppointmentsCalendar /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div></ProtectedRoute>} />
 

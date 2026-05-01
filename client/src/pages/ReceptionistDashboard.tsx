@@ -268,7 +268,8 @@ const ReceptionistDashboard: React.FC = () => {
   const [encounterType, setEncounterType] = useState('walk-in');
   const [selectedClinic, setSelectedClinic] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
-  const [registrationPayment, setRegistrationPayment] = useState<'pay_now' | 'pay_later'>('pay_now');
+  const [newPatientEncounterType, setNewPatientEncounterType] = useState('walk-in');
+  const [newPatientChiefComplaint, setNewPatientChiefComplaint] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -854,15 +855,19 @@ const ReceptionistDashboard: React.FC = () => {
         });
       }
 
-      // Create new patient (registration only — no check-in)
+      // Create new patient (registration only — no check-in yet)
       const patientResponse = await apiClient.post('/patients', {
         ...newPatient,
         payer_sources,
-        registration_payment: registrationPayment,
       });
       const newPatientData = patientResponse.data.patient;
-      const responseData = patientResponse.data;
-      const paymentChoice = registrationPayment;
+
+      // Immediately check in the new patient
+      await apiClient.post('/workflow/check-in', {
+        patient_id: newPatientData.id,
+        encounter_type: newPatientEncounterType,
+        chief_complaint: newPatientChiefComplaint,
+      });
 
       // Reset form
       setNewPatient({
@@ -889,30 +894,13 @@ const ReceptionistDashboard: React.FC = () => {
       setSelectedPayerTypes([]);
       setSelectedCorporateClient(null);
       setSelectedInsuranceProvider(null);
-      setRegistrationPayment('pay_now');
+      setNewPatientEncounterType('walk-in');
+      setNewPatientChiefComplaint('');
 
-      // Reload data
+      // Reload data and go to queue
       await loadData();
-
-      if (paymentChoice === 'pay_now' && responseData.registration_invoice) {
-        showToast(`Patient registered! #${newPatientData.patient_number}. Opening invoice for payment...`, 'success');
-        await handleViewInvoiceById(responseData.registration_invoice.id);
-      } else {
-        showToast(`Patient registered! #${newPatientData.patient_number}. Registration fee deferred.`, 'success');
-      }
-
-      // Redirect to check-in view with the new patient pre-selected
-      try {
-        const patientRes = await apiClient.get(`/patients/${newPatientData.id}`);
-        const fullPatient = patientRes.data.patient || patientRes.data;
-        setSelectedPatient(fullPatient);
-        setSearchTerm(`${fullPatient.first_name} ${fullPatient.last_name} (${fullPatient.patient_number})`);
-        await loadOutstandingBalance(fullPatient.id);
-        setActiveView('checkin');
-      } catch {
-        // If patient fetch fails, just go to queue
-        setActiveView('queue');
-      }
+      showToast(`Patient ${newPatientData.patient_number} registered and checked in! Registration fee: GHS 100.00`, 'success');
+      setActiveView('queue');
     } catch (error) {
       console.error('Error creating new patient:', error);
       const apiError = error as ApiError;
@@ -970,22 +958,6 @@ const ReceptionistDashboard: React.FC = () => {
       setInvoiceItems(response.data.items || []);
       setInvoicePayerSources(response.data.payer_sources || []);
       setCurrentEncounterId(encounterId);
-      setShowInvoice(true);
-    } catch (error) {
-      console.error('Error loading invoice:', error);
-      const apiError = error as ApiError;
-      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to load invoice';
-      showToast(errorMessage, 'error');
-    }
-  };
-
-  const handleViewInvoiceById = async (invoiceId: number) => {
-    try {
-      const response = await apiClient.get(`/invoices/${invoiceId}`);
-      setInvoiceData(response.data.invoice || response.data);
-      setInvoiceItems(response.data.items || []);
-      setInvoicePayerSources(response.data.payer_sources || []);
-      setCurrentEncounterId(0);
       setShowInvoice(true);
     } catch (error) {
       console.error('Error loading invoice:', error);
@@ -1392,7 +1364,7 @@ const ReceptionistDashboard: React.FC = () => {
               </div>
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">New Patient</h2>
-                <p className="text-sm text-gray-600">Register & Check-In</p>
+                <p className="text-sm text-gray-600">Check-In</p>
               </div>
             </div>
           </button>
@@ -2256,7 +2228,8 @@ const ReceptionistDashboard: React.FC = () => {
 
         {activeView === 'new-patient' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Register New Patient</h2>
+            <h2 className="text-2xl font-bold text-gray-900">New Patient</h2>
+            <p className="text-sm text-gray-500 mb-6">Register & Check-In</p>
             <form onSubmit={handleNewPatientSubmit} className="space-y-6">
               <div className="bg-primary-50 p-4 rounded-lg border border-primary-200 mb-6">
                 <p className="text-sm text-primary-800">
@@ -2744,25 +2717,55 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Registration Fee (GH₵75.00)
-                </label>
-                <select
-                  value={registrationPayment}
-                  onChange={(e) => setRegistrationPayment(e.target.value as 'pay_now' | 'pay_later')}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                >
-                  <option value="pay_now">Pay Now</option>
-                  <option value="pay_later">Pay Later</option>
-                </select>
+              {/* Encounter Details */}
+              <div className="border-t pt-6 mt-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Visit Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Encounter Type</label>
+                    <select
+                      value={newPatientEncounterType}
+                      onChange={(e) => setNewPatientEncounterType(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="walk-in">Walk-in</option>
+                      <option value="new">New Patient</option>
+                      <option value="consultation">Consultation</option>
+                      <option value="procedure">Procedure</option>
+                      <option value="general-checkup">General Checkup</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <div className="bg-primary-50 border border-primary-200 rounded-lg px-4 py-2 text-sm text-primary-700 w-full">
+                      Registration fee: <span className="font-semibold">GHS 100.00</span> (auto-applied)
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Chief Complaint / Reason for Visit</label>
+                  <textarea
+                    value={newPatientChiefComplaint}
+                    onChange={(e) => setNewPatientChiefComplaint(e.target.value)}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    placeholder="Brief description of symptoms or reason for visit (optional - can be entered by nurse)"
+                  />
+                </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+                className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 transition-colors flex items-center justify-center gap-2"
               >
-                Register Patient
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Check-in
               </button>
             </form>
           </div>
