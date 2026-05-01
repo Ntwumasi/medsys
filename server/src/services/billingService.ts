@@ -79,12 +79,12 @@ export const billingService = {
 
       const newItems: BillingItem[] = [];
 
-      // 1. Check for consultation fee (should already exist from check-in)
-      const hasConsultation = existingItems.rows.some(r => r.category === 'consultation');
+      // 1. Check for consultation/registration fee (should already exist from check-in)
+      const hasConsultation = existingItems.rows.some(r => r.category === 'consultation' || r.category === 'registration');
       if (!hasConsultation) {
-        // Look up consultation fee from charge_master
-        const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-FU' :
-                           encounter.encounter_type === 'new' ? 'CONS-NEW' : 'CONS-WI';
+        // Look up consultation fee from charge_master using new codes
+        const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' :
+                           encounter.encounter_type === 'new' ? 'CONS-PCP' : 'CONS-GP';
         const consultResult = await client.query(
           `SELECT id, service_name, price FROM charge_master
            WHERE service_code = $1 AND is_active = true LIMIT 1`,
@@ -92,7 +92,7 @@ export const billingService = {
         );
 
         const consultFee = consultResult.rows[0];
-        const consultPrice = consultFee ? parseFloat(consultFee.price) : 80.00;
+        const consultPrice = consultFee ? parseFloat(consultFee.price) : 200.00;
 
         newItems.push({
           description: consultFee?.service_name || `${encounter.encounter_type || 'Walk-in'} Consultation`,

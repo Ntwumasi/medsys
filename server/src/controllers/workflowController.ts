@@ -103,27 +103,26 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const nextInvoiceId = parseInt(maxIdResult.rows[0].next_id);
     const invoiceNumber = `INV${String(nextInvoiceId).padStart(6, '0')}`;
 
-    // Only charge consultation fee for new patients (first visit)
+    // New patients get a fixed registration fee (REG-001 = GHS 100 cash rate)
     // Returning patients check in without a fee — charges come from lab/pharmacy/etc.
-    let consultationFee = 0;
+    let registrationFee = 0;
     let chargeMasterId = null;
-    let consultationDescription = '';
+    let registrationDescription = '';
 
-    if (isNewPatient || billing_amount > 0) {
-      const consultationCode = isNewPatient ? 'CONS-NEW' : 'CONS-FU';
+    if (isNewPatient) {
       const chargeResult = await client.query(
-        'SELECT id, price, service_name FROM charge_master WHERE service_code = $1',
-        [consultationCode]
+        'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true',
+        ['REG-001']
       );
 
-      consultationFee = chargeResult.rows.length > 0
+      registrationFee = chargeResult.rows.length > 0
         ? parseFloat(chargeResult.rows[0].price)
-        : (billing_amount || (isNewPatient ? 50 : 30));
+        : 100;
 
       chargeMasterId = chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null;
-      consultationDescription = chargeResult.rows.length > 0
+      registrationDescription = chargeResult.rows.length > 0
         ? chargeResult.rows[0].service_name
-        : (isNewPatient ? 'New Patient Consultation' : 'Follow-up Consultation');
+        : 'Registration';
     }
 
     const invoiceResult = await client.query(
@@ -132,21 +131,43 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         subtotal, tax, total_amount, status
       ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
       RETURNING *`,
-      [patient_id, encounter.id, invoiceNumber, consultationFee]
+      [patient_id, encounter.id, invoiceNumber, registrationFee]
     );
 
-    // Only create invoice item if there's a consultation fee
-    if (consultationFee > 0) {
+    // Add registration fee for new patients
+    if (registrationFee > 0) {
+      // Resolve payer-specific price if invoice has a payer source
+      let finalFee = registrationFee;
+      if (chargeMasterId) {
+        try {
+          const { resolvePrice } = require('../services/priceResolutionService');
+          const resolved = await resolvePrice(chargeMasterId, invoiceResult.rows[0].id, client);
+          if (!resolved.isExcluded) {
+            finalFee = resolved.unitPrice;
+          }
+        } catch {
+          // Fall back to cash rate if resolution fails
+        }
+      }
+
       await client.query(
         `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
          VALUES ($1, $2, $3, 1, $4, $4)`,
         [
           invoiceResult.rows[0].id,
           chargeMasterId,
-          consultationDescription,
-          consultationFee,
+          registrationDescription,
+          finalFee,
         ]
       );
+
+      // Update invoice total with resolved price
+      if (finalFee !== registrationFee) {
+        await client.query(
+          `UPDATE invoices SET subtotal = $1, total_amount = $1 WHERE id = $2`,
+          [finalFee, invoiceResult.rows[0].id]
+        );
+      }
     }
 
     // Get patient info for appointment and notification
@@ -195,7 +216,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         encounter_id: encounter.id,
         encounter_number: encounter.encounter_number,
         invoice_number: invoiceResult.rows[0].invoice_number,
-        billing_amount: consultationFee,
+        billing_amount: registrationFee,
         routed_to: walkInDepartment
       });
       return;
