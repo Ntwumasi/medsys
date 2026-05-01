@@ -50,8 +50,8 @@ interface PrintableInvoiceProps {
 }
 
 const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
-  invoice,
-  items,
+  invoice: initialInvoice,
+  items: initialItems,
   payerSources,
   encounterId,
   onClose,
@@ -60,8 +60,103 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const { showToast } = useNotification();
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Editable state for items and invoice totals
+  const [editableItems, setEditableItems] = useState<InvoiceItem[]>(initialItems);
+  const [invoice, setInvoice] = useState(initialInvoice);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingPrice, setEditingPrice] = useState('');
+  const [otherDescription, setOtherDescription] = useState('');
+  const [otherPrice, setOtherPrice] = useState('');
+  const [isAddingOther, setIsAddingOther] = useState(false);
+
+  const isEditable = !!encounterId;
+  const items = editableItems;
+
   // Calculate balance due
   const balanceDue = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
+
+  // Handle inline price edit
+  const handlePriceEdit = (item: InvoiceItem) => {
+    setEditingItemId(item.id);
+    setEditingPrice(parseFloat(item.unit_price.toString()).toFixed(2));
+  };
+
+  const handlePriceSave = async (itemId: number) => {
+    const newPrice = parseFloat(editingPrice);
+    if (isNaN(newPrice) || newPrice < 0) {
+      showToast('Please enter a valid price', 'error');
+      return;
+    }
+
+    try {
+      const response = await apiClient.put(`/invoice-items/${itemId}`, { unit_price: newPrice });
+      const newTotal = response.data.new_total;
+
+      // Update local state
+      setEditableItems(prev => prev.map(item =>
+        item.id === itemId
+          ? { ...item, unit_price: newPrice, total_price: newPrice * item.quantity }
+          : item
+      ));
+      setInvoice(prev => ({ ...prev, total_amount: newTotal, subtotal: newTotal }));
+      setEditingItemId(null);
+    } catch (error) {
+      console.error('Error updating price:', error);
+      showToast('Failed to update price', 'error');
+    }
+  };
+
+  const handlePriceKeyDown = (e: React.KeyboardEvent, itemId: number) => {
+    if (e.key === 'Enter') handlePriceSave(itemId);
+    if (e.key === 'Escape') setEditingItemId(null);
+  };
+
+  // Handle adding custom "Other" charge
+  const handleAddOther = async () => {
+    if (!otherDescription.trim()) {
+      showToast('Please enter a description', 'error');
+      return;
+    }
+
+    const price = parseFloat(otherPrice) || 0;
+
+    try {
+      const response = await apiClient.post('/invoice-items', {
+        invoice_id: invoice.id,
+        description: otherDescription.trim(),
+        unit_price: price,
+        quantity: 1,
+      });
+
+      const newItem = response.data.item;
+      const newTotal = response.data.new_total;
+
+      setEditableItems(prev => [...prev, newItem]);
+      setInvoice(prev => ({ ...prev, total_amount: newTotal, subtotal: newTotal }));
+      setOtherDescription('');
+      setOtherPrice('');
+      setIsAddingOther(false);
+      showToast('Charge added', 'success');
+    } catch (error) {
+      console.error('Error adding charge:', error);
+      showToast('Failed to add charge', 'error');
+    }
+  };
+
+  // Handle removing an item
+  const handleRemoveItem = async (itemId: number) => {
+    try {
+      const response = await apiClient.delete(`/invoice-items/${itemId}`);
+      const newTotal = response.data.new_total;
+
+      setEditableItems(prev => prev.filter(item => item.id !== itemId));
+      setInvoice(prev => ({ ...prev, total_amount: newTotal, subtotal: newTotal }));
+      showToast('Item removed', 'success');
+    } catch (error) {
+      console.error('Error removing item:', error);
+      showToast('Failed to remove item', 'error');
+    }
+  };
 
   // Payment state
   const [paymentAmount, setPaymentAmount] = useState<string>(balanceDue.toFixed(2));
@@ -569,6 +664,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   <th className="text-center py-3 px-4 font-semibold text-gray-700">Qty</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Unit Price</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Total</th>
+                  {isEditable && <th className="text-center py-3 px-4 font-semibold text-gray-700 print:hidden" style={{ width: '40px' }}></th>}
                 </tr>
               </thead>
               <tbody>
@@ -577,13 +673,116 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                     <td className="py-3 px-4 text-gray-700">{item.description}</td>
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
-                      GHS {parseFloat(item.unit_price.toString()).toFixed(2)}
+                      {isEditable && editingItemId === item.id ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={editingPrice}
+                          onChange={(e) => setEditingPrice(e.target.value)}
+                          onBlur={() => handlePriceSave(item.id)}
+                          onKeyDown={(e) => handlePriceKeyDown(e, item.id)}
+                          className="w-24 px-2 py-1 border border-primary-400 rounded text-right text-sm focus:ring-2 focus:ring-primary-500 print:hidden"
+                          autoFocus
+                        />
+                      ) : isEditable ? (
+                        <button
+                          type="button"
+                          onClick={() => handlePriceEdit(item)}
+                          className="text-gray-700 hover:text-primary-600 hover:bg-primary-50 px-2 py-0.5 rounded transition-colors cursor-pointer print:cursor-default"
+                          title="Click to edit price"
+                        >
+                          GHS {parseFloat(item.unit_price.toString()).toFixed(2)}
+                        </button>
+                      ) : (
+                        <>GHS {parseFloat(item.unit_price.toString()).toFixed(2)}</>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-right text-gray-700 font-medium">
                       GHS {parseFloat(item.total_price.toString()).toFixed(2)}
                     </td>
+                    {isEditable && (
+                      <td className="py-3 px-4 text-center print:hidden">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          title="Remove item"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
+
+                {/* Add Other Charge Row */}
+                {isEditable && (
+                  <tr className="print:hidden">
+                    {isAddingOther ? (
+                      <>
+                        <td className="py-2 px-4">
+                          <input
+                            type="text"
+                            value={otherDescription}
+                            onChange={(e) => setOtherDescription(e.target.value)}
+                            placeholder="Enter description..."
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-primary-500"
+                            autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddOther(); if (e.key === 'Escape') setIsAddingOther(false); }}
+                          />
+                        </td>
+                        <td className="py-2 px-4 text-center text-gray-500 text-sm">1</td>
+                        <td className="py-2 px-4 text-right">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={otherPrice}
+                            onChange={(e) => setOtherPrice(e.target.value)}
+                            placeholder="0.00"
+                            className="w-24 px-2 py-1.5 border border-gray-300 rounded text-right text-sm focus:ring-2 focus:ring-primary-500"
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleAddOther(); if (e.key === 'Escape') setIsAddingOther(false); }}
+                          />
+                        </td>
+                        <td className="py-2 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={handleAddOther}
+                              className="px-2 py-1 bg-primary-600 text-white rounded text-xs hover:bg-primary-700"
+                            >
+                              Add
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setIsAddingOther(false); setOtherDescription(''); setOtherPrice(''); }}
+                              className="px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                        <td></td>
+                      </>
+                    ) : (
+                      <td colSpan={5} className="py-2 px-4">
+                        <button
+                          type="button"
+                          onClick={() => setIsAddingOther(true)}
+                          className="text-sm text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add Other Charge
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

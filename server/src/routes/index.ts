@@ -135,6 +135,7 @@ import {
   addChargeToInvoice,
   getInvoiceItems,
   removeInvoiceItem,
+  updateInvoiceItem,
   createCharge,
   updateCharge,
   getPayerPricesForCharge,
@@ -520,6 +521,7 @@ router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles(
 // Invoice Items routes
 router.get('/invoice-items/:invoice_id', authenticateToken, getInvoiceItems);
 router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), addChargeToInvoice);
+router.put('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoiceItem);
 router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
 
 // Department Routing routes

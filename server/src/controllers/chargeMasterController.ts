@@ -50,47 +50,61 @@ export const getAllCharges = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// Add charge to invoice
+// Add charge to invoice (supports both charge_master items and custom/other charges)
 export const addChargeToInvoice = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { invoice_id, charge_master_id, quantity, description } = req.body;
+    const { invoice_id, charge_master_id, quantity, description, unit_price } = req.body;
 
     if (!invoice_id) {
       res.status(400).json({ error: 'Invoice ID is required' });
       return;
     }
 
-    // Get charge details
-    const chargeResult = await pool.query(
-      'SELECT * FROM charge_master WHERE id = $1 AND is_active = true',
-      [charge_master_id]
-    );
-
-    if (chargeResult.rows.length === 0) {
-      res.status(404).json({ error: 'Charge not found' });
-      return;
-    }
-
-    const charge = chargeResult.rows[0];
     const qty = quantity || 1;
+    let unitPrice: number;
+    let itemDescription: string;
 
-    // Resolve payer-specific price
-    const resolved = await resolvePrice(charge_master_id, invoice_id);
-    if (resolved.isExcluded) {
-      res.status(400).json({ error: 'This service is excluded for the patient\'s payer' });
-      return;
+    if (charge_master_id) {
+      // Standard charge from charge master
+      const chargeResult = await pool.query(
+        'SELECT * FROM charge_master WHERE id = $1 AND is_active = true',
+        [charge_master_id]
+      );
+
+      if (chargeResult.rows.length === 0) {
+        res.status(404).json({ error: 'Charge not found' });
+        return;
+      }
+
+      const charge = chargeResult.rows[0];
+
+      // Resolve payer-specific price
+      const resolved = await resolvePrice(charge_master_id, invoice_id);
+      if (resolved.isExcluded) {
+        res.status(400).json({ error: 'This service is excluded for the patient\'s payer' });
+        return;
+      }
+
+      unitPrice = resolved.unitPrice;
+      itemDescription = description || charge.service_name;
+    } else {
+      // Custom/other charge (no charge_master_id)
+      if (!description) {
+        res.status(400).json({ error: 'Description is required for custom charges' });
+        return;
+      }
+      unitPrice = parseFloat(unit_price) || 0;
+      itemDescription = description;
     }
 
-    const unitPrice = resolved.unitPrice;
     const totalPrice = unitPrice * qty;
-    const itemDescription = description || charge.service_name;
 
     // Add item to invoice
     const itemResult = await pool.query(
       `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [invoice_id, charge_master_id, itemDescription, qty, unitPrice, totalPrice]
+      [invoice_id, charge_master_id || null, itemDescription, qty, unitPrice, totalPrice]
     );
 
     // Update invoice total
@@ -102,7 +116,7 @@ export const addChargeToInvoice = async (req: Request, res: Response): Promise<v
     const newTotal = parseFloat(sumResult.rows[0].total) || 0;
 
     await pool.query(
-      'UPDATE invoices SET total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      'UPDATE invoices SET total_amount = $1, subtotal = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [newTotal, invoice_id]
     );
 
@@ -180,6 +194,63 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
     });
   } catch (error) {
     console.error('Remove invoice item error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Update invoice item (price, description, quantity)
+export const updateInvoiceItem = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { unit_price, description, quantity } = req.body;
+
+    // Get existing item
+    const existingResult = await pool.query(
+      'SELECT * FROM invoice_items WHERE id = $1',
+      [id]
+    );
+
+    if (existingResult.rows.length === 0) {
+      res.status(404).json({ error: 'Invoice item not found' });
+      return;
+    }
+
+    const existing = existingResult.rows[0];
+    const newUnitPrice = unit_price !== undefined ? parseFloat(unit_price) : parseFloat(existing.unit_price);
+    const newQty = quantity !== undefined ? quantity : existing.quantity;
+    const newDescription = description !== undefined ? description : existing.description;
+    const newTotalPrice = newUnitPrice * newQty;
+
+    // Update the item
+    const updateResult = await pool.query(
+      `UPDATE invoice_items
+       SET unit_price = $1, quantity = $2, total_price = $3, description = $4
+       WHERE id = $5
+       RETURNING *`,
+      [newUnitPrice, newQty, newTotalPrice, newDescription, id]
+    );
+
+    // Recalculate invoice total
+    const invoiceId = existing.invoice_id;
+    const sumResult = await pool.query(
+      'SELECT SUM(total_price) as total FROM invoice_items WHERE invoice_id = $1',
+      [invoiceId]
+    );
+
+    const newTotal = parseFloat(sumResult.rows[0].total) || 0;
+
+    await pool.query(
+      'UPDATE invoices SET total_amount = $1, subtotal = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [newTotal, invoiceId]
+    );
+
+    res.json({
+      message: 'Invoice item updated successfully',
+      item: updateResult.rows[0],
+      new_total: newTotal,
+    });
+  } catch (error) {
+    console.error('Update invoice item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
