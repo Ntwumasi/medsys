@@ -674,25 +674,31 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
                       {isEditable && editingItemId === item.id ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editingPrice}
-                          onChange={(e) => setEditingPrice(e.target.value)}
-                          onBlur={() => handlePriceSave(item.id)}
-                          onKeyDown={(e) => handlePriceKeyDown(e, item.id)}
-                          className="w-24 px-2 py-1 border border-primary-400 rounded text-right text-sm focus:ring-2 focus:ring-primary-500 print:hidden"
-                          autoFocus
-                        />
+                        <div className="flex items-center justify-end gap-1 print:hidden">
+                          <span className="text-sm text-gray-500">GHS</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editingPrice}
+                            onChange={(e) => setEditingPrice(e.target.value)}
+                            onBlur={() => handlePriceSave(item.id)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, item.id)}
+                            className="w-24 px-2 py-1 border-2 border-primary-500 rounded text-right text-sm focus:ring-2 focus:ring-primary-500 bg-primary-50"
+                            autoFocus
+                          />
+                        </div>
                       ) : isEditable ? (
                         <button
                           type="button"
                           onClick={() => handlePriceEdit(item)}
-                          className="text-gray-700 hover:text-primary-600 hover:bg-primary-50 px-2 py-0.5 rounded transition-colors cursor-pointer print:cursor-default"
+                          className="inline-flex items-center gap-1.5 text-gray-700 border border-dashed border-gray-300 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1 rounded transition-colors cursor-pointer group print:border-0 print:p-0"
                           title="Click to edit price"
                         >
                           GHS {parseFloat(item.unit_price.toString()).toFixed(2)}
+                          <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary-500 print:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
                         </button>
                       ) : (
                         <>GHS {parseFloat(item.unit_price.toString()).toFixed(2)}</>
