@@ -207,12 +207,17 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
     if (chargeResult.rows.length > 0) {
       const charge = chargeResult.rows[0];
 
+      // Resolve payer-specific price
+      const { resolvePrice } = require('../services/priceResolutionService');
+      const resolved = await resolvePrice(charge.id, invoice.id, client);
+      const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
+
       // Add invoice item
       await client.query(
         `INSERT INTO invoice_items (
           invoice_id, charge_master_id, description, quantity, unit_price, total_price
         ) VALUES ($1, $2, $3, 1, $4, $4)`,
-        [invoice.id, charge.id, procedure.procedure_name, charge.price]
+        [invoice.id, charge.id, procedure.procedure_name, billingPrice]
       );
 
       // Update invoice totals

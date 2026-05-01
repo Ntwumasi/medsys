@@ -160,7 +160,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
   const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'charges'>('staff');
-  const [charges, setCharges] = useState<Array<{ id: number; service_name: string; service_code: string; category: string; price: string; description: string; is_active: boolean }>>([]);
+  const [charges, setCharges] = useState<Array<{ id: number; service_name: string; service_code: string; category: string; price: string; description: string; is_active: boolean; payer_price?: string | null; payer_excluded?: boolean }>>([]);
   const [chargesLoading, setChargesLoading] = useState(false);
   const [chargeSearch, setChargeSearch] = useState('');
   const [chargeCategoryFilter, setChargeCategoryFilter] = useState('all');
@@ -169,6 +169,9 @@ const Dashboard: React.FC = () => {
   const [newCharge, setNewCharge] = useState({ service_name: '', service_code: '', category: 'consultation', price: '', description: '' });
   const [chargesPage, setChargesPage] = useState(1);
   const chargesPerPage = 20;
+  const [payers, setPayers] = useState<Array<{ id: number; name: string; payer_type: string }>>([]);
+  const [selectedPayerFilter, setSelectedPayerFilter] = useState('cash');
+  const [editPayerPrices, setEditPayerPrices] = useState<Array<{ payer_type: string; insurance_provider_id?: number; corporate_client_id?: number; name: string; price: string; is_excluded: boolean }>>([]);
 
   // Audit logs state
   const [auditLogs, setAuditLogs] = useState<Array<{
@@ -884,11 +887,27 @@ const Dashboard: React.FC = () => {
     }
   }, [activeTab, auditActionFilter, auditEntityFilter]);
 
-  // Fetch service charges
-  const fetchCharges = async () => {
+  // Fetch payers list
+  const fetchPayers = async () => {
+    try {
+      const response = await apiClient.get('/charge-master/payers');
+      setPayers(response.data.payers || []);
+    } catch (error) {
+      console.error('Error fetching payers:', error);
+    }
+  };
+
+  // Fetch service charges (with optional payer filter)
+  const fetchCharges = async (payerFilter?: string) => {
     setChargesLoading(true);
     try {
-      const response = await apiClient.get('/charge-master');
+      const filter = payerFilter ?? selectedPayerFilter;
+      let url = '/charge-master';
+      if (filter !== 'cash') {
+        const [type, id] = filter.split(':');
+        url += `?payer_type=${type}&payer_id=${id}`;
+      }
+      const response = await apiClient.get(url);
       setCharges(response.data.charges || []);
     } catch (error) {
       console.error('Error fetching charges:', error);
@@ -900,8 +919,72 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'charges') {
       fetchCharges();
+      fetchPayers();
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'charges') {
+      fetchCharges(selectedPayerFilter);
+    }
+  }, [selectedPayerFilter]);
+
+  // Load payer prices when editing a charge
+  const loadPayerPricesForEdit = async (chargeId: number) => {
+    try {
+      const [payerPricesRes, payersRes] = await Promise.all([
+        apiClient.get(`/charge-master/${chargeId}/payer-prices`),
+        payers.length > 0 ? Promise.resolve({ data: { payers } }) : apiClient.get('/charge-master/payers'),
+      ]);
+
+      const existingPrices = payerPricesRes.data.payer_prices || [];
+      const allPayers = payersRes.data.payers || [];
+
+      const priceMap = new Map<string, { price: string; is_excluded: boolean }>();
+      for (const ep of existingPrices) {
+        const key = ep.insurance_provider_id
+          ? `insurance:${ep.insurance_provider_id}`
+          : `corporate:${ep.corporate_client_id}`;
+        priceMap.set(key, { price: ep.price ? String(ep.price) : '', is_excluded: ep.is_excluded });
+      }
+
+      const prices = allPayers.map((p: { id: number; name: string; payer_type: string }) => {
+        const key = `${p.payer_type}:${p.id}`;
+        const existing = priceMap.get(key);
+        return {
+          payer_type: p.payer_type,
+          insurance_provider_id: p.payer_type === 'insurance' ? p.id : undefined,
+          corporate_client_id: p.payer_type === 'corporate' ? p.id : undefined,
+          name: p.name,
+          price: existing?.price || '',
+          is_excluded: existing?.is_excluded || false,
+        };
+      });
+
+      setEditPayerPrices(prices);
+    } catch (error) {
+      console.error('Error loading payer prices:', error);
+    }
+  };
+
+  const handleSavePayerPrices = async (chargeId: number) => {
+    try {
+      const payer_prices = editPayerPrices
+        .filter(pp => pp.price || pp.is_excluded)
+        .map(pp => ({
+          payer_type: pp.payer_type,
+          insurance_provider_id: pp.insurance_provider_id,
+          corporate_client_id: pp.corporate_client_id,
+          price: pp.is_excluded ? null : parseFloat(pp.price),
+          is_excluded: pp.is_excluded,
+        }));
+
+      await apiClient.put(`/charge-master/${chargeId}/payer-prices`, { payer_prices });
+      showToast('Payer prices updated', 'success');
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to save payer prices', 'error');
+    }
+  };
 
   const handleSaveCharge = async (charge: typeof newCharge, id?: number) => {
     try {
@@ -2761,6 +2844,18 @@ const Dashboard: React.FC = () => {
                   <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
                 ))}
               </select>
+              <select
+                value={selectedPayerFilter}
+                onChange={(e) => { setSelectedPayerFilter(e.target.value); setChargesPage(1); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm font-medium"
+              >
+                <option value="cash">Cash / Self-Pay</option>
+                {payers.map(p => (
+                  <option key={`${p.payer_type}:${p.id}`} value={`${p.payer_type}:${p.id}`}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {chargesLoading ? (
@@ -2775,7 +2870,9 @@ const Dashboard: React.FC = () => {
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Service Code</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Service Name</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Price (GH₵)</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
+                        {selectedPayerFilter === 'cash' ? 'Cash Price (GH₵)' : 'Payer Price (GH₵)'}
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
                       <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
                     </tr>
@@ -2790,8 +2887,16 @@ const Dashboard: React.FC = () => {
                             {charge.category}
                           </span>
                         </td>
-                        <td className="px-6 py-3 text-sm font-semibold text-gray-900 text-right">
-                          {parseFloat(charge.price).toFixed(2)}
+                        <td className="px-6 py-3 text-sm font-semibold text-right">
+                          {selectedPayerFilter !== 'cash' && charge.payer_excluded ? (
+                            <span className="text-red-600 font-medium">EXCLUDED</span>
+                          ) : selectedPayerFilter !== 'cash' && charge.payer_price != null ? (
+                            <span className="text-primary-700">{parseFloat(charge.payer_price).toFixed(2)}</span>
+                          ) : selectedPayerFilter !== 'cash' ? (
+                            <span className="text-gray-400" title="No override - uses cash rate">{parseFloat(charge.price).toFixed(2)} *</span>
+                          ) : (
+                            <span className="text-gray-900">{parseFloat(charge.price).toFixed(2)}</span>
+                          )}
                         </td>
                         <td className="px-6 py-3 text-sm text-gray-500 max-w-xs truncate">{charge.description || '—'}</td>
                         <td className="px-6 py-3 text-center">
@@ -2861,8 +2966,8 @@ const Dashboard: React.FC = () => {
 
         {/* Add/Edit Charge Modal */}
         {(showAddCharge || editingCharge) && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowAddCharge(false); setEditingCharge(null); }}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowAddCharge(false); setEditingCharge(null); setEditPayerPrices([]); }}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="px-6 py-4 border-b border-gray-200">
                 <h3 className="text-lg font-bold text-gray-900">{editingCharge ? 'Edit Service Charge' : 'Add New Service Charge'}</h3>
               </div>
@@ -2907,7 +3012,7 @@ const Dashboard: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (GH₵) *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cash / Self-Pay Price (GH₵) *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -2929,21 +3034,86 @@ const Dashboard: React.FC = () => {
                     placeholder="Optional description"
                   />
                 </div>
+
+                {/* Payer-Specific Prices (only show when editing) */}
+                {editingCharge && (
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900">Payer-Specific Prices</h4>
+                      {editPayerPrices.length === 0 && (
+                        <button
+                          type="button"
+                          onClick={() => loadPayerPricesForEdit(editingCharge.id)}
+                          className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                        >
+                          Load Payer Prices
+                        </button>
+                      )}
+                    </div>
+                    {(editingCharge.category === 'lab') && (
+                      <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-3">
+                        Lab tests use MDS Lancet rates uniformly for all payers. Payer overrides do not apply.
+                      </p>
+                    )}
+                    {editPayerPrices.length > 0 && editingCharge.category !== 'lab' && (
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {editPayerPrices.map((pp, idx) => (
+                          <div key={idx} className="flex items-center gap-3 text-sm">
+                            <span className="w-44 truncate text-gray-700 font-medium" title={pp.name}>
+                              {pp.payer_type === 'insurance' ? '' : ''} {pp.name}
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={pp.price}
+                              disabled={pp.is_excluded}
+                              onChange={(e) => {
+                                const updated = [...editPayerPrices];
+                                updated[idx] = { ...pp, price: e.target.value };
+                                setEditPayerPrices(updated);
+                              }}
+                              className="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:text-gray-400"
+                              placeholder="Cash rate"
+                            />
+                            <label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={pp.is_excluded}
+                                onChange={(e) => {
+                                  const updated = [...editPayerPrices];
+                                  updated[idx] = { ...pp, is_excluded: e.target.checked, price: e.target.checked ? '' : pp.price };
+                                  setEditPayerPrices(updated);
+                                }}
+                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                              />
+                              Excluded
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
                 <button
-                  onClick={() => { setShowAddCharge(false); setEditingCharge(null); }}
+                  onClick={() => { setShowAddCharge(false); setEditingCharge(null); setEditPayerPrices([]); }}
                   className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (editingCharge) {
-                      handleSaveCharge(editingCharge, editingCharge.id);
+                      await handleSaveCharge(editingCharge, editingCharge.id);
+                      if (editPayerPrices.length > 0 && editingCharge.category !== 'lab') {
+                        await handleSavePayerPrices(editingCharge.id);
+                      }
                     } else {
                       handleSaveCharge(newCharge);
                     }
+                    setEditPayerPrices([]);
                   }}
                   className="px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
                 >

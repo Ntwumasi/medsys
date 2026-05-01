@@ -1,17 +1,40 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { resolvePrice } from '../services/priceResolutionService';
 
 // Get all charges from charge master
+// Supports optional payer filtering: ?payer_type=insurance&payer_id=3
 export const getAllCharges = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category } = req.query;
+    const { category, payer_type, payer_id } = req.query;
 
-    let query = 'SELECT * FROM charge_master WHERE is_active = true';
+    let query: string;
     const params: any[] = [];
+    let paramIdx = 1;
+
+    if (payer_type && payer_id) {
+      // Join with payer_price_schedules to include payer-specific prices
+      const payerColumn = payer_type === 'insurance' ? 'insurance_provider_id' : 'corporate_client_id';
+      query = `
+        SELECT cm.*,
+          pps.price as payer_price,
+          pps.is_excluded as payer_excluded
+        FROM charge_master cm
+        LEFT JOIN payer_price_schedules pps
+          ON cm.id = pps.charge_master_id
+          AND pps.payer_type = $${paramIdx}
+          AND pps.${payerColumn} = $${paramIdx + 1}
+        WHERE cm.is_active = true`;
+      params.push(payer_type, payer_id);
+      paramIdx += 2;
+    } else {
+      query = 'SELECT * FROM charge_master WHERE is_active = true';
+    }
 
     if (category) {
-      query += ' AND category = $1';
+      query += ` AND category = $${paramIdx}`;
       params.push(category);
+      paramIdx++;
     }
 
     query += ' ORDER BY category, service_name';
@@ -50,7 +73,15 @@ export const addChargeToInvoice = async (req: Request, res: Response): Promise<v
 
     const charge = chargeResult.rows[0];
     const qty = quantity || 1;
-    const unitPrice = parseFloat(charge.price);
+
+    // Resolve payer-specific price
+    const resolved = await resolvePrice(charge_master_id, invoice_id);
+    if (resolved.isExcluded) {
+      res.status(400).json({ error: 'This service is excluded for the patient\'s payer' });
+      return;
+    }
+
+    const unitPrice = resolved.unitPrice;
     const totalPrice = unitPrice * qty;
     const itemDescription = description || charge.service_name;
 
@@ -215,6 +246,125 @@ export const updateCharge = async (req: Request, res: Response): Promise<void> =
     });
   } catch (error) {
     console.error('Update charge error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get all payer prices for a specific charge
+export const getPayerPricesForCharge = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT pps.*,
+        ip.name as insurance_provider_name,
+        cc.name as corporate_client_name
+       FROM payer_price_schedules pps
+       LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+       LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+       WHERE pps.charge_master_id = $1
+       ORDER BY pps.payer_type, COALESCE(ip.name, cc.name)`,
+      [id]
+    );
+
+    res.json({ payer_prices: result.rows });
+  } catch (error) {
+    console.error('Get payer prices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Upsert payer prices for a specific charge (admin only)
+export const upsertPayerPricesForCharge = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { payer_prices } = req.body;
+
+    if (!Array.isArray(payer_prices)) {
+      res.status(400).json({ error: 'payer_prices must be an array' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    for (const pp of payer_prices) {
+      const { payer_type, insurance_provider_id, corporate_client_id, price, is_excluded } = pp;
+
+      if (payer_type === 'insurance' && insurance_provider_id) {
+        await client.query(
+          `INSERT INTO payer_price_schedules
+            (charge_master_id, payer_type, insurance_provider_id, price, is_excluded)
+           VALUES ($1, 'insurance', $2, $3, $4)
+           ON CONFLICT (charge_master_id, insurance_provider_id) WHERE payer_type = 'insurance'
+           DO UPDATE SET price = EXCLUDED.price, is_excluded = EXCLUDED.is_excluded, updated_at = CURRENT_TIMESTAMP`,
+          [id, insurance_provider_id, is_excluded ? null : price, is_excluded || false]
+        );
+      } else if (payer_type === 'corporate' && corporate_client_id) {
+        await client.query(
+          `INSERT INTO payer_price_schedules
+            (charge_master_id, payer_type, corporate_client_id, price, is_excluded)
+           VALUES ($1, 'corporate', $2, $3, $4)
+           ON CONFLICT (charge_master_id, corporate_client_id) WHERE payer_type = 'corporate'
+           DO UPDATE SET price = EXCLUDED.price, is_excluded = EXCLUDED.is_excluded, updated_at = CURRENT_TIMESTAMP`,
+          [id, corporate_client_id, is_excluded ? null : price, is_excluded || false]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({ message: 'Payer prices updated successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Upsert payer prices error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+// Get full price schedule for a specific payer
+export const getPayerSchedule = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { payer_type, payer_id } = req.params;
+
+    const payerColumn = payer_type === 'insurance' ? 'insurance_provider_id' : 'corporate_client_id';
+
+    const result = await pool.query(
+      `SELECT cm.id, cm.service_name, cm.service_code, cm.category, cm.price as cash_price,
+        pps.price as payer_price, pps.is_excluded
+       FROM charge_master cm
+       LEFT JOIN payer_price_schedules pps
+         ON cm.id = pps.charge_master_id
+         AND pps.payer_type = $1
+         AND pps.${payerColumn} = $2
+       WHERE cm.is_active = true
+       ORDER BY cm.category, cm.service_name`,
+      [payer_type, payer_id]
+    );
+
+    res.json({ schedule: result.rows });
+  } catch (error) {
+    console.error('Get payer schedule error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Get all payers (insurance + corporate) for dropdown
+export const getAllPayers = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const insurance = await pool.query(
+      `SELECT id, name, 'insurance' as payer_type FROM insurance_providers WHERE is_active = true ORDER BY name`
+    );
+    const corporate = await pool.query(
+      `SELECT id, name, 'corporate' as payer_type FROM corporate_clients WHERE is_active = true ORDER BY name`
+    );
+
+    res.json({
+      payers: [...insurance.rows, ...corporate.rows],
+    });
+  } catch (error) {
+    console.error('Get all payers error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -137,6 +137,10 @@ import {
   removeInvoiceItem,
   createCharge,
   updateCharge,
+  getPayerPricesForCharge,
+  upsertPayerPricesForCharge,
+  getPayerSchedule,
+  getAllPayers,
 } from '../controllers/chargeMasterController';
 import {
   routePatientToDepartment,
@@ -506,8 +510,12 @@ router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('re
 
 // Charge Master routes
 router.get('/charge-master', authenticateToken, getAllCharges);
+router.get('/charge-master/payers', authenticateToken, getAllPayers);
+router.get('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin'), getPayerSchedule);
 router.post('/charge-master', authenticateToken, authorizeRoles('admin'), createCharge);
 router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin'), updateCharge);
+router.get('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), getPayerPricesForCharge);
+router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), upsertPayerPricesForCharge);
 
 // Invoice Items routes
 router.get('/invoice-items/:invoice_id', authenticateToken, getInvoiceItems);
