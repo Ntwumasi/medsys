@@ -461,6 +461,10 @@ export const pharmacyRoutes: string[] = [
 
 // Dosing frequencies
 export const pharmacyFrequencies: string[] = [
+  'OD (Once Daily)',
+  'BD (Twice Daily)',
+  'TDS (Three Times Daily)',
+  'QDS (Four Times Daily)',
   'Daily',
   'BID',
   'TID',

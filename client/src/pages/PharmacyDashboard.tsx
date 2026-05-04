@@ -61,6 +61,7 @@ interface PharmacyOrder {
   inventory_price?: number;
   inventory_medication_name?: string;
   inventory_unit?: string;
+  days_supply?: number;
   substitute_medication?: string;
   substitute_reason?: string;
 }
@@ -1498,6 +1499,11 @@ const PharmacyDashboard: React.FC = () => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="font-semibold text-gray-700">Qty: {order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
+                                  {order.days_supply && (
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                      {order.days_supply}-day supply
+                                    </span>
+                                  )}
                                   {order.inventory_price != null && (
                                     <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
                                   )}

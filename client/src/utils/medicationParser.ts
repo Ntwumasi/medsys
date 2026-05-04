@@ -52,10 +52,10 @@ export function parseMedicationName(name: string): ParsedMedication {
 
 // Maps common frequency abbreviations to doses per day
 const FREQUENCY_MAP: Record<string, number> = {
-  'daily': 1, 'once daily': 1, 'od': 1, 'qd': 1, 'once': 1,
-  'bid': 2, 'b.i.d': 2, 'twice daily': 2, 'b.d.': 2, '2x daily': 2,
-  'tid': 3, 't.i.d': 3, 'three times daily': 3, 't.d.s.': 3, '3x daily': 3,
-  'qid': 4, 'q.i.d': 4, 'four times daily': 4, 'q.d.s.': 4, '4x daily': 4,
+  'daily': 1, 'once daily': 1, 'od': 1, 'od (once daily)': 1, 'qd': 1, 'once': 1,
+  'bid': 2, 'bd': 2, 'bd (twice daily)': 2, 'b.i.d': 2, 'twice daily': 2, 'b.d.': 2, '2x daily': 2,
+  'tid': 3, 'tds': 3, 'tds (three times daily)': 3, 't.i.d': 3, 'three times daily': 3, 't.d.s.': 3, '3x daily': 3,
+  'qid': 4, 'qds': 4, 'qds (four times daily)': 4, 'q.i.d': 4, 'four times daily': 4, 'q.d.s.': 4, '4x daily': 4,
   'q4h': 6, 'every 4 hours': 6,
   'q6h': 4, 'every 6 hours': 4,
   'q8h': 3, 'every 8 hours': 3,

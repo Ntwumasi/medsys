@@ -27,6 +27,8 @@ interface RoomEncounter {
   vital_signs?: VitalSigns;
   status?: string;
   vip_status?: 'silver' | 'gold' | 'platinum' | null;
+  patient_allergies?: string;
+  allergies_list?: Array<{ allergen: string; reaction: string; severity: string }>;
   soap_signed?: boolean;
   soap_signed_at?: string;
   soap_signed_by?: number;
@@ -1338,6 +1340,38 @@ const DoctorDashboard: React.FC = () => {
                     <div className="text-sm text-gray-600">Today's Visit</div>
                     <div className="font-semibold text-lg text-primary-800 bg-primary-50 p-3 rounded-lg border border-primary-200">{selectedEncounter.chief_complaint || 'Not yet documented'}</div>
                   </div>
+
+                  {/* Allergies */}
+                  {(selectedEncounter.allergies_list?.length || selectedEncounter.patient_allergies) && (
+                    <div className="pt-4 mt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        </svg>
+                        Allergies
+                      </div>
+                      {selectedEncounter.allergies_list?.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedEncounter.allergies_list.map((a, i) => (
+                            <span
+                              key={i}
+                              className={`px-2 py-1 rounded-lg text-sm font-medium ${
+                                a.severity === 'severe' ? 'bg-danger-100 text-danger-700 border border-danger-300' :
+                                a.severity === 'moderate' ? 'bg-warning-100 text-warning-700 border border-warning-300' :
+                                'bg-orange-50 text-orange-700 border border-orange-200'
+                              }`}
+                            >
+                              {a.allergen}{a.reaction ? ` - ${a.reaction}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="bg-danger-50 border border-danger-200 rounded-lg p-2 text-sm text-danger-700 font-medium">
+                          {selectedEncounter.patient_allergies}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Vital Signs Summary */}
                   {selectedEncounter.vital_signs && (

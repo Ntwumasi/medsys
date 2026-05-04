@@ -834,6 +834,9 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
         u_nurse.first_name || ' ' || u_nurse.last_name as nurse_name,
         u_doctor.first_name || ' ' || u_doctor.last_name as doctor_name,
+        p.allergies as patient_allergies,
+        (SELECT json_agg(json_build_object('allergen', a.allergen, 'reaction', a.reaction, 'severity', a.severity))
+         FROM allergies a WHERE a.patient_id = p.id) as allergies_list,
         EXISTS(
           SELECT 1 FROM alerts a
           WHERE a.encounter_id = e.id
