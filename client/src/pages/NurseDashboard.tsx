@@ -274,20 +274,7 @@ const NurseDashboard: React.FC = () => {
     location: string;
     last_restocked?: string;
   }
-  const [nurseInventory, setNurseInventory] = useState<NurseInventoryItem[]>([
-    { id: 1, name: 'Syringes (10ml)', category: 'Supplies', quantity: 45, unit: 'pcs', min_quantity: 20, location: 'Cabinet A', last_restocked: '2026-03-14' },
-    { id: 2, name: 'Gauze Pads', category: 'Supplies', quantity: 120, unit: 'pcs', min_quantity: 50, location: 'Cabinet A', last_restocked: '2026-03-12' },
-    { id: 3, name: 'IV Catheters', category: 'Supplies', quantity: 8, unit: 'pcs', min_quantity: 15, location: 'Cabinet B', last_restocked: '2026-03-10' },
-    { id: 4, name: 'Blood Pressure Cuffs', category: 'Equipment', quantity: 5, unit: 'pcs', min_quantity: 3, location: 'Station 1', last_restocked: '2026-02-28' },
-    { id: 5, name: 'Thermometer Covers', category: 'Supplies', quantity: 200, unit: 'pcs', min_quantity: 100, location: 'Cabinet A', last_restocked: '2026-03-15' },
-    { id: 6, name: 'Alcohol Swabs', category: 'Supplies', quantity: 15, unit: 'boxes', min_quantity: 10, location: 'Cabinet B', last_restocked: '2026-03-13' },
-    { id: 7, name: 'Bandages (Elastic)', category: 'Supplies', quantity: 30, unit: 'rolls', min_quantity: 15, location: 'Cabinet C', last_restocked: '2026-03-11' },
-    { id: 8, name: 'Gloves (Medium)', category: 'PPE', quantity: 3, unit: 'boxes', min_quantity: 5, location: 'Cabinet A', last_restocked: '2026-03-08' },
-    { id: 9, name: 'Gloves (Large)', category: 'PPE', quantity: 4, unit: 'boxes', min_quantity: 5, location: 'Cabinet A', last_restocked: '2026-03-08' },
-    { id: 10, name: 'N95 Masks', category: 'PPE', quantity: 25, unit: 'pcs', min_quantity: 20, location: 'Cabinet D', last_restocked: '2026-03-14' },
-    { id: 11, name: 'Pulse Oximeters', category: 'Equipment', quantity: 3, unit: 'pcs', min_quantity: 2, location: 'Station 1', last_restocked: '2026-02-20' },
-    { id: 12, name: 'Stethoscopes', category: 'Equipment', quantity: 4, unit: 'pcs', min_quantity: 2, location: 'Station 1', last_restocked: '2026-01-15' },
-  ]);
+  const [nurseInventory, setNurseInventory] = useState<NurseInventoryItem[]>([]);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [editingInventoryItem, setEditingInventoryItem] = useState<NurseInventoryItem | null>(null);
   const [inventoryForm, setInventoryForm] = useState({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
@@ -356,6 +343,32 @@ const NurseDashboard: React.FC = () => {
     }, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Load nurse inventory from API
+  const loadNurseInventory = async () => {
+    try {
+      const res = await apiClient.get('/nurse/inventory');
+      const items = (res.data.items || []).map((item: any) => ({
+        id: item.id,
+        name: item.item_name,
+        category: item.category,
+        quantity: item.quantity_on_hand,
+        unit: item.unit,
+        min_quantity: item.reorder_level,
+        location: item.location || '',
+        last_restocked: item.updated_at,
+      }));
+      setNurseInventory(items);
+    } catch (error) {
+      console.error('Error loading nurse inventory:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (mainView === 'inventory') {
+      loadNurseInventory();
+    }
+  }, [mainView]);
 
   const loadAssignedPatients = async () => {
     try {
@@ -3913,8 +3926,14 @@ const NurseDashboard: React.FC = () => {
               <div className="flex gap-3 mt-6">
                 {editingInventoryItem && (
                   <button
-                    onClick={() => {
-                      setNurseInventory(nurseInventory.filter(i => i.id !== editingInventoryItem.id));
+                    onClick={async () => {
+                      try {
+                        await apiClient.put(`/nurse/inventory/${editingInventoryItem.id}`, { is_active: false });
+                        showToast('Item deleted', 'success');
+                        loadNurseInventory();
+                      } catch (error) {
+                        showToast('Failed to delete item', 'error');
+                      }
                       setShowInventoryModal(false);
                     }}
                     className="px-4 py-2 border border-danger-300 text-danger-700 rounded-lg hover:bg-danger-50"
@@ -3929,19 +3948,33 @@ const NurseDashboard: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!inventoryForm.name) return;
-                    if (editingInventoryItem) {
-                      setNurseInventory(nurseInventory.map(i =>
-                        i.id === editingInventoryItem.id
-                          ? { ...i, ...inventoryForm }
-                          : i
-                      ));
-                    } else {
-                      setNurseInventory([
-                        ...nurseInventory,
-                        { id: Date.now(), ...inventoryForm }
-                      ]);
+                    try {
+                      if (editingInventoryItem) {
+                        await apiClient.put(`/nurse/inventory/${editingInventoryItem.id}`, {
+                          item_name: inventoryForm.name,
+                          category: inventoryForm.category,
+                          quantity_on_hand: inventoryForm.quantity,
+                          unit: inventoryForm.unit,
+                          reorder_level: inventoryForm.min_quantity,
+                          location: inventoryForm.location,
+                        });
+                        showToast('Item updated successfully', 'success');
+                      } else {
+                        await apiClient.post('/nurse/inventory', {
+                          item_name: inventoryForm.name,
+                          category: inventoryForm.category,
+                          quantity_on_hand: inventoryForm.quantity,
+                          unit: inventoryForm.unit,
+                          reorder_level: inventoryForm.min_quantity,
+                          location: inventoryForm.location,
+                        });
+                        showToast('Item added successfully', 'success');
+                      }
+                      loadNurseInventory();
+                    } catch (error) {
+                      showToast('Failed to save item', 'error');
                     }
                     setShowInventoryModal(false);
                   }}
