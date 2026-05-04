@@ -899,7 +899,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Reload data and go to queue
       await loadData();
-      showToast(`Patient ${newPatientData.patient_number} registered and checked in! Registration fee: GHS 100.00`, 'success');
+      showToast(`Patient ${newPatientData.patient_number} registered and checked in!`, 'success');
       setActiveView('queue');
     } catch (error) {
       console.error('Error creating new patient:', error);
@@ -2742,7 +2742,7 @@ const ReceptionistDashboard: React.FC = () => {
                   </div>
                   <div className="flex items-end">
                     <div className="bg-primary-50 border border-primary-200 rounded-lg px-4 py-2 text-sm text-primary-700 w-full">
-                      Registration fee: <span className="font-semibold">GHS 100.00</span> (auto-applied)
+                      Registration + Consultation fees auto-applied at check-in
                     </div>
                   </div>
                 </div>

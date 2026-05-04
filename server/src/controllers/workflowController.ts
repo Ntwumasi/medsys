@@ -103,27 +103,41 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const nextInvoiceId = parseInt(maxIdResult.rows[0].next_id);
     const invoiceNumber = `INV${String(nextInvoiceId).padStart(6, '0')}`;
 
-    // New patients get a fixed registration fee (REG-001 = GHS 100 cash rate)
-    // Returning patients check in without a fee — charges come from lab/pharmacy/etc.
-    let registrationFee = 0;
-    let chargeMasterId = null;
-    let registrationDescription = '';
+    // Build all check-in charges upfront (registration + consultation together)
+    const checkInCharges: Array<{ chargeMasterId: number | null; description: string; price: number }> = [];
 
+    // 1. Registration fee for new patients only (REG-001 = GHS 100 cash rate)
     if (isNewPatient) {
       const chargeResult = await client.query(
         'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true',
         ['REG-001']
       );
 
-      registrationFee = chargeResult.rows.length > 0
-        ? parseFloat(chargeResult.rows[0].price)
-        : 100;
-
-      chargeMasterId = chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null;
-      registrationDescription = chargeResult.rows.length > 0
-        ? chargeResult.rows[0].service_name
-        : 'Registration';
+      checkInCharges.push({
+        chargeMasterId: chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null,
+        description: chargeResult.rows.length > 0 ? chargeResult.rows[0].service_name : 'Registration',
+        price: chargeResult.rows.length > 0 ? parseFloat(chargeResult.rows[0].price) : 100,
+      });
     }
+
+    // 2. General consultation fee for all patients
+    const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' :
+                        encounter.encounter_type === 'new' ? 'CONS-PCP' : 'CONS-GP';
+    const consultResult = await client.query(
+      'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1',
+      [consultCode]
+    );
+    // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
+    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)'];
+    if (!departmentClinics.includes(clinic)) {
+      checkInCharges.push({
+        chargeMasterId: consultResult.rows.length > 0 ? consultResult.rows[0].id : null,
+        description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : 'General Consultation',
+        price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 200,
+      });
+    }
+
+    const initialTotal = checkInCharges.reduce((sum, c) => sum + c.price, 0);
 
     const invoiceResult = await client.query(
       `INSERT INTO invoices (
@@ -131,19 +145,21 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         subtotal, tax, total_amount, status
       ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
       RETURNING *`,
-      [patient_id, encounter.id, invoiceNumber, registrationFee]
+      [patient_id, encounter.id, invoiceNumber, initialTotal]
     );
 
-    // Add registration fee for new patients
-    if (registrationFee > 0) {
-      // Resolve payer-specific price if invoice has a payer source
-      let finalFee = registrationFee;
-      if (chargeMasterId) {
+    const invoiceId = invoiceResult.rows[0].id;
+
+    // Insert all charge items and resolve payer-specific prices
+    let resolvedTotal = 0;
+    for (const charge of checkInCharges) {
+      let finalPrice = charge.price;
+      if (charge.chargeMasterId) {
         try {
           const { resolvePrice } = require('../services/priceResolutionService');
-          const resolved = await resolvePrice(chargeMasterId, invoiceResult.rows[0].id, client);
+          const resolved = await resolvePrice(charge.chargeMasterId, invoiceId, client);
           if (!resolved.isExcluded) {
-            finalFee = resolved.unitPrice;
+            finalPrice = resolved.unitPrice;
           }
         } catch {
           // Fall back to cash rate if resolution fails
@@ -151,24 +167,28 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       }
 
       await client.query(
-        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price)
-         VALUES ($1, $2, $3, 1, $4, $4)`,
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+         VALUES ($1, $2, $3, 1, $4, $4, $5)`,
         [
-          invoiceResult.rows[0].id,
-          chargeMasterId,
-          registrationDescription,
-          finalFee,
+          invoiceId,
+          charge.chargeMasterId,
+          charge.description,
+          finalPrice,
+          charge.description.toLowerCase().includes('registration') ? 'registration' : 'consultation',
         ]
       );
-
-      // Update invoice total with resolved price
-      if (finalFee !== registrationFee) {
-        await client.query(
-          `UPDATE invoices SET subtotal = $1, total_amount = $1 WHERE id = $2`,
-          [finalFee, invoiceResult.rows[0].id]
-        );
-      }
+      resolvedTotal += finalPrice;
     }
+
+    // Update invoice total if payer-resolved prices differ
+    if (resolvedTotal !== initialTotal) {
+      await client.query(
+        `UPDATE invoices SET subtotal = $1, total_amount = $1 WHERE id = $2`,
+        [resolvedTotal, invoiceId]
+      );
+    }
+
+    const registrationFee = resolvedTotal;
 
     // Get patient info for appointment and notification
     const patientInfoResult = await client.query(
