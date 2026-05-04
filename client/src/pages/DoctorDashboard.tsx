@@ -158,6 +158,13 @@ const DoctorDashboard: React.FC = () => {
   const [pharmacyAlerts, setPharmacyAlerts] = useState<DoctorAlert[]>([]);
   const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
 
+  // Delinquent items state
+  const [unsignedNotes, setUnsignedNotes] = useState<Array<{ id: number; encounter_number: string; patient_id: number; patient_name: string; patient_number: string; encounter_date: string; chief_complaint: string; status: string }>>([]);
+  const [pendingLabs, setPendingLabs] = useState<Array<{ id: number; patient_name: string; patient_number: string; test_name: string; status: string; priority: string; ordered_date: string }>>([]);
+  const [pendingImaging, setPendingImaging] = useState<Array<{ id: number; patient_name: string; patient_number: string; imaging_type: string; body_part?: string; status: string; priority: string; ordered_date: string }>>([]);
+  const [pendingRx, setPendingRx] = useState<Array<{ id: number; patient_name: string; patient_number: string; medication_name: string; status: string; priority: string; ordered_date: string }>>([]);
+  const [delinquentTab, setDelinquentTab] = useState<'unsigned' | 'labs' | 'imaging' | 'rx'>('unsigned');
+
   // Claims Review state
   const [pendingClaims, setPendingClaims] = useState<any[]>([]);
   const [selectedReviewClaim, setSelectedReviewClaim] = useState<any>(null);
@@ -187,10 +194,12 @@ const DoctorDashboard: React.FC = () => {
   useEffect(() => {
     loadRoomEncounters();
     loadDoctorAlerts();
+    loadDelinquent();
     loadPendingClaims();
     const interval = setInterval(() => {
       loadRoomEncounters();
       loadDoctorAlerts();
+      loadDelinquent();
       loadPendingClaims();
     }, 30000);
     return () => clearInterval(interval);
@@ -259,6 +268,18 @@ const DoctorDashboard: React.FC = () => {
       setPharmacyAlerts(res.data.pharmacy_alerts || []);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
+    }
+  };
+
+  const loadDelinquent = async () => {
+    try {
+      const res = await apiClient.get('/orders/doctor-delinquent');
+      setUnsignedNotes(res.data.unsigned_notes || []);
+      setPendingLabs(res.data.pending_labs || []);
+      setPendingImaging(res.data.pending_imaging || []);
+      setPendingRx(res.data.pending_rx || []);
+    } catch (error) {
+      console.error('Error loading delinquent items:', error);
     }
   };
 
@@ -1078,95 +1099,195 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Global Pending Signatures — shows ALL unsigned SOAP notes
-                across the doctor's active patients so they don't have to
-                click into each patient to find out which notes need signing. */}
-            {(() => {
-              const unsigned = roomEncounters.filter((e) => !e.soap_signed && e.status === 'with_doctor');
-              if (unsigned.length === 0) return null;
-              return (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                  <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <svg className="w-5 h-5 text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                        <h2 className="text-sm font-semibold text-white">Pending Signatures</h2>
-                      </div>
-                      <span className="px-2.5 py-1 bg-warning-500 text-white text-xs font-bold rounded-full">
-                        {unsigned.length}
-                      </span>
+            {/* Action Items — unsigned notes + pending orders (delinquent) */}
+            {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
+                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <h2 className="text-sm font-semibold text-white">Action Items</h2>
                     </div>
-                  </div>
-                  <div className="max-h-[250px] overflow-y-auto divide-y divide-gray-100">
-                    {unsigned.map((enc) => (
-                      <div
-                        key={enc.id}
-                        className="px-4 py-3 hover:bg-warning-50 transition-colors flex items-center justify-between gap-2"
-                      >
-                        <div
-                          className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
-                          onClick={() => handleSelectEncounter(enc)}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-warning-100 flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-sm font-semibold text-warning-800 truncate">
-                              {enc.patient_name}
-                            </div>
-                            <div className="text-xs text-warning-600 truncate">
-                              {enc.encounter_number ? `Enc ${enc.encounter_number}` : 'SOAP Note'}
-                              {enc.room_number ? ` · Rm ${enc.room_number}` : ''}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            // Select the encounter first so handleSignSOAP has context
-                            setSelectedEncounter(enc);
-                            loadSOAPSignStatus(enc.id);
-
-                            const label = enc.patient_name || 'this patient';
-                            const encLabel = enc.encounter_number
-                              ? ` (Encounter ${enc.encounter_number})`
-                              : '';
-                            if (
-                              !confirm(
-                                `Sign the SOAP note for ${label}${encLabel}?\n\nOnce signed it cannot be edited.`
-                              )
-                            ) {
-                              return;
-                            }
-                            try {
-                              await apiClient.post(`/hp/${enc.id}/sign`);
-                              setSoapSigned(true);
-                              setSoapSignedAt(new Date().toLocaleString());
-                              setSoapSignedBy(
-                                user?.first_name && user?.last_name
-                                  ? `Dr. ${user.first_name} ${user.last_name}`
-                                  : 'Doctor'
-                              );
-                              showToast(`SOAP note signed for ${label}`, 'success');
-                              // Refresh encounters so the widget updates
-                              loadRoomEncounters();
-                            } catch {
-                              showToast('Failed to sign SOAP note', 'error');
-                            }
-                          }}
-                          className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
-                        >
-                          Sign Now
-                        </button>
-                      </div>
-                    ))}
+                    <span className="px-2.5 py-1 bg-warning-500 text-white text-xs font-bold rounded-full">
+                      {unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length}
+                    </span>
                   </div>
                 </div>
-              );
-            })()}
+
+                {/* Tabs */}
+                <div className="flex border-b border-gray-200">
+                  <button
+                    onClick={() => setDelinquentTab('unsigned')}
+                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                      delinquentTab === 'unsigned'
+                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Unsigned ({unsignedNotes.length})
+                  </button>
+                  <button
+                    onClick={() => setDelinquentTab('labs')}
+                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                      delinquentTab === 'labs'
+                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Labs ({pendingLabs.length})
+                  </button>
+                  <button
+                    onClick={() => setDelinquentTab('imaging')}
+                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                      delinquentTab === 'imaging'
+                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Imaging ({pendingImaging.length})
+                  </button>
+                  <button
+                    onClick={() => setDelinquentTab('rx')}
+                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                      delinquentTab === 'rx'
+                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Rx ({pendingRx.length})
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="max-h-[250px] overflow-y-auto">
+                  {delinquentTab === 'unsigned' && (
+                    <>
+                      {unsignedNotes.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No unsigned notes</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {unsignedNotes.map((note) => (
+                            <div key={note.id} className="px-4 py-3 hover:bg-warning-50 transition-colors flex items-center justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-semibold text-gray-900 truncate">{note.patient_name}</div>
+                                <div className="text-xs text-gray-500 truncate">
+                                  {note.encounter_number} &middot; {new Date(note.encounter_date).toLocaleDateString()}
+                                  {note.chief_complaint ? ` — ${note.chief_complaint}` : ''}
+                                </div>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  const label = note.patient_name || 'this patient';
+                                  if (!confirm(`Sign the SOAP note for ${label} (${note.encounter_number})?\n\nOnce signed it cannot be edited.`)) return;
+                                  try {
+                                    await apiClient.post(`/hp/${note.id}/sign`);
+                                    showToast(`SOAP note signed for ${label}`, 'success');
+                                    loadDelinquent();
+                                    loadRoomEncounters();
+                                  } catch {
+                                    showToast('Failed to sign SOAP note', 'error');
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
+                              >
+                                Sign
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {delinquentTab === 'labs' && (
+                    <>
+                      {pendingLabs.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No pending lab orders</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {pendingLabs.map((lab) => (
+                            <div key={lab.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-semibold text-gray-900 text-sm">{lab.test_name}</div>
+                                  <div className="text-xs text-gray-500">{lab.patient_name}</div>
+                                </div>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  lab.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                                  lab.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {lab.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {delinquentTab === 'imaging' && (
+                    <>
+                      {pendingImaging.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No pending imaging orders</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {pendingImaging.map((img) => (
+                            <div key={img.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-semibold text-gray-900 text-sm">
+                                    {img.imaging_type}{img.body_part ? ` — ${img.body_part}` : ''}
+                                  </div>
+                                  <div className="text-xs text-gray-500">{img.patient_name}</div>
+                                </div>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  img.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
+                                  img.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {img.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {delinquentTab === 'rx' && (
+                    <>
+                      {pendingRx.length === 0 ? (
+                        <div className="p-4 text-center text-gray-400 text-sm">No pending prescriptions</div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {pendingRx.map((rx) => (
+                            <div key={rx.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-semibold text-gray-900 text-sm">{rx.medication_name}</div>
+                                  <div className="text-xs text-gray-500">{rx.patient_name}</div>
+                                </div>
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                  rx.status === 'ordered' ? 'bg-gray-100 text-gray-600' :
+                                  'bg-primary-100 text-primary-700'
+                                }`}>
+                                  {rx.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Claims Review Section */}
             {pendingClaims.length > 0 && (

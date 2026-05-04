@@ -104,6 +104,7 @@ import {
   processReturn,
   getAllEncounterOrders,
   getDoctorAlerts,
+  getDoctorDelinquent,
   getCriticalResultAlerts,
   acknowledgeCriticalResult,
   createCriticalResultAlert,
@@ -487,6 +488,7 @@ router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounter
 
 // Get doctor alerts - recently completed results
 router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'), getDoctorAlerts);
+router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor'), getDoctorDelinquent);
 
 // Payer sources routes - Corporate Clients
 router.get('/payer-sources/corporate-clients', authenticateToken, getCorporateClients);

@@ -1404,6 +1404,93 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Get delinquent items: unsigned notes + pending orders for the doctor
+export const getDoctorDelinquent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const doctorId = authReq.user?.id;
+
+    // Unsigned encounters (SOAP not signed) from the last 30 days
+    const unsignedNotes = await pool.query(
+      `SELECT e.id, e.encounter_number, e.patient_id, e.encounter_date,
+              e.chief_complaint, e.status,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number
+         FROM encounters e
+         LEFT JOIN patients p ON e.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+        WHERE e.provider_id = $1
+          AND e.soap_signed = false
+          AND e.status IN ('completed', 'discharged', 'with_doctor', 'ready_for_doctor')
+          AND e.encounter_date >= NOW() - INTERVAL '30 days'
+        ORDER BY e.encounter_date DESC
+        LIMIT 30`,
+      [doctorId]
+    );
+
+    // Pending lab orders (not yet completed)
+    const pendingLabs = await pool.query(
+      `SELECT lo.id, lo.patient_id, lo.encounter_id, lo.test_name,
+              lo.status, lo.priority, lo.ordered_date,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number
+         FROM lab_orders lo
+         LEFT JOIN patients p ON lo.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+        WHERE lo.ordering_provider = $1
+          AND lo.status IN ('ordered', 'collected', 'in-progress')
+          AND lo.ordered_date >= NOW() - INTERVAL '14 days'
+        ORDER BY lo.ordered_date DESC
+        LIMIT 20`,
+      [doctorId]
+    );
+
+    // Pending imaging orders
+    const pendingImaging = await pool.query(
+      `SELECT io.id, io.patient_id, io.encounter_id, io.imaging_type,
+              io.body_part, io.status, io.priority, io.ordered_date,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number
+         FROM imaging_orders io
+         LEFT JOIN patients p ON io.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+        WHERE io.ordering_provider = $1
+          AND io.status IN ('ordered', 'in-progress')
+          AND io.ordered_date >= NOW() - INTERVAL '14 days'
+        ORDER BY io.ordered_date DESC
+        LIMIT 20`,
+      [doctorId]
+    );
+
+    // Pending pharmacy orders (not yet dispensed)
+    const pendingRx = await pool.query(
+      `SELECT po.id, po.patient_id, po.encounter_id, po.medication_name,
+              po.status, po.priority, po.ordered_date,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              p.patient_number
+         FROM pharmacy_orders po
+         LEFT JOIN patients p ON po.patient_id = p.id
+         LEFT JOIN users u ON p.user_id = u.id
+        WHERE po.ordering_provider = $1
+          AND po.status IN ('ordered', 'approved')
+          AND po.ordered_date >= NOW() - INTERVAL '14 days'
+        ORDER BY po.ordered_date DESC
+        LIMIT 20`,
+      [doctorId]
+    );
+
+    res.json({
+      unsigned_notes: unsignedNotes.rows,
+      pending_labs: pendingLabs.rows,
+      pending_imaging: pendingImaging.rows,
+      pending_rx: pendingRx.rows,
+    });
+  } catch (error) {
+    console.error('Get doctor delinquent error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get critical result alerts
 export const getCriticalResultAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
