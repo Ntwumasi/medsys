@@ -35,7 +35,7 @@ export const getNurseInventory = async (req: Request, res: Response): Promise<vo
       params.push(`%${search}%`);
     }
 
-    query += ` ORDER BY category, item_name`;
+    query += ` ORDER BY item_name, category`;
     const result = await pool.query(query, params);
 
     // Stats
