@@ -77,6 +77,7 @@ const PatientRegistrationPage: React.FC = () => {
   const [insuranceProviders, setInsuranceProviders] = useState<Array<{ id: number; name: string }>>([]);
 
   // UI state
+  const [paymentTiming, setPaymentTiming] = useState('pay_now');
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successData, setSuccessData] = useState<{ patientNumber: string; appointmentDate?: string } | null>(null);
@@ -173,6 +174,7 @@ const PatientRegistrationPage: React.FC = () => {
       });
       setDobDay(''); setDobMonth(''); setDobYear('');
       setSelectedPayerTypes([]); setSelectedCorporateClient(null); setSelectedInsuranceProvider(null);
+      setPaymentTiming('pay_now');
       setShowAppointment(false); setAppointmentDate(''); setAppointmentTime('09:00');
       setAppointmentDoctor(null); setAppointmentClinic(''); setAppointmentType('new');
       setAppointmentDuration(30); setAppointmentReason('');
@@ -199,7 +201,7 @@ const PatientRegistrationPage: React.FC = () => {
 
   return (
     <AppLayout title="Register Patient">
-      <div className="max-w-4xl mx-auto">
+      <div>
         {/* Success Confirmation */}
         {showSuccess && successData && (
           <div className="mb-6 bg-success-50 border border-success-200 rounded-xl p-6">
@@ -445,6 +447,25 @@ const PatientRegistrationPage: React.FC = () => {
                       </select>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Timing */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Payment Option
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Timing *</label>
+                  <select value={paymentTiming} onChange={(e) => setPaymentTiming(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <option value="pay_now">Pay Now</option>
+                    <option value="pay_later">Pay Later</option>
+                  </select>
                 </div>
               </div>
             </div>

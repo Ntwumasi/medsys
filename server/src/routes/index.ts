@@ -382,7 +382,7 @@ router.put('/messages/:messageId/read', authenticateToken, markAsRead);
 router.delete('/messages/:messageId', authenticateToken, deleteMessage);
 
 // Get active doctors (for nurses to select when ordering labs)
-router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getActiveDoctors);
+router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin', 'receptionist'), getActiveDoctors);
 
 // User Management routes (Admin only)
 router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
