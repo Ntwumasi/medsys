@@ -3,6 +3,24 @@ import pool from '../database/db';
 
 export const getNurseInventory = async (req: Request, res: Response): Promise<void> => {
   try {
+    // Ensure the table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS nurse_inventory (
+        id SERIAL PRIMARY KEY,
+        item_name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) DEFAULT 'Supplies',
+        unit VARCHAR(50) DEFAULT 'pcs',
+        quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+        reorder_level INTEGER DEFAULT 10,
+        unit_cost DECIMAL(10,2) DEFAULT 0,
+        location VARCHAR(255) DEFAULT 'Nurse Station',
+        supplier VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     const { category, search } = req.query;
     let query = `SELECT * FROM nurse_inventory WHERE is_active = TRUE`;
     const params: any[] = [];
@@ -48,6 +66,24 @@ export const createNurseInventoryItem = async (req: Request, res: Response): Pro
       res.status(400).json({ error: 'Item name is required' });
       return;
     }
+
+    // Ensure the table exists (auto-create if missing on first use)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS nurse_inventory (
+        id SERIAL PRIMARY KEY,
+        item_name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) DEFAULT 'Supplies',
+        unit VARCHAR(50) DEFAULT 'pcs',
+        quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+        reorder_level INTEGER DEFAULT 10,
+        unit_cost DECIMAL(10,2) DEFAULT 0,
+        location VARCHAR(255) DEFAULT 'Nurse Station',
+        supplier VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
     const result = await pool.query(
       `INSERT INTO nurse_inventory (item_name, category, unit, quantity_on_hand, reorder_level, unit_cost, location, supplier)

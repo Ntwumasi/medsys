@@ -3973,8 +3973,10 @@ const NurseDashboard: React.FC = () => {
                         showToast('Item added successfully', 'success');
                       }
                       loadNurseInventory();
-                    } catch (error) {
-                      showToast('Failed to save item', 'error');
+                    } catch (error: any) {
+                      const msg = error?.response?.data?.error || 'Failed to save item';
+                      showToast(msg, 'error');
+                      console.error('Save inventory error:', error?.response?.data || error);
                     }
                     setShowInventoryModal(false);
                   }}
