@@ -232,12 +232,9 @@ const PatientRegistrationPage: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900">Register New Patient</h2>
-            <p className="text-sm text-gray-500 mt-1">Patient # will be automatically generated upon registration</p>
-          </div>
+        <p className="text-sm text-gray-500 mb-4">Patient # will be automatically generated upon registration</p>
 
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {/* Personal Information */}
             <div>
