@@ -12,6 +12,7 @@ import { parseMedicationName, calculateQuantity } from '../utils/medicationParse
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import AllergyWarningModal from '../components/AllergyWarningModal';
 import type { VitalSigns } from '../types';
 
 interface RoomEncounter {
@@ -142,6 +143,8 @@ const DoctorDashboard: React.FC = () => {
   const [drugInteractions, setDrugInteractions] = useState<Array<{drug1: string, drug2: string, severity: string, description: string, recommendation: string}>>([]);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
   const [checkingInteractions, setCheckingInteractions] = useState(false);
+  const [allergyWarnings, setAllergyWarnings] = useState<Array<{allergen: string, reaction: string, severity: string, match_type: string, explanation: string}>>([]);
+  const [showAllergyWarning, setShowAllergyWarning] = useState(false);
 
   // Clinical Notes Tab state
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural'>('soap');
@@ -569,9 +572,27 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
 
-    // Check for drug interactions
     if (selectedEncounter) {
       setCheckingInteractions(true);
+
+      // 1. Check allergy cross-reactivity first
+      try {
+        const allergyRes = await apiClient.post('/allergy-check', {
+          patient_id: selectedEncounter.patient_id,
+          medication_name: currentPharmacyOrder.medication_name,
+        });
+
+        if (allergyRes.data.warnings && allergyRes.data.warnings.length > 0) {
+          setAllergyWarnings(allergyRes.data.warnings);
+          setShowAllergyWarning(true);
+          setCheckingInteractions(false);
+          return; // Wait for user override
+        }
+      } catch (error) {
+        console.error('Error checking allergies:', error);
+      }
+
+      // 2. Check for drug interactions
       try {
         const response = await apiClient.post('/drug-interactions/check', {
           patientId: selectedEncounter.patient_id,
@@ -586,12 +607,11 @@ const DoctorDashboard: React.FC = () => {
         }
       } catch (error) {
         console.error('Error checking drug interactions:', error);
-        // Continue adding even if check fails
       }
       setCheckingInteractions(false);
     }
 
-    // No interactions found, add the medication
+    // No warnings found, add the medication
     addMedicationToList();
   };
 
@@ -2921,6 +2941,23 @@ const DoctorDashboard: React.FC = () => {
           onClose={() => setShowVitalsHistory(false)}
         />
       )}
+
+      {/* Allergy Warning Modal */}
+      <AllergyWarningModal
+        isOpen={showAllergyWarning}
+        medicationName={currentPharmacyOrder.medication_name}
+        warnings={allergyWarnings}
+        onConfirm={(reason) => {
+          showToast(`Allergy override documented: ${reason}`, 'warning');
+          setShowAllergyWarning(false);
+          setAllergyWarnings([]);
+          addMedicationToList();
+        }}
+        onCancel={() => {
+          setShowAllergyWarning(false);
+          setAllergyWarnings([]);
+        }}
+      />
 
       {/* Drug Interaction Warning Modal */}
       {showInteractionModal && drugInteractions.length > 0 && (

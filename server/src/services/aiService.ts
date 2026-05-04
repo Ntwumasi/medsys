@@ -443,6 +443,66 @@ Format your response as JSON:
       return { success: false, error: error.message || 'AI processing failed' };
     }
   },
+  /**
+   * Check medication against patient allergies for cross-reactivity
+   */
+  async checkAllergyInteraction(request: { medication: string; allergies: string }, userId?: number): Promise<AIResponse> {
+    if (!openai) {
+      return { success: false, error: 'AI service not configured' };
+    }
+
+    const hash = generateRequestHash('allergy_check', request);
+    const cached = await checkCache('allergy_check', hash);
+    if (cached) {
+      return { success: true, data: cached, cached: true };
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a clinical pharmacology expert. Analyze whether a medication could cause an allergic reaction in a patient with known allergies. Consider:
+- Direct matches (same drug)
+- Same drug class / chemical family
+- Known cross-reactivity patterns (e.g., penicillin allergy and cephalosporins)
+- Inactive ingredient risks (e.g., sulfa sensitivity)
+
+Respond with JSON only:
+{
+  "has_risk": boolean,
+  "risks": [
+    {
+      "related_allergen": "name of the allergen from patient's list",
+      "severity": "mild" | "moderate" | "severe",
+      "explanation": "brief clinical explanation of the cross-reactivity"
+    }
+  ]
+}
+
+If there is NO meaningful cross-reactivity risk, return: { "has_risk": false, "risks": [] }`
+          },
+          {
+            role: 'user',
+            content: `Medication being prescribed: ${request.medication}\n\nPatient's known allergies: ${request.allergies}`
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = completion.choices[0]?.message?.content;
+      const response = content ? JSON.parse(content) : { has_risk: false, risks: [] };
+
+      await saveToCache('allergy_check', hash, request, response, userId);
+      return { success: true, data: response };
+    } catch (error: any) {
+      console.error('Allergy check AI error:', error);
+      return { success: false, error: error.message || 'AI processing failed' };
+    }
+  },
 };
 
 export default aiService;

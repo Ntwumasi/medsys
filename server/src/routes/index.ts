@@ -693,6 +693,10 @@ router.use('/quickbooks', quickbooksRoutes);
 // QuickBooks data routes (for accountant dashboard)
 router.use('/qb', qbDataRoutes);
 
+// Allergy Cross-Reactivity Check
+import { checkAllergyInteraction } from '../controllers/allergyCheckController';
+router.post('/allergy-check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), checkAllergyInteraction);
+
 // Drug Interaction Check routes
 router.post('/drug-interactions/check', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech'), async (req, res) => {
   try {

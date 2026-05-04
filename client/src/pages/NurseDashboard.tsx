@@ -12,6 +12,7 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import NurseGuide from '../components/NurseGuide';
+import AllergyWarningModal from '../components/AllergyWarningModal';
 import type { ApiError } from '../types';
 
 interface ClinicalNote {
@@ -201,6 +202,9 @@ const NurseDashboard: React.FC = () => {
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  const [nurseAllergyWarnings, setNurseAllergyWarnings] = useState<Array<{allergen: string, reaction: string, severity: string, match_type: string, explanation: string}>>([]);
+  const [showNurseAllergyModal, setShowNurseAllergyModal] = useState(false);
+  const [pendingAdminOrder, setPendingAdminOrder] = useState<{id: number; name: string} | null>(null);
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
 
   // Follow-up/review task notifications
@@ -974,8 +978,31 @@ const NurseDashboard: React.FC = () => {
 
   // Record medication administration
   const handleAdministerMedication = async (orderId: number, medicationName: string) => {
+    // Check allergy cross-reactivity before administering
+    if (selectedPatient) {
+      try {
+        const res = await apiClient.post('/allergy-check', {
+          patient_id: selectedPatient.patient_id,
+          medication_name: medicationName,
+        });
+
+        if (res.data.warnings && res.data.warnings.length > 0) {
+          setNurseAllergyWarnings(res.data.warnings);
+          setPendingAdminOrder({ id: orderId, name: medicationName });
+          setShowNurseAllergyModal(true);
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking allergies:', error);
+      }
+    }
+
+    await executeAdministration(orderId, medicationName);
+  };
+
+  const executeAdministration = async (orderId: number, medicationName: string) => {
     const notes = prompt(`Record administration notes for ${medicationName} (optional):`);
-    if (notes === null) return; // cancelled
+    if (notes === null) return;
 
     try {
       await apiClient.post('/workflow/nurse/administer-medication', {
@@ -983,7 +1010,6 @@ const NurseDashboard: React.FC = () => {
         notes: notes || null,
       });
       showToast(`${medicationName} administration recorded`, 'success');
-      // Refresh pharmacy orders
       if (selectedPatient) {
         const res = await apiClient.get(`/orders/encounter/${selectedPatient.id}`);
         setPharmacyOrders(res.data.pharmacy_orders || []);
@@ -3928,6 +3954,26 @@ const NurseDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Allergy Warning Modal */}
+      <AllergyWarningModal
+        isOpen={showNurseAllergyModal}
+        medicationName={pendingAdminOrder?.name || ''}
+        warnings={nurseAllergyWarnings}
+        onConfirm={(reason) => {
+          showToast(`Allergy override documented: ${reason}`, 'warning');
+          setShowNurseAllergyModal(false);
+          setNurseAllergyWarnings([]);
+          if (pendingAdminOrder) {
+            executeAdministration(pendingAdminOrder.id, pendingAdminOrder.name);
+          }
+          setPendingAdminOrder(null);
+        }}
+        onCancel={() => {
+          setShowNurseAllergyModal(false);
+          setNurseAllergyWarnings([]);
+          setPendingAdminOrder(null);
+        }}
+      />
     </AppLayout>
   );
 };

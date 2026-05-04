@@ -8,6 +8,7 @@ import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/
 import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
+import AllergyWarningModal from '../components/AllergyWarningModal';
 import { parseMedicationName } from '../utils/medicationParser';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
@@ -275,6 +276,9 @@ const PharmacyDashboard: React.FC = () => {
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
   const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
+  const [pharmacyAllergyWarnings, setPharmacyAllergyWarnings] = useState<Array<{allergen: string, reaction: string, severity: string, match_type: string, explanation: string}>>([]);
+  const [showPharmacyAllergyModal, setShowPharmacyAllergyModal] = useState(false);
+  const [pendingDispenseOrder, setPendingDispenseOrder] = useState<{id: number; name: string} | null>(null);
 
   // Group orders by patient
   interface GroupedPatientOrders {
@@ -1037,29 +1041,31 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  const dispenseMedication = async (orderId: number, medicationName?: string) => {
-    // Check for allergy warnings if we have allergy data and medication name
-    if (medicationName && patientAllergies.length > 0) {
-      const medLower = medicationName.toLowerCase();
-      const allergyWarnings = patientAllergies.filter(allergy => {
-        const allergenLower = allergy.allergen?.toLowerCase() || '';
-        // Check if medication name contains allergen or vice versa
-        return medLower.includes(allergenLower) || allergenLower.includes(medLower);
-      });
+  const dispenseMedication = async (orderId: number, medicationName?: string, patientId?: number) => {
+    // Check for allergy cross-reactivity via API
+    if (medicationName && patientId) {
+      try {
+        const res = await apiClient.post('/allergy-check', {
+          patient_id: patientId,
+          medication_name: medicationName,
+        });
 
-      if (allergyWarnings.length > 0) {
-        const allergenNames = allergyWarnings.map(a => a.allergen).join(', ');
-        const confirmed = window.confirm(
-          `WARNING: Patient has allergies that may be related to this medication!\n\n` +
-          `Allergies: ${allergenNames}\n\n` +
-          `Are you sure you want to dispense ${medicationName}?`
-        );
-        if (!confirmed) {
-          return;
+        if (res.data.warnings && res.data.warnings.length > 0) {
+          setPharmacyAllergyWarnings(res.data.warnings);
+          setPendingDispenseOrder({ id: orderId, name: medicationName });
+          setShowPharmacyAllergyModal(true);
+          return; // Wait for user override
         }
+      } catch (error) {
+        console.error('Error checking allergies:', error);
+        // Continue if check fails
       }
     }
 
+    await executeDispense(orderId);
+  };
+
+  const executeDispense = async (orderId: number) => {
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
         status: 'dispensed',
@@ -1443,7 +1449,7 @@ const PharmacyDashboard: React.FC = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  group.orders.forEach(o => dispenseMedication(o.id, o.medication_name));
+                                  group.orders.forEach(o => dispenseMedication(o.id, o.medication_name, o.patient_id));
                                 }}
                                 className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
                               >
@@ -1576,7 +1582,7 @@ const PharmacyDashboard: React.FC = () => {
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          dispenseMedication(order.id, order.medication_name);
+                                          dispenseMedication(order.id, order.medication_name, order.patient_id);
                                         }}
                                         className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700"
                                       >
@@ -4023,6 +4029,26 @@ const PharmacyDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Allergy Warning Modal */}
+      <AllergyWarningModal
+        isOpen={showPharmacyAllergyModal}
+        medicationName={pendingDispenseOrder?.name || ''}
+        warnings={pharmacyAllergyWarnings}
+        onConfirm={(reason) => {
+          showToast(`Allergy override documented: ${reason}`, 'warning');
+          setShowPharmacyAllergyModal(false);
+          setPharmacyAllergyWarnings([]);
+          if (pendingDispenseOrder) {
+            executeDispense(pendingDispenseOrder.id);
+          }
+          setPendingDispenseOrder(null);
+        }}
+        onCancel={() => {
+          setShowPharmacyAllergyModal(false);
+          setPharmacyAllergyWarnings([]);
+          setPendingDispenseOrder(null);
+        }}
+      />
     </AppLayout>
   );
 };
