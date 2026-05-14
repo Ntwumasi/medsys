@@ -2431,6 +2431,22 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Frequency"
                           />
+                          <input
+                            type="number"
+                            min="1"
+                            value={currentPharmacyOrder.days_supply}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, days_supply: e.target.value})}
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            placeholder="Days Supply"
+                          />
+                          <input
+                            type="text"
+                            value={currentPharmacyOrder.quantity}
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
+                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            placeholder="Qty (auto-calculated)"
+                            title="Auto-calculated from frequency × days. You can override."
+                          />
                           <AutocompleteInput
                             value={currentPharmacyOrder.route}
                             onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: value})}
@@ -2439,27 +2455,12 @@ const DoctorDashboard: React.FC = () => {
                             placeholder="Route"
                           />
                           <input
-                            type="text"
-                            value={currentPharmacyOrder.quantity}
-                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
-                            placeholder="Quantity"
-                          />
-                          <input
                             type="number"
                             min="0"
                             value={currentPharmacyOrder.refills}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, refills: e.target.value})}
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Refills"
-                          />
-                          <input
-                            type="number"
-                            min="1"
-                            value={currentPharmacyOrder.days_supply}
-                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, days_supply: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
-                            placeholder="Days Supply"
                           />
                         </div>
                         <select

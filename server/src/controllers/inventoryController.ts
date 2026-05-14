@@ -830,15 +830,17 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
       [inventory_id]
     );
 
-    // Auto-generate batch number: MED-YYYYMM-XXX
+    // Auto-generate batch number: MED-EXP(YYYYMM)-XXX (based on expiry date)
     let generatedBatchNumber = batch_number;
     if (!batch_number) {
       const medName = medResult.rows[0]?.medication_name || 'MED';
       // Create abbreviation from first 3 letters of first word (uppercase)
       const abbrev = medName.split(' ')[0].substring(0, 3).toUpperCase();
-      const yearMonth = new Date().toISOString().slice(0, 7).replace('-', '');
+      // Use expiry date for batch grouping if provided, otherwise fall back to current date
+      const dateRef = expiry_date ? new Date(expiry_date) : new Date();
+      const yearMonth = `${dateRef.getFullYear()}${String(dateRef.getMonth() + 1).padStart(2, '0')}`;
 
-      // Get next sequence number for this medication this month
+      // Get next sequence number for this medication + expiry month
       const seqResult = await client.query(
         `SELECT COUNT(*) + 1 as next_seq FROM inventory_batches
          WHERE inventory_id = $1 AND batch_number LIKE $2`,

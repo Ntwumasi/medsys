@@ -96,6 +96,16 @@ export async function autoCheckoutIfFullyPaid(
       return { didCheckout: false, reason: 'pending_department_routing' };
     }
 
+    // 3b. Check for unsigned clinical notes — don't discharge until doctor signs
+    const unsignedNotes = await client.query(
+      `SELECT COUNT(*) FROM clinical_notes WHERE encounter_id = $1 AND is_signed = false`,
+      [invoice.encounter_id]
+    );
+    if (parseInt(unsignedNotes.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return { didCheckout: false, reason: 'unsigned_clinical_notes' };
+    }
+
     // 4. Perform checkout — mirrors workflowController.checkoutPatient
     const { room_id, patient_id, patient_name, patient_number } = encounter;
 

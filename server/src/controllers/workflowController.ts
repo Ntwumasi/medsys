@@ -1477,6 +1477,19 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
 
     const { room_id, patient_id, patient_name, patient_number } = encounterResult.rows[0];
 
+    // Prevent checkout if doctor has unsigned clinical notes for this encounter
+    const unsignedNotes = await client.query(
+      `SELECT COUNT(*) FROM clinical_notes WHERE encounter_id = $1 AND is_signed = false`,
+      [encounter_id]
+    );
+    if (parseInt(unsignedNotes.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({
+        error: 'Cannot checkout patient — doctor has unsigned clinical notes for this encounter'
+      });
+      return;
+    }
+
     // Release room if patient is still in one
     if (room_id) {
       await client.query(

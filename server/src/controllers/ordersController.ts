@@ -881,7 +881,11 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
     // Send notification when pharmacy order is dispensed
     if (updateData.status === 'dispensed') {
-      await notificationService.notifyPharmacyDispensed(parseInt(id));
+      try {
+        await notificationService.notifyPharmacyDispensed(parseInt(id));
+      } catch (notifyError) {
+        console.error('Error sending dispense notification (non-blocking):', notifyError);
+      }
 
       const quantity = parseInt(updatedOrder.quantity) || 1;
 
@@ -967,6 +971,24 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             );
           }
 
+          // Insert into medications table so it appears in patient's Active Medications
+          const daysSupply = parseInt(updatedOrder.days_supply) || 0;
+          const endDate = daysSupply > 0 ? new Date(Date.now() + daysSupply * 86400000).toISOString().split('T')[0] : null;
+          await client.query(
+            `INSERT INTO medications (patient_id, medication_name, dosage, frequency, route, start_date, end_date, prescribing_doctor, status, notes)
+             VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7, 'active', $8)`,
+            [
+              updatedOrder.patient_id,
+              updatedOrder.substitute_medication || updatedOrder.medication_name,
+              updatedOrder.dosage,
+              updatedOrder.frequency,
+              updatedOrder.route,
+              endDate,
+              updatedOrder.ordering_provider,
+              `Pharmacy order #${id}. Qty: ${quantity}${updatedOrder.refills ? `. Refills: ${updatedOrder.refills}` : ''}`
+            ]
+          );
+
           await client.query('COMMIT');
         } else {
           await client.query('ROLLBACK');
@@ -981,18 +1003,22 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       }
 
       // Check if all pharmacy orders for this encounter are complete
-      const pendingOrders = await pool.query(
-        `SELECT COUNT(*) FROM pharmacy_orders
-         WHERE encounter_id = $1 AND status NOT IN ('dispensed', 'cancelled')`,
-        [updatedOrder.encounter_id]
-      );
+      try {
+        const pendingOrders = await pool.query(
+          `SELECT COUNT(*) FROM pharmacy_orders
+           WHERE encounter_id = $1 AND status NOT IN ('dispensed', 'cancelled')`,
+          [updatedOrder.encounter_id]
+        );
 
-      // If no more pending pharmacy orders, auto-route patient back to nurse
-      if (parseInt(pendingOrders.rows[0].count) === 0) {
-        await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'pharmacy');
+        // If no more pending pharmacy orders, auto-route patient back to nurse
+        if (parseInt(pendingOrders.rows[0].count) === 0) {
+          await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'pharmacy');
 
-        // Check if ALL orders (lab, imaging, pharmacy) are complete for discharge
-        await notificationService.notifyReadyForDischarge(updatedOrder.encounter_id);
+          // Check if ALL orders (lab, imaging, pharmacy) are complete for discharge
+          await notificationService.notifyReadyForDischarge(updatedOrder.encounter_id);
+        }
+      } catch (routeError) {
+        console.error('Error auto-routing after dispense (non-blocking):', routeError);
       }
     }
 
@@ -1672,8 +1698,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       const orderResult = await client.query(
         `INSERT INTO pharmacy_orders (
           patient_id, encounter_id, ordering_provider, medication_name,
-          dosage, frequency, route, quantity, priority, notes, status, dispensed_by, dispensed_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, 'routine', $8, 'dispensed', $9, CURRENT_TIMESTAMP)
+          dosage, frequency, route, quantity, refills, days_supply, priority, notes, status, dispensed_by, dispensed_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, $8, $9, 'routine', $10, 'dispensed', $11, CURRENT_TIMESTAMP)
         RETURNING *`,
         [
           patient_id,
@@ -1683,6 +1709,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
           med.dosage || '',
           med.frequency || '',
           med.quantity,
+          med.refills || 0,
+          med.duration_days || null,
           [med.duration_days ? `${med.duration_days} days` : '', med.instructions].filter(Boolean).join(' - ') || 'OTC Walk-in',
           dispensed_by
         ]
