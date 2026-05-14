@@ -170,6 +170,7 @@ import {
   completeNurseProcedure,
   getAvailableNurseProcedures,
   cancelNurseProcedure,
+  updateNurseProcedure,
 } from '../controllers/nurseProceduresController';
 import {
   getHP,
@@ -557,6 +558,7 @@ router.get('/nurse-procedures', authenticateToken, authorizeRoles('nurse', 'doct
 router.get('/nurse-procedures/available', authenticateToken, authorizeRoles('doctor', 'nurse'), getAvailableNurseProcedures);
 router.post('/nurse-procedures/:id/start', authenticateToken, authorizeRoles('nurse'), startNurseProcedure);
 router.post('/nurse-procedures/:id/complete', authenticateToken, authorizeRoles('nurse'), completeNurseProcedure);
+router.put('/nurse-procedures/:id', authenticateToken, authorizeRoles('nurse', 'doctor'), updateNurseProcedure);
 router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('doctor', 'nurse'), cancelNurseProcedure);
 
 // H&P (History & Physical) routes

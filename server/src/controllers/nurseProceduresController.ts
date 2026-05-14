@@ -275,6 +275,51 @@ export const getAvailableNurseProcedures = async (req: Request, res: Response): 
   }
 };
 
+// Update a procedure (edit notes, procedure name, charge_master_id)
+export const updateNurseProcedure = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { procedure_name, notes, charge_master_id } = req.body;
+
+    // Only allow editing pending or in_progress procedures
+    const current = await pool.query('SELECT status FROM nurse_procedures WHERE id = $1', [id]);
+    if (current.rows.length === 0) {
+      res.status(404).json({ error: 'Procedure not found' });
+      return;
+    }
+    if (current.rows[0].status === 'completed' || current.rows[0].status === 'cancelled') {
+      res.status(400).json({ error: 'Cannot edit a completed or cancelled procedure' });
+      return;
+    }
+
+    const setClauses: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (procedure_name !== undefined) { setClauses.push(`procedure_name = $${idx++}`); params.push(procedure_name); }
+    if (notes !== undefined) { setClauses.push(`notes = $${idx++}`); params.push(notes); }
+    if (charge_master_id !== undefined) { setClauses.push(`charge_master_id = $${idx++}`); params.push(charge_master_id); }
+
+    if (setClauses.length === 0) {
+      res.status(400).json({ error: 'No fields to update' });
+      return;
+    }
+
+    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
+    params.push(id);
+
+    const result = await pool.query(
+      `UPDATE nurse_procedures SET ${setClauses.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
+
+    res.json({ message: 'Procedure updated', procedure: result.rows[0] });
+  } catch (error) {
+    console.error('Update nurse procedure error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Cancel a procedure
 export const cancelNurseProcedure = async (req: Request, res: Response): Promise<void> => {
   try {

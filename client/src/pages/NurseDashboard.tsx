@@ -97,6 +97,9 @@ interface LabOrder {
   status: string;
   ordered_date: string;
   ordering_provider_name: string;
+  results?: string;
+  results_available_at?: string;
+  notes?: string;
 }
 
 interface ImagingOrder {
@@ -198,6 +201,8 @@ const NurseDashboard: React.FC = () => {
   const [showProcedureHistory, setShowProcedureHistory] = useState(false);
   const [procedureHistory, setProcedureHistory] = useState<NurseProcedure[]>([]);
   const [orderingProcedure, setOrderingProcedure] = useState(false);
+  const [editingProcedureId, setEditingProcedureId] = useState<number | null>(null);
+  const [editProcedureNotes, setEditProcedureNotes] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
@@ -226,7 +231,8 @@ const NurseDashboard: React.FC = () => {
   const [doctorMessageContent, setDoctorMessageContent] = useState('');
 
   // Tab state for better UI organization
-  const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing' | 'documents'>('hp');
+  const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing' | 'documents' | 'billing'>('hp');
+  const [encounterInvoice, setEncounterInvoice] = useState<any>(null);
 
   // Room editing state
   const [editingRoom, setEditingRoom] = useState(false);
@@ -272,6 +278,7 @@ const NurseDashboard: React.FC = () => {
     unit: string;
     min_quantity: number;
     location: string;
+    unit_cost: number;
     last_restocked?: string;
   }
   const [nurseInventory, setNurseInventory] = useState<NurseInventoryItem[]>([]);
@@ -281,6 +288,12 @@ const NurseDashboard: React.FC = () => {
   const [inventorySearch, setInventorySearch] = useState('');
   const [savingInventory, setSavingInventory] = useState(false);
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('all');
+  const [inventorySortBy, setInventorySortBy] = useState<'name' | 'category' | 'quantity' | 'status'>('name');
+  const [inventoryShowLowOnly, setInventoryShowLowOnly] = useState(false);
+  const [showAddStockModal, setShowAddStockModal] = useState(false);
+  const [addStockItem, setAddStockItem] = useState<NurseInventoryItem | null>(null);
+  const [addStockQuantity, setAddStockQuantity] = useState(0);
+  const [addStockNotes, setAddStockNotes] = useState('');
 
   // Doctor Notifications state
   const [doctorNotifications, setDoctorNotifications] = useState<DoctorNotification[]>([]);
@@ -357,6 +370,7 @@ const NurseDashboard: React.FC = () => {
         unit: item.unit,
         min_quantity: item.reorder_level,
         location: item.location || '',
+        unit_cost: parseFloat(item.unit_cost) || 0,
         last_restocked: item.updated_at,
       }));
       setNurseInventory(items);
@@ -2111,6 +2125,26 @@ const NurseDashboard: React.FC = () => {
                       >
                         Documents
                       </button>
+                      <button
+                        onClick={async () => {
+                          setActiveTab('billing');
+                          if (selectedPatient) {
+                            try {
+                              const res = await apiClient.get(`/invoices/encounter/${selectedPatient.id}`);
+                              setEncounterInvoice(res.data.invoice || res.data);
+                            } catch {
+                              setEncounterInvoice(null);
+                            }
+                          }
+                        }}
+                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                          activeTab === 'billing'
+                            ? 'border-success-500 text-success-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        Billing
+                      </button>
                     </nav>
                   </div>
 
@@ -2726,7 +2760,7 @@ const NurseDashboard: React.FC = () => {
                                 <h3 className="text-lg font-semibold text-primary-700 mb-2">Laboratory Orders</h3>
                                 <div className="space-y-2">
                                   {labOrders.map((order) => (
-                                    <div key={order.id} className="border border-primary-200 rounded-lg p-3 bg-primary-50">
+                                    <div key={order.id} className={`border rounded-lg p-3 ${order.results ? 'border-success-300 bg-success-50' : 'border-primary-200 bg-primary-50'}`}>
                                       <div className="flex justify-between items-start">
                                         <div className="flex-1">
                                           <h4 className="font-semibold text-gray-900">{order.test_name}</h4>
@@ -2748,9 +2782,31 @@ const NurseDashboard: React.FC = () => {
                                           }`}>
                                             {order.priority.toUpperCase()}
                                           </span>
-                                          <div className="text-xs text-gray-600 mt-1">{order.status}</div>
+                                          <div className={`text-xs mt-1 font-medium ${
+                                            order.status === 'completed' ? 'text-success-600' : 'text-gray-600'
+                                          }`}>{order.status}</div>
                                         </div>
                                       </div>
+                                      {/* Lab Results */}
+                                      {order.results && (
+                                        <div className="mt-2 p-2 bg-white rounded border border-success-200">
+                                          <div className="flex items-center gap-1 mb-1">
+                                            <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span className="text-xs font-semibold text-success-700">Results Available</span>
+                                            {order.results_available_at && (
+                                              <span className="text-xs text-gray-400 ml-auto">
+                                                {safeFormatDate(order.results_available_at, 'MMM d, yyyy h:mm a')}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">{order.results}</pre>
+                                        </div>
+                                      )}
+                                      {order.notes && !order.results && (
+                                        <p className="mt-1 text-xs text-gray-500 italic">Notes: {order.notes}</p>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -3000,6 +3056,17 @@ const NurseDashboard: React.FC = () => {
                                       </p>
                                     </div>
                                     <div className="ml-4 flex gap-2">
+                                      {(procedure.status === 'pending' || procedure.status === 'in_progress') && (
+                                        <button
+                                          onClick={() => {
+                                            setEditingProcedureId(procedure.id);
+                                            setEditProcedureNotes(procedure.notes || '');
+                                          }}
+                                          className="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"
+                                        >
+                                          Edit
+                                        </button>
+                                      )}
                                       {procedure.status === 'pending' && (
                                         <>
                                           <button
@@ -3034,6 +3101,44 @@ const NurseDashboard: React.FC = () => {
                                       )}
                                     </div>
                                   </div>
+                                  {/* Inline Edit Form */}
+                                  {editingProcedureId === procedure.id && (
+                                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Edit Notes</label>
+                                      <textarea
+                                        rows={2}
+                                        value={editProcedureNotes}
+                                        onChange={(e) => setEditProcedureNotes(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                                        placeholder="Update procedure notes..."
+                                      />
+                                      <div className="flex justify-end gap-2 mt-2">
+                                        <button
+                                          onClick={() => setEditingProcedureId(null)}
+                                          className="px-3 py-1 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              await apiClient.put(`/nurse-procedures/${procedure.id}`, {
+                                                notes: editProcedureNotes,
+                                              });
+                                              showToast('Procedure updated', 'success');
+                                              setEditingProcedureId(null);
+                                              loadNurseProcedures();
+                                            } catch (err: any) {
+                                              showToast(err.response?.data?.error || 'Failed to update', 'error');
+                                            }
+                                          }}
+                                          className="px-3 py-1 text-xs text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                                        >
+                                          Save
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                           </div>
@@ -3337,6 +3442,99 @@ const NurseDashboard: React.FC = () => {
                         encounterId={selectedPatient.id}
                       />
                     )}
+
+                    {/* Billing Tab */}
+                    {activeTab === 'billing' && (
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4">Encounter Billing Summary</h3>
+                        {encounterInvoice ? (
+                          <div className="space-y-4">
+                            {/* Invoice Header */}
+                            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                  <div className="text-xs text-gray-500">Invoice #</div>
+                                  <div className="font-semibold text-gray-900">{encounterInvoice.invoice_number || '-'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500">Status</div>
+                                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                    encounterInvoice.status === 'paid' ? 'bg-success-100 text-success-700' :
+                                    encounterInvoice.status === 'pending' ? 'bg-warning-100 text-warning-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {(encounterInvoice.status || 'N/A').toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500">Total</div>
+                                  <div className="font-bold text-lg text-gray-900">GHS {Number(encounterInvoice.total_amount || encounterInvoice.total || 0).toFixed(2)}</div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-gray-500">Paid</div>
+                                  <div className="font-bold text-lg text-success-600">GHS {Number(encounterInvoice.amount_paid || 0).toFixed(2)}</div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Invoice Items */}
+                            {encounterInvoice.items && encounterInvoice.items.length > 0 ? (
+                              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                <table className="w-full">
+                                  <thead className="bg-gray-50">
+                                    <tr>
+                                      <th className="text-left text-xs font-medium text-gray-500 px-4 py-2">Description</th>
+                                      <th className="text-center text-xs font-medium text-gray-500 px-4 py-2">Qty</th>
+                                      <th className="text-right text-xs font-medium text-gray-500 px-4 py-2">Unit Price</th>
+                                      <th className="text-right text-xs font-medium text-gray-500 px-4 py-2">Total</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100">
+                                    {encounterInvoice.items.map((item: any, idx: number) => (
+                                      <tr key={idx}>
+                                        <td className="px-4 py-2 text-sm text-gray-900">{item.description}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-600 text-center">{item.quantity}</td>
+                                        <td className="px-4 py-2 text-sm text-gray-600 text-right">GHS {Number(item.unit_price || 0).toFixed(2)}</td>
+                                        <td className="px-4 py-2 text-sm font-medium text-gray-900 text-right">GHS {Number(item.total_price || item.total || 0).toFixed(2)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot>
+                                    <tr className="border-t-2 border-gray-200 bg-gray-50">
+                                      <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-700">Total</td>
+                                      <td className="px-4 py-3 text-right font-bold text-gray-900">GHS {Number(encounterInvoice.total_amount || encounterInvoice.total || 0).toFixed(2)}</td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500">No charges recorded yet for this encounter.</p>
+                            )}
+
+                            {/* Balance */}
+                            {(Number(encounterInvoice.total_amount || encounterInvoice.total || 0) - Number(encounterInvoice.amount_paid || 0)) > 0 && (
+                              <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
+                                <div className="flex items-center gap-2">
+                                  <svg className="w-5 h-5 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                  </svg>
+                                  <span className="text-sm font-semibold text-warning-800">
+                                    Outstanding Balance: GHS {(Number(encounterInvoice.total_amount || encounterInvoice.total || 0) - Number(encounterInvoice.amount_paid || 0)).toFixed(2)}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <svg className="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p>No invoice found for this encounter</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3373,19 +3571,9 @@ const NurseDashboard: React.FC = () => {
                     <p className="text-primary-100 text-sm">Manage supplies and equipment</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setEditingInventoryItem(null);
-                    setInventoryForm({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
-                    setShowInventoryModal(true);
-                  }}
-                  className="px-4 py-2 bg-white text-primary-600 rounded-lg font-semibold hover:bg-primary-50 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Item
-                </button>
+                <div className="text-primary-100 text-sm">
+                  Total Value: <span className="font-bold text-white">GHS {nurseInventory.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0).toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
@@ -3410,7 +3598,7 @@ const NurseDashboard: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="p-4 border-b flex flex-wrap gap-4 items-center">
+            <div className="p-4 border-b flex flex-wrap gap-3 items-center">
               <div className="flex-1 min-w-[200px]">
                 <input
                   type="text"
@@ -3423,7 +3611,7 @@ const NurseDashboard: React.FC = () => {
               <select
                 value={inventoryCategoryFilter}
                 onChange={(e) => setInventoryCategoryFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
               >
                 <option value="all">All Categories</option>
                 <option value="Supplies">Supplies</option>
@@ -3431,6 +3619,26 @@ const NurseDashboard: React.FC = () => {
                 <option value="PPE">PPE</option>
                 <option value="Medications">Medications</option>
               </select>
+              <select
+                value={inventorySortBy}
+                onChange={(e) => setInventorySortBy(e.target.value as any)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="category">Sort by Category</option>
+                <option value="quantity">Sort by Quantity</option>
+                <option value="status">Sort by Status</option>
+              </select>
+              <button
+                onClick={() => setInventoryShowLowOnly(!inventoryShowLowOnly)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  inventoryShowLowOnly
+                    ? 'bg-danger-100 text-danger-700 border-2 border-danger-300'
+                    : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Low Stock Only ({nurseInventory.filter(i => i.quantity <= i.min_quantity).length})
+              </button>
             </div>
 
             {/* Inventory Table */}
@@ -3438,28 +3646,38 @@ const NurseDashboard: React.FC = () => {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Min Stock</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Restocked</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Min Stock</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Value</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {nurseInventory
                     .filter(item =>
                       (inventoryCategoryFilter === 'all' || item.category === inventoryCategoryFilter) &&
-                      (inventorySearch === '' || item.name.toLowerCase().includes(inventorySearch.toLowerCase()))
+                      (inventorySearch === '' || item.name.toLowerCase().includes(inventorySearch.toLowerCase())) &&
+                      (!inventoryShowLowOnly || item.quantity <= item.min_quantity)
                     )
+                    .sort((a, b) => {
+                      switch (inventorySortBy) {
+                        case 'category': return a.category.localeCompare(b.category);
+                        case 'quantity': return a.quantity - b.quantity;
+                        case 'status': return (a.quantity <= a.min_quantity ? 0 : 1) - (b.quantity <= b.min_quantity ? 0 : 1);
+                        default: return a.name.localeCompare(b.name);
+                      }
+                    })
                     .map((item) => (
                     <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= item.min_quantity ? 'bg-danger-50' : ''}`}>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{item.name}</div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                           item.category === 'PPE' ? 'bg-blue-100 text-blue-800' :
                           item.category === 'Equipment' ? 'bg-purple-100 text-purple-800' :
@@ -3469,14 +3687,16 @@ const NurseDashboard: React.FC = () => {
                           {item.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-gray-600">{item.location}</td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-4 py-3 text-gray-600 text-sm">{item.location}</td>
+                      <td className="px-4 py-3 text-center">
                         <span className={`font-bold ${item.quantity <= item.min_quantity ? 'text-danger-600' : 'text-gray-900'}`}>
                           {item.quantity} {item.unit}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center text-gray-500">{item.min_quantity} {item.unit}</td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-4 py-3 text-center text-gray-500">{item.min_quantity} {item.unit}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-600">GHS {item.unit_cost.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-sm font-medium text-gray-700">GHS {(item.quantity * item.unit_cost).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-center">
                         {item.quantity <= item.min_quantity ? (
                           <span className="px-2 py-1 bg-danger-100 text-danger-700 rounded-full text-xs font-bold">LOW STOCK</span>
                         ) : item.quantity <= item.min_quantity * 1.5 ? (
@@ -3485,27 +3705,38 @@ const NurseDashboard: React.FC = () => {
                           <span className="px-2 py-1 bg-success-100 text-success-700 rounded-full text-xs font-bold">OK</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-center text-gray-500 text-sm">
-                        {item.last_restocked ? new Date(item.last_restocked).toLocaleDateString() : '-'}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => {
-                            setEditingInventoryItem(item);
-                            setInventoryForm({
-                              name: item.name,
-                              category: item.category,
-                              quantity: item.quantity,
-                              unit: item.unit,
-                              min_quantity: item.min_quantity,
-                              location: item.location
-                            });
-                            setShowInventoryModal(true);
-                          }}
-                          className="text-primary-600 hover:text-primary-800 font-medium"
-                        >
-                          Edit
-                        </button>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setAddStockItem(item);
+                              setAddStockQuantity(0);
+                              setAddStockNotes('');
+                              setShowAddStockModal(true);
+                            }}
+                            className="text-success-600 hover:text-success-800 font-medium text-sm"
+                            title="Add stock"
+                          >
+                            +Stock
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingInventoryItem(item);
+                              setInventoryForm({
+                                name: item.name,
+                                category: item.category,
+                                quantity: item.quantity,
+                                unit: item.unit,
+                                min_quantity: item.min_quantity,
+                                location: item.location
+                              });
+                              setShowInventoryModal(true);
+                            }}
+                            className="text-primary-600 hover:text-primary-800 font-medium text-sm"
+                          >
+                            Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -4002,6 +4233,81 @@ const NurseDashboard: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Stock Modal */}
+      {showAddStockModal && addStockItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 bg-success-50 rounded-t-xl">
+              <h3 className="text-lg font-bold text-success-800">Add Stock</h3>
+              <p className="text-sm text-success-600">{addStockItem.name}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Current Stock:</span>
+                  <span className="font-semibold">{addStockItem.quantity} {addStockItem.unit}</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Add</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={addStockQuantity || ''}
+                  onChange={(e) => setAddStockQuantity(parseInt(e.target.value) || 0)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500"
+                  placeholder="Enter quantity..."
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={addStockNotes}
+                  onChange={(e) => setAddStockNotes(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500"
+                  placeholder="e.g., Received from pharmacy"
+                />
+              </div>
+              {addStockQuantity > 0 && (
+                <div className="bg-success-50 rounded-lg p-3 text-sm text-success-700">
+                  New total: <span className="font-bold">{addStockItem.quantity + addStockQuantity} {addStockItem.unit}</span>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => setShowAddStockModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (addStockQuantity <= 0) return;
+                  try {
+                    await apiClient.post('/nurse/inventory/purchase', {
+                      inventory_id: addStockItem.id,
+                      quantity: addStockQuantity,
+                      notes: addStockNotes || 'Stock added by nurse',
+                    });
+                    showToast(`Added ${addStockQuantity} ${addStockItem.unit} to ${addStockItem.name}`, 'success');
+                    setShowAddStockModal(false);
+                    loadNurseInventory();
+                  } catch (err: any) {
+                    showToast(err.response?.data?.error || 'Failed to add stock', 'error');
+                  }
+                }}
+                disabled={addStockQuantity <= 0}
+                className="flex-1 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 font-medium"
+              >
+                Add Stock
+              </button>
             </div>
           </div>
         </div>

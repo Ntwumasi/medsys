@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import AppLayout from '../components/AppLayout';
 import NurseGuide from '../components/NurseGuide';
+import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import type { ApiError } from '../types';
 
 interface FollowUpTask {
@@ -358,9 +359,17 @@ const NurseFollowUpCalls: React.FC = () => {
 
               {/* Notes */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Notes
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Notes
+                  </label>
+                  <VoiceDictationButton
+                    currentValue={patientNotes}
+                    onTranscriptChange={(text) => setPatientNotes(text)}
+                    size="sm"
+                    appendMode={true}
+                  />
+                </div>
                 <textarea
                   rows={3}
                   value={patientNotes}
