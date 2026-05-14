@@ -9,7 +9,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
-import { parseMedicationName } from '../utils/medicationParser';
+import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -549,6 +549,20 @@ const PharmacyDashboard: React.FC = () => {
   const updateWalkInMedication = (index: number, field: keyof WalkInMedication, value: string | number) => {
     const updated = [...walkInMedications];
     updated[index] = { ...updated[index], [field]: value };
+
+    // Auto-calculate quantity when frequency or duration_days changes
+    if (field === 'frequency' || field === 'duration_days') {
+      const med = updated[index];
+      const freq = field === 'frequency' ? String(value) : med.frequency;
+      const days = field === 'duration_days' ? Number(value) : Number(med.duration_days);
+      if (freq && days > 0) {
+        const calc = calculateQuantity(freq, days);
+        if (calc !== null) {
+          updated[index] = { ...updated[index], [field]: value, quantity: calc };
+        }
+      }
+    }
+
     setWalkInMedications(updated);
   };
 
@@ -3846,7 +3860,7 @@ const PharmacyDashboard: React.FC = () => {
                           </div>
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className="text-xs text-gray-500">Qty</label>
+                              <label className="text-xs text-gray-500">Qty (auto)</label>
                               <input
                                 type="number"
                                 min="1"
@@ -3854,6 +3868,7 @@ const PharmacyDashboard: React.FC = () => {
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 0)}
                                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                title="Auto-calculated from frequency × days. You can override."
                               />
                             </div>
                             <div>
