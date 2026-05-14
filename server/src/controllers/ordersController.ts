@@ -991,8 +991,28 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
           await client.query('COMMIT');
         } else {
-          await client.query('ROLLBACK');
+          // Medication not in inventory — still create active medication and commit
           console.warn(`Medication not found in inventory: ${updatedOrder.medication_name}`);
+
+          // Still insert into medications table so it appears in Active Medications
+          const daysSupplyNoInv = parseInt(updatedOrder.days_supply) || 0;
+          const endDateNoInv = daysSupplyNoInv > 0 ? new Date(Date.now() + daysSupplyNoInv * 86400000).toISOString().split('T')[0] : null;
+          await client.query(
+            `INSERT INTO medications (patient_id, medication_name, dosage, frequency, route, start_date, end_date, prescribing_doctor, status, notes)
+             VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6, $7, 'active', $8)`,
+            [
+              updatedOrder.patient_id,
+              updatedOrder.substitute_medication || updatedOrder.medication_name,
+              updatedOrder.dosage,
+              updatedOrder.frequency,
+              updatedOrder.route,
+              endDateNoInv,
+              updatedOrder.ordering_provider,
+              `Pharmacy order #${id}. Qty: ${quantity} (not linked to inventory)`
+            ]
+          );
+
+          await client.query('COMMIT');
         }
       } catch (invoiceError) {
         await client.query('ROLLBACK');
