@@ -673,3 +673,84 @@ export const deferPayment = async (req: Request, res: Response): Promise<void> =
     client.release();
   }
 };
+
+// Create a special (standalone) invoice — not tied to an encounter
+export const createSpecialInvoice = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+
+  try {
+    const { patient_id, client_name, notes, items } = req.body;
+
+    if (!items || items.length === 0) {
+      res.status(400).json({ error: 'At least one invoice item is required' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    // Generate invoice number
+    const countResult = await client.query('SELECT COUNT(*) FROM invoices');
+    const invoiceCount = parseInt(countResult.rows[0].count) + 1;
+    const invoice_number = `SPL${String(invoiceCount).padStart(6, '0')}`;
+
+    // Calculate totals
+    const subtotal = items.reduce((sum: number, item: any) => sum + parseFloat(item.total), 0);
+
+    const invoiceResult = await client.query(
+      `INSERT INTO invoices (
+        patient_id, encounter_id, invoice_number, invoice_date,
+        subtotal, tax, total_amount, status, notes
+      ) VALUES ($1, NULL, $2, CURRENT_DATE, $3, 0, $3, 'pending', $4)
+      RETURNING *`,
+      [patient_id || null, invoice_number, subtotal, [client_name ? `Client: ${client_name}` : '', notes].filter(Boolean).join(' | ') || null]
+    );
+
+    const invoice = invoiceResult.rows[0];
+
+    // Insert invoice items
+    for (const item of items) {
+      await client.query(
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+         VALUES ($1, $2, $3, $4, $5, 'special')`,
+        [invoice.id, item.description, item.quantity, item.unit_price, item.total]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Fetch complete data with patient info if linked
+    let patient_name = null;
+    if (patient_id) {
+      const patientResult = await pool.query(
+        `SELECT u.first_name || ' ' || u.last_name as patient_name
+         FROM patients p JOIN users u ON p.user_id = u.id
+         WHERE p.id = $1`,
+        [patient_id]
+      );
+      if (patientResult.rows.length > 0) {
+        patient_name = patientResult.rows[0].patient_name;
+      }
+    }
+
+    const itemsResult = await pool.query(
+      `SELECT * FROM invoice_items WHERE invoice_id = $1`,
+      [invoice.id]
+    );
+
+    res.status(201).json({
+      message: 'Special invoice created successfully',
+      invoice: {
+        ...invoice,
+        patient_name,
+        client_name: client_name || null,
+        items: itemsResult.rows,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Create special invoice error:', error);
+    res.status(500).json({ error: 'Failed to create special invoice' });
+  } finally {
+    client.release();
+  }
+};

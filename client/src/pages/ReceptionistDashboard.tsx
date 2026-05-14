@@ -217,7 +217,7 @@ const ReceptionistDashboard: React.FC = () => {
   const { user } = useAuth();
   console.log('ReceptionistDashboard: User', user);
   const { showToast } = useNotification();
-  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments'>('queue');
+  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>('queue');
   const [showGuide, setShowGuide] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -291,6 +291,15 @@ const ReceptionistDashboard: React.FC = () => {
   const [showFollowUpCheckoutModal, setShowFollowUpCheckoutModal] = useState(false);
   const [followUpCheckoutItem, setFollowUpCheckoutItem] = useState<QueueItem | null>(null);
   const [schedulingFollowUp, setSchedulingFollowUp] = useState(false);
+
+  // Special invoice state
+  const [specialInvoicePatientSearch, setSpecialInvoicePatientSearch] = useState('');
+  const [specialInvoicePatient, setSpecialInvoicePatient] = useState<Patient | null>(null);
+  const [specialInvoiceClientName, setSpecialInvoiceClientName] = useState('');
+  const [specialInvoiceNotes, setSpecialInvoiceNotes] = useState('');
+  const [specialInvoiceItems, setSpecialInvoiceItems] = useState<Array<{ description: string; quantity: number; unit_price: number }>>([{ description: '', quantity: 1, unit_price: 0 }]);
+  const [submittingSpecialInvoice, setSubmittingSpecialInvoice] = useState(false);
+  const [specialInvoiceResult, setSpecialInvoiceResult] = useState<any>(null);
 
   // Ghana regions
   const ghanaRegions = [
@@ -1311,7 +1320,7 @@ const ReceptionistDashboard: React.FC = () => {
           </div>
         )}
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 xl:gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 xl:gap-6 mb-8">
           <button
             onClick={() => setActiveView('queue')}
             className={`bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer border-2 ${
@@ -1384,6 +1393,25 @@ const ReceptionistDashboard: React.FC = () => {
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">Appointments</h2>
                 <p className="text-2xl font-bold text-secondary-600">{queue.filter(q => q.status !== 'completed' && q.status !== 'discharged').length}</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveView('special-invoice')}
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'special-invoice' ? 'border-warning-500' : 'border-transparent'
+            }`}
+          >
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-warning-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h2 className="text-lg font-bold text-gray-900">Special Invoice</h2>
+                <p className="text-sm text-gray-600">Manual</p>
               </div>
             </div>
           </button>
@@ -3420,6 +3448,309 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Special Invoice View */}
+        {activeView === 'special-invoice' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-warning-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-warning-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Special Invoice</h2>
+                  <p className="text-sm text-gray-500">Create a manual invoice for services not tied to an encounter</p>
+                </div>
+              </div>
+              {specialInvoiceResult && (
+                <button
+                  onClick={() => {
+                    setSpecialInvoiceResult(null);
+                    setSpecialInvoicePatient(null);
+                    setSpecialInvoicePatientSearch('');
+                    setSpecialInvoiceClientName('');
+                    setSpecialInvoiceNotes('');
+                    setSpecialInvoiceItems([{ description: '', quantity: 1, unit_price: 0 }]);
+                  }}
+                  className="px-4 py-2 bg-warning-600 text-white rounded-lg hover:bg-warning-700 transition-colors font-medium"
+                >
+                  Create Another
+                </button>
+              )}
+            </div>
+
+            {specialInvoiceResult ? (
+              /* Success state */
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Invoice Created Successfully</h3>
+                <p className="text-gray-600 mb-1">Invoice #: <span className="font-semibold">{specialInvoiceResult.invoice_number}</span></p>
+                <p className="text-gray-600 mb-1">Total: <span className="font-semibold">GHS {Number(specialInvoiceResult.total_amount).toFixed(2)}</span></p>
+                {specialInvoiceResult.patient_name && (
+                  <p className="text-gray-600">Patient: <span className="font-semibold">{specialInvoiceResult.patient_name}</span></p>
+                )}
+                {specialInvoiceResult.client_name && (
+                  <p className="text-gray-600">Client: <span className="font-semibold">{specialInvoiceResult.client_name}</span></p>
+                )}
+                <button
+                  onClick={() => {
+                    setShowInvoice(true);
+                    setInvoiceData({
+                      ...specialInvoiceResult,
+                      items: specialInvoiceResult.items || [],
+                    });
+                  }}
+                  className="mt-4 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                >
+                  View / Print Invoice
+                </button>
+              </div>
+            ) : (
+              /* Form */
+              <div className="space-y-6">
+                {/* Patient / Client selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Link to Patient (optional)</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={specialInvoicePatient ? `${specialInvoicePatient.first_name} ${specialInvoicePatient.last_name} (${specialInvoicePatient.patient_number})` : specialInvoicePatientSearch}
+                        onChange={(e) => {
+                          setSpecialInvoicePatientSearch(e.target.value);
+                          setSpecialInvoicePatient(null);
+                        }}
+                        placeholder="Search patient by name or ID..."
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-transparent"
+                      />
+                      {specialInvoicePatient && (
+                        <button
+                          onClick={() => { setSpecialInvoicePatient(null); setSpecialInvoicePatientSearch(''); }}
+                          className="absolute right-2 top-2 text-gray-400 hover:text-gray-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                      {!specialInvoicePatient && specialInvoicePatientSearch.length >= 2 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {patients
+                            .filter(p =>
+                              `${p.first_name} ${p.last_name}`.toLowerCase().includes(specialInvoicePatientSearch.toLowerCase()) ||
+                              p.patient_number.toLowerCase().includes(specialInvoicePatientSearch.toLowerCase())
+                            )
+                            .slice(0, 8)
+                            .map(p => (
+                              <button
+                                key={p.id}
+                                onClick={() => {
+                                  setSpecialInvoicePatient(p);
+                                  setSpecialInvoicePatientSearch('');
+                                }}
+                                className="w-full text-left px-4 py-2 hover:bg-warning-50 text-sm"
+                              >
+                                <span className="font-medium">{p.first_name} {p.last_name}</span>
+                                <span className="text-gray-500 ml-2">{p.patient_number}</span>
+                              </button>
+                            ))}
+                          {patients.filter(p =>
+                            `${p.first_name} ${p.last_name}`.toLowerCase().includes(specialInvoicePatientSearch.toLowerCase()) ||
+                            p.patient_number.toLowerCase().includes(specialInvoicePatientSearch.toLowerCase())
+                          ).length === 0 && (
+                            <p className="px-4 py-2 text-sm text-gray-500">No patients found</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client / Company Name (optional)</label>
+                    <input
+                      type="text"
+                      value={specialInvoiceClientName}
+                      onChange={(e) => setSpecialInvoiceClientName(e.target.value)}
+                      placeholder="e.g., NHIS, Company name..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Line Items */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-medium text-gray-700">Invoice Items</label>
+                    <button
+                      onClick={() => setSpecialInvoiceItems([...specialInvoiceItems, { description: '', quantity: 1, unit_price: 0 }])}
+                      className="text-sm text-warning-600 hover:text-warning-700 font-medium flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add Item
+                    </button>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left text-xs font-medium text-gray-500 px-4 py-2 w-1/2">Description</th>
+                          <th className="text-center text-xs font-medium text-gray-500 px-4 py-2 w-20">Qty</th>
+                          <th className="text-right text-xs font-medium text-gray-500 px-4 py-2 w-32">Unit Price (GHS)</th>
+                          <th className="text-right text-xs font-medium text-gray-500 px-4 py-2 w-32">Total</th>
+                          <th className="w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {specialInvoiceItems.map((item, idx) => (
+                          <tr key={idx} className="border-t border-gray-100">
+                            <td className="px-4 py-2">
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const updated = [...specialInvoiceItems];
+                                  updated[idx] = { ...updated[idx], description: e.target.value };
+                                  setSpecialInvoiceItems(updated);
+                                }}
+                                placeholder="Service or item description"
+                                className="w-full px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-warning-500 text-sm"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const updated = [...specialInvoiceItems];
+                                  updated[idx] = { ...updated[idx], quantity: parseInt(e.target.value) || 1 };
+                                  setSpecialInvoiceItems(updated);
+                                }}
+                                className="w-full px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-warning-500 text-sm text-center"
+                              />
+                            </td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unit_price || ''}
+                                onChange={(e) => {
+                                  const updated = [...specialInvoiceItems];
+                                  updated[idx] = { ...updated[idx], unit_price: parseFloat(e.target.value) || 0 };
+                                  setSpecialInvoiceItems(updated);
+                                }}
+                                placeholder="0.00"
+                                className="w-full px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-warning-500 text-sm text-right"
+                              />
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm font-medium text-gray-700">
+                              GHS {(item.quantity * item.unit_price).toFixed(2)}
+                            </td>
+                            <td className="px-2 py-2">
+                              {specialInvoiceItems.length > 1 && (
+                                <button
+                                  onClick={() => setSpecialInvoiceItems(specialInvoiceItems.filter((_, i) => i !== idx))}
+                                  className="text-danger-400 hover:text-danger-600"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-200 bg-gray-50">
+                          <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-700">Grand Total</td>
+                          <td className="px-4 py-3 text-right font-bold text-lg text-warning-700">
+                            GHS {specialInvoiceItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0).toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                  <textarea
+                    value={specialInvoiceNotes}
+                    onChange={(e) => setSpecialInvoiceNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Additional notes for this invoice..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                {/* Submit */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={async () => {
+                      const validItems = specialInvoiceItems.filter(item => item.description.trim() && item.unit_price > 0);
+                      if (validItems.length === 0) {
+                        showToast('Please add at least one item with a description and price', 'error');
+                        return;
+                      }
+                      setSubmittingSpecialInvoice(true);
+                      try {
+                        const res = await apiClient.post('/invoices/special', {
+                          patient_id: specialInvoicePatient?.id || null,
+                          client_name: specialInvoiceClientName || null,
+                          notes: specialInvoiceNotes || null,
+                          items: validItems.map(item => ({
+                            description: item.description,
+                            quantity: item.quantity,
+                            unit_price: item.unit_price,
+                            total: item.quantity * item.unit_price,
+                          })),
+                        });
+                        setSpecialInvoiceResult(res.data.invoice);
+                        showToast('Special invoice created successfully', 'success');
+                      } catch (err: any) {
+                        console.error('Error creating special invoice:', err);
+                        showToast(err.response?.data?.error || 'Failed to create invoice', 'error');
+                      } finally {
+                        setSubmittingSpecialInvoice(false);
+                      }
+                    }}
+                    disabled={submittingSpecialInvoice || specialInvoiceItems.every(i => !i.description.trim() || i.unit_price <= 0)}
+                    className="px-6 py-2.5 bg-warning-600 text-white rounded-lg hover:bg-warning-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {submittingSpecialInvoice ? (
+                      <>
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Generate Invoice
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

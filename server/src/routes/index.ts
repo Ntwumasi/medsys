@@ -130,6 +130,7 @@ import {
   updateInvoice,
   deferPayment,
   getPendingPayments,
+  createSpecialInvoice,
 } from '../controllers/invoiceController';
 import {
   getAllCharges,
@@ -508,6 +509,7 @@ router.get('/payer-sources/patient/:patient_id', authenticateToken, getPatientPa
 // Invoice routes
 router.get('/invoices', authenticateToken, getAllInvoices);
 router.get('/invoices/pending-payments', authenticateToken, getPendingPayments);
+router.post('/invoices/special', authenticateToken, authorizeRoles('receptionist', 'admin'), createSpecialInvoice);
 router.get('/invoices/:id', authenticateToken, getInvoiceById);
 router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
