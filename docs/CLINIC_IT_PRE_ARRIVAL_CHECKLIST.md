@@ -1,213 +1,132 @@
-# MedSys EMR Installation — Pre-Arrival Preparation
+# MedSys EMR — Pre-Arrival Preparation for Clinic IT
 
 **To:** Clinic IT Team
 **From:** Nokio Twumasi, MedSys Engineer
-**Date:** _______________
 **Arrival Date:** _______________
 
 ---
 
-Hello,
+I will be arriving on the date above to set up the on-site server that connects MedSys to your imaging equipment and QuickBooks accounting software. MedSys itself is already running in the cloud — this visit is about installing the local components that need to live at the clinic.
 
-I will be arriving on the date above to install the MedSys EMR system and connect it to your imaging equipment and accounting software. To ensure we can complete the installation efficiently, please prepare the following items **before I arrive**.
-
-If any item is unclear or not possible, please contact me so we can discuss alternatives.
+Please prepare the following items **before I arrive** so we can hit the ground running.
 
 ---
 
 ## 1. Server Computer
 
-We need a dedicated computer that will run 24/7 as a server. This machine will host:
-- QuickBooks Desktop (accounting sync)
-- DICOM Server (receives images from X-ray and ultrasound machines)
-- Secure tunnel to our cloud system
+We need a dedicated machine that will stay powered on 24/7. It will run the DICOM imaging server and QuickBooks sync.
 
-**Requirements:**
+**Minimum specs:**
 
-| Specification | Minimum | Preferred |
-|---------------|---------|-----------|
-| Operating System | Windows Server 2019 or Windows 10/11 Pro | Windows Server 2022 |
-| Processor | 4 cores (Intel i5 or equivalent) | 8 cores (Intel i7/Xeon) |
-| Memory (RAM) | 16 GB | 32 GB |
-| Storage | 500 GB SSD | 1 TB SSD + 2 TB secondary drive |
-| Network | Ethernet port (Gigabit) | Same |
+| | Minimum | Preferred |
+|---|---------|-----------|
+| OS | Windows 10/11 Pro | Windows Server 2022 |
+| Processor | 4-core (Intel i5 or equivalent) | 8-core |
+| RAM | 16 GB | 32 GB |
+| Storage | 500 GB SSD | 1 TB SSD + extra drive for imaging |
+| Network | Ethernet port | Same |
 
-**Please complete:**
-- [ ] Server computer is purchased/available
+- [ ] Server computer is available and powered on
 - [ ] Windows is installed and activated
-- [ ] Administrator username: _________________ Password: _________________
-- [ ] Computer is placed in a secure, ventilated location (server room or locked office)
+- [ ] Administrator login credentials written down (I will need these)
+- [ ] Machine is in a secure, ventilated location
 
 ---
 
 ## 2. UPS (Battery Backup)
 
-The server must be connected to a UPS to protect against power outages.
+A UPS protects the server during power cuts so data isn't lost.
 
-- [ ] UPS purchased and connected to server
-- [ ] UPS provides at least **15 minutes** of battery runtime
-- [ ] Brand/Model: _________________________
+- [ ] UPS connected to the server
+- [ ] At least 15 minutes of battery runtime
 
 ---
 
-## 3. Network / Internet
+## 3. Network
 
-The server must be on your clinic's local network and have internet access.
+The server must be on the same local network as the imaging machines and have internet access.
 
-- [ ] Server is connected to the network via **Ethernet cable** (not Wi-Fi)
-- [ ] A **static (fixed) IP address** has been assigned to the server
-  - Static IP: `_____._____._____.______`
-  - Subnet Mask: `_____._____._____.______`
-  - Gateway: `_____._____._____.______`
-- [ ] Internet is working on the server (can open websites in browser)
-- [ ] Internet speed (approximate): _______ Mbps download / _______ Mbps upload
-- [ ] ISP name: _________________________
-- [ ] ISP support phone number: _________________________
-- [ ] Router/firewall admin login available:
-  - URL: _________________________
+- [ ] Server connected via **Ethernet cable** (not Wi-Fi)
+- [ ] **Static IP address** assigned to the server
+  - IP: `_____._____._____.______`
+- [ ] Internet is working on the server
+- [ ] Router/firewall admin credentials available (I may need to check settings)
+  - Router login URL: _________________________
   - Username: _________________ Password: _________________
 
 ---
 
-## 4. Imaging Equipment Information
+## 4. Imaging Equipment
 
-I need the network details of your imaging machines so the server can receive images from them.
+I need the network details of your Siemens machines so I can configure them to send images to the server. If you don't know these, I can look them up on the machines when I arrive — but having them in advance saves time.
 
-### Machine 1: Siemens Axiom Luminos dRF (X-Ray / Fluoroscopy)
+### Siemens Axiom Luminos dRF (X-Ray)
+- [ ] Machine is on the clinic network
+- [ ] IP Address: `_____._____._____.______` (or: "I don't know")
+- [ ] AE Title: _________________________ (or: "I don't know")
+- [ ] Is Siemens service support available if we need help configuring? Yes / No
 
-- [ ] Machine is operational and powered on
-- [ ] Machine is connected to the clinic network
-- [ ] IP Address: `_____._____._____.______`
-- [ ] DICOM AE Title: _________________________ (check in machine's network/DICOM settings)
-- [ ] DICOM Port: _________ (usually 104)
-- [ ] Can you access the machine's DICOM/network configuration screen? Yes / No
-- [ ] Is a Siemens service engineer available if we need help? Yes / No
-  - Contact: _________________________
+### Siemens ACUSON Redwood (Ultrasound)
+- [ ] Machine is on the clinic network
+- [ ] IP Address: `_____._____._____.______` (or: "I don't know")
+- [ ] AE Title: _________________________ (or: "I don't know")
 
-### Machine 2: Siemens ACUSON Redwood (Ultrasound)
-
-- [ ] Machine is operational and powered on
-- [ ] Machine is connected to the clinic network
-- [ ] IP Address: `_____._____._____.______`
-- [ ] DICOM AE Title: _________________________ (check in network settings)
-- [ ] DICOM Port: _________ (usually 104)
-- [ ] Can you access the machine's network configuration screen? Yes / No
-
-### Other Imaging Machines (if any)
-
-| Machine Name | Type | IP Address | AE Title | Port |
-|-------------|------|------------|----------|------|
-| ____________ | ____________ | ____________ | ____________ | ______ |
-| ____________ | ____________ | ____________ | ____________ | ______ |
-
-**Quick test you can do now:** From the server, open Command Prompt and type:
-```
-ping [machine IP address]
-```
-If you see "Reply from..." it means the server can communicate with the machine. Please note the results:
-- Ping to X-Ray machine: Success / Fail / Not tested
-- Ping to Ultrasound machine: Success / Fail / Not tested
+**Quick test (optional but helpful):** On the server, open Command Prompt and type `ping` followed by each machine's IP. If you get "Reply from..." they can talk to each other.
 
 ---
 
 ## 5. QuickBooks
 
-- [ ] QuickBooks Desktop Pro **2024 or newer** — license key available
+- [ ] **QuickBooks Desktop Pro 2024** or newer — license key available
   - License key: _________________________
-  - OR: QuickBooks is already installed on the server
-- [ ] If you have an **existing company file** from a previous QuickBooks installation:
-  - [ ] Backup file (.qbb) is saved and accessible
-  - Location: _________________________
-- [ ] If starting fresh: chart of accounts has been decided by the accountant
+  - OR: Already installed on a computer (we will move it to the server)
+- [ ] If migrating from an existing installation: company file backup (.qbb) is ready
+- [ ] Accountant is available to verify chart of accounts after setup
 
 ---
 
-## 6. Clinic Email Account
+## 6. Clinic Logo
 
-MedSys sends emails for receipts, appointment reminders, and password resets. We need an email account to send from.
+For invoices and printed reports:
 
-- [ ] Email address to use: _________________________
-- [ ] Email provider: Gmail / Outlook / Yahoo / Other: _____________
-
-**If using Gmail** (recommended):
-- [ ] Two-factor authentication is enabled on the account
-- [ ] An "App Password" has been generated:
-  1. Go to https://myaccount.google.com/security
-  2. Under "2-Step Verification," click "App passwords"
-  3. Create a new app password for "Mail"
-  4. Write it here: _________________________
-
-**If using another provider:**
-- [ ] SMTP server address: _________________________
-- [ ] SMTP port: _________ (usually 587 for TLS)
-- [ ] Username: _________________________
-- [ ] Password: _________________________
+- [ ] Clinic logo as a digital image file (PNG or JPG), sent to me by email or on a USB drive
 
 ---
 
-## 7. Staff List
+## 7. Training Availability
 
-Please prepare a list of all staff members who will use MedSys. We will create their accounts during installation.
+Staff already have accounts in MedSys. I will do hands-on training by role during the visit.
 
-| # | Full Name | Role | Email | Phone |
-|---|-----------|------|-------|-------|
-| 1 | _________________________ | Doctor / Nurse / Receptionist / Pharmacist / Lab / Imaging / Accountant / Admin | _________________________ | _________________________ |
-| 2 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 3 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 4 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 5 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 6 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 7 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 8 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 9 | _________________________ | _________________________ | _________________________ | _________________________ |
-| 10 | _________________________ | _________________________ | _________________________ | _________________________ |
+Please confirm which staff can be available for a **1-hour training session** per group:
 
-_(Add more rows as needed on a separate sheet)_
+| Session | Available Date/Time |
+|---------|-------------------|
+| Receptionists | _________________________ |
+| Nurses | _________________________ |
+| Doctors | _________________________ |
+| Pharmacists | _________________________ |
+| Lab Technicians | _________________________ |
+| Imaging Technicians | _________________________ |
+| Accountant | _________________________ |
 
-- [ ] One person has been designated as the **local IT point of contact** for ongoing support
-  - Name: _________________________
-  - Phone: _________________________
+- [ ] A room with a screen/projector is available for training
 
 ---
 
-## 8. Training Schedule
+## 8. Local IT Contact
 
-Staff will need **1-2 hours of training** per role. Please ensure relevant staff are available:
+Please designate one person as the ongoing IT point of contact — someone I can call or message if something needs attention on the server after I leave.
 
-| Session | Who Should Attend | Duration |
-|---------|-------------------|----------|
-| Reception & Front Desk | Receptionists, Admins | 1.5 hours |
-| Clinical (Nursing) | Nurses | 1.5 hours |
-| Clinical (Doctors) | Doctors | 1 hour |
-| Pharmacy | Pharmacists | 1 hour |
-| Laboratory | Lab Technicians | 1 hour |
-| Imaging | Imaging Technicians | 1 hour |
-| Accounting | Accountants | 1 hour |
-| Admin / IT | IT Contact, Admin Staff | 1 hour |
-
-- [ ] Training schedule confirmed
-- [ ] Training room with projector/screen available? Yes / No
-
----
-
-## 9. Clinic Information (for system configuration)
-
-- [ ] Clinic full legal name: _________________________
-- [ ] Clinic address: _________________________
-  _________________________
-- [ ] Clinic phone number: _________________________
-- [ ] Clinic logo (digital file — PNG or JPG, emailed to me or on USB)
-- [ ] Tax/Business registration number (for invoices): _________________________
+- Name: _________________________
+- Phone / WhatsApp: _________________________
 
 ---
 
 ## Questions?
 
-If you have any questions about this checklist, please contact:
+If anything is unclear or you can't complete an item, just let me know — we can work around it.
 
 **Nokio Twumasi**
 Phone: _________________________
-Email: _________________________
 WhatsApp: _________________________
-
-Thank you for your preparation. The more items completed before arrival, the faster we can get MedSys running for your team.
+Email: _________________________
