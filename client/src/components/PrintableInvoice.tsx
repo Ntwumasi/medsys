@@ -262,9 +262,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             th { background: #f3f4f6; border-bottom: 2px solid #d1d5db; font-weight: 600; }
             tr:nth-child(even) { background: #f9fafb; }
             .text-center { text-align: center; }
+            .print-hidden { display: none !important; }
+            .print-no-border { border: none !important; padding: 0 !important; background: none !important; cursor: default !important; }
             @media print {
               body { padding: 0; }
               @page { margin: 10mm; }
+              .print-hidden { display: none !important; }
             }
           </style>
         </head>
@@ -664,7 +667,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   <th className="text-center py-3 px-4 font-semibold text-gray-700">Qty</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Unit Price</th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-700">Total</th>
-                  {isEditable && <th className="text-center py-3 px-4 font-semibold text-gray-700 print:hidden" style={{ width: '40px' }}></th>}
+                  {isEditable && <th className="text-center py-3 px-4 font-semibold text-gray-700 print:hidden print-hidden" style={{ width: '40px' }}></th>}
                 </tr>
               </thead>
               <tbody>
@@ -674,7 +677,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
                       {isEditable && editingItemId === item.id ? (
-                        <div className="flex items-center justify-end gap-1 print:hidden">
+                        <div className="flex items-center justify-end gap-1 print:hidden print-hidden">
                           <span className="text-sm text-gray-500">GHS</span>
                           <input
                             type="number"
@@ -692,11 +695,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         <button
                           type="button"
                           onClick={() => handlePriceEdit(item)}
-                          className="inline-flex items-center gap-1.5 text-gray-700 border border-dashed border-gray-300 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1 rounded transition-colors cursor-pointer group print:border-0 print:p-0"
+                          className="inline-flex items-center gap-1.5 text-gray-700 border border-dashed border-gray-300 hover:border-primary-400 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1 rounded transition-colors cursor-pointer group print:border-0 print:p-0 print-no-border"
                           title="Click to edit price"
                         >
                           GHS {parseFloat(item.unit_price.toString()).toFixed(2)}
-                          <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary-500 print:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary-500 print:hidden print-hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
                         </button>
@@ -708,7 +711,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                       GHS {parseFloat(item.total_price.toString()).toFixed(2)}
                     </td>
                     {isEditable && (
-                      <td className="py-3 px-4 text-center print:hidden">
+                      <td className="py-3 px-4 text-center print:hidden print-hidden">
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(item.id)}
@@ -726,7 +729,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
                 {/* Add Other Charge Row */}
                 {isEditable && (
-                  <tr className="print:hidden">
+                  <tr className="print:hidden print-hidden">
                     {isAddingOther ? (
                       <>
                         <td className="py-2 px-4">

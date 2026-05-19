@@ -285,8 +285,8 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     }
     if (vitalSigns.respiratory_rate) vitals.push(`Respiratory Rate: ${vitalSigns.respiratory_rate}/min`);
     if (vitalSigns.oxygen_saturation) vitals.push(`SpO2: ${vitalSigns.oxygen_saturation}%`);
-    if (vitalSigns.weight) vitals.push(`Weight: ${vitalSigns.weight} ${vitalSigns.weight_unit || 'lbs'}`);
-    if (vitalSigns.height) vitals.push(`Height: ${vitalSigns.height} ${vitalSigns.height_unit || 'in'}`);
+    if (vitalSigns.weight) vitals.push(`Weight: ${vitalSigns.weight} ${vitalSigns.weight_unit || 'kg'}`);
+    if (vitalSigns.height) vitals.push(`Height: ${vitalSigns.height} ${vitalSigns.height_unit || 'cm'}`);
     if (vitalSigns.pain_level !== undefined && vitalSigns.pain_level !== null) vitals.push(`Pain Level: ${vitalSigns.pain_level}/10`);
     return vitals.join('\n');
   };
@@ -705,7 +705,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                       <div className="bg-white rounded-lg p-3 shadow-sm">
                         <div className="text-xs text-gray-500 uppercase font-medium">Weight</div>
                         <div className="text-lg font-bold text-gray-900">
-                          {vitalSigns.weight} <span className="text-sm font-normal">{vitalSigns.weight_unit || 'lbs'}</span>
+                          {vitalSigns.weight} <span className="text-sm font-normal">{vitalSigns.weight_unit || 'kg'}</span>
                         </div>
                       </div>
                     )}
@@ -713,7 +713,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                       <div className="bg-white rounded-lg p-3 shadow-sm">
                         <div className="text-xs text-gray-500 uppercase font-medium">Height</div>
                         <div className="text-lg font-bold text-gray-900">
-                          {vitalSigns.height} <span className="text-sm font-normal">{vitalSigns.height_unit || 'in'}</span>
+                          {vitalSigns.height} <span className="text-sm font-normal">{vitalSigns.height_unit || 'cm'}</span>
                         </div>
                       </div>
                     )}

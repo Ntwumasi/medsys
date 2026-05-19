@@ -218,9 +218,9 @@ const NurseDashboard: React.FC = () => {
 
   // Vitals form state
   const [vitals, setVitals] = useState<VitalSigns>({
-    temperature_unit: 'F',
-    weight_unit: 'lbs',
-    height_unit: 'in',
+    temperature_unit: 'C',
+    weight_unit: 'kg',
+    height_unit: 'cm',
   });
 
   // Validation errors
@@ -884,9 +884,9 @@ const NurseDashboard: React.FC = () => {
       }
 
       setVitals({
-        temperature_unit: 'F',
-        weight_unit: 'lbs',
-        height_unit: 'in',
+        temperature_unit: 'C',
+        weight_unit: 'kg',
+        height_unit: 'cm',
       });
       loadAssignedPatients();
     } catch (error) {
@@ -2181,16 +2181,16 @@ const NurseDashboard: React.FC = () => {
                                     if (selectedPatient?.vital_signs) {
                                       setVitals({
                                         temperature: selectedPatient.vital_signs.temperature,
-                                        temperature_unit: selectedPatient.vital_signs.temperature_unit || 'F',
+                                        temperature_unit: selectedPatient.vital_signs.temperature_unit || 'C',
                                         heart_rate: selectedPatient.vital_signs.heart_rate,
                                         blood_pressure_systolic: selectedPatient.vital_signs.blood_pressure_systolic,
                                         blood_pressure_diastolic: selectedPatient.vital_signs.blood_pressure_diastolic,
                                         respiratory_rate: selectedPatient.vital_signs.respiratory_rate,
                                         oxygen_saturation: selectedPatient.vital_signs.oxygen_saturation,
                                         weight: selectedPatient.vital_signs.weight,
-                                        weight_unit: selectedPatient.vital_signs.weight_unit || 'lbs',
+                                        weight_unit: selectedPatient.vital_signs.weight_unit || 'kg',
                                         height: selectedPatient.vital_signs.height,
-                                        height_unit: selectedPatient.vital_signs.height_unit || 'in',
+                                        height_unit: selectedPatient.vital_signs.height_unit || 'cm',
                                         pain_level: selectedPatient.vital_signs.pain_level,
                                       });
                                       setVitalErrors({});
@@ -2222,7 +2222,7 @@ const NurseDashboard: React.FC = () => {
                                 <div className="bg-white rounded-lg p-3 shadow-sm">
                                   <div className="text-xs text-gray-500 uppercase font-medium">Temperature</div>
                                   <div className="text-xl font-bold text-gray-900">
-                                    {selectedPatient.vital_signs.temperature}°{selectedPatient.vital_signs.temperature_unit || 'F'}
+                                    {selectedPatient.vital_signs.temperature}°{selectedPatient.vital_signs.temperature_unit || 'C'}
                                   </div>
                                 </div>
                               )}
@@ -2262,7 +2262,7 @@ const NurseDashboard: React.FC = () => {
                                 <div className="bg-white rounded-lg p-3 shadow-sm">
                                   <div className="text-xs text-gray-500 uppercase font-medium">Weight</div>
                                   <div className="text-xl font-bold text-gray-900">
-                                    {selectedPatient.vital_signs.weight} <span className="text-sm font-normal">{selectedPatient.vital_signs.weight_unit || 'lbs'}</span>
+                                    {selectedPatient.vital_signs.weight} <span className="text-sm font-normal">{selectedPatient.vital_signs.weight_unit || 'kg'}</span>
                                   </div>
                                 </div>
                               )}
@@ -2270,7 +2270,7 @@ const NurseDashboard: React.FC = () => {
                                 <div className="bg-white rounded-lg p-3 shadow-sm">
                                   <div className="text-xs text-gray-500 uppercase font-medium">Height</div>
                                   <div className="text-xl font-bold text-gray-900">
-                                    {selectedPatient.vital_signs.height} <span className="text-sm font-normal">{selectedPatient.vital_signs.height_unit || 'in'}</span>
+                                    {selectedPatient.vital_signs.height} <span className="text-sm font-normal">{selectedPatient.vital_signs.height_unit || 'cm'}</span>
                                   </div>
                                 </div>
                               )}
@@ -2372,15 +2372,15 @@ const NurseDashboard: React.FC = () => {
                                       }
                                     }}
                                     className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none ${vitalErrors.temperature ? 'border-danger-500 bg-danger-50' : 'border-orange-300'}`}
-                                    placeholder="98.6"
+                                    placeholder="37.0"
                                   />
                                   <select
                                     value={vitals.temperature_unit}
                                     onChange={(e) => setVitals({ ...vitals, temperature_unit: e.target.value as 'C' | 'F' })}
                                     className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
                                   >
-                                    <option value="F">°F</option>
                                     <option value="C">°C</option>
+                                    <option value="F">°F</option>
                                   </select>
                                 </div>
                                 {vitalErrors.temperature && (
@@ -2590,15 +2590,15 @@ const NurseDashboard: React.FC = () => {
                                       setVitalsModified(true);
                                     }}
                                     className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-success-300 rounded-lg bg-white focus:ring-2 focus:ring-success-500 focus:border-success-500 outline-none"
-                                    placeholder="150"
+                                    placeholder="70"
                                   />
                                   <select
                                     value={vitals.weight_unit}
                                     onChange={(e) => setVitals({ ...vitals, weight_unit: e.target.value as 'kg' | 'lbs' })}
                                     className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-success-300 rounded-lg bg-white focus:ring-2 focus:ring-success-500 focus:border-success-500 outline-none"
                                   >
-                                    <option value="lbs">lbs</option>
                                     <option value="kg">kg</option>
+                                    <option value="lbs">lbs</option>
                                   </select>
                                 </div>
                               </div>
@@ -2621,15 +2621,15 @@ const NurseDashboard: React.FC = () => {
                                       setVitalsModified(true);
                                     }}
                                     className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-secondary-300 rounded-lg bg-white focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 outline-none"
-                                    placeholder="68"
+                                    placeholder="170"
                                   />
                                   <select
                                     value={vitals.height_unit}
                                     onChange={(e) => setVitals({ ...vitals, height_unit: e.target.value as 'cm' | 'in' })}
                                     className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-secondary-300 rounded-lg bg-white focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 outline-none"
                                   >
-                                    <option value="in">in</option>
                                     <option value="cm">cm</option>
+                                    <option value="in">in</option>
                                   </select>
                                 </div>
                               </div>

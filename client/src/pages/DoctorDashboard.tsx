@@ -131,7 +131,7 @@ const DoctorDashboard: React.FC = () => {
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine'});
 
   // Medication search state
   const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
@@ -617,7 +617,7 @@ const DoctorDashboard: React.FC = () => {
 
   const addMedicationToList = () => {
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '0', days_supply: '', priority: 'routine'});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine'});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -2460,7 +2460,7 @@ const DoctorDashboard: React.FC = () => {
                             value={currentPharmacyOrder.refills}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, refills: e.target.value})}
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
-                            placeholder="Refills"
+                            placeholder="Refill"
                           />
                         </div>
                         <select

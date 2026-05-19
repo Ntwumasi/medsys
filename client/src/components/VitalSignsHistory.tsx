@@ -177,16 +177,16 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-              Temperature (°F)
+              Temperature (°C)
             </h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#9ca3af" />
-                  <YAxis domain={[96, 104]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                  <YAxis domain={[35, 41]} tick={{ fontSize: 10 }} stroke="#9ca3af" />
                   <Tooltip content={<CustomTooltip />} />
-                  <ReferenceLine y={98.6} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '98.6°F', fontSize: 9, fill: '#22c55e' }} />
+                  <ReferenceLine y={37.0} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '37.0°C', fontSize: 9, fill: '#22c55e' }} />
                   <Line type="monotone" dataKey="temperature" stroke="#f97316" strokeWidth={2} dot={{ fill: '#f97316', r: 4 }} name="Temperature" connectNulls />
                 </LineChart>
               </ResponsiveContainer>
@@ -241,7 +241,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-success-500"></div>
-              Weight (lbs)
+              Weight (kg)
             </h3>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -343,7 +343,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
               <div className="text-xs text-gray-500 font-medium mb-1">Weight</div>
               <div className="text-lg font-bold text-success-600">
                 {record.weight || '--'}
-                <span className="text-xs font-normal text-gray-500 ml-1">{record.weight_unit || 'lbs'}</span>
+                <span className="text-xs font-normal text-gray-500 ml-1">{record.weight_unit || 'kg'}</span>
               </div>
             </div>
 
@@ -352,7 +352,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
               <div className="text-xs text-gray-500 font-medium mb-1">Height</div>
               <div className="text-lg font-bold text-secondary-600">
                 {record.height || '--'}
-                <span className="text-xs font-normal text-gray-500 ml-1">{record.height_unit || 'in'}</span>
+                <span className="text-xs font-normal text-gray-500 ml-1">{record.height_unit || 'cm'}</span>
               </div>
             </div>
           </div>

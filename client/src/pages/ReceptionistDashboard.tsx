@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import { format, isValid, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDay, parse } from 'date-fns';
@@ -217,7 +218,9 @@ const ReceptionistDashboard: React.FC = () => {
   const { user } = useAuth();
   console.log('ReceptionistDashboard: User', user);
   const { showToast } = useNotification();
-  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>('queue');
+  const [searchParams] = useSearchParams();
+  const initialView = searchParams.get('view') === 'special-invoice' ? 'special-invoice' : 'queue';
+  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>(initialView);
   const [showGuide, setShowGuide] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
