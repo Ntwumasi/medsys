@@ -37,13 +37,22 @@ const NurseProcurement: React.FC = () => {
   const { user, impersonation } = useAuth();
   const { showToast } = useNotification();
 
-  const [activeTab, setActiveTab] = useState<'stock' | 'purchase' | 'history' | 'add'>('stock');
+  const [activeTab, setActiveTab] = useState<'stock' | 'purchase' | 'history'>('stock');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'name' | 'category' | 'quantity' | 'status'>('name');
+  const [showLowOnly, setShowLowOnly] = useState(false);
+
+  // Quick +Stock modal — light alternative to Record Purchase for fast top-ups
+  const [quickAddItem, setQuickAddItem] = useState<InventoryItem | null>(null);
+  const [quickAddQty, setQuickAddQty] = useState('');
+  const [quickAddUnitCost, setQuickAddUnitCost] = useState('');
+  const [quickAddSupplier, setQuickAddSupplier] = useState('');
+  const [quickAddSubmitting, setQuickAddSubmitting] = useState(false);
 
   // Purchase form
   const [purchaseForm, setPurchaseForm] = useState({
@@ -56,12 +65,6 @@ const NurseProcurement: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Add item form
-  const [itemForm, setItemForm] = useState({
-    item_name: '', category: 'Supplies', unit: 'pcs',
-    quantity_on_hand: '0', reorder_level: '10', unit_cost: '0',
-    location: 'Nurse Station', supplier: '',
-  });
 
   const loadInventory = useCallback(async () => {
     try {
@@ -96,8 +99,35 @@ const NurseProcurement: React.FC = () => {
     }
     setSubmitting(true);
     try {
+      let inventoryId: number;
+
+      // "Other" → create the inventory item first, then record the purchase
+      // against the new id. Replaces the standalone Add New Item tab.
+      if (purchaseForm.inventory_id === 'other') {
+        const newName = (purchaseForm as any).custom_item_name?.trim();
+        if (!newName) {
+          showToast('Type a name for the new item', 'error');
+          setSubmitting(false);
+          return;
+        }
+        const createRes = await apiClient.post('/nurse/inventory', {
+          item_name: newName,
+          category: 'Supplies',
+          unit: 'pcs',
+          quantity_on_hand: 0,
+          reorder_level: 10,
+          unit_cost: parseFloat(purchaseForm.unit_cost) || 0,
+          location: 'Nurse Station',
+          supplier: purchaseForm.supplier || null,
+        });
+        inventoryId = createRes.data?.item?.id ?? createRes.data?.id;
+        if (!inventoryId) throw new Error('Could not create new inventory item');
+      } else {
+        inventoryId = parseInt(purchaseForm.inventory_id);
+      }
+
       await apiClient.post('/nurse/inventory/purchase', {
-        inventory_id: parseInt(purchaseForm.inventory_id),
+        inventory_id: inventoryId,
         quantity: parseInt(purchaseForm.quantity),
         unit_cost: parseFloat(purchaseForm.unit_cost) || 0,
         supplier: purchaseForm.supplier || null,
@@ -116,35 +146,6 @@ const NurseProcurement: React.FC = () => {
     }
   };
 
-  const handleAddItem = async () => {
-    if (!itemForm.item_name) {
-      showToast('Item name is required', 'error');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await apiClient.post('/nurse/inventory', {
-        item_name: itemForm.item_name,
-        category: itemForm.category,
-        unit: itemForm.unit,
-        quantity_on_hand: parseInt(itemForm.quantity_on_hand) || 0,
-        reorder_level: parseInt(itemForm.reorder_level) || 10,
-        unit_cost: parseFloat(itemForm.unit_cost) || 0,
-        location: itemForm.location,
-        supplier: itemForm.supplier || null,
-      });
-      showToast('Item added to inventory', 'success');
-      setItemForm({ item_name: '', category: 'Supplies', unit: 'pcs', quantity_on_hand: '0', reorder_level: '10', unit_cost: '0', location: 'Nurse Station', supplier: '' });
-      loadInventory();
-      setActiveTab('stock');
-    } catch (err) {
-      const apiError = err as ApiError;
-      showToast(apiError.response?.data?.error || 'Failed to add item', 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const formatDate = (d: string) => {
     try {
       return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -156,12 +157,65 @@ const NurseProcurement: React.FC = () => {
     return `GHS ${(n || 0).toFixed(2)}`;
   };
 
-  const filteredItems = items.filter(i =>
-    (categoryFilter === 'all' || i.category === categoryFilter) &&
-    (search === '' || i.item_name.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredItems = items
+    .filter(i =>
+      (categoryFilter === 'all' || i.category === categoryFilter) &&
+      (search === '' || i.item_name.toLowerCase().includes(search.toLowerCase())) &&
+      (!showLowOnly || i.quantity_on_hand <= i.reorder_level)
+    )
+    .sort((a, b) => {
+      // Natural sort so "Syringe (5ml)" < "Syringe (10ml)" < "Syringe (50ml)"
+      const byName = a.item_name.localeCompare(b.item_name, undefined, { numeric: true, sensitivity: 'base' });
+      switch (sortBy) {
+        case 'category': {
+          const c = a.category.localeCompare(b.category);
+          return c !== 0 ? c : byName;
+        }
+        case 'quantity': return a.quantity_on_hand - b.quantity_on_hand || byName;
+        case 'status': {
+          const aLow = a.quantity_on_hand <= a.reorder_level ? 0 : 1;
+          const bLow = b.quantity_on_hand <= b.reorder_level ? 0 : 1;
+          return (aLow - bLow) || byName;
+        }
+        default: return byName;
+      }
+    });
 
+  const lowStockCount = items.filter(i => i.quantity_on_hand <= i.reorder_level).length;
   const categories = [...new Set(items.map(i => i.category))];
+
+  // Open the quick +Stock modal for a row
+  const openQuickAdd = (item: InventoryItem) => {
+    setQuickAddItem(item);
+    setQuickAddQty('');
+    setQuickAddUnitCost(item.unit_cost ? String(item.unit_cost) : '');
+    setQuickAddSupplier(item.supplier || '');
+  };
+
+  const handleQuickAddStock = async () => {
+    if (!quickAddItem || !quickAddQty) {
+      showToast('Enter a quantity', 'error');
+      return;
+    }
+    setQuickAddSubmitting(true);
+    try {
+      await apiClient.post('/nurse/inventory/purchase', {
+        inventory_id: quickAddItem.id,
+        quantity: parseInt(quickAddQty),
+        unit_cost: parseFloat(quickAddUnitCost) || 0,
+        supplier: quickAddSupplier || null,
+      });
+      showToast(`Added ${quickAddQty} ${quickAddItem.unit} to ${quickAddItem.item_name}`, 'success');
+      setQuickAddItem(null);
+      loadInventory();
+      loadPurchases();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to add stock', 'error');
+    } finally {
+      setQuickAddSubmitting(false);
+    }
+  };
 
   // Only head nurse or super admin impersonating a nurse should see this page
   const isSuperAdminSession =
@@ -204,7 +258,7 @@ const NurseProcurement: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 mb-6 flex-wrap">
-          {(['stock', 'purchase', 'history', 'add'] as const).map(tab => (
+          {(['stock', 'purchase', 'history'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -214,7 +268,7 @@ const NurseProcurement: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'stock' ? 'Current Stock' : tab === 'purchase' ? 'Record Purchase' : tab === 'history' ? 'Purchase History' : 'Add New Item'}
+              {tab === 'stock' ? 'Current Stock' : tab === 'purchase' ? 'Record Purchase' : 'Purchase History'}
             </button>
           ))}
         </div>
@@ -222,29 +276,50 @@ const NurseProcurement: React.FC = () => {
         {/* Stock Tab */}
         {activeTab === 'stock' && (
           <div>
-            <div className="flex gap-4 mb-4">
+            <div className="flex gap-3 mb-4 flex-wrap items-center">
               <input
                 type="text"
                 placeholder="Search items..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
               >
                 <option value="all">All Categories</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="category">Sort by Category</option>
+                <option value="quantity">Sort by Quantity</option>
+                <option value="status">Sort by Status</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowLowOnly(v => !v)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  showLowOnly
+                    ? 'bg-danger-100 text-danger-700 border-2 border-danger-300'
+                    : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Low Stock Only ({lowStockCount})
+              </button>
             </div>
 
             {loading ? (
               <div className="text-center py-12 text-gray-400">Loading...</div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">No items yet. Use "Add New Item" to get started.</p>
+                <p className="text-gray-500">No items match. Record a purchase to add the first item.</p>
               </div>
             ) : (
               <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -258,6 +333,7 @@ const NurseProcurement: React.FC = () => {
                       <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Unit Cost</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -275,6 +351,16 @@ const NurseProcurement: React.FC = () => {
                             <span className={`px-2 py-0.5 text-xs font-medium rounded ${isLow ? 'bg-danger-100 text-danger-700' : 'bg-success-100 text-success-700'}`}>
                               {isLow ? 'LOW' : 'OK'}
                             </span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openQuickAdd(item)}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-md bg-success-600 text-white hover:bg-success-700"
+                              title="Quick add to stock"
+                            >
+                              + Stock
+                            </button>
                           </td>
                         </tr>
                       );
@@ -432,88 +518,77 @@ const NurseProcurement: React.FC = () => {
           </div>
         )}
 
-        {/* Add Item Tab */}
-        {activeTab === 'add' && (
-          <div className="max-w-2xl">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-              <h3 className="text-lg font-bold text-gray-900">Add New Inventory Item</h3>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Item Name *</label>
-                <input type="text" value={itemForm.item_name}
-                  onChange={(e) => setItemForm({ ...itemForm, item_name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  placeholder="e.g. Syringes (10ml)" />
+        {/* Quick +Stock modal — fast top-up without the full Record Purchase form */}
+        {quickAddItem && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => !quickAddSubmitting && setQuickAddItem(null)}
+          >
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-900">Add stock to {quickAddItem.item_name}</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Current: <span className="font-semibold">{quickAddItem.quantity_on_hand} {quickAddItem.unit}</span>
+                </p>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              <div className="p-5 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                  <input type="text" value={itemForm.category}
-                    onChange={(e) => setItemForm({ ...itemForm, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="Type or select..."
-                    list="procurement-category-options" />
-                  <datalist id="procurement-category-options">
-                    <option value="Supplies" /><option value="Equipment" /><option value="PPE" /><option value="Medications" /><option value="Linen" /><option value="Cleaning" /><option value="Stationery" /><option value="Other" />
-                  </datalist>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Quantity to add <span className="text-danger-500">*</span>
+                  </label>
+                  <input
+                    type="number" min="1" autoFocus
+                    value={quickAddQty}
+                    onChange={(e) => setQuickAddQty(e.target.value)}
+                    placeholder={`Number of ${quickAddItem.unit}`}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Unit cost</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={quickAddUnitCost}
+                      onChange={(e) => setQuickAddUnitCost(e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Total</label>
+                    <div className="px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg font-bold text-gray-900">
+                      {formatCurrency((parseFloat(quickAddUnitCost) || 0) * (parseInt(quickAddQty) || 0))}
+                    </div>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Unit</label>
-                  <input type="text" value={itemForm.unit}
-                    onChange={(e) => setItemForm({ ...itemForm, unit: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="Type or select..."
-                    list="procurement-unit-options" />
-                  <datalist id="procurement-unit-options">
-                    <option value="pcs" /><option value="boxes" /><option value="packs" /><option value="rolls" /><option value="bottles" /><option value="pairs" /><option value="sets" /><option value="cartons" /><option value="sachets" />
-                  </datalist>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Initial Qty</label>
-                  <input type="number" min="0" value={itemForm.quantity_on_hand}
-                    onChange={(e) => setItemForm({ ...itemForm, quantity_on_hand: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Reorder Level</label>
-                  <input type="number" min="0" value={itemForm.reorder_level}
-                    onChange={(e) => setItemForm({ ...itemForm, reorder_level: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Unit Cost</label>
-                  <input type="number" step="0.01" min="0" value={itemForm.unit_cost}
-                    onChange={(e) => setItemForm({ ...itemForm, unit_cost: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Supplier</label>
+                  <input
+                    type="text"
+                    value={quickAddSupplier}
+                    onChange={(e) => setQuickAddSupplier(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Location</label>
-                  <input type="text" value={itemForm.location}
-                    onChange={(e) => setItemForm({ ...itemForm, location: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Supplier</label>
-                  <input type="text" value={itemForm.supplier}
-                    onChange={(e) => setItemForm({ ...itemForm, supplier: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 rounded-b-xl">
+                <button
+                  type="button"
+                  onClick={() => setQuickAddItem(null)}
+                  disabled={quickAddSubmitting}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickAddStock}
+                  disabled={quickAddSubmitting || !quickAddQty}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-success-600 rounded-lg hover:bg-success-700 disabled:opacity-60"
+                >
+                  {quickAddSubmitting ? 'Adding…' : 'Add stock'}
+                </button>
               </div>
-
-              <button
-                onClick={handleAddItem}
-                disabled={submitting}
-                className="w-full px-6 py-3 bg-primary-600 text-white font-bold rounded-lg hover:bg-primary-700 disabled:opacity-60"
-              >
-                {submitting ? 'Adding...' : 'Add Item'}
-              </button>
             </div>
           </div>
         )}
