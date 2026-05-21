@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import {
   OverviewSkeleton,
   TableRowSkeleton,
@@ -266,6 +267,7 @@ interface ReminderHistory {
 
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
+  const { prompt: promptDialog } = useDialog();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -1934,11 +1936,18 @@ const AccountantDashboard: React.FC = () => {
                       Check Coverage
                     </button>
                     <button
-                      onClick={() => {
-                        const reason = validationResult?.issues?.length > 0
-                          ? prompt('Enter override reason for validation issues:')
-                          : undefined;
-                        if (validationResult?.issues?.length > 0 && !reason) return;
+                      onClick={async () => {
+                        let reason: string | null | undefined;
+                        if (validationResult?.issues?.length > 0) {
+                          reason = await promptDialog({
+                            title: 'Override reason required',
+                            message: 'Enter override reason for validation issues:',
+                            placeholder: 'Reason',
+                            multiline: true,
+                            required: true,
+                          });
+                          if (!reason) return;
+                        }
                         handleSubmitForReview(selectedClaim.id, reason || undefined);
                       }}
                       className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
@@ -1958,9 +1967,16 @@ const AccountantDashboard: React.FC = () => {
                 {selectedClaim.status === 'submitted' && (
                   <>
                     <button
-                      onClick={() => {
-                        const amount = prompt('Enter approved amount:');
-                        if (amount) handleUpdateClaimStatus(selectedClaim.id, 'approved', { amount_approved: parseFloat(amount) });
+                      onClick={async () => {
+                        const amount = await promptDialog({
+                          title: 'Mark approved',
+                          message: 'Enter approved amount:',
+                          placeholder: '0.00',
+                          required: true,
+                        });
+                        if (amount && !Number.isNaN(parseFloat(amount))) {
+                          handleUpdateClaimStatus(selectedClaim.id, 'approved', { amount_approved: parseFloat(amount) });
+                        }
                       }}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                     >
@@ -1976,9 +1992,16 @@ const AccountantDashboard: React.FC = () => {
                 )}
                 {selectedClaim.status === 'approved' && (
                   <button
-                    onClick={() => {
-                      const amount = prompt('Enter paid amount:');
-                      if (amount) handleUpdateClaimStatus(selectedClaim.id, 'paid', { amount_paid: parseFloat(amount) });
+                    onClick={async () => {
+                      const amount = await promptDialog({
+                        title: 'Record payment',
+                        message: 'Enter paid amount:',
+                        placeholder: '0.00',
+                        required: true,
+                      });
+                      if (amount && !Number.isNaN(parseFloat(amount))) {
+                        handleUpdateClaimStatus(selectedClaim.id, 'paid', { amount_paid: parseFloat(amount) });
+                      }
                     }}
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                   >

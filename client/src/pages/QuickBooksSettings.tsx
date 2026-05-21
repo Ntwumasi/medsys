@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 
 interface QueueStatus {
   pending: number;
@@ -99,6 +100,7 @@ interface ImportedData {
 
 const QuickBooksSettings: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<ConnectionStatus | null>(null);
   const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
@@ -176,7 +178,12 @@ const QuickBooksSettings: React.FC = () => {
   };
 
   const handleResetPassword = async () => {
-    if (!confirm('Reset the Web Connector password? You will need to update Web Connector with the new password.')) {
+    if (!(await confirmDialog({
+      title: 'Reset Web Connector password?',
+      message: 'You will need to update Web Connector with the new password.',
+      variant: 'warning',
+      confirmLabel: 'Reset',
+    }))) {
       return;
     }
 
@@ -235,7 +242,7 @@ const QuickBooksSettings: React.FC = () => {
       ? `Clear all ${status} requests from the queue?`
       : 'Clear the entire queue?';
 
-    if (!confirm(message)) return;
+    if (!(await confirmDialog({ title: 'Clear queue?', message, variant: 'warning', confirmLabel: 'Clear' }))) return;
 
     try {
       await apiClient.delete('/quickbooks/queue', { params: status ? { status } : {} });
@@ -258,7 +265,12 @@ const QuickBooksSettings: React.FC = () => {
   };
 
   const handleDeleteMapping = async (id: number) => {
-    if (!confirm('Delete this mapping? The entity will be re-synced on next sync.')) {
+    if (!(await confirmDialog({
+      title: 'Delete mapping?',
+      message: 'The entity will be re-synced on next sync.',
+      variant: 'danger',
+      confirmLabel: 'Delete',
+    }))) {
       return;
     }
 
@@ -272,7 +284,12 @@ const QuickBooksSettings: React.FC = () => {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Disconnect from QuickBooks? This will clear the sync queue.')) {
+    if (!(await confirmDialog({
+      title: 'Disconnect from QuickBooks?',
+      message: 'This will clear the sync queue.',
+      variant: 'danger',
+      confirmLabel: 'Disconnect',
+    }))) {
       return;
     }
 

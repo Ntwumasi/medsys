@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 
 export type DocumentType = 'lab_result' | 'imaging' | 'prescription' | 'referral' | 'other';
@@ -78,6 +79,7 @@ const fileToBase64 = (file: File): Promise<string> =>
 
 const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [documents, setDocuments] = useState<PatientDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -178,7 +180,12 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
   };
 
   const handleDelete = async (doc: PatientDocument) => {
-    if (!window.confirm(`Delete "${doc.document_name}"? This cannot be undone.`)) {
+    if (!(await confirmDialog({
+      title: 'Delete document?',
+      message: `Delete "${doc.document_name}"? This cannot be undone.`,
+      variant: 'danger',
+      confirmLabel: 'Delete',
+    }))) {
       return;
     }
     try {

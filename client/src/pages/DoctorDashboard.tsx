@@ -6,6 +6,7 @@ import HPAccordion from '../components/HPAccordion';
 import DepartmentGuide from '../components/DepartmentGuide';
 import { doctorGuideSections } from '../components/guides/doctorGuideContent';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
@@ -109,6 +110,7 @@ const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
   const [selectedEncounter, setSelectedEncounter] = useState<RoomEncounter | null>(null);
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
@@ -353,12 +355,12 @@ const DoctorDashboard: React.FC = () => {
       ? ` (Encounter ${selectedEncounter.encounter_number})`
       : '';
 
-    if (
-      !confirm(
-        `Sign the SOAP note for ${patientLabel}${encounterLabel}?\n\n` +
-          `Once signed it cannot be edited.`
-      )
-    ) {
+    if (!(await confirmDialog({
+      title: 'Sign SOAP note?',
+      message: `Sign the SOAP note for ${patientLabel}${encounterLabel}?\n\nOnce signed it cannot be edited.`,
+      variant: 'success',
+      confirmLabel: 'Sign',
+    }))) {
       return;
     }
 
@@ -472,7 +474,12 @@ const DoctorDashboard: React.FC = () => {
   };
 
   const handleSignNote = async (noteId: number) => {
-    if (!confirm('Are you sure you want to sign this note? It will be locked and cannot be modified.')) {
+    if (!(await confirmDialog({
+      title: 'Sign note?',
+      message: 'Are you sure you want to sign this note? It will be locked and cannot be modified.',
+      variant: 'success',
+      confirmLabel: 'Sign',
+    }))) {
       return;
     }
 
@@ -676,7 +683,7 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
 
-    if (!confirm(`Submit ${totalOrders} order(s)?`)) {
+    if (!(await confirmDialog({ title: 'Submit orders?', message: `Submit ${totalOrders} order(s)?`, confirmLabel: 'Submit' }))) {
       return;
     }
 
@@ -800,7 +807,7 @@ const DoctorDashboard: React.FC = () => {
   // Cancel encounter (no-show / abandonment)
   const handleCancelEncounter = async () => {
     if (!selectedEncounter) return;
-    if (!confirm(`Cancel encounter for ${selectedEncounter.patient_name}? This will mark the visit as cancelled and release the room.`)) return;
+    if (!(await confirmDialog({ title: 'Cancel encounter?', message: `Cancel encounter for ${selectedEncounter.patient_name}? This will mark the visit as cancelled and release the room.`, variant: 'danger', confirmLabel: 'Cancel encounter', cancelLabel: 'Keep' }))) return;
 
     try {
       await apiClient.put(`/encounters/${selectedEncounter.id}`, { status: 'cancelled' });
@@ -818,7 +825,7 @@ const DoctorDashboard: React.FC = () => {
 
   // Cancel a lab order
   const handleCancelLabOrder = async (orderId: number) => {
-    if (!confirm('Cancel this lab order?')) return;
+    if (!(await confirmDialog({ title: 'Cancel lab order?', message: 'Cancel this lab order?', variant: 'warning', confirmLabel: 'Cancel order', cancelLabel: 'Keep' }))) return;
     try {
       await apiClient.put(`/orders/lab/${orderId}`, { status: 'cancelled' });
       showToast('Lab order cancelled', 'success');
@@ -830,7 +837,7 @@ const DoctorDashboard: React.FC = () => {
 
   // Cancel an imaging order
   const handleCancelImagingOrder = async (orderId: number) => {
-    if (!confirm('Cancel this imaging order?')) return;
+    if (!(await confirmDialog({ title: 'Cancel imaging order?', message: 'Cancel this imaging order?', variant: 'warning', confirmLabel: 'Cancel order', cancelLabel: 'Keep' }))) return;
     try {
       await apiClient.put(`/orders/imaging/${orderId}`, { status: 'cancelled' });
       showToast('Imaging order cancelled', 'success');

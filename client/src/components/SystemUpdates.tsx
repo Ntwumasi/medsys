@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 
 interface UpdateParams {
@@ -34,6 +35,7 @@ interface UpdateStats {
 
 const SystemUpdates: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [updates, setUpdates] = useState<SystemUpdate[]>([]);
   const [stats, setStats] = useState<UpdateStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,7 +126,7 @@ const SystemUpdates: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this update?')) return;
+    if (!(await confirmDialog({ title: 'Delete update?', message: 'Are you sure you want to delete this update?', variant: 'danger', confirmLabel: 'Delete' }))) return;
     try {
       await apiClient.delete(`/system-updates/${id}`);
       showToast('Update deleted successfully', 'success');

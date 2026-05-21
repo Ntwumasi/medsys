@@ -4,6 +4,7 @@ import AppLayout from '../components/AppLayout';
 import { Badge } from '../components/ui';
 import apiClient from '../api/client';
 import { useToast } from '../context/ToastContext';
+import { useDialog } from '../context/DialogContext';
 
 interface RefillData {
   id: number;
@@ -20,6 +21,7 @@ interface RefillData {
 
 const RefillsCalendar: React.FC = () => {
   const { showToast } = useToast();
+  const { confirm: confirmDialog } = useDialog();
   const [refillsData, setRefillsData] = useState<RefillData[]>([]);
   const [refillsMonth, setRefillsMonth] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -45,7 +47,11 @@ const RefillsCalendar: React.FC = () => {
   };
 
   const handleProcessRefill = async (orderId: number, medicationName: string, patientName: string) => {
-    if (!confirm(`Process refill for ${medicationName} for ${patientName}?\n\nThis will create a new pharmacy order and decrement the refills remaining.`)) {
+    if (!(await confirmDialog({
+      title: 'Process refill?',
+      message: `Process refill for ${medicationName} for ${patientName}?\n\nThis will create a new pharmacy order and decrement the refills remaining.`,
+      confirmLabel: 'Process refill',
+    }))) {
       return;
     }
 

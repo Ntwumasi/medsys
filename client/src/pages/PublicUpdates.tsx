@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { format, parseISO, isValid } from 'date-fns';
 import type { ApiError } from '../types';
+import { useDialog } from '../context/DialogContext';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -34,6 +35,7 @@ interface UpdateStats {
 }
 
 const PublicUpdates: React.FC = () => {
+  const { alert: alertDialog } = useDialog();
   const [updates, setUpdates] = useState<SystemUpdate[]>([]);
   const [stats, setStats] = useState<UpdateStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,7 +103,7 @@ const PublicUpdates: React.FC = () => {
       setTimeout(() => setSubmitSuccess(false), 3000);
     } catch (error) {
       const apiError = error as ApiError;
-      alert(apiError.response?.data?.error || 'Failed to add update');
+      await alertDialog({ title: 'Failed to add update', message: apiError.response?.data?.error || 'Failed to add update', variant: 'danger' });
     } finally {
       setSubmitting(false);
     }

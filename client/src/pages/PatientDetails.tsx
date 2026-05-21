@@ -8,6 +8,7 @@ import VitalSignsHistory from '../components/VitalSignsHistory';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 
 interface LabResult {
   id: number;
@@ -37,6 +38,7 @@ const PatientDetails: React.FC = () => {
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
 
   useEffect(() => {
     if (id) {
@@ -56,7 +58,7 @@ const PatientDetails: React.FC = () => {
   };
 
   const handleDiscontinueMedication = async (medicationId: number, medicationName: string) => {
-    if (!confirm(`Discontinue ${medicationName}?`)) return;
+    if (!(await confirmDialog({ title: 'Discontinue medication?', message: `Discontinue ${medicationName}?`, variant: 'warning', confirmLabel: 'Discontinue' }))) return;
     try {
       await apiClient.post(`/medications/${medicationId}/discontinue`);
       showToast(`${medicationName} discontinued`, 'success');

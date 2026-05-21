@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, parseISO } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { Card, Modal, Input, Select, Textarea, Button } from '../components/ui';
 
@@ -38,6 +39,7 @@ interface PatientSearchResult {
 
 const AppointmentsCalendar: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -155,7 +157,7 @@ const AppointmentsCalendar: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: number) => {
-    if (!confirm('Are you sure you want to cancel this appointment?')) return;
+    if (!(await confirmDialog({ title: 'Cancel appointment?', message: 'Are you sure you want to cancel this appointment?', variant: 'warning', confirmLabel: 'Cancel appointment', cancelLabel: 'Keep' }))) return;
 
     try {
       await apiClient.post(`/appointments/${appointmentId}/cancel`, {

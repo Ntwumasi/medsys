@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 
 interface InvoiceItem {
@@ -58,6 +59,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   onPaymentComplete,
 }) => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Editable state for items and invoice totals
@@ -351,7 +353,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   };
 
   const handleDeferPayment = async () => {
-    if (!confirm('Defer this payment? The patient will be marked as "Miscellaneous - Pending" and can pay later.')) {
+    if (!(await confirmDialog({
+      title: 'Defer this payment?',
+      message: 'The patient will be marked as "Miscellaneous - Pending" and can pay later.',
+      variant: 'warning',
+      confirmLabel: 'Defer',
+    }))) {
       return;
     }
 
@@ -373,7 +380,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   };
 
   const handleSubmitToPayer = async () => {
-    if (!confirm('Submit this invoice to the payer and complete the encounter?')) {
+    if (!(await confirmDialog({
+      title: 'Submit invoice?',
+      message: 'Submit this invoice to the payer and complete the encounter?',
+      confirmLabel: 'Submit',
+    }))) {
       return;
     }
 

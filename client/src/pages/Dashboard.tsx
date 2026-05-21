@@ -11,6 +11,7 @@ import AppLayout from '../components/AppLayout';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import { TableRowSkeleton } from '../components/Skeleton';
 import {
   Select,
@@ -161,6 +162,7 @@ const Dashboard: React.FC = () => {
     user?.is_super_admin || impersonation.originalUser?.is_super_admin;
   const navigate = useNavigate();
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -512,12 +514,12 @@ const Dashboard: React.FC = () => {
     try {
       if (currentStatus) {
         // Deactivate
-        if (!confirm('Are you sure you want to deactivate this staff member?')) return;
+        if (!(await confirmDialog({ title: 'Deactivate staff member?', message: 'Are you sure you want to deactivate this staff member?', variant: 'warning', confirmLabel: 'Deactivate' }))) return;
         await apiClient.delete(`/users/${id}`);
         showToast('Staff member deactivated successfully!', 'success');
       } else {
         // Activate
-        if (!confirm('Are you sure you want to activate this staff member?')) return;
+        if (!(await confirmDialog({ title: 'Activate staff member?', message: 'Are you sure you want to activate this staff member?', confirmLabel: 'Activate' }))) return;
         await apiClient.post(`/users/${id}/activate`);
         showToast('Staff member activated successfully!', 'success');
       }
@@ -530,7 +532,12 @@ const Dashboard: React.FC = () => {
   };
 
   const handleResetPassword = async (member: StaffMember) => {
-    if (!confirm(`Reset password for ${member.first_name} ${member.last_name}? Their password will be set to "demo123" and they will be required to change it on next login.`)) {
+    if (!(await confirmDialog({
+      title: 'Reset password?',
+      message: `Reset password for ${member.first_name} ${member.last_name}? Their password will be set to "demo123" and they will be required to change it on next login.`,
+      variant: 'warning',
+      confirmLabel: 'Reset password',
+    }))) {
       return;
     }
 
@@ -545,7 +552,11 @@ const Dashboard: React.FC = () => {
   };
 
   const handleImpersonate = async (member: StaffMember) => {
-    if (!confirm(`Log in as ${member.first_name} ${member.last_name} (${member.role})? You will be redirected to their dashboard.`)) {
+    if (!(await confirmDialog({
+      title: 'Log in as user?',
+      message: `Log in as ${member.first_name} ${member.last_name} (${member.role})? You will be redirected to their dashboard.`,
+      confirmLabel: 'Log in as',
+    }))) {
       return;
     }
 
@@ -598,7 +609,7 @@ const Dashboard: React.FC = () => {
     if (selectedStaff.size === 0) return;
 
     const count = selectedStaff.size;
-    if (!confirm(`Deactivate ${count} selected staff member${count > 1 ? 's' : ''}?`)) {
+    if (!(await confirmDialog({ title: 'Deactivate staff?', message: `Deactivate ${count} selected staff member${count > 1 ? 's' : ''}?`, variant: 'warning', confirmLabel: 'Deactivate' }))) {
       return;
     }
 
@@ -619,7 +630,7 @@ const Dashboard: React.FC = () => {
     if (selectedStaff.size === 0) return;
 
     const count = selectedStaff.size;
-    if (!confirm(`Activate ${count} selected staff member${count > 1 ? 's' : ''}?`)) {
+    if (!(await confirmDialog({ title: 'Activate staff?', message: `Activate ${count} selected staff member${count > 1 ? 's' : ''}?`, confirmLabel: 'Activate' }))) {
       return;
     }
 
@@ -640,7 +651,7 @@ const Dashboard: React.FC = () => {
     if (selectedStaff.size === 0) return;
 
     const count = selectedStaff.size;
-    if (!confirm(`Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? All passwords will be set to "demo123".`)) {
+    if (!(await confirmDialog({ title: 'Reset passwords?', message: `Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? All passwords will be set to "demo123".`, variant: 'warning', confirmLabel: 'Reset' }))) {
       return;
     }
 
@@ -702,7 +713,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDeleteCorporateClient = async (id: number) => {
-    if (!confirm('Are you sure you want to deactivate this corporate client?')) return;
+    if (!(await confirmDialog({ title: 'Deactivate corporate client?', message: 'Are you sure you want to deactivate this corporate client?', variant: 'warning', confirmLabel: 'Deactivate' }))) return;
     try {
       await apiClient.delete(`/payer-sources/corporate-clients/${id}`);
       loadCorporateClients();
@@ -715,7 +726,7 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDeleteInsuranceProvider = async (id: number) => {
-    if (!confirm('Are you sure you want to deactivate this insurance provider?')) return;
+    if (!(await confirmDialog({ title: 'Deactivate insurance provider?', message: 'Are you sure you want to deactivate this insurance provider?', variant: 'warning', confirmLabel: 'Deactivate' }))) return;
     try {
       await apiClient.delete(`/payer-sources/insurance-providers/${id}`);
       loadInsuranceProviders();

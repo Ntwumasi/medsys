@@ -13,6 +13,7 @@ import AppLayout from '../components/AppLayout';
 import DepartmentGuide from '../components/DepartmentGuide';
 import { receptionistGuideSections } from '../components/guides/receptionistGuideContent';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
@@ -218,6 +219,7 @@ const ReceptionistDashboard: React.FC = () => {
   const { user } = useAuth();
   console.log('ReceptionistDashboard: User', user);
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const [searchParams] = useSearchParams();
   const initialView = searchParams.get('view') === 'special-invoice' ? 'special-invoice' : 'queue';
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>(initialView);
@@ -697,7 +699,7 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleCancelAppointment = async (appointmentId: number, reason?: string) => {
-    if (!confirm('Are you sure you want to cancel this appointment?')) {
+    if (!(await confirmDialog({ title: 'Cancel appointment?', message: 'Are you sure you want to cancel this appointment?', variant: 'warning', confirmLabel: 'Cancel appointment', cancelLabel: 'Keep' }))) {
       return;
     }
 
@@ -714,7 +716,7 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleMarkNoShow = async (appointmentId: number) => {
-    if (!confirm('Mark this appointment as no-show?')) {
+    if (!(await confirmDialog({ title: 'Mark as no-show?', message: 'Mark this appointment as no-show?', variant: 'warning', confirmLabel: 'Mark no-show' }))) {
       return;
     }
 
@@ -996,7 +998,7 @@ const ReceptionistDashboard: React.FC = () => {
     }
 
     // Otherwise proceed with normal checkout
-    if (!confirm(`Are you sure you want to checkout ${patientName}? This will close the entire patient visit.`)) {
+    if (!(await confirmDialog({ title: 'Check out patient?', message: `Are you sure you want to checkout ${patientName}? This will close the entire patient visit.`, confirmLabel: 'Check out' }))) {
       return;
     }
 
@@ -1070,7 +1072,7 @@ const ReceptionistDashboard: React.FC = () => {
   };
 
   const handleCancelVisit = async (encounterId: number, patientName: string) => {
-    if (!confirm(`Are you sure you want to cancel ${patientName}'s visit? This cannot be undone.`)) {
+    if (!(await confirmDialog({ title: 'Cancel visit?', message: `Are you sure you want to cancel ${patientName}'s visit? This cannot be undone.`, variant: 'danger', confirmLabel: 'Cancel visit', cancelLabel: 'Keep' }))) {
       return;
     }
 

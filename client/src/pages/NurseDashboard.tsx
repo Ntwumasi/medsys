@@ -5,6 +5,7 @@ import { format, parseISO, isValid } from 'date-fns';
 import { validateVitalSign } from '../utils/vitalSignsValidation';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
@@ -189,6 +190,7 @@ const NurseDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
+  const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const selectedPatientRef = useRef<AssignedPatient | null>(null);
@@ -637,7 +639,7 @@ const NurseDashboard: React.FC = () => {
   };
 
   const handleReleaseShortStayBed = async (bedId: number) => {
-    if (!confirm('Are you sure you want to release this bed?')) {
+    if (!(await confirmDialog({ title: 'Release bed?', message: 'Are you sure you want to release this bed?', confirmLabel: 'Release' }))) {
       return;
     }
 
@@ -730,7 +732,7 @@ const NurseDashboard: React.FC = () => {
   };
 
   const handleCompleteProcedure = async (procedureId: number) => {
-    if (!confirm('Complete this procedure? This will automatically add charges to the invoice.')) {
+    if (!(await confirmDialog({ title: 'Complete procedure?', message: 'This will automatically add charges to the invoice.', variant: 'success', confirmLabel: 'Complete' }))) {
       return;
     }
 
@@ -777,8 +779,15 @@ const NurseDashboard: React.FC = () => {
   };
 
   const handleCancelProcedure = async (procedureId: number) => {
-    const reason = prompt('Reason for cancellation (optional):');
-    if (reason === null) return; // User clicked Cancel on prompt
+    const reason = await promptDialog({
+      title: 'Cancel procedure',
+      message: 'Reason for cancellation (optional):',
+      placeholder: 'Reason',
+      multiline: true,
+      confirmLabel: 'Cancel procedure',
+      cancelLabel: 'Keep',
+    });
+    if (reason === null) return;
 
     try {
       await apiClient.post(`/nurse-procedures/${procedureId}/cancel`, { reason: reason || 'Cancelled by nurse' });
@@ -865,8 +874,12 @@ const NurseDashboard: React.FC = () => {
 
     // If there are warnings, confirm with user
     if (warnings.length > 0) {
-      const warningMessage = 'Critical vital signs detected:\n\n' + warnings.join('\n') + '\n\nDo you want to continue?';
-      if (!confirm(warningMessage)) {
+      if (!(await confirmDialog({
+        title: 'Critical vital signs detected',
+        message: warnings.join('\n') + '\n\nDo you want to continue?',
+        variant: 'danger',
+        confirmLabel: 'Continue',
+      }))) {
         return;
       }
     }
@@ -989,7 +1002,7 @@ const NurseDashboard: React.FC = () => {
     if (priority === selectedPatient.current_priority) return;
 
     const labels: Record<string, string> = { green: 'Green (Stable)', yellow: 'Yellow (Urgent)', red: 'Red (Critical)' };
-    if (!confirm(`Change priority to ${labels[priority]}?`)) return;
+    if (!(await confirmDialog({ title: 'Change triage priority?', message: `Change priority to ${labels[priority]}?`, variant: priority === 'red' ? 'danger' : priority === 'yellow' ? 'warning' : 'default', confirmLabel: 'Change priority' }))) return;
 
     try {
       await apiClient.post('/workflow/nurse/triage-priority', {
@@ -1029,7 +1042,13 @@ const NurseDashboard: React.FC = () => {
   };
 
   const executeAdministration = async (orderId: number, medicationName: string) => {
-    const notes = prompt(`Record administration notes for ${medicationName} (optional):`);
+    const notes = await promptDialog({
+      title: 'Record administration',
+      message: `Record administration notes for ${medicationName} (optional):`,
+      placeholder: 'Notes',
+      multiline: true,
+      confirmLabel: 'Record',
+    });
     if (notes === null) return;
 
     try {
@@ -1101,7 +1120,7 @@ const NurseDashboard: React.FC = () => {
       return;
     }
 
-    if (!confirm(`Send patient to ${departmentNames[department]}?`)) {
+    if (!(await confirmDialog({ title: 'Send patient?', message: `Send patient to ${departmentNames[department]}?`, confirmLabel: 'Send' }))) {
       return;
     }
 
@@ -1126,7 +1145,7 @@ const NurseDashboard: React.FC = () => {
   const handleReleaseRoom = async () => {
     if (!selectedPatient) return;
 
-    if (!confirm('Are you sure you want to release the room?')) {
+    if (!(await confirmDialog({ title: 'Release room?', message: 'Are you sure you want to release the room?', confirmLabel: 'Release' }))) {
       return;
     }
 
@@ -1148,7 +1167,7 @@ const NurseDashboard: React.FC = () => {
   const handleCompleteEncounter = async () => {
     if (!selectedPatient) return;
 
-    if (!confirm('Are you sure you want to complete this encounter? This is the final step.')) {
+    if (!(await confirmDialog({ title: 'Complete encounter?', message: 'Are you sure you want to complete this encounter? This is the final step.', variant: 'success', confirmLabel: 'Complete' }))) {
       return;
     }
 

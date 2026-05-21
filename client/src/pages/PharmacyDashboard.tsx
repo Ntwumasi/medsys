@@ -6,6 +6,7 @@ import DepartmentGuide from '../components/DepartmentGuide';
 import { pharmacyGuideSections } from '../components/guides/pharmacyGuideContent';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
@@ -182,6 +183,7 @@ interface WalkInPatient {
 
 const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   useAuth(); // Ensure user is authenticated
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
@@ -696,7 +698,7 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const deleteSupplier = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this supplier?')) return;
+    if (!(await confirmDialog({ title: 'Delete supplier?', message: 'Are you sure you want to delete this supplier?', variant: 'danger', confirmLabel: 'Delete' }))) return;
     try {
       await apiClient.delete(`/suppliers/${id}`);
       showToast('Supplier deleted', 'success');
@@ -751,7 +753,7 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const deleteInventoryItem = async (id: number) => {
-    if (!confirm('Are you sure you want to deactivate this inventory item?')) return;
+    if (!(await confirmDialog({ title: 'Deactivate item?', message: 'Are you sure you want to deactivate this inventory item?', variant: 'warning', confirmLabel: 'Deactivate' }))) return;
     try {
       await apiClient.put(`/inventory/${id}`, { is_active: false });
       showToast('Inventory item deactivated', 'success');
@@ -1042,7 +1044,7 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const handleDeletePurchase = async (purchaseId: number) => {
-    if (!confirm('Delete this purchase? This will reverse the inventory quantity change.')) return;
+    if (!(await confirmDialog({ title: 'Delete purchase?', message: 'This will reverse the inventory quantity change.', variant: 'danger', confirmLabel: 'Delete' }))) return;
     setDeletingPurchaseId(purchaseId);
     try {
       await apiClient.delete(`/inventory/purchases/${purchaseId}`);

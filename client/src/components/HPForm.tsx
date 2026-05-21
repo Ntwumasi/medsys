@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import type { HPEncounter, ExistingHPData, HPFormData, ApiError } from '../types';
 
 interface HPFormProps {
@@ -11,6 +12,7 @@ interface HPFormProps {
 
 const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClose }) => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
 
   // Auto-populated fields
   const patientAge = encounter.date_of_birth
@@ -155,7 +157,11 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!confirm('Are you sure you want to save this SOAP note? This will be added to the patient\'s medical record.')) {
+    if (!(await confirmDialog({
+      title: 'Save SOAP note?',
+      message: 'This will be added to the patient\'s medical record.',
+      confirmLabel: 'Save',
+    }))) {
       return;
     }
 
