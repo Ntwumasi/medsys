@@ -13,6 +13,7 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
+import SOAPReviewModal from '../components/SOAPReviewModal';
 import type { VitalSigns } from '../types';
 
 interface RoomEncounter {
@@ -167,6 +168,12 @@ const DoctorDashboard: React.FC = () => {
   const [pendingImaging, setPendingImaging] = useState<Array<{ id: number; patient_name: string; patient_number: string; imaging_type: string; body_part?: string; status: string; priority: string; ordered_date: string }>>([]);
   const [pendingRx, setPendingRx] = useState<Array<{ id: number; patient_name: string; patient_number: string; medication_name: string; status: string; priority: string; ordered_date: string }>>([]);
   const [delinquentTab, setDelinquentTab] = useState<'unsigned' | 'labs' | 'imaging' | 'rx'>('unsigned');
+
+  // SOAP review modal (opened from Action Items "Sign")
+  const [soapReviewNote, setSoapReviewNote] = useState<
+    | { id: number; encounter_number: string; patient_id: number; patient_name: string; encounter_date: string; chief_complaint: string }
+    | null
+  >(null);
 
   // Claims Review state
   const [pendingClaims, setPendingClaims] = useState<any[]>([]);
@@ -1198,21 +1205,10 @@ const DoctorDashboard: React.FC = () => {
                                 </div>
                               </div>
                               <button
-                                onClick={async () => {
-                                  const label = note.patient_name || 'this patient';
-                                  if (!confirm(`Sign the SOAP note for ${label} (${note.encounter_number})?\n\nOnce signed it cannot be edited.`)) return;
-                                  try {
-                                    await apiClient.post(`/hp/${note.id}/sign`);
-                                    showToast(`SOAP note signed for ${label}`, 'success');
-                                    loadDelinquent();
-                                    loadRoomEncounters();
-                                  } catch {
-                                    showToast('Failed to sign SOAP note', 'error');
-                                  }
-                                }}
+                                onClick={() => setSoapReviewNote(note)}
                                 className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
                               >
-                                Sign
+                                Review &amp; Sign
                               </button>
                             </div>
                           ))}
@@ -2940,6 +2936,24 @@ const DoctorDashboard: React.FC = () => {
         <VitalSignsHistory
           patientId={selectedEncounter.patient_id}
           onClose={() => setShowVitalsHistory(false)}
+        />
+      )}
+
+      {/* SOAP Review & Sign Modal (opened from Action Items → Unsigned) */}
+      {soapReviewNote && (
+        <SOAPReviewModal
+          isOpen={true}
+          encounterId={soapReviewNote.id}
+          patientId={soapReviewNote.patient_id}
+          patientName={soapReviewNote.patient_name}
+          encounterNumber={soapReviewNote.encounter_number}
+          encounterDate={soapReviewNote.encounter_date}
+          chiefComplaint={soapReviewNote.chief_complaint}
+          onClose={() => setSoapReviewNote(null)}
+          onSigned={() => {
+            loadDelinquent();
+            loadRoomEncounters();
+          }}
         />
       )}
 
