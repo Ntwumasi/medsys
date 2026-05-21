@@ -82,10 +82,13 @@ const ImagingDashboard: React.FC = () => {
 
   const fetchWalkIns = async () => {
     try {
-      const response = await apiClient.get('/department-routing/imaging/walk-ins');
-      setWalkIns(response.data.walk_ins || []);
+      // /queue returns all patients routed here (direct walk-ins AND
+      // nurse-routed). /walk-ins filtered to is_walk_in=true only, which
+      // missed everyone sent from inside an active encounter.
+      const response = await apiClient.get('/department-routing/imaging/queue');
+      setWalkIns(response.data.queue || response.data.walk_ins || []);
     } catch (error) {
-      console.error('Error fetching imaging walk-ins:', error);
+      console.error('Error fetching imaging queue:', error);
     } finally {
       setLoading(false);
     }
