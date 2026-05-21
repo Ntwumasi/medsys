@@ -3684,11 +3684,17 @@ const NurseDashboard: React.FC = () => {
                       (!inventoryShowLowOnly || item.quantity <= item.min_quantity)
                     )
                     .sort((a, b) => {
+                      // Natural sort so "Syringe (5ml)" comes before "Syringe (10ml)"
+                      // instead of lexicographic order where "(10ml)" beats "(5ml)".
+                      const byName = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
                       switch (inventorySortBy) {
-                        case 'category': return a.category.localeCompare(b.category);
-                        case 'quantity': return a.quantity - b.quantity;
-                        case 'status': return (a.quantity <= a.min_quantity ? 0 : 1) - (b.quantity <= b.min_quantity ? 0 : 1);
-                        default: return a.name.localeCompare(b.name);
+                        case 'category': {
+                          const c = a.category.localeCompare(b.category);
+                          return c !== 0 ? c : byName;
+                        }
+                        case 'quantity': return a.quantity - b.quantity || byName;
+                        case 'status': return (a.quantity <= a.min_quantity ? 0 : 1) - (b.quantity <= b.min_quantity ? 0 : 1) || byName;
+                        default: return byName;
                       }
                     })
                     .map((item) => (
