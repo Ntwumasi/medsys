@@ -2218,7 +2218,7 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
                           sectionId="lab_tests"
                           className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
-                          placeholder="CBC, CMP, Lipid Panel..."
+                          placeholder=""
                         />
                         <select
                           value={currentLabOrder.priority}
@@ -2293,7 +2293,7 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: value})}
                           sectionId="imaging_types"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
-                          placeholder="X-Ray, CT, MRI..."
+                          placeholder=""
                         />
                         <AutocompleteInput
                           value={currentImagingOrder.body_part}
