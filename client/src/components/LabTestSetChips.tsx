@@ -146,7 +146,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
     }
   };
 
-  const canSave = pendingLabOrders.length >= 2;
+  const canSave = pendingLabOrders.length >= 1;
 
   if (loading && sets.length === 0) {
     return (
@@ -168,8 +168,26 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
 
         {pinned.length === 0 && (
           <span className="text-xs text-gray-500 italic">
-            No saved sets yet — order labs and click <span className="font-medium">Save as set</span> to create one.
+            No saved sets yet. Add lab tests below, then click{' '}
+            <span className="font-semibold text-primary-700">Save current as set</span>{' '}
+            on the right.
           </span>
+        )}
+
+        {/* Always show a Save-as-set affordance so it's discoverable even
+            when nothing is staged yet. Disabled state is the prompt. */}
+        {!canSave && (
+          <button
+            type="button"
+            disabled
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 cursor-not-allowed"
+            title="Add at least one lab test below, then save the staged tests as a set"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+            </svg>
+            Save current as set
+          </button>
         )}
 
         {pinned.map((set, idx) => (
