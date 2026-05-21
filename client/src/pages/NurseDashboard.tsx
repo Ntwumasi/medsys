@@ -3060,7 +3060,7 @@ const NurseDashboard: React.FC = () => {
                                         {procedure.performed_by_name && (
                                           <span>Performed by: {procedure.performed_by_name}</span>
                                         )}
-                                        <span>GHS {(procedure.price || 0).toFixed(2)}</span>
+                                        <span>GHS {Number(procedure.price || 0).toFixed(2)}</span>
                                         <span className={`px-2 py-1 rounded text-xs font-semibold ${
                                           procedure.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                                           procedure.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
@@ -3201,7 +3201,7 @@ const NurseDashboard: React.FC = () => {
                                           )}
                                           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                                             {procedure.performed_by_name && <span>By: {procedure.performed_by_name}</span>}
-                                            <span>GHS {(procedure.price || 0).toFixed(2)}</span>
+                                            <span>GHS {Number(procedure.price || 0).toFixed(2)}</span>
                                             {procedure.completed_at && (
                                               <span>{safeFormatDate(procedure.completed_at, 'MMM d, yyyy h:mm a')}</span>
                                             )}
@@ -3591,7 +3591,7 @@ const NurseDashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-primary-100 text-sm">
-                  Total Value: <span className="font-bold text-white">GHS {nurseInventory.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0).toFixed(2)}</span>
+                  Total Value: <span className="font-bold text-white">GHS {nurseInventory.reduce((sum, i) => sum + Number(i.quantity || 0) * Number(i.unit_cost || 0), 0).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -3719,8 +3719,8 @@ const NurseDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-500">{item.min_quantity} {item.unit}</td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-600">GHS {item.unit_cost.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-sm font-medium text-gray-700">GHS {(item.quantity * item.unit_cost).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-sm text-gray-600">GHS {Number(item.unit_cost || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-sm font-medium text-gray-700">GHS {(Number(item.quantity || 0) * Number(item.unit_cost || 0)).toFixed(2)}</td>
                       <td className="px-4 py-3 text-center">
                         {item.quantity <= item.min_quantity ? (
                           <span className="px-2 py-1 bg-danger-100 text-danger-700 rounded-full text-xs font-bold">LOW STOCK</span>
