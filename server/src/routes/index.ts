@@ -111,6 +111,12 @@ import {
   dispenseWalkInOrder,
 } from '../controllers/ordersController';
 import {
+  getLabTestSets,
+  createLabTestSet,
+  applyLabTestSet,
+  deleteLabTestSet,
+} from '../controllers/labTestSetsController';
+import {
   getCorporateClients,
   createCorporateClient,
   updateCorporateClient,
@@ -491,6 +497,12 @@ router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounter
 // Get doctor alerts - recently completed results
 router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'), getDoctorAlerts);
 router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor'), getDoctorDelinquent);
+
+// Lab test sets - reusable bundles of labs (BIGPAY Screening, Olams Pre-Employment, etc.)
+router.get('/lab-test-sets', authenticateToken, authorizeRoles('doctor', 'admin'), getLabTestSets);
+router.post('/lab-test-sets', authenticateToken, authorizeRoles('doctor', 'admin'), createLabTestSet);
+router.post('/lab-test-sets/:id/apply', authenticateToken, authorizeRoles('doctor', 'admin'), applyLabTestSet);
+router.delete('/lab-test-sets/:id', authenticateToken, authorizeRoles('doctor', 'admin'), deleteLabTestSet);
 
 // Payer sources routes - Corporate Clients
 router.get('/payer-sources/corporate-clients', authenticateToken, getCorporateClients);

@@ -15,6 +15,8 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import SOAPReviewModal from '../components/SOAPReviewModal';
+import LabTestSetChips from '../components/LabTestSetChips';
+import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
 interface RoomEncounter {
@@ -503,6 +505,19 @@ const DoctorDashboard: React.FC = () => {
     }
     setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
     setCurrentLabOrder({test_name: '', priority: 'routine'});
+  };
+
+  // Apply a saved test set: append any tests that aren't already staged
+  // (case-insensitive name match). The set's default_priority wins for new
+  // tests; existing ones keep their current priority.
+  const handleApplyLabTestSet = (items: LabTestSetItem[]) => {
+    setPendingLabOrders(prev => {
+      const existing = new Set(prev.map(o => o.test_name.trim().toLowerCase()));
+      const additions = items
+        .filter(it => !existing.has(it.test_name.trim().toLowerCase()))
+        .map(it => ({ test_name: it.test_name, priority: it.default_priority || 'routine' }));
+      return [...prev, ...additions];
+    });
   };
 
   const handleAddImagingOrder = () => {
@@ -2211,6 +2226,11 @@ const DoctorDashboard: React.FC = () => {
                           </span>
                         )}
                       </h3>
+
+                      <LabTestSetChips
+                        pendingLabOrders={pendingLabOrders}
+                        onApplySet={handleApplyLabTestSet}
+                      />
 
                       <div className="space-y-3">
                         <AutocompleteInput
