@@ -320,6 +320,12 @@ import {
   recordNursePurchase,
   getNursePurchases,
 } from '../controllers/nurseInventoryController';
+import {
+  listRequisitions,
+  createRequisition,
+  updateRequisition,
+  deleteRequisition,
+} from '../controllers/nurseRequisitionsController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import {
   validateBody,
@@ -814,6 +820,12 @@ router.post('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admi
 router.put('/nurse/inventory/:id', authenticateToken, authorizeRoles('nurse', 'admin'), updateNurseInventoryItem);
 router.post('/nurse/inventory/purchase', authenticateToken, authorizeRoles('nurse', 'admin'), recordNursePurchase);
 router.get('/nurse/inventory/purchases', authenticateToken, authorizeRoles('nurse', 'admin'), getNursePurchases);
+
+// Nurse requisitions — running shopping list for procurement
+router.get('/nurse/requisitions', authenticateToken, authorizeRoles('nurse', 'admin'), listRequisitions);
+router.post('/nurse/requisitions', authenticateToken, authorizeRoles('nurse', 'admin'), createRequisition);
+router.put('/nurse/requisitions/:id', authenticateToken, authorizeRoles('nurse', 'admin'), updateRequisition);
+router.delete('/nurse/requisitions/:id', authenticateToken, authorizeRoles('nurse', 'admin'), deleteRequisition);
 
 // Manual trigger for follow-up reminders (admin only, for testing)
 router.post('/follow-up/send-reminders', authenticateToken, authorizeRoles('admin'), async (req, res) => {

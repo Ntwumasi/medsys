@@ -37,7 +37,7 @@ const NurseProcurement: React.FC = () => {
   const { user, impersonation } = useAuth();
   const { showToast } = useNotification();
 
-  const [activeTab, setActiveTab] = useState<'stock' | 'purchase' | 'history'>('stock');
+  const [activeTab, setActiveTab] = useState<'stock' | 'requisition' | 'purchase' | 'history'>('stock');
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -53,6 +53,34 @@ const NurseProcurement: React.FC = () => {
   const [quickAddUnitCost, setQuickAddUnitCost] = useState('');
   const [quickAddSupplier, setQuickAddSupplier] = useState('');
   const [quickAddSubmitting, setQuickAddSubmitting] = useState(false);
+
+  // Requisition state — running shopping list. One active draft at a time,
+  // history of sent ones below.
+  interface ReqItem {
+    inventory_id: number | null;
+    item_name: string;
+    quantity: number | string;
+    estimated_unit_cost: number | string;
+    unit: string;
+  }
+  interface Requisition {
+    id: number;
+    status: 'draft' | 'sent' | 'received' | 'cancelled';
+    notes: string | null;
+    created_by_name: string;
+    created_at: string;
+    sent_at: string | null;
+    received_at: string | null;
+    items: any[];
+    total_estimated: number;
+  }
+  const [requisitions, setRequisitions] = useState<Requisition[]>([]);
+  const [draftItems, setDraftItems] = useState<ReqItem[]>([
+    { inventory_id: null, item_name: '', quantity: '', estimated_unit_cost: '', unit: 'pcs' },
+  ]);
+  const [draftNotes, setDraftNotes] = useState('');
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [reqSubmitting, setReqSubmitting] = useState(false);
 
   // Purchase form
   const [purchaseForm, setPurchaseForm] = useState({
@@ -87,10 +115,139 @@ const NurseProcurement: React.FC = () => {
     }
   }, []);
 
+  const loadRequisitions = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/nurse/requisitions');
+      const list: Requisition[] = res.data.requisitions || [];
+      setRequisitions(list);
+      // If there's an existing draft, hydrate the editor with it. Otherwise
+      // keep the blank starter row.
+      const draft = list.find(r => r.status === 'draft');
+      if (draft) {
+        setDraftId(draft.id);
+        setDraftNotes(draft.notes || '');
+        setDraftItems(
+          draft.items.length > 0
+            ? draft.items.map((it: any) => ({
+                inventory_id: it.inventory_id,
+                item_name: it.item_name,
+                quantity: it.quantity,
+                estimated_unit_cost: it.estimated_unit_cost,
+                unit: it.unit || 'pcs',
+              }))
+            : [{ inventory_id: null, item_name: '', quantity: '', estimated_unit_cost: '', unit: 'pcs' }]
+        );
+      } else {
+        setDraftId(null);
+        setDraftItems([{ inventory_id: null, item_name: '', quantity: '', estimated_unit_cost: '', unit: 'pcs' }]);
+        setDraftNotes('');
+      }
+    } catch (err) {
+      console.error('Failed to load requisitions:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadInventory();
     loadPurchases();
-  }, [loadInventory, loadPurchases]);
+    loadRequisitions();
+  }, [loadInventory, loadPurchases, loadRequisitions]);
+
+  const updateDraftRow = (idx: number, patch: Partial<ReqItem>) => {
+    setDraftItems(prev => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  };
+  const addDraftRow = () => {
+    setDraftItems(prev => [...prev, { inventory_id: null, item_name: '', quantity: '', estimated_unit_cost: '', unit: 'pcs' }]);
+  };
+  const removeDraftRow = (idx: number) => {
+    setDraftItems(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx));
+  };
+
+  const draftTotal = draftItems.reduce((sum, it) => {
+    const q = Number(it.quantity) || 0;
+    const c = Number(it.estimated_unit_cost) || 0;
+    return sum + q * c;
+  }, 0);
+
+  const draftPayloadItems = () =>
+    draftItems
+      .filter(it => it.item_name.trim() && Number(it.quantity) > 0)
+      .map(it => ({
+        inventory_id: it.inventory_id,
+        item_name: it.item_name.trim(),
+        quantity: Number(it.quantity),
+        estimated_unit_cost: Number(it.estimated_unit_cost) || 0,
+        unit: it.unit || 'pcs',
+      }));
+
+  const saveDraft = async (sendAfter = false) => {
+    const payload = draftPayloadItems();
+    if (payload.length === 0) {
+      showToast('Add at least one item with a name and quantity', 'error');
+      return;
+    }
+    setReqSubmitting(true);
+    try {
+      if (draftId) {
+        const body: any = { notes: draftNotes, items: payload };
+        if (sendAfter) body.status = 'sent';
+        await apiClient.put(`/nurse/requisitions/${draftId}`, body);
+      } else {
+        const created = await apiClient.post('/nurse/requisitions', {
+          notes: draftNotes,
+          items: payload,
+        });
+        const newId = created.data?.requisition?.id;
+        if (sendAfter && newId) {
+          await apiClient.put(`/nurse/requisitions/${newId}`, { status: 'sent' });
+        }
+      }
+      showToast(sendAfter ? 'Requisition sent to procurement' : 'Draft saved', 'success');
+      loadRequisitions();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to save requisition', 'error');
+    } finally {
+      setReqSubmitting(false);
+    }
+  };
+
+  const discardDraft = async () => {
+    if (!draftId) {
+      setDraftItems([{ inventory_id: null, item_name: '', quantity: '', estimated_unit_cost: '', unit: 'pcs' }]);
+      setDraftNotes('');
+      return;
+    }
+    try {
+      await apiClient.delete(`/nurse/requisitions/${draftId}`);
+      showToast('Draft discarded', 'success');
+      loadRequisitions();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to discard draft', 'error');
+    }
+  };
+
+  const markReceived = async (id: number) => {
+    try {
+      await apiClient.put(`/nurse/requisitions/${id}`, { status: 'received' });
+      showToast('Marked received', 'success');
+      loadRequisitions();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to update status', 'error');
+    }
+  };
+  const cancelRequisition = async (id: number) => {
+    try {
+      await apiClient.put(`/nurse/requisitions/${id}`, { status: 'cancelled' });
+      showToast('Requisition cancelled', 'success');
+      loadRequisitions();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to cancel', 'error');
+    }
+  };
 
   const handleRecordPurchase = async () => {
     if (!purchaseForm.inventory_id || !purchaseForm.quantity) {
@@ -258,7 +415,7 @@ const NurseProcurement: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 mb-6 flex-wrap">
-          {(['stock', 'purchase', 'history'] as const).map(tab => (
+          {(['stock', 'requisition', 'purchase', 'history'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -268,7 +425,10 @@ const NurseProcurement: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              {tab === 'stock' ? 'Current Stock' : tab === 'purchase' ? 'Record Purchase' : 'Purchase History'}
+              {tab === 'stock' ? 'Current Stock'
+                : tab === 'requisition' ? 'Requisition'
+                : tab === 'purchase' ? 'Record Purchase'
+                : 'Purchase History'}
             </button>
           ))}
         </div>
@@ -367,6 +527,242 @@ const NurseProcurement: React.FC = () => {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Requisition Tab — running shopping list for procurement */}
+        {activeTab === 'requisition' && (
+          <div className="space-y-6">
+            {/* Active draft */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="px-5 py-4 border-b border-gray-200 bg-gray-50 rounded-t-lg flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Requisition Draft</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Build up items you need to order. Save as you go; send when ready.
+                  </p>
+                </div>
+                {draftId && (
+                  <span className="text-xs px-2 py-1 bg-warning-50 text-warning-700 border border-warning-200 rounded">
+                    Draft #{draftId}
+                  </span>
+                )}
+              </div>
+
+              <div className="p-5 space-y-3">
+                {/* Header row */}
+                <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 uppercase">
+                  <div className="col-span-5">Item</div>
+                  <div className="col-span-2 text-right">Qty</div>
+                  <div className="col-span-1">Unit</div>
+                  <div className="col-span-2 text-right">Est. Cost</div>
+                  <div className="col-span-1 text-right">Total</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {draftItems.map((row, idx) => {
+                  const lineTotal = (Number(row.quantity) || 0) * (Number(row.estimated_unit_cost) || 0);
+                  return (
+                    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-5">
+                        <select
+                          value={row.inventory_id ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') {
+                              updateDraftRow(idx, { inventory_id: null });
+                            } else if (val === 'new') {
+                              updateDraftRow(idx, { inventory_id: null, item_name: '' });
+                            } else {
+                              const inv = items.find(i => i.id === Number(val));
+                              if (inv) {
+                                updateDraftRow(idx, {
+                                  inventory_id: inv.id,
+                                  item_name: inv.item_name,
+                                  unit: inv.unit,
+                                  estimated_unit_cost: inv.unit_cost ?? 0,
+                                });
+                              }
+                            }
+                          }}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        >
+                          <option value="">Pick existing item…</option>
+                          {items.map(i => (
+                            <option key={i.id} value={i.id}>
+                              {i.item_name} ({i.quantity_on_hand} {i.unit} in stock)
+                            </option>
+                          ))}
+                          <option value="new">--- Or type a new item ---</option>
+                        </select>
+                        {row.inventory_id === null && (
+                          <input
+                            type="text"
+                            value={row.item_name}
+                            onChange={(e) => updateDraftRow(idx, { item_name: e.target.value })}
+                            placeholder="New item name"
+                            className="w-full mt-1 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                          />
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number" min="1"
+                          value={row.quantity}
+                          onChange={(e) => updateDraftRow(idx, { quantity: e.target.value })}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <input
+                          type="text"
+                          value={row.unit}
+                          onChange={(e) => updateDraftRow(idx, { unit: e.target.value })}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input
+                          type="number" step="0.01" min="0"
+                          value={row.estimated_unit_cost}
+                          onChange={(e) => updateDraftRow(idx, { estimated_unit_cost: e.target.value })}
+                          className="w-full px-2 py-1.5 text-sm text-right border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div className="col-span-1 text-right text-sm font-medium text-gray-900">
+                        {formatCurrency(lineTotal)}
+                      </div>
+                      <div className="col-span-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeDraftRow(idx)}
+                          className="p-1 text-gray-400 hover:text-danger-600"
+                          title="Remove row"
+                          disabled={draftItems.length <= 1}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={addDraftRow}
+                  className="text-sm font-medium text-primary-600 hover:text-primary-800 inline-flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add another item
+                </button>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1 mt-2">Notes (optional)</label>
+                  <textarea
+                    rows={2}
+                    value={draftNotes}
+                    onChange={(e) => setDraftNotes(e.target.value)}
+                    placeholder="e.g. Need delivery by Friday, supplier X preferred"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
+
+              <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg flex items-center justify-between flex-wrap gap-2">
+                <div className="text-sm">
+                  <span className="text-gray-500">Total estimated:</span>{' '}
+                  <span className="font-bold text-gray-900 text-lg">{formatCurrency(draftTotal)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {draftId && (
+                    <button
+                      type="button"
+                      onClick={discardDraft}
+                      disabled={reqSubmitting}
+                      className="px-3 py-1.5 text-sm font-medium text-danger-600 border border-danger-300 rounded-lg hover:bg-danger-50 disabled:opacity-60"
+                    >
+                      Discard
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => saveDraft(false)}
+                    disabled={reqSubmitting}
+                    className="px-4 py-1.5 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Save Draft
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveDraft(true)}
+                    disabled={reqSubmitting}
+                    className="px-4 py-1.5 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60"
+                  >
+                    {reqSubmitting ? 'Sending…' : 'Send to Procurement'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* History of sent / received / cancelled */}
+            {requisitions.filter(r => r.status !== 'draft').length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200">
+                <div className="px-5 py-4 border-b border-gray-200">
+                  <h3 className="text-base font-bold text-gray-900">Previous requisitions</h3>
+                </div>
+                <ul className="divide-y divide-gray-100">
+                  {requisitions
+                    .filter(r => r.status !== 'draft')
+                    .map(r => (
+                      <li key={r.id} className="px-5 py-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900">Req #{r.id}</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded ${
+                              r.status === 'sent' ? 'bg-warning-100 text-warning-700' :
+                              r.status === 'received' ? 'bg-success-100 text-success-700' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {r.status}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {r.items.length} item{r.items.length !== 1 ? 's' : ''} ·{' '}
+                              {formatCurrency(r.total_estimated)} ·{' '}
+                              {formatDate(r.created_at)} by {r.created_by_name}
+                            </span>
+                          </div>
+                          {r.status === 'sent' && (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => markReceived(r.id)}
+                                className="px-2.5 py-1 text-xs font-semibold rounded bg-success-600 text-white hover:bg-success-700"
+                              >
+                                Mark received
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => cancelRequisition(r.id)}
+                                className="px-2.5 py-1 text-xs font-medium text-danger-600 border border-danger-300 rounded hover:bg-danger-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-1.5 text-xs text-gray-600 truncate">
+                          {r.items.slice(0, 5).map(i => `${i.item_name} ×${i.quantity}`).join(' · ')}
+                          {r.items.length > 5 ? ` … +${r.items.length - 5} more` : ''}
+                        </div>
+                      </li>
+                    ))}
+                </ul>
               </div>
             )}
           </div>
