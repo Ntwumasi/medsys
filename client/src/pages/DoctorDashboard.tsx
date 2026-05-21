@@ -1257,7 +1257,7 @@ const DoctorDashboard: React.FC = () => {
                                 onClick={() => handleReviewUnsignedNote(note)}
                                 className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
                               >
-                                Open Chart
+                                Review &amp; Sign
                               </button>
                             </div>
                           ))}
