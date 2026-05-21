@@ -14,7 +14,6 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
-import SOAPReviewModal from '../components/SOAPReviewModal';
 import LabTestSetChips from '../components/LabTestSetChips';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
@@ -172,12 +171,6 @@ const DoctorDashboard: React.FC = () => {
   const [pendingImaging, setPendingImaging] = useState<Array<{ id: number; patient_name: string; patient_number: string; imaging_type: string; body_part?: string; status: string; priority: string; ordered_date: string }>>([]);
   const [pendingRx, setPendingRx] = useState<Array<{ id: number; patient_name: string; patient_number: string; medication_name: string; status: string; priority: string; ordered_date: string }>>([]);
   const [delinquentTab, setDelinquentTab] = useState<'unsigned' | 'labs' | 'imaging' | 'rx'>('unsigned');
-
-  // SOAP review modal (opened from Action Items "Sign")
-  const [soapReviewNote, setSoapReviewNote] = useState<
-    | { id: number; encounter_number: string; patient_id: number; patient_name: string; encounter_date: string; chief_complaint: string }
-    | null
-  >(null);
 
   // Claims Review state
   const [pendingClaims, setPendingClaims] = useState<any[]>([]);
@@ -391,6 +384,40 @@ const DoctorDashboard: React.FC = () => {
       setSoapSignedAt(null);
       setSoapSignedBy(null);
     }
+  };
+
+  // Open an old unsigned encounter as if the patient were in a room — so
+  // the doctor can edit any section of the chart (diagnoses, notes, SOAP),
+  // then sign from the in-place Sign Note button at the bottom of the SOAP
+  // accordion. Skips the /workflow/doctor/start call — that's for live
+  // encounters; here we're catching up paperwork on a closed visit.
+  const handleReviewUnsignedNote = (note: {
+    id: number;
+    patient_id: number;
+    patient_name: string;
+    patient_number: string;
+    encounter_number: string;
+    chief_complaint?: string;
+    status?: string;
+  }) => {
+    const synthetic: RoomEncounter = {
+      id: note.id,
+      patient_id: note.patient_id,
+      patient_name: note.patient_name,
+      patient_number: note.patient_number,
+      encounter_number: note.encounter_number,
+      room_number: '', // closed visit — no room
+      chief_complaint: note.chief_complaint || '',
+      status: note.status,
+    };
+    setSelectedEncounter(synthetic);
+    loadSOAPSignStatus(synthetic.id);
+    // Scroll the chart panel into view so the doctor sees the change.
+    setTimeout(() => {
+      document
+        .getElementById('selected-encounter-panel')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   };
 
   // Handle selecting an encounter - also starts the doctor encounter if not already started
@@ -1227,10 +1254,10 @@ const DoctorDashboard: React.FC = () => {
                                 </div>
                               </div>
                               <button
-                                onClick={() => setSoapReviewNote(note)}
+                                onClick={() => handleReviewUnsignedNote(note)}
                                 className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
                               >
-                                Review &amp; Sign
+                                Open Chart
                               </button>
                             </div>
                           ))}
@@ -1453,7 +1480,7 @@ const DoctorDashboard: React.FC = () => {
           </div>
 
           {/* Patient Details & Actions */}
-          <div className="xl:col-span-2">
+          <div className="xl:col-span-2" id="selected-encounter-panel">
             {selectedEncounter ? (
               <div className="space-y-4">
                 {/* Patient Info */}
@@ -1468,9 +1495,11 @@ const DoctorDashboard: React.FC = () => {
                         <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold whitespace-nowrap">
                           Encounter #: {selectedEncounter.encounter_number}
                         </span>
-                        <span className="px-3 py-1 bg-success-50 text-success-700 rounded-lg font-semibold whitespace-nowrap">
-                          {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
-                        </span>
+                        {(selectedEncounter.room_name || selectedEncounter.room_number) && (
+                          <span className="px-3 py-1 bg-success-50 text-success-700 rounded-lg font-semibold whitespace-nowrap">
+                            {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -2963,24 +2992,6 @@ const DoctorDashboard: React.FC = () => {
         <VitalSignsHistory
           patientId={selectedEncounter.patient_id}
           onClose={() => setShowVitalsHistory(false)}
-        />
-      )}
-
-      {/* SOAP Review & Sign Modal (opened from Action Items → Unsigned) */}
-      {soapReviewNote && (
-        <SOAPReviewModal
-          isOpen={true}
-          encounterId={soapReviewNote.id}
-          patientId={soapReviewNote.patient_id}
-          patientName={soapReviewNote.patient_name}
-          encounterNumber={soapReviewNote.encounter_number}
-          encounterDate={soapReviewNote.encounter_date}
-          chiefComplaint={soapReviewNote.chief_complaint}
-          onClose={() => setSoapReviewNote(null)}
-          onSigned={() => {
-            loadDelinquent();
-            loadRoomEncounters();
-          }}
         />
       )}
 
