@@ -558,43 +558,45 @@ const LabDashboard: React.FC = () => {
     }
   };
 
-  // Release a patient before lab results are in. Lab tests stay in_progress
-  // (they get completed when results are entered later); the encounter is
-  // closed so the patient can physically leave and the receptionist is
-  // alerted to handle billing/checkout. Doctor can review results when ready.
+  // Release patient back to the nurse — the nurse decides what's next
+  // (more orders, another department, or final checkout). Lab tests keep
+  // processing; the encounter is NOT closed and the room is NOT released.
+  const [releasing, setReleasing] = useState<Set<number>>(new Set());
+  const [released, setReleased] = useState<Set<number>>(new Set());
+
   const releasePatient = async (
     encounterId: number,
     patientName: string,
     pendingCount: number
   ) => {
+    if (releasing.has(encounterId) || released.has(encounterId)) return;
     const ok = await confirmDialog({
-      title: 'Release patient before results?',
+      title: 'Send back to nurse?',
       message:
-        `Release ${patientName} from the lab now? ${pendingCount} test(s) will keep processing in the background. ` +
-        `The room will be freed and the receptionist will be alerted to handle billing.`,
+        `Send ${patientName} back to the nurse? ${pendingCount} test(s) will keep processing in the background. ` +
+        `The nurse will be notified to take over follow-up.`,
       variant: 'warning',
-      confirmLabel: 'Release patient',
+      confirmLabel: 'Send to nurse',
     });
     if (!ok) return;
+    setReleasing(prev => new Set(prev).add(encounterId));
     try {
-      await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
-      // Also clear any open routing rows so the patient drops off the
-      // Walk-ins list when the room is released. Fire-and-forget — if it
-      // fails the patient is still released, just lingers in the queue.
-      try {
-        const routing = await apiClient.get(`/department-routing/encounter/${encounterId}`);
-        const open = (routing.data.routings || routing.data || []).filter(
-          (r: any) => r.department === 'lab' && (r.status === 'pending' || r.status === 'in-progress')
-        );
-        for (const r of open) {
-          await apiClient.put(`/department-routing/${r.id}/status`, { status: 'completed' });
-        }
-      } catch { /* non-blocking */ }
-      showToast(`${patientName} released. Tests continue processing.`, 'success');
+      await apiClient.post('/workflow/release-to-nurse', {
+        encounter_id: encounterId,
+        from_department: 'lab',
+      });
+      setReleased(prev => new Set(prev).add(encounterId));
+      showToast(`${patientName} sent back to nurse. Tests continue processing.`, 'success');
       fetchLabOrders();
       fetchWalkIns();
     } catch (err: any) {
       showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
+    } finally {
+      setReleasing(prev => {
+        const next = new Set(prev);
+        next.delete(encounterId);
+        return next;
+      });
     }
   };
 
@@ -1469,22 +1471,45 @@ const LabDashboard: React.FC = () => {
                                 Start All Processing
                               </button>
                             )}
-                            {ordersSubTab === 'pending' && group.orders.some(o => o.status === 'in_progress' || o.status === 'pending') && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const pending = group.orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
-                                  releasePatient(group.encounter_id, group.patient_name, pending);
-                                }}
-                                className="px-3 py-1.5 text-xs font-semibold text-white bg-warning-600 rounded-lg hover:bg-warning-700 flex items-center gap-1.5 shadow-sm"
-                                title="Free the room and send patient to billing — tests keep processing"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
-                                Release Patient
-                              </button>
-                            )}
+                            {ordersSubTab === 'pending' && group.orders.some(o => o.status === 'in_progress' || o.status === 'pending') && (() => {
+                              const inFlight = releasing.has(group.encounter_id);
+                              const done = released.has(group.encounter_id);
+                              const disabled = inFlight || done;
+                              return (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (disabled) return;
+                                    const pending = group.orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
+                                    releasePatient(group.encounter_id, group.patient_name, pending);
+                                  }}
+                                  disabled={disabled}
+                                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors ${
+                                    done
+                                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                      : inFlight
+                                      ? 'bg-warning-300 text-white cursor-wait'
+                                      : 'bg-warning-600 hover:bg-warning-700 text-white'
+                                  }`}
+                                  title={
+                                    done
+                                      ? 'Already released to nurse'
+                                      : 'Send patient back to nurse — tests keep processing'
+                                  }
+                                >
+                                  {done ? (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                  )}
+                                  {done ? 'Sent to nurse' : inFlight ? 'Sending…' : 'Send to Nurse'}
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">

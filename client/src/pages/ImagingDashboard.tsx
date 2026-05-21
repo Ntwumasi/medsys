@@ -4,6 +4,7 @@ import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 
 interface RoutingRequest {
   id: number;
@@ -69,6 +70,40 @@ const ImagingDashboard: React.FC = () => {
   const [resultsSaving, setResultsSaving] = useState(false);
 
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
+  // Track which encounters have a release-to-nurse in flight / done
+  const [releasingNurse, setReleasingNurse] = useState<Set<number>>(new Set());
+  const [releasedToNurse, setReleasedToNurse] = useState<Set<number>>(new Set());
+
+  const sendToNurse = async (encounterId: number, patientName: string) => {
+    if (releasingNurse.has(encounterId) || releasedToNurse.has(encounterId)) return;
+    const ok = await confirmDialog({
+      title: 'Send back to nurse?',
+      message: `Send ${patientName} back to the nurse? The nurse will be notified to take over follow-up.`,
+      variant: 'warning',
+      confirmLabel: 'Send to nurse',
+    });
+    if (!ok) return;
+    setReleasingNurse(prev => new Set(prev).add(encounterId));
+    try {
+      await apiClient.post('/workflow/release-to-nurse', {
+        encounter_id: encounterId,
+        from_department: 'imaging',
+      });
+      setReleasedToNurse(prev => new Set(prev).add(encounterId));
+      showToast(`${patientName} sent back to nurse`, 'success');
+      fetchImagingOrders();
+      fetchWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
+    } finally {
+      setReleasingNurse(prev => {
+        const next = new Set(prev);
+        next.delete(encounterId);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     fetchWalkIns();
@@ -529,6 +564,30 @@ const ImagingDashboard: React.FC = () => {
                               Edit Results
                             </Button>
                           )}
+                          {(() => {
+                            const inFlight = releasingNurse.has(order.encounter_id);
+                            const done = releasedToNurse.has(order.encounter_id);
+                            const disabled = inFlight || done;
+                            return (
+                              <button
+                                onClick={() => {
+                                  if (disabled) return;
+                                  sendToNurse(order.encounter_id, order.patient_name);
+                                }}
+                                disabled={disabled}
+                                className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 shadow-sm transition-colors ${
+                                  done
+                                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                    : inFlight
+                                    ? 'bg-warning-300 text-white cursor-wait'
+                                    : 'bg-warning-600 hover:bg-warning-700 text-white'
+                                }`}
+                                title={done ? 'Already sent to nurse' : 'Send patient back to nurse'}
+                              >
+                                {done ? '✓ Sent to nurse' : inFlight ? 'Sending…' : 'Send to Nurse'}
+                              </button>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>

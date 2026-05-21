@@ -861,6 +861,39 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Hand patient back to the nurse after pharmacy is done with their part.
+  // Encounter stays open, room stays assigned — nurse picks up from here.
+  const [releasingNurse, setReleasingNurse] = useState<Set<number>>(new Set());
+  const [releasedToNurse, setReleasedToNurse] = useState<Set<number>>(new Set());
+  const sendToNurse = async (encounterId: number, patientName: string) => {
+    if (releasingNurse.has(encounterId) || releasedToNurse.has(encounterId)) return;
+    const ok = await confirmDialog({
+      title: 'Send back to nurse?',
+      message: `Send ${patientName} back to the nurse? The nurse will be notified to take over follow-up.`,
+      variant: 'warning',
+      confirmLabel: 'Send to nurse',
+    });
+    if (!ok) return;
+    setReleasingNurse(prev => new Set(prev).add(encounterId));
+    try {
+      await apiClient.post('/workflow/release-to-nurse', {
+        encounter_id: encounterId,
+        from_department: 'pharmacy',
+      });
+      setReleasedToNurse(prev => new Set(prev).add(encounterId));
+      showToast(`${patientName} sent back to nurse`, 'success');
+      fetchPendingOrders();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
+    } finally {
+      setReleasingNurse(prev => {
+        const next = new Set(prev);
+        next.delete(encounterId);
+        return next;
+      });
+    }
+  };
+
   const startProcessingOrder = async (orderId: number) => {
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
@@ -1483,6 +1516,31 @@ const PharmacyDashboard: React.FC = () => {
                             >
                               History
                             </button>
+                            {(() => {
+                              const inFlight = releasingNurse.has(group.encounter_id);
+                              const done = releasedToNurse.has(group.encounter_id);
+                              const disabled = inFlight || done;
+                              return (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (disabled) return;
+                                    sendToNurse(group.encounter_id, group.patient_name);
+                                  }}
+                                  disabled={disabled}
+                                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors ${
+                                    done
+                                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                      : inFlight
+                                      ? 'bg-warning-300 text-white cursor-wait'
+                                      : 'bg-warning-600 hover:bg-warning-700 text-white'
+                                  }`}
+                                  title={done ? 'Already sent to nurse' : 'Send patient back to nurse'}
+                                >
+                                  {done ? '✓ Sent to nurse' : inFlight ? 'Sending…' : 'Send to Nurse'}
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
 

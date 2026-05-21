@@ -1199,6 +1199,77 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
   }
 };
 
+// Lab / Pharmacy / Imaging: hand patient back to the nurse so the nurse
+// can decide what's next (more orders, send to another department, or
+// final checkout). Does NOT release the room, does NOT close the
+// encounter, does NOT generate an invoice. Just clears the department's
+// routing rows and notifies the nurse(s).
+export const releaseToNurse = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { encounter_id, from_department } = req.body || {};
+    if (!encounter_id) {
+      res.status(400).json({ error: 'encounter_id is required' });
+      return;
+    }
+    const validDepartments = ['lab', 'pharmacy', 'imaging'];
+    if (!validDepartments.includes(from_department)) {
+      res.status(400).json({ error: 'from_department must be lab, pharmacy, or imaging' });
+      return;
+    }
+
+    // Mark all open routing entries for this department + encounter as done
+    await pool.query(
+      `UPDATE department_routing
+         SET status = 'completed',
+             completed_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+       WHERE encounter_id = $1
+         AND department = $2
+         AND status IN ('pending', 'in-progress')`,
+      [encounter_id, from_department]
+    );
+
+    // Pull patient context for the notification
+    const ctx = await pool.query(
+      `SELECT p.patient_number,
+              u.first_name || ' ' || u.last_name AS patient_name
+         FROM encounters e
+         JOIN patients p ON e.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+        WHERE e.id = $1`,
+      [encounter_id]
+    );
+    if (ctx.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+    const { patient_name, patient_number } = ctx.rows[0];
+
+    const deptLabel: Record<string, string> = {
+      lab: 'lab',
+      pharmacy: 'pharmacy',
+      imaging: 'imaging',
+    };
+
+    await notificationService.sendToRole('nurse', {
+      type: 'patient_alert',
+      title: `Back from ${deptLabel[from_department]}`,
+      message: `${patient_name} (${patient_number}) is back from ${deptLabel[from_department]} and needs follow-up.`,
+      entityType: 'encounter',
+      entityId: encounter_id,
+    });
+
+    res.json({
+      message: `Patient sent back to nurse from ${from_department}`,
+      patient_name,
+      patient_number,
+    });
+  } catch (error) {
+    console.error('Release to nurse error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Nurse: Release room when patient workflow is complete
 export const releaseRoom = async (req: Request, res: Response): Promise<void> => {
   try {
