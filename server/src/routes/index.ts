@@ -442,7 +442,7 @@ router.get('/workflow/completed-encounters', authenticateToken, authorizeRoles('
 router.get('/workflow/rooms', authenticateToken, getAvailableRooms);
 router.get('/workflow/nurses', authenticateToken, authorizeRoles('receptionist'), getAvailableNurses);
 router.get('/workflow/doctors', authenticateToken, authorizeRoles('receptionist'), getAvailableDoctors);
-router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), releaseRoom);
+router.post('/workflow/release-room', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'lab'), releaseRoom);
 
 // Workflow routes - Receptionist alerts
 router.get('/workflow/receptionist/alerts', authenticateToken, authorizeRoles('receptionist'), getReceptionistAlerts);

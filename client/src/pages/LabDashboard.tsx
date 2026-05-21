@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
@@ -158,6 +159,7 @@ interface LeveyJenningsData {
 
 const LabDashboard: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
@@ -517,6 +519,33 @@ const LabDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('Failed to update order', 'error');
+    }
+  };
+
+  // Release a patient before lab results are in. Lab tests stay in_progress
+  // (they get completed when results are entered later); the encounter is
+  // closed so the patient can physically leave and the receptionist is
+  // alerted to handle billing/checkout. Doctor can review results when ready.
+  const releasePatient = async (
+    encounterId: number,
+    patientName: string,
+    pendingCount: number
+  ) => {
+    const ok = await confirmDialog({
+      title: 'Release patient before results?',
+      message:
+        `Release ${patientName} from the lab now? ${pendingCount} test(s) will keep processing in the background. ` +
+        `The room will be freed and the receptionist will be alerted to handle billing.`,
+      variant: 'warning',
+      confirmLabel: 'Release patient',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+      showToast(`${patientName} released. Tests continue processing.`, 'success');
+      fetchLabOrders();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
     }
   };
 
@@ -1373,6 +1402,22 @@ const LabDashboard: React.FC = () => {
                                 className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
                               >
                                 Start All Processing
+                              </button>
+                            )}
+                            {ordersSubTab === 'pending' && group.orders.some(o => o.status === 'in_progress' || o.status === 'pending') && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const pending = group.orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
+                                  releasePatient(group.encounter_id, group.patient_name, pending);
+                                }}
+                                className="px-3 py-1.5 text-xs font-semibold text-white bg-warning-600 rounded-lg hover:bg-warning-700 flex items-center gap-1.5 shadow-sm"
+                                title="Free the room and send patient to billing — tests keep processing"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                Release Patient
                               </button>
                             )}
                           </div>
