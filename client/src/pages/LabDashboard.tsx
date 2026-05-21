@@ -525,6 +525,39 @@ const LabDashboard: React.FC = () => {
     }
   };
 
+  // Remove a routing entry from the Walk-ins list. 'completed' = work done.
+  // 'cancelled' = routed in error / shouldn't have been here. Either way
+  // the patient drops off the queue.
+  const updateRoutingEntry = async (
+    routingId: number,
+    patientName: string,
+    nextStatus: 'completed' | 'cancelled'
+  ) => {
+    const verb = nextStatus === 'completed' ? 'mark as done' : 'remove';
+    const ok = await confirmDialog({
+      title: nextStatus === 'completed' ? 'Mark as done?' : 'Remove from queue?',
+      message:
+        nextStatus === 'completed'
+          ? `Mark ${patientName} as done in the lab? They will be removed from this list.`
+          : `Remove ${patientName} from the lab queue? Use this if they were routed by mistake.`,
+      variant: nextStatus === 'completed' ? 'success' : 'warning',
+      confirmLabel: nextStatus === 'completed' ? 'Mark done' : 'Remove',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.put(`/department-routing/${routingId}/status`, { status: nextStatus });
+      showToast(
+        nextStatus === 'completed'
+          ? `${patientName} marked done`
+          : `${patientName} removed from queue`,
+        'success'
+      );
+      fetchWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || `Failed to ${verb}`, 'error');
+    }
+  };
+
   // Release a patient before lab results are in. Lab tests stay in_progress
   // (they get completed when results are entered later); the encounter is
   // closed so the patient can physically leave and the receptionist is
@@ -545,8 +578,21 @@ const LabDashboard: React.FC = () => {
     if (!ok) return;
     try {
       await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+      // Also clear any open routing rows so the patient drops off the
+      // Walk-ins list when the room is released. Fire-and-forget — if it
+      // fails the patient is still released, just lingers in the queue.
+      try {
+        const routing = await apiClient.get(`/department-routing/encounter/${encounterId}`);
+        const open = (routing.data.routings || routing.data || []).filter(
+          (r: any) => r.department === 'lab' && (r.status === 'pending' || r.status === 'in-progress')
+        );
+        for (const r of open) {
+          await apiClient.put(`/department-routing/${r.id}/status`, { status: 'completed' });
+        }
+      } catch { /* non-blocking */ }
       showToast(`${patientName} released. Tests continue processing.`, 'success');
       fetchLabOrders();
+      fetchWalkIns();
     } catch (err: any) {
       showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
     }
@@ -1207,15 +1253,31 @@ const LabDashboard: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => {
-                            setSelectedPatientId(walkin.patient_id);
-                            setShowPatientQuickView(true);
-                          }}
-                          className="text-primary-600 hover:text-primary-800 font-medium text-sm"
-                        >
-                          View Patient
-                        </button>
+                        <div className="flex items-center gap-3 text-sm">
+                          <button
+                            onClick={() => {
+                              setSelectedPatientId(walkin.patient_id);
+                              setShowPatientQuickView(true);
+                            }}
+                            className="text-primary-600 hover:text-primary-800 font-medium"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => updateRoutingEntry(walkin.id, walkin.patient_name, 'completed')}
+                            className="text-success-600 hover:text-success-800 font-medium"
+                            title="Mark this patient as done in the lab"
+                          >
+                            Done
+                          </button>
+                          <button
+                            onClick={() => updateRoutingEntry(walkin.id, walkin.patient_name, 'cancelled')}
+                            className="text-danger-600 hover:text-danger-800 font-medium"
+                            title="Remove from queue (routed by mistake)"
+                          >
+                            Remove
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
