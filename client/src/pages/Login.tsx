@@ -23,15 +23,20 @@ const Login: React.FC = () => {
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  const { login, clearMustChangePassword, isAuthenticated } = useAuth();
+  const { login, clearMustChangePassword, isAuthenticated, mustChangePassword } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated — but NOT while a password change is
+  // required, otherwise the auto-redirect races the ChangePasswordModal and
+  // the user lands on /dashboard without ever seeing the prompt.
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !mustChangePassword) {
       navigate('/dashboard', { replace: true });
+    } else if (isAuthenticated && mustChangePassword) {
+      // Covers re-entry to /login while a forced change is still pending.
+      setShowChangePassword(true);
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, mustChangePassword, navigate]);
 
   // Auto-focus username on mount, or password if username is already filled
   useEffect(() => {
