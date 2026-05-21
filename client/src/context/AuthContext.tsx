@@ -216,12 +216,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const impersonateUser = async (userId: number) => {
-    const response = await authAPI.impersonate(userId);
+    // If we are already impersonating (e.g. a super admin sitting on the
+    // demo admin user via the role switcher), the /impersonate endpoint
+    // must be called with the *original* super-admin token, otherwise the
+    // controller sees the demo user as the actor. Briefly swap the original
+    // token into localStorage so the axios interceptor sends it.
+    const savedToken = localStorage.getItem('token');
+    if (impersonation.originalToken) {
+      localStorage.setItem('token', impersonation.originalToken);
+    }
+
+    let response;
+    try {
+      response = await authAPI.impersonate(userId);
+    } catch (err) {
+      if (savedToken) localStorage.setItem('token', savedToken);
+      throw err;
+    }
+
     const { user: impersonatedUser, token: impersonatedToken } = response;
 
-    // Save original admin session
-    const originalUser = user;
-    const originalToken = token;
+    // Preserve the outermost original session as the rollback target so
+    // "Return to Admin" still goes back to the super admin, not the demo
+    // user we were currently viewing as.
+    const originalUser = impersonation.originalUser ?? user;
+    const originalToken = impersonation.originalToken ?? token;
 
     // Set impersonated user as current
     setUser(impersonatedUser);
@@ -238,6 +257,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.setItem('token', impersonatedToken);
     localStorage.setItem('user', JSON.stringify(impersonatedUser));
     localStorage.setItem('impersonation', JSON.stringify(impersonationState));
+
+    // Clear any stale activeRole hint — we're now impersonating a specific
+    // user, not viewing a generic role.
+    setActiveRoleState(null);
+    localStorage.removeItem('activeRole');
   };
 
   const endImpersonation = () => {

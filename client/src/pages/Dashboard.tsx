@@ -152,7 +152,13 @@ interface PastPatientEncounter {
 }
 
 const Dashboard: React.FC = () => {
-  const { user, impersonateUser } = useAuth();
+  const { user, impersonateUser, impersonation } = useAuth();
+  // A super admin viewing the admin role is technically logged in as the
+  // demo admin user, so user.is_super_admin is false here. Fall back to the
+  // original session's flag so the "Login As" affordance still appears
+  // (same pattern as SuperAdminRoleSwitcher).
+  const canImpersonate =
+    user?.is_super_admin || impersonation.originalUser?.is_super_admin;
   const navigate = useNavigate();
   const { showToast } = useNotification();
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
@@ -2172,7 +2178,7 @@ const Dashboard: React.FC = () => {
                         >
                           Reset PW
                         </button>
-                        {user?.is_super_admin && member.is_active && member.role !== 'admin' && (
+                        {canImpersonate && member.is_active && member.role !== 'admin' && (
                           <button
                             onClick={() => handleImpersonate(member)}
                             className="text-secondary-600 hover:text-purple-900"
