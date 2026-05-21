@@ -224,6 +224,10 @@ const ReceptionistDashboard: React.FC = () => {
   const initialView = searchParams.get('view') === 'special-invoice' ? 'special-invoice' : 'queue';
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>(initialView);
   const [showGuide, setShowGuide] = useState(false);
+  // Ready-for-Billing accordion: closed by default. With 20+ checkouts a
+  // day the expanded list eats most of the queue view; receptionists open
+  // it only when actively processing checkouts.
+  const [billingExpanded, setBillingExpanded] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [nurses, setNurses] = useState<Nurse[]>([]);
@@ -1426,23 +1430,38 @@ const ReceptionistDashboard: React.FC = () => {
         {/* Main Content Area */}
         {activeView === 'queue' && (
           <>
-            {/* Billing Alerts Banner */}
+            {/* Billing Alerts Accordion — collapsed by default */}
             {billingAlerts.length > 0 && (
-              <div className="mb-6 bg-gradient-to-r from-success-50 to-success-50 border-2 border-success-300 rounded-xl p-4 shadow-md">
-                <div className="flex items-center justify-between mb-3">
+              <div className="mb-6 bg-gradient-to-r from-success-50 to-success-50 border-2 border-success-300 rounded-xl shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setBillingExpanded(v => !v)}
+                  aria-expanded={billingExpanded}
+                  className="w-full flex items-center justify-between p-4 hover:bg-success-100/50 transition-colors rounded-xl"
+                >
                   <div className="flex items-center gap-3">
                     <div className="bg-success-500 p-2 rounded-lg">
                       <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <div>
+                    <div className="text-left">
                       <h3 className="text-lg font-bold text-success-800">Ready for Billing</h3>
                       <p className="text-sm text-success-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} ready for checkout</p>
                     </div>
                   </div>
-                </div>
-                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-success-700">
+                    <span className="text-sm font-medium">{billingExpanded ? 'Hide' : 'View all'}</span>
+                    <svg
+                      className={`w-5 h-5 transition-transform duration-200 ${billingExpanded ? 'rotate-180' : ''}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </button>
+                {billingExpanded && (
+                <div className="space-y-2 px-4 pb-4">
                   {billingAlerts.map((alert) => (
                     <div
                       key={alert.id}
@@ -1491,6 +1510,7 @@ const ReceptionistDashboard: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
             )}
 
