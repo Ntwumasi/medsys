@@ -739,10 +739,13 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
     const authReq = req as any;
     const adminId = authReq.user?.id;
     const adminRole = authReq.user?.role;
+    const isSuperAdmin = authReq.user?.is_super_admin === true;
     const targetUserId = parseInt(req.params.userId as string);
 
-    // Verify the requesting user is an admin
-    if (adminRole !== 'admin') {
+    // Verify the requesting user is an admin or super admin. Super admins
+    // (e.g. Sedo Tamakloe) have role='doctor' but is_super_admin=true and
+    // must still be allowed to impersonate from the admin portal.
+    if (adminRole !== 'admin' && !isSuperAdmin) {
       res.status(403).json({ error: 'Only administrators can impersonate users' });
       return;
     }
