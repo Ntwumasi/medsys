@@ -45,6 +45,7 @@ interface AssignedPatient {
   status?: string;
   workflow_status?: string;
   current_department?: string;
+  is_checked_out?: boolean;
 }
 
 interface NurseProcedure {
@@ -1516,10 +1517,12 @@ const NurseDashboard: React.FC = () => {
                   <div
                     key={patient.id}
                     onClick={() => handleSelectPatient(patient)}
-                    className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 hover:bg-primary-50 group ${
+                    className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 group ${
                       selectedPatient?.id === patient.id
                         ? 'bg-primary-100 border-l-4 border-primary-600'
-                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-primary-300'
+                        : patient.is_checked_out
+                        ? 'opacity-70 border-l-4 border-transparent hover:bg-gray-50 hover:border-gray-300'
+                        : 'border-l-4 border-transparent hover:bg-primary-50 hover:border-l-4 hover:border-primary-300'
                     }`}
                   >
                     {/* Priority Indicator */}
@@ -1536,6 +1539,11 @@ const NurseDashboard: React.FC = () => {
                     {/* Patient Name */}
                     <div className="col-span-5">
                       <div className="flex items-center gap-1">
+                        {patient.is_checked_out && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-gray-200 text-gray-700 border border-gray-300" title="Receptionist has checked this patient out — still editable until end of day.">
+                            ✓ Out
+                          </span>
+                        )}
                         {patient.from_doctor && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-secondary-100 text-secondary-700 border border-secondary-300" title="Returned from Doctor">
                             <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

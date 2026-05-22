@@ -1088,6 +1088,7 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
          WHERE dr.encounter_id = e.id AND dr.status = 'pending'
          ORDER BY dr.created_at DESC LIMIT 1) as current_department,
         CASE
+          WHEN e.status IN ('completed', 'discharged') THEN 'checked_out'
           WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'lab' AND dr.status = 'pending') THEN 'at_lab'
           WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'imaging' AND dr.status = 'pending') THEN 'at_imaging'
           WHEN EXISTS (SELECT 1 FROM department_routing dr WHERE dr.encounter_id = e.id AND dr.department = 'pharmacy' AND dr.status = 'pending') THEN 'at_pharmacy'
@@ -1098,13 +1099,26 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
           WHEN e.vital_signs IS NOT NULL THEN 'vitals_complete'
           WHEN e.room_id IS NOT NULL THEN 'in_room'
           ELSE 'checked_in'
-        END as workflow_status
+        END as workflow_status,
+        (e.status IN ('completed', 'discharged')) as is_checked_out
       FROM encounters e
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
-      WHERE e.nurse_id = $1 AND e.status IN ('in-progress', 'with_nurse', 'ready_for_doctor', 'with_doctor')
+      -- Active encounters always show. Checked-out encounters show through
+      -- end of day (today's date in the server timezone) so the nurse can
+      -- still edit a patient that the receptionist closed. They drop off
+      -- naturally at midnight.
+      WHERE e.nurse_id = $1
+        AND (
+          e.status IN ('in-progress', 'with_nurse', 'ready_for_doctor', 'with_doctor')
+          OR (
+            e.status IN ('completed', 'discharged')
+            AND COALESCE(e.completed_at, e.encounter_date)::date = CURRENT_DATE
+          )
+        )
       ORDER BY
+        CASE WHEN e.status IN ('completed', 'discharged') THEN 2 ELSE 0 END,
         CASE WHEN e.status = 'with_nurse' THEN 0 ELSE 1 END,
         e.doctor_completed_at DESC NULLS LAST,
         e.triage_time DESC`,
