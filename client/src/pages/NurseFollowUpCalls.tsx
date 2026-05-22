@@ -357,26 +357,32 @@ const NurseFollowUpCalls: React.FC = () => {
                 </div>
               </div>
 
-              {/* Notes */}
+              {/* Notes — voice dictation supported */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-sm font-semibold text-gray-700">
                     Notes
                   </label>
-                  <VoiceDictationButton
-                    currentValue={patientNotes}
-                    onTranscriptChange={(text) => setPatientNotes(text)}
-                    size="sm"
-                    appendMode={true}
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">Hands-free →</span>
+                    <VoiceDictationButton
+                      currentValue={patientNotes}
+                      onTranscriptChange={(text) => setPatientNotes(text)}
+                      size="md"
+                      appendMode={true}
+                    />
+                  </div>
                 </div>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={patientNotes}
                   onChange={(e) => setPatientNotes(e.target.value)}
-                  placeholder="e.g. Patient confirmed feeling better. Medication is working well."
+                  placeholder="Speak or type — e.g. Patient confirmed feeling better. Medication is working well."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                 />
+                <p className="text-xs text-gray-400 mt-1">
+                  Tip: tap the mic button above to dictate notes while you're on the phone with the patient.
+                </p>
               </div>
             </div>
 

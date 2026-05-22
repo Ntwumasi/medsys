@@ -31,6 +31,7 @@ export const getFollowUpQueue = async (req: Request, res: Response): Promise<voi
         u_doctor.role as doctor_role,
         -- Calculate follow-up due date from encounter completion + timeframe
         CASE
+          WHEN e.follow_up_timeframe = '48-72 hours' THEN COALESCE(e.completed_at, e.encounter_date)::date + INTERVAL '2 days'
           WHEN e.follow_up_timeframe = '1 week' THEN COALESCE(e.completed_at, e.encounter_date)::date + INTERVAL '7 days'
           WHEN e.follow_up_timeframe = '2 weeks' THEN COALESCE(e.completed_at, e.encounter_date)::date + INTERVAL '14 days'
           WHEN e.follow_up_timeframe = '3 weeks' THEN COALESCE(e.completed_at, e.encounter_date)::date + INTERVAL '21 days'

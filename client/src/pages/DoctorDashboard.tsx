@@ -3228,9 +3228,12 @@ const DoctorDashboard: React.FC = () => {
                       onChange={(e) => setFollowUpTimeframe(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     >
+                      <option value="48-72 hours">48-72 hours (post-op / acute)</option>
                       <option value="1 week">1 week</option>
                       <option value="2 weeks">2 weeks</option>
+                      <option value="3 weeks">3 weeks</option>
                       <option value="1 month">1 month</option>
+                      <option value="2 months">2 months</option>
                       <option value="3 months">3 months</option>
                       <option value="6 months">6 months</option>
                     </select>
