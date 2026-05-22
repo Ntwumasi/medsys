@@ -101,6 +101,7 @@ interface LabOrder {
   results?: string;
   results_available_at?: string;
   notes?: string;
+  encounter_id?: number;
 }
 
 interface ImagingOrder {
@@ -205,10 +206,15 @@ const NurseDashboard: React.FC = () => {
   const [orderingProcedure, setOrderingProcedure] = useState(false);
   const [editingProcedureId, setEditingProcedureId] = useState<number | null>(null);
   const [editProcedureNotes, setEditProcedureNotes] = useState('');
+  const [editProcedureChargeId, setEditProcedureChargeId] = useState<number | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
+  // Patient-wide lab history (all encounters, completed only) so the nurse
+  // can review past results without flipping through historical encounters.
+  const [patientLabHistory, setPatientLabHistory] = useState<LabOrder[]>([]);
+  const [showLabHistory, setShowLabHistory] = useState(false);
   const [nurseAllergyWarnings, setNurseAllergyWarnings] = useState<Array<{allergen: string, reaction: string, severity: string, match_type: string, explanation: string}>>([]);
   const [showNurseAllergyModal, setShowNurseAllergyModal] = useState(false);
   const [pendingAdminOrder, setPendingAdminOrder] = useState<{id: number; name: string} | null>(null);
@@ -663,6 +669,17 @@ const NurseDashboard: React.FC = () => {
       setPharmacyOrders(res.data.pharmacy_orders || []);
     } catch (error) {
       console.error('Error loading orders:', error);
+    }
+
+    // Patient-wide lab history (completed only, last 20). Fires in parallel.
+    try {
+      const histRes = await apiClient.get(
+        `/orders/lab?patient_id=${selectedPatient.patient_id}&status=completed&limit=20`
+      );
+      setPatientLabHistory(histRes.data.lab_orders || []);
+    } catch (error) {
+      console.error('Error loading patient lab history:', error);
+      setPatientLabHistory([]);
     }
   };
 
@@ -2832,6 +2849,61 @@ const NurseDashboard: React.FC = () => {
                               </div>
                             )}
 
+                            {/* Patient Lab History — completed labs from prior encounters */}
+                            {patientLabHistory.filter(o => o.encounter_id !== selectedPatient.id).length > 0 && (
+                              <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowLabHistory(v => !v)}
+                                  className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-left"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span className="text-sm font-semibold text-gray-700">
+                                      Past Lab Results
+                                    </span>
+                                    <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary-100 text-primary-700">
+                                      {patientLabHistory.filter(o => o.encounter_id !== selectedPatient.id).length}
+                                    </span>
+                                  </div>
+                                  <svg className={`w-4 h-4 text-gray-500 transition-transform ${showLabHistory ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                {showLabHistory && (
+                                  <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                                    {patientLabHistory
+                                      .filter(o => o.encounter_id !== selectedPatient.id)
+                                      .map(order => (
+                                        <div key={order.id} className="p-3 bg-white">
+                                          <div className="flex justify-between items-start mb-1">
+                                            <div>
+                                              <div className="font-semibold text-sm text-gray-900">{order.test_name}</div>
+                                              <div className="text-xs text-gray-500">
+                                                {order.results_available_at
+                                                  ? safeFormatDate(order.results_available_at, 'MMM d, yyyy')
+                                                  : safeFormatDate(order.ordered_date, 'MMM d, yyyy')}
+                                                {order.ordering_provider_name && ` · ordered by ${order.ordering_provider_name}`}
+                                              </div>
+                                            </div>
+                                            <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-success-100 text-success-700">
+                                              {order.status}
+                                            </span>
+                                          </div>
+                                          {order.results && (
+                                            <pre className="mt-1 text-xs text-gray-800 whitespace-pre-wrap font-sans bg-gray-50 rounded p-2 border border-gray-100">
+                                              {order.results}
+                                            </pre>
+                                          )}
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             {/* Imaging Orders */}
                             {imagingOrders.length > 0 && (
                               <div className="mb-4">
@@ -3080,6 +3152,11 @@ const NurseDashboard: React.FC = () => {
                                           onClick={() => {
                                             setEditingProcedureId(procedure.id);
                                             setEditProcedureNotes(procedure.notes || '');
+                                            // Default the charge picker to the procedure's current type
+                                            const current = availableProcedures.find(
+                                              ap => ap.service_name === procedure.procedure_name
+                                            );
+                                            setEditProcedureChargeId(current?.id ?? null);
                                           }}
                                           className="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100"
                                         >
@@ -3122,16 +3199,33 @@ const NurseDashboard: React.FC = () => {
                                   </div>
                                   {/* Inline Edit Form */}
                                   {editingProcedureId === procedure.id && (
-                                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                      <label className="block text-xs font-medium text-gray-600 mb-1">Edit Notes</label>
-                                      <textarea
-                                        rows={2}
-                                        value={editProcedureNotes}
-                                        onChange={(e) => setEditProcedureNotes(e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-                                        placeholder="Update procedure notes..."
-                                      />
-                                      <div className="flex justify-end gap-2 mt-2">
+                                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Procedure type</label>
+                                        <select
+                                          value={editProcedureChargeId ?? ''}
+                                          onChange={(e) => setEditProcedureChargeId(e.target.value ? Number(e.target.value) : null)}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
+                                        >
+                                          <option value="">— Keep current ({procedure.procedure_name}) —</option>
+                                          {availableProcedures.map(ap => (
+                                            <option key={ap.id} value={ap.id}>
+                                              {ap.service_name} — GHS {Number(ap.price || 0).toFixed(2)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                                        <textarea
+                                          rows={2}
+                                          value={editProcedureNotes}
+                                          onChange={(e) => setEditProcedureNotes(e.target.value)}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                                          placeholder="Update procedure notes..."
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
                                         <button
                                           onClick={() => setEditingProcedureId(null)}
                                           className="px-3 py-1 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100"
@@ -3141,9 +3235,16 @@ const NurseDashboard: React.FC = () => {
                                         <button
                                           onClick={async () => {
                                             try {
-                                              await apiClient.put(`/nurse-procedures/${procedure.id}`, {
-                                                notes: editProcedureNotes,
-                                              });
+                                              const body: any = { notes: editProcedureNotes };
+                                              // If the nurse picked a different procedure type, send name + charge id
+                                              if (editProcedureChargeId) {
+                                                const picked = availableProcedures.find(ap => ap.id === editProcedureChargeId);
+                                                if (picked) {
+                                                  body.procedure_name = picked.service_name;
+                                                  body.charge_master_id = picked.id;
+                                                }
+                                              }
+                                              await apiClient.put(`/nurse-procedures/${procedure.id}`, body);
                                               showToast('Procedure updated', 'success');
                                               setEditingProcedureId(null);
                                               loadNurseProcedures();
