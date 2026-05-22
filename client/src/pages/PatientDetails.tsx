@@ -122,6 +122,41 @@ const EncounterAddenda: React.FC<{ encounterId: number; canAdd: boolean }> = ({ 
   );
 };
 
+// How long the patient was at the clinic for a given encounter, rendered as
+// e.g. "2h 34m" or "45m" or "3d 4h" for cross-day stays. Falls back to "In
+// progress" when the visit hasn't been checked out yet. Returns null when
+// we don't have a check-in time at all (legacy encounters predate the
+// timestamp).
+const formatVisitDuration = (encounter: {
+  checked_in_at?: string | null;
+  discharged_at?: string | null;
+  encounter_date?: string | null;
+}): string | null => {
+  const startStr = encounter.checked_in_at || encounter.encounter_date;
+  if (!startStr) return null;
+  const start = new Date(startStr);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const endStr = encounter.discharged_at;
+  if (!endStr) {
+    // Still in progress — only meaningful for the active visit. Skip when
+    // there's no checked_in_at to avoid claiming legacy rows are open.
+    return encounter.checked_in_at ? 'In progress' : null;
+  }
+  const end = new Date(endStr);
+  if (Number.isNaN(end.getTime())) return null;
+
+  const ms = end.getTime() - start.getTime();
+  if (ms < 0) return null;
+  const totalMin = Math.round(ms / 60000);
+  const days = Math.floor(totalMin / (60 * 24));
+  const hours = Math.floor((totalMin % (60 * 24)) / 60);
+  const mins = totalMin % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+};
+
 const PatientDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -611,7 +646,17 @@ const PatientDetails: React.FC = () => {
                           <p className="text-sm text-gray-700 mb-1">
                             <strong>Chief Complaint:</strong> {encounter.chief_complaint || 'N/A'}
                           </p>
-                          <p className="text-xs text-gray-500">Provider: {encounter.provider_name}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <p className="text-xs text-gray-500">Provider: {encounter.provider_name}</p>
+                            {formatVisitDuration(encounter) && (
+                              <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {formatVisitDuration(encounter)}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -674,7 +719,17 @@ const PatientDetails: React.FC = () => {
                             <h3 className="text-lg font-bold text-gray-900">
                               {format(new Date(encounter.encounter_date), 'EEEE, MMMM d, yyyy')}
                             </h3>
-                            <p className="text-sm text-gray-600">Provider: {encounter.provider_name}</p>
+                            <div className="flex items-center gap-3 mt-1 flex-wrap">
+                              <p className="text-sm text-gray-600">Provider: {encounter.provider_name}</p>
+                              {formatVisitDuration(encounter) && (
+                                <span className="text-sm text-blue-700 font-medium flex items-center gap-1">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Duration: {formatVisitDuration(encounter)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <span className="px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-full">
                             {encounter.encounter_type || 'General'}
