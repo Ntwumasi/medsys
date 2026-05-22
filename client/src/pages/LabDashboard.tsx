@@ -28,6 +28,9 @@ interface LabOrder {
   specimen_id?: string;
   specimen_type?: string;
   rejection_reason?: string;
+  result_document_id?: number | null;
+  result_document_name?: string | null;
+  result_document_file_type?: string | null;
 }
 
 interface GroupedPatientLabOrders {
@@ -522,6 +525,37 @@ const LabDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error updating status:', error);
       showToast('Failed to update order', 'error');
+    }
+  };
+
+  // Fetch the uploaded result file and open it (PDF/image preview in new tab,
+  // download otherwise). Used both by the lab tech to verify what they
+  // uploaded and by anyone clicking View File on a completed lab order.
+  const viewLabResultFile = async (documentId: number) => {
+    try {
+      const res = await apiClient.get(`/documents/${documentId}`);
+      const { file_data, file_type, document_name } = res.data || {};
+      if (!file_data) {
+        showToast('File data not available', 'error');
+        return;
+      }
+      const byteChars = atob(file_data);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: file_type || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const previewable = (file_type || '').startsWith('image/') || file_type === 'application/pdf';
+      if (previewable) {
+        window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = document_name || 'lab-result';
+        a.click();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to load file', 'error');
     }
   };
 
@@ -1577,6 +1611,18 @@ const LabDashboard: React.FC = () => {
                                   Enter Results
                                 </button>
                               )}
+                              {order.status === 'completed' && order.result_document_id && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); viewLabResultFile(order.result_document_id as number); }}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                                  title={order.result_document_name || 'View uploaded file'}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  View File
+                                </button>
+                              )}
                               {order.status === 'completed' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); printLabReport(order); }}
@@ -1591,10 +1637,30 @@ const LabDashboard: React.FC = () => {
                             </div>
                           </div>
                           {/* Inline results for completed orders */}
-                          {order.status === 'completed' && order.results && (
+                          {order.status === 'completed' && order.results && order.results.trim() && (
                             <div className="mt-2 p-3 bg-success-50 rounded border border-success-200 ml-7">
                               <div className="text-xs font-bold text-success-800 mb-1">Results:</div>
                               <div className="text-sm text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                            </div>
+                          )}
+                          {/* Attached file indicator — lab tech can verify what they uploaded */}
+                          {order.status === 'completed' && order.result_document_id && (
+                            <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200 ml-7 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm text-blue-900 min-w-0">
+                                <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span className="truncate">
+                                  <span className="font-medium">Attached file: </span>{order.result_document_name || 'lab result'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); viewLabResultFile(order.result_document_id as number); }}
+                                className="flex-shrink-0 px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded hover:bg-blue-700"
+                              >
+                                View
+                              </button>
                             </div>
                           )}
                         </div>
