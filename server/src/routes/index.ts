@@ -24,6 +24,7 @@ import {
   deleteUser,
   activateUser,
   getActiveDoctors,
+  getActiveLabReviewers,
   resetUserPassword,
 } from '../controllers/userController';
 import {
@@ -97,6 +98,9 @@ import {
   updateLabOrder,
   deleteLabResult,
   getLabResultAudit,
+  verifyLabResult,
+  rejectLabResult,
+  getPendingVerificationQueue,
   createImagingOrder,
   getImagingOrders,
   updateImagingOrder,
@@ -403,6 +407,7 @@ router.delete('/messages/:messageId', authenticateToken, deleteMessage);
 
 // Get active doctors (for nurses to select when ordering labs)
 router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin', 'receptionist'), getActiveDoctors);
+router.get('/users/lab-reviewers', authenticateToken, authorizeRoles('lab', 'admin'), getActiveLabReviewers);
 
 // User Management routes (Admin only)
 router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
@@ -489,7 +494,12 @@ router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, 
 // Orders routes - Lab
 router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse'), createLabOrder);
 router.get('/orders/lab', authenticateToken, getLabOrders);
+// Pending-verification queue MUST be registered before the :id routes below,
+// otherwise Express interprets "pending-verification" as an :id parameter.
+router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
 router.put('/orders/lab/:id', authenticateToken, updateLabOrder);
+router.post('/orders/lab/:id/verify', authenticateToken, authorizeRoles('lab', 'admin'), verifyLabResult);
+router.post('/orders/lab/:id/reject', authenticateToken, authorizeRoles('lab', 'admin'), rejectLabResult);
 router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('lab', 'admin'), deleteLabResult);
 router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 

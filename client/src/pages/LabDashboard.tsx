@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
@@ -33,6 +34,23 @@ interface LabOrder {
   result_document_file_type?: string | null;
   patient_dob?: string | null;
   patient_gender?: string | null;
+  entered_by?: number | null;
+  entered_by_name?: string | null;
+  verification_status?: 'not_required' | 'pending' | 'verified' | 'rejected' | null;
+  assigned_reviewer_id?: number | null;
+  assigned_reviewer_name?: string | null;
+  verified_by?: number | null;
+  verified_by_name?: string | null;
+  verified_at?: string | null;
+  verification_notes?: string | null;
+  rejection_count?: number;
+}
+
+interface LabReviewer {
+  id: number;
+  first_name: string;
+  last_name: string;
+  role: string;
 }
 
 interface GroupedPatientLabOrders {
@@ -168,7 +186,7 @@ const LabDashboard: React.FC = () => {
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
-  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins' | 'verification'>('orders');
   const [walkIns, setWalkIns] = useState<any[]>([]);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
   const [statusFilter, setStatusFilter] = useState<string>(''); // '', 'pending', 'in_progress', 'stat'
@@ -305,6 +323,16 @@ const LabDashboard: React.FC = () => {
     specimen_id: '',
   });
 
+  // Peer-review verification state
+  const { user: currentUser } = useAuth();
+  const [labReviewers, setLabReviewers] = useState<LabReviewer[]>([]);
+  const [assignedReviewerId, setAssignedReviewerId] = useState<number | ''>('');
+  const [pendingVerification, setPendingVerification] = useState<LabOrder[]>([]);
+  const [rejectingOrder, setRejectingOrder] = useState<LabOrder | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [verifyingOrder, setVerifyingOrder] = useState<LabOrder | null>(null);
+  const [verifyNotes, setVerifyNotes] = useState('');
+
   // Fetch lab orders with filters
   const fetchLabOrders = useCallback(async () => {
     try {
@@ -420,6 +448,31 @@ const LabDashboard: React.FC = () => {
     }
   }, [showToast]);
 
+  // List of lab users available to act as reviewer on a result. The current
+  // user is excluded (self-review is blocked on the server). Used to populate
+  // the "Assign reviewer" dropdown when entering a result.
+  const fetchLabReviewers = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/users/lab-reviewers');
+      setLabReviewers((response.data.reviewers || []) as LabReviewer[]);
+    } catch (error) {
+      console.error('Could not load lab reviewer list:', error);
+      setLabReviewers([]);
+    }
+  }, []);
+
+  // Pull the list of lab results waiting on peer review. The server hides
+  // rows the current user entered themselves, so this is exactly the queue
+  // of items they can act on.
+  const fetchPendingVerification = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/orders/lab/pending-verification');
+      setPendingVerification(response.data.pending || []);
+    } catch (error) {
+      console.error('Error fetching pending verification queue:', error);
+    }
+  }, []);
+
   // Fetch test catalog
   const fetchTestCatalog = useCallback(async () => {
     try {
@@ -468,9 +521,14 @@ const LabDashboard: React.FC = () => {
   useEffect(() => {
     fetchLabOrders();
     fetchAnalytics(); // Load analytics for stats cards
-    const interval = setInterval(fetchLabOrders, 30000);
+    fetchLabReviewers();
+    fetchPendingVerification();
+    const interval = setInterval(() => {
+      fetchLabOrders();
+      fetchPendingVerification();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [fetchLabOrders, fetchAnalytics]);
+  }, [fetchLabOrders, fetchAnalytics, fetchLabReviewers, fetchPendingVerification]);
 
   useEffect(() => {
     if (activeTab === 'inventory') fetchInventory();
@@ -778,6 +836,25 @@ const LabDashboard: React.FC = () => {
   const submitStructuredResult = async () => {
     if (!selectedOrderForResult) return;
 
+    // Verification flow: any result entered against an order that has not
+    // already been verified must be assigned to a peer reviewer. The server
+    // enforces this too, but we want to give a clear inline error instead of
+    // bouncing off a 400 response.
+    const alreadyVerified = selectedOrderForResult.verification_status === 'verified';
+    if (!alreadyVerified) {
+      if (!assignedReviewerId) {
+        showToast('Pick a reviewer before submitting the result.', 'error');
+        return;
+      }
+      if (labReviewers.length === 0) {
+        showToast(
+          'No other lab user is available to verify this result. Ask an admin to add another lab tech.',
+          'error',
+        );
+        return;
+      }
+    }
+
     // If we're editing a result on a previously completed order, require a
     // reason for the audit trail. Skip when this is the first save.
     let reason: string | null | undefined;
@@ -799,9 +876,14 @@ const LabDashboard: React.FC = () => {
 
       // First update the lab order
       await apiClient.put(`/orders/lab/${selectedOrderForResult.id}`, {
+        // Server moves us to 'in-progress' + verification_status='pending'
+        // when a reviewer is assigned. We pass 'completed' for legacy /
+        // grandfathered (verification_status='not_required') rows so the
+        // existing finalisation path runs.
         status: 'completed',
         results: resultText,
         specimen_id: structuredResult.specimen_id,
+        ...(alreadyVerified ? {} : { assigned_reviewer_id: assignedReviewerId }),
         ...(reason ? { reason } : {}),
       });
 
@@ -832,7 +914,12 @@ const LabDashboard: React.FC = () => {
         };
         reader.readAsDataURL(selectedFile);
       } else {
-        showToast('Result submitted successfully', 'success');
+        showToast(
+          alreadyVerified
+            ? 'Result updated.'
+            : 'Result submitted for verification. A reviewer will be notified.',
+          'success',
+        );
       }
 
       setShowResultModal(false);
@@ -840,8 +927,10 @@ const LabDashboard: React.FC = () => {
       setSelectedOrderForResult(null);
       setTestReferenceRanges(null);
       setSelectedFile(null);
+      setAssignedReviewerId('');
       fetchLabOrders();
       fetchCriticalAlerts();
+      fetchPendingVerification();
     } catch (error) {
       console.error('Error submitting result:', error);
       showToast('Failed to submit result', 'error');
@@ -912,6 +1001,48 @@ const LabDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error exporting analytics:', error);
       showToast('Failed to export report', 'error');
+    }
+  };
+
+  // Peer-review verification actions. The server enforces the same
+  // constraints (lab role, can't verify own work), so these handlers are
+  // intentionally thin — they just POST and refresh.
+  const submitVerification = async () => {
+    if (!verifyingOrder) return;
+    try {
+      await apiClient.post(`/orders/lab/${verifyingOrder.id}/verify`, {
+        notes: verifyNotes.trim() || undefined,
+      });
+      showToast('Result verified. Doctor will be notified.', 'success');
+      setVerifyingOrder(null);
+      setVerifyNotes('');
+      fetchPendingVerification();
+      fetchLabOrders();
+      fetchCriticalAlerts();
+    } catch (error: any) {
+      console.error('Error verifying result:', error);
+      showToast(error.response?.data?.error || 'Failed to verify result', 'error');
+    }
+  };
+
+  const submitRejection = async () => {
+    if (!rejectingOrder) return;
+    if (!rejectReason.trim()) {
+      showToast('A reason is required when rejecting a result.', 'error');
+      return;
+    }
+    try {
+      await apiClient.post(`/orders/lab/${rejectingOrder.id}/reject`, {
+        reason: rejectReason.trim(),
+      });
+      showToast('Result sent back to the entry tech.', 'success');
+      setRejectingOrder(null);
+      setRejectReason('');
+      fetchPendingVerification();
+      fetchLabOrders();
+    } catch (error: any) {
+      console.error('Error rejecting result:', error);
+      showToast(error.response?.data?.error || 'Failed to reject result', 'error');
     }
   };
 
@@ -1297,6 +1428,7 @@ const LabDashboard: React.FC = () => {
             {[
               { id: 'walkins', label: 'Walk-ins', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', count: walkIns.length },
               { id: 'orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', count: labOrders.filter(o => o.status !== 'completed').length },
+              { id: 'verification', label: 'Verification', icon: 'M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z', count: pendingVerification.length, alert: pendingVerification.length > 0 },
               { id: 'inventory', label: 'Inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', count: inventory.length },
               { id: 'catalog', label: 'Test Catalog', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' },
               { id: 'qc', label: 'Quality Control', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' },
@@ -1847,7 +1979,41 @@ const LabDashboard: React.FC = () => {
                           }`}>
                             {selectedOrderForDetails.status.replace('_', ' ').toUpperCase()}
                           </span>
+                          {selectedOrderForDetails.verification_status === 'pending' && (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-warning-100 text-warning-700">
+                              PENDING REVIEW
+                            </span>
+                          )}
+                          {selectedOrderForDetails.verification_status === 'rejected' && (
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-danger-100 text-danger-700">
+                              SENT BACK
+                            </span>
+                          )}
                         </div>
+                        {/* Provenance: who entered, who verified. Helps the
+                            doctor (and audit) see the peer review trail at a
+                            glance without opening the audit log. */}
+                        {(selectedOrderForDetails.entered_by_name || selectedOrderForDetails.verified_by_name) && (
+                          <div className="text-xs text-gray-500 mt-2 space-y-0.5">
+                            {selectedOrderForDetails.entered_by_name && (
+                              <div>Entered by {selectedOrderForDetails.entered_by_name}</div>
+                            )}
+                            {selectedOrderForDetails.verified_by_name && (
+                              <div>
+                                Verified by {selectedOrderForDetails.verified_by_name}
+                                {selectedOrderForDetails.verified_at && (
+                                  <> · {new Date(selectedOrderForDetails.verified_at).toLocaleString()}</>
+                                )}
+                              </div>
+                            )}
+                            {selectedOrderForDetails.verification_status === 'rejected' &&
+                              selectedOrderForDetails.rejection_reason && (
+                                <div className="text-warning-700">
+                                  Reason for send-back: {selectedOrderForDetails.rejection_reason}
+                                </div>
+                              )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1960,6 +2126,109 @@ const LabDashboard: React.FC = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Verification Tab — peer-review queue */}
+        {activeTab === 'verification' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold">Results awaiting verification</h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  These results have been entered by another lab tech and are waiting for a peer review before the doctor can see them.
+                </p>
+              </div>
+              <button
+                onClick={fetchPendingVerification}
+                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+              >
+                Refresh
+              </button>
+            </div>
+            {pendingVerification.length === 0 ? (
+              <div className="p-12 text-center text-gray-500">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-lg font-medium">All caught up</p>
+                <p className="text-sm mt-1">No results are waiting on you. Nice.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {pendingVerification.map((order) => {
+                  const assignedToMe =
+                    currentUser?.id != null && order.assigned_reviewer_id === currentUser.id;
+                  return (
+                    <div key={order.id} className="p-4">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900">{order.test_name}</span>
+                            {order.priority === 'stat' && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-danger-100 text-danger-700 font-bold uppercase">
+                                STAT
+                              </span>
+                            )}
+                            {order.priority === 'urgent' && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-warning-100 text-warning-700 font-bold uppercase">
+                                Urgent
+                              </span>
+                            )}
+                            {assignedToMe && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 font-semibold">
+                                Assigned to you
+                              </span>
+                            )}
+                            {(order.rejection_count || 0) > 0 && (
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-warning-50 text-warning-700">
+                                Resubmitted ({order.rejection_count}×)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1">
+                            {order.patient_name} · {order.patient_number}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Entered by {order.entered_by_name || 'unknown'} · Assigned to{' '}
+                            {order.assigned_reviewer_name || 'anyone'}
+                          </div>
+                          {order.results && (
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm font-mono whitespace-pre-wrap">
+                              {order.results}
+                            </div>
+                          )}
+                          {order.result_document_id && (
+                            <a
+                              href={`/api/documents/${order.result_document_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block mt-2 text-sm text-primary-600 hover:underline"
+                            >
+                              View attached document ({order.result_document_name || 'file'})
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <button
+                            onClick={() => setVerifyingOrder(order)}
+                            className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 text-sm font-medium"
+                          >
+                            Verify
+                          </button>
+                          <button
+                            onClick={() => setRejectingOrder(order)}
+                            className="px-4 py-2 bg-white border border-danger-300 text-danger-700 rounded-lg hover:bg-danger-50 text-sm font-medium"
+                          >
+                            Send back
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -3169,6 +3438,50 @@ const LabDashboard: React.FC = () => {
                 />
               </div>
 
+              {/* Reviewer assignment — required when the order has not been
+                  verified yet. Hidden on grandfathered/already-verified rows
+                  where the server skips the verification flow. */}
+              {selectedOrderForResult.verification_status !== 'verified' && (
+                <div className="mb-4 border-t border-gray-200 pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Assign reviewer <span className="text-danger-600">*</span>
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    This result will only go to the doctor after another lab tech reviews and approves it.
+                  </p>
+                  <select
+                    value={assignedReviewerId}
+                    onChange={(e) =>
+                      setAssignedReviewerId(e.target.value ? parseInt(e.target.value, 10) : '')
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">— Pick a reviewer —</option>
+                    {labReviewers.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.first_name} {r.last_name} ({r.role})
+                      </option>
+                    ))}
+                  </select>
+                  {labReviewers.length === 0 && (
+                    <p className="text-xs text-danger-600 mt-1">
+                      No other lab user is set up. Ask an admin to add a second lab tech before submitting results.
+                    </p>
+                  )}
+                  {selectedOrderForResult.verification_status === 'rejected' &&
+                    selectedOrderForResult.rejection_reason && (
+                      <div className="mt-3 p-3 bg-warning-50 border border-warning-200 rounded-lg text-sm">
+                        <div className="font-semibold text-warning-800">
+                          Previously rejected — reason:
+                        </div>
+                        <div className="text-warning-700">
+                          {selectedOrderForResult.rejection_reason}
+                        </div>
+                      </div>
+                    )}
+                </div>
+              )}
+
               {/* File Upload Section */}
               <div className="border-t border-gray-200 pt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Upload Lab Result Document (Optional)</label>
@@ -3215,6 +3528,7 @@ const LabDashboard: React.FC = () => {
                   setTestReferenceRanges(null);
                   setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
                   setSelectedFile(null);
+                  setAssignedReviewerId('');
                 }}
                 className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
@@ -3222,7 +3536,11 @@ const LabDashboard: React.FC = () => {
               </button>
               <button
                 onClick={submitStructuredResult}
-                disabled={!structuredResult.value || uploadingFile}
+                disabled={
+                  !structuredResult.value ||
+                  uploadingFile ||
+                  (selectedOrderForResult.verification_status !== 'verified' && !assignedReviewerId)
+                }
                 className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {uploadingFile && (
@@ -3231,7 +3549,114 @@ const LabDashboard: React.FC = () => {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 )}
-                {uploadingFile ? 'Uploading...' : 'Complete & Submit Results'}
+                {uploadingFile
+                  ? 'Uploading...'
+                  : selectedOrderForResult.verification_status === 'verified'
+                  ? 'Save changes'
+                  : 'Submit for verification'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verify confirmation modal */}
+      {verifyingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Verify lab result</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {verifyingOrder.test_name} for {verifyingOrder.patient_name}
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {verifyingOrder.results && (
+                <div className="p-3 bg-gray-50 rounded text-sm font-mono whitespace-pre-wrap">
+                  {verifyingOrder.results}
+                </div>
+              )}
+              <p className="text-sm text-gray-600">
+                Approving this result will mark the order completed and notify the doctor. Critical-value alerts (if any) will fire now.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={verifyNotes}
+                  onChange={(e) => setVerifyNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  placeholder="e.g. Cross-checked against control"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setVerifyingOrder(null);
+                  setVerifyNotes('');
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitVerification}
+                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+              >
+                Approve & release to doctor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject modal */}
+      {rejectingOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Send result back</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {rejectingOrder.test_name} for {rejectingOrder.patient_name}
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">
+                The result will go back to <span className="font-medium">{rejectingOrder.entered_by_name || 'the entry tech'}</span> for correction. The doctor will not see it.
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reason <span className="text-danger-600">*</span>
+                </label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  placeholder="e.g. Value looks like a typo (10× expected); please rerun"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setRejectingOrder(null);
+                  setRejectReason('');
+                }}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitRejection}
+                disabled={!rejectReason.trim()}
+                className="px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Send back
               </button>
             </div>
           </div>

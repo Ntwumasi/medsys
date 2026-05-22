@@ -402,3 +402,26 @@ export const getActiveDoctors = async (_req: Request, res: Response): Promise<vo
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// Active lab users — used to populate the reviewer dropdown when entering a
+// lab result. Excludes the caller so the UI never offers self-review (the
+// server enforces the same rule, this is just for the dropdown).
+export const getActiveLabReviewers = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const currentUserId = authReq.user?.id;
+    const result = await pool.query(
+      `SELECT id, username, first_name, last_name, role
+         FROM users
+        WHERE role IN ('lab', 'admin') AND is_active = true
+          AND ($1::int IS NULL OR id <> $1)
+        ORDER BY last_name ASC, first_name ASC`,
+      [currentUserId || null]
+    );
+
+    res.json({ reviewers: result.rows });
+  } catch (error) {
+    console.error('Get active lab reviewers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

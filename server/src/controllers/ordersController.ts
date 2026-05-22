@@ -69,7 +69,22 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
 
 export const getLabOrders = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureLabVerificationSchema();
     const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
+
+    const authReqGet = req as any;
+    const requesterRole = authReqGet.user?.role;
+    // Doctors/nurses/receptionists must not see entered-but-unverified results
+    // (verification_status = 'pending' or 'rejected'). We blank the result
+    // fields at the SQL level so a verifier mid-review can't leak preliminary
+    // values to the doctor. Lab and admin roles always see the full payload.
+    const canSeeUnverified = requesterRole === 'lab' || requesterRole === 'admin';
+    const resultCol = canSeeUnverified
+      ? 'lo.result'
+      : `CASE WHEN lo.verification_status IN ('pending','rejected') THEN NULL ELSE lo.result END`;
+    const resultDocCol = canSeeUnverified
+      ? 'lo.result_document_id'
+      : `CASE WHEN lo.verification_status IN ('pending','rejected') THEN NULL ELSE lo.result_document_id END`;
 
     let query = `
       SELECT lo.id,
@@ -86,10 +101,19 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.collected_date as specimen_collected_at,
         lo.result_date as results_available_at,
         lo.result_date as completed_at,
-        lo.result as results,
-        lo.result_document_id,
+        ${resultCol} as results,
+        ${resultDocCol} as result_document_id,
         pd.document_name as result_document_name,
         pd.file_type as result_document_file_type,
+        lo.verification_status,
+        lo.assigned_reviewer_id,
+        lo.verified_by,
+        lo.verified_at,
+        lo.verification_notes,
+        lo.rejection_reason,
+        lo.rejection_count,
+        u_reviewer.first_name || ' ' || u_reviewer.last_name as assigned_reviewer_name,
+        u_verifier.first_name || ' ' || u_verifier.last_name as verified_by_name,
         lo.created_at,
         lo.updated_at,
         CASE
@@ -109,6 +133,8 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
       LEFT JOIN users u_entered ON lo.entered_by = u_entered.id
+      LEFT JOIN users u_reviewer ON lo.assigned_reviewer_id = u_reviewer.id
+      LEFT JOIN users u_verifier ON lo.verified_by = u_verifier.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
       LEFT JOIN patients p ON lo.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
@@ -177,6 +203,37 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Auto-create the peer-review columns on first use so the feature degrades
+// gracefully if the addLabResultVerification migration has not yet been run
+// against this environment (e.g. the code deploys before the migration is
+// executed). Idempotent, runs once per process.
+let labVerificationSchemaEnsured = false;
+const ensureLabVerificationSchema = async (): Promise<void> => {
+  if (labVerificationSchemaEnsured) return;
+  try {
+    await pool.query(`
+      ALTER TABLE lab_orders
+        ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20)
+          DEFAULT 'not_required'
+          CHECK (verification_status IN ('not_required', 'pending', 'verified', 'rejected')),
+        ADD COLUMN IF NOT EXISTS assigned_reviewer_id INTEGER REFERENCES users(id),
+        ADD COLUMN IF NOT EXISTS verified_by INTEGER REFERENCES users(id),
+        ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP,
+        ADD COLUMN IF NOT EXISTS verification_notes TEXT,
+        ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+        ADD COLUMN IF NOT EXISTS rejection_count INTEGER DEFAULT 0
+    `);
+    await pool.query(`
+      UPDATE lab_orders SET verification_status = 'not_required'
+       WHERE verification_status IS NULL
+    `);
+    labVerificationSchemaEnsured = true;
+  } catch (err) {
+    // Don't permanently flip the flag — let the next call retry.
+    console.error('Failed to ensure lab verification schema:', err);
+  }
+};
+
 // Auto-create the audit table on first use so the feature works even
 // before the addLabResultAudit migration is run against this environment.
 let labResultAuditEnsured = false;
@@ -203,8 +260,125 @@ const ensureLabResultAudit = async (): Promise<void> => {
   labResultAuditEnsured = true;
 };
 
+// Side effects that fire when a lab order reaches the 'completed' state:
+// critical-value alerts, automatic billing, doctor notification, and
+// auto-routing the patient back to the nurse when all labs are done.
+//
+// Pulled out into a helper so it can be invoked from both the legacy update
+// path (grandfathered results going straight to completed) and the new
+// verifyLabResult endpoint. Idempotent — uses ON CONFLICT DO NOTHING and a
+// double-billing guard, so calling it twice on the same order is safe.
+const runLabCompletionSideEffects = async (
+  orderId: number,
+  order: any
+): Promise<void> => {
+  // 1. Critical-result alert
+  if (order.result) {
+    try {
+      const catalogResult = await pool.query(
+        `SELECT * FROM lab_test_catalog
+         WHERE test_code = $1 OR test_name ILIKE $2
+         LIMIT 1`,
+        [order.test_code, order.test_name]
+      );
+
+      if (catalogResult.rows.length > 0) {
+        const catalog = catalogResult.rows[0];
+        const resultValue = parseFloat(order.result);
+
+        if (!isNaN(resultValue)) {
+          let alertType: string | null = null;
+          if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
+            alertType = 'critical_low';
+          } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
+            alertType = 'critical_high';
+          }
+
+          if (alertType) {
+            await pool.query(
+              `INSERT INTO critical_result_alerts
+                 (lab_order_id, ordering_provider_id, alert_type, result_value)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT DO NOTHING`,
+              [orderId, order.ordering_provider, alertType, order.result]
+            );
+          }
+        }
+      }
+    } catch (criticalError) {
+      console.error('Error checking critical result:', criticalError);
+    }
+  }
+
+  // 2. Billing
+  try {
+    const chargeResult = await pool.query(
+      `SELECT id, service_name, price FROM charge_master
+       WHERE (service_code = $1 OR service_name ILIKE $2)
+       AND category = 'lab' AND is_active = true
+       LIMIT 1`,
+      [order.test_code, `%${order.test_name}%`]
+    );
+
+    const charge = chargeResult.rows[0];
+    const labPrice = charge ? parseFloat(charge.price) : 75.0;
+    const chargeDescription = charge ? charge.service_name : order.test_name;
+    const chargeMasterId = charge ? charge.id : null;
+
+    const invoiceResult = await pool.query(
+      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      [order.encounter_id]
+    );
+
+    if (invoiceResult.rows.length > 0) {
+      const invoiceId = invoiceResult.rows[0].id;
+      const existingItem = await pool.query(
+        `SELECT id FROM invoice_items
+         WHERE invoice_id = $1 AND description = $2`,
+        [invoiceId, `Lab: ${chargeDescription}`]
+      );
+
+      if (existingItem.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+           VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
+          [invoiceId, chargeMasterId, `Lab: ${chargeDescription}`, labPrice]
+        );
+        await pool.query(
+          `UPDATE invoices
+           SET subtotal = subtotal + $2,
+               total_amount = total_amount + $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [invoiceId, labPrice]
+        );
+      }
+    }
+  } catch (billingError) {
+    console.error('Error billing completed lab order:', billingError);
+  }
+
+  // 3. Notify doctor + auto-route patient back to nurse when all labs done
+  try {
+    await notificationService.notifyLabComplete(orderId);
+
+    const pendingOrders = await pool.query(
+      `SELECT COUNT(*) FROM lab_orders
+       WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')`,
+      [order.encounter_id]
+    );
+
+    if (parseInt(pendingOrders.rows[0].count) === 0) {
+      await notificationService.autoRouteToNurse(order.encounter_id, 'lab');
+    }
+  } catch (notifyError) {
+    console.error('Error notifying lab completion:', notifyError);
+  }
+};
+
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureLabVerificationSchema();
     await ensureLabResultAudit();
     const authReq = req as any;
     const userId = authReq.user?.id;
@@ -212,12 +386,19 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     const updateData = { ...req.body };
     const reason: string | undefined = updateData.reason;
     delete updateData.reason; // never goes into the lab_orders row
+    const assignedReviewerIdRaw = updateData.assigned_reviewer_id;
+    // Strip from the generic UPDATE payload — we set it explicitly below only
+    // when this update is a first-time result entry (or a resubmit after a
+    // rejection). Otherwise this column should not be touched.
+    delete updateData.assigned_reviewer_id;
 
     // Read the existing row BEFORE updating so we can detect changes and
     // log to the audit trail. Required when a 'completed' result is being
     // edited (paper-trail requirement).
     const beforeResult = await pool.query(
-      `SELECT id, status, result, result_document_id FROM lab_orders WHERE id = $1`,
+      `SELECT id, status, result, result_document_id, entered_by,
+              verification_status, rejection_count
+         FROM lab_orders WHERE id = $1`,
       [id]
     );
     if (beforeResult.rows.length === 0) {
@@ -252,8 +433,87 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       delete updateData.results;
     }
 
-    // If completing, set result_date to now
-    if (updateData.status === 'completed' && !updateData.result_date) {
+    // Detect a first-time result entry (or a resubmit after rejection).
+    // Either the result text or the attached PDF is being set, and the row
+    // is NOT already verified. This is the trigger for the peer-review flow:
+    // the lab tech must assign a reviewer and the order stays in-progress
+    // (verification_status='pending') until that reviewer approves.
+    const settingResultText =
+      updateData.result !== undefined &&
+      (updateData.result || '').trim() !== '' &&
+      (updateData.result || '').trim() !== (before.result || '').trim();
+    const settingResultDoc =
+      updateData.result_document_id !== undefined &&
+      updateData.result_document_id !== null &&
+      updateData.result_document_id !== before.result_document_id;
+    const enteringResult = settingResultText || settingResultDoc;
+    const alreadyVerified = before.verification_status === 'verified';
+    const triggersVerificationFlow = enteringResult && !alreadyVerified;
+
+    if (triggersVerificationFlow) {
+      // Reviewer must be supplied, must be a real lab user, and cannot be the
+      // person entering the result (self-review is blocked).
+      const reviewerId = parseInt(assignedReviewerIdRaw, 10);
+      if (!reviewerId || Number.isNaN(reviewerId)) {
+        res.status(400).json({
+          error: 'A reviewer must be assigned before submitting a lab result for verification.',
+        });
+        return;
+      }
+      const entryUserId = before.entered_by || userId;
+      if (reviewerId === entryUserId) {
+        res.status(400).json({
+          error: 'You cannot assign yourself as the reviewer. Please pick another lab tech.',
+        });
+        return;
+      }
+      const reviewerCheck = await pool.query(
+        `SELECT id, role, is_active FROM users WHERE id = $1`,
+        [reviewerId]
+      );
+      if (reviewerCheck.rows.length === 0) {
+        res.status(400).json({ error: 'Assigned reviewer not found.' });
+        return;
+      }
+      const reviewer = reviewerCheck.rows[0];
+      if (!reviewer.is_active) {
+        res.status(400).json({ error: 'Assigned reviewer is not an active user.' });
+        return;
+      }
+      if (reviewer.role !== 'lab' && reviewer.role !== 'admin') {
+        res.status(400).json({
+          error: 'Assigned reviewer must be a lab user.',
+        });
+        return;
+      }
+
+      // Force the order into the pending-verification state. The completion
+      // transition (status='completed', billing, critical alerts, doctor
+      // notification, auto-route to nurse) is owned by verifyLabResult and
+      // must not fire here.
+      updateData.status = 'in-progress';
+      updateData.verification_status = 'pending';
+      updateData.assigned_reviewer_id = reviewerId;
+      updateData.verified_by = null;
+      updateData.verified_at = null;
+      updateData.verification_notes = null;
+      updateData.rejection_reason = null;
+      if (before.verification_status === 'rejected') {
+        updateData.rejection_count = (before.rejection_count || 0) + 1;
+      }
+      // Don't write a result_date until the result is actually verified.
+      delete updateData.result_date;
+    }
+
+    // If completing, set result_date to now. Reachable only when the order
+    // is already verified (i.e., editing a completed result that has gone
+    // through verification) or when grandfathered (verification_status =
+    // 'not_required').
+    if (
+      updateData.status === 'completed' &&
+      !updateData.result_date &&
+      !triggersVerificationFlow
+    ) {
       updateData.result_date = new Date().toISOString();
     }
 
@@ -303,49 +563,6 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    // Auto-flag critical results when completing a test
-    if (updateData.status === 'completed' && updateData.result) {
-      try {
-        // Get the test catalog entry for reference ranges
-        const catalogResult = await pool.query(
-          `SELECT * FROM lab_test_catalog
-           WHERE test_code = $1 OR test_name ILIKE $2
-           LIMIT 1`,
-          [updatedOrder.test_code, updatedOrder.test_name]
-        );
-
-        if (catalogResult.rows.length > 0) {
-          const catalog = catalogResult.rows[0];
-          const resultValue = parseFloat(updateData.result);
-
-          // Check if result is a number and if it's outside critical ranges
-          if (!isNaN(resultValue)) {
-            let alertType = null;
-
-            if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
-              alertType = 'critical_low';
-            } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
-              alertType = 'critical_high';
-            }
-
-            if (alertType) {
-              // Create critical result alert
-              await pool.query(
-                `INSERT INTO critical_result_alerts
-                 (lab_order_id, ordering_provider_id, alert_type, result_value)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT DO NOTHING`,
-                [id, updatedOrder.ordering_provider, alertType, updateData.result]
-              );
-            }
-          }
-        }
-      } catch (criticalError) {
-        // Log but don't fail the main update
-        console.error('Error checking critical result:', criticalError);
-      }
-    }
-
     // Audit log
     await auditService.log({
       userId: authReq.user?.id,
@@ -355,78 +572,19 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       details: updateData
     });
 
-    // When lab order is completed: bill the test and send notifications
-    if (updateData.status === 'completed') {
-      // Bill the completed lab order
-      try {
-        // Look up price from charge_master
-        const chargeResult = await pool.query(
-          `SELECT id, service_name, price FROM charge_master
-           WHERE (service_code = $1 OR service_name ILIKE $2)
-           AND category = 'lab' AND is_active = true
-           LIMIT 1`,
-          [updatedOrder.test_code, `%${updatedOrder.test_name}%`]
-        );
-
-        const charge = chargeResult.rows[0];
-        const labPrice = charge ? parseFloat(charge.price) : 75.00;
-        const chargeDescription = charge ? charge.service_name : updatedOrder.test_name;
-        const chargeMasterId = charge ? charge.id : null;
-
-        const invoiceResult = await pool.query(
-          `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-          [updatedOrder.encounter_id]
-        );
-
-        if (invoiceResult.rows.length > 0) {
-          const invoiceId = invoiceResult.rows[0].id;
-
-          // Guard against double-billing
-          const existingItem = await pool.query(
-            `SELECT id FROM invoice_items
-             WHERE invoice_id = $1 AND description = $2`,
-            [invoiceId, `Lab: ${chargeDescription}`]
-          );
-
-          if (existingItem.rows.length === 0) {
-            await pool.query(
-              `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-               VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
-              [invoiceId, chargeMasterId, `Lab: ${chargeDescription}`, labPrice]
-            );
-
-            await pool.query(
-              `UPDATE invoices
-               SET subtotal = subtotal + $2,
-                   total_amount = total_amount + $2,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE id = $1`,
-              [invoiceId, labPrice]
-            );
-          }
-        }
-      } catch (billingError) {
-        console.error('Error billing completed lab order:', billingError);
-        // Don't fail the main update if billing fails
-      }
-
-      await notificationService.notifyLabComplete(parseInt(id));
-
-      // Check if all lab orders for this encounter are complete
-      const pendingOrders = await pool.query(
-        `SELECT COUNT(*) FROM lab_orders
-         WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')`,
-        [updatedOrder.encounter_id]
-      );
-
-      // If no more pending lab orders, auto-route patient back to nurse
-      if (parseInt(pendingOrders.rows[0].count) === 0) {
-        await notificationService.autoRouteToNurse(updatedOrder.encounter_id, 'lab');
-      }
+    // Side effects only fire when the order is actually transitioning to
+    // 'completed'. The verification flow keeps status at 'in-progress', so
+    // critical alerts / billing / doctor notification are deferred to
+    // verifyLabResult. Grandfathered rows (verification_status='not_required')
+    // and legacy callers still finalize here.
+    if (updateData.status === 'completed' && !triggersVerificationFlow) {
+      await runLabCompletionSideEffects(parseInt(id), updatedOrder);
     }
 
     res.json({
-      message: 'Lab order updated successfully',
+      message: triggersVerificationFlow
+        ? 'Result submitted for verification.'
+        : 'Lab order updated successfully',
       order: updatedOrder,
     });
   } catch (error) {
@@ -521,6 +679,264 @@ export const getLabResultAudit = async (req: Request, res: Response): Promise<vo
     // history instead of erroring out the whole row.
     console.error('Get lab result audit error:', error);
     res.json({ audit: [] });
+  }
+};
+
+// Peer-review verification: approve a result that has been entered and is
+// sitting at verification_status='pending'. Verifier must be a lab user and
+// must not be the same person who entered the result (self-verification is
+// blocked). On approval the order transitions to 'completed' and the usual
+// side effects (critical alerts, billing, doctor notification, auto-route)
+// run from runLabCompletionSideEffects.
+export const verifyLabResult = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureLabVerificationSchema();
+    await ensureLabResultAudit();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const userRole = authReq.user?.role;
+    const id = parseInt(req.params.id as string, 10);
+    const notes: string | undefined = req.body?.notes;
+
+    if (userRole !== 'lab' && userRole !== 'admin') {
+      res.status(403).json({ error: 'Only lab users can verify lab results.' });
+      return;
+    }
+
+    const beforeResult = await pool.query(
+      `SELECT id, entered_by, verification_status FROM lab_orders WHERE id = $1`,
+      [id]
+    );
+    if (beforeResult.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+    const before = beforeResult.rows[0];
+
+    if (before.verification_status !== 'pending') {
+      res.status(400).json({
+        error: `Cannot verify a result whose status is '${before.verification_status}'. Only pending results can be verified.`,
+      });
+      return;
+    }
+    if (before.entered_by === userId) {
+      res.status(403).json({
+        error: 'You cannot verify your own result. Another lab tech must review it.',
+      });
+      return;
+    }
+
+    const updated = await pool.query(
+      `UPDATE lab_orders
+          SET verification_status = 'verified',
+              verified_by = $2,
+              verified_at = CURRENT_TIMESTAMP,
+              verification_notes = $3,
+              status = 'completed',
+              result_date = CURRENT_TIMESTAMP,
+              rejection_reason = NULL,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *`,
+      [id, userId, notes || null]
+    );
+
+    const order = updated.rows[0];
+
+    // Audit: record the approval so the paper trail shows who verified.
+    try {
+      await pool.query(
+        `INSERT INTO lab_result_audit
+           (lab_order_id, edited_by, edit_type, old_result, new_result, reason)
+         VALUES ($1, $2, 'verification_approved', $3, $3, $4)`,
+        [id, userId, order.result || null, notes && notes.trim() ? notes : 'Approved']
+      );
+    } catch (auditErr) {
+      console.error('Failed to write verification audit:', auditErr);
+    }
+
+    await auditService.log({
+      userId,
+      action: 'verify',
+      entityType: 'lab_order',
+      entityId: id,
+      details: { notes: notes || null },
+    });
+
+    // Fire the completion side effects now that the result is verified and
+    // visible to the doctor.
+    await runLabCompletionSideEffects(id, order);
+
+    res.json({
+      message: 'Result verified. Doctor will be notified.',
+      order,
+    });
+  } catch (error) {
+    console.error('Verify lab result error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Peer-review rejection: send a pending result back to the entry tech with
+// a required reason. The result is preserved (so the entry tech can see what
+// they had submitted and edit it), but status returns to 'in-progress' and
+// the order is hidden from the doctor until the entry tech resubmits and a
+// reviewer approves.
+export const rejectLabResult = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureLabVerificationSchema();
+    await ensureLabResultAudit();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const userRole = authReq.user?.role;
+    const id = parseInt(req.params.id as string, 10);
+    const rejectionReason: string | undefined = req.body?.reason;
+
+    if (userRole !== 'lab' && userRole !== 'admin') {
+      res.status(403).json({ error: 'Only lab users can reject lab results.' });
+      return;
+    }
+    if (!rejectionReason || !rejectionReason.trim()) {
+      res.status(400).json({ error: 'A reason is required when rejecting a result.' });
+      return;
+    }
+
+    const beforeResult = await pool.query(
+      `SELECT id, entered_by, verification_status, result FROM lab_orders WHERE id = $1`,
+      [id]
+    );
+    if (beforeResult.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+    const before = beforeResult.rows[0];
+
+    if (before.verification_status !== 'pending') {
+      res.status(400).json({
+        error: `Cannot reject a result whose status is '${before.verification_status}'. Only pending results can be rejected.`,
+      });
+      return;
+    }
+    if (before.entered_by === userId) {
+      res.status(403).json({
+        error: 'You cannot reject your own result. Another lab tech must review it.',
+      });
+      return;
+    }
+
+    const updated = await pool.query(
+      `UPDATE lab_orders
+          SET verification_status = 'rejected',
+              rejection_reason = $2,
+              status = 'in-progress',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING *`,
+      [id, rejectionReason.trim()]
+    );
+    const order = updated.rows[0];
+
+    try {
+      await pool.query(
+        `INSERT INTO lab_result_audit
+           (lab_order_id, edited_by, edit_type, old_result, new_result, reason)
+         VALUES ($1, $2, 'verification_rejected', $3, $3, $4)`,
+        [id, userId, before.result || null, rejectionReason.trim()]
+      );
+    } catch (auditErr) {
+      console.error('Failed to write rejection audit:', auditErr);
+    }
+
+    await auditService.log({
+      userId,
+      action: 'reject',
+      entityType: 'lab_order',
+      entityId: id,
+      details: { reason: rejectionReason.trim() },
+    });
+
+    // Notify the entry tech that their result was kicked back. Uses the
+    // generic in-app notification path so it appears alongside other lab
+    // alerts in their dashboard.
+    if (before.entered_by) {
+      try {
+        await notificationService.send({
+          userId: before.entered_by,
+          type: 'lab_result_rejected',
+          title: 'Lab result needs your attention',
+          message: `Your ${order.test_name} result was sent back: ${rejectionReason.trim()}`,
+          entityType: 'lab_order',
+          entityId: id,
+        });
+      } catch (notifyErr) {
+        console.error('Failed to notify entry tech of rejection:', notifyErr);
+      }
+    }
+
+    res.json({
+      message: 'Result returned to the entry tech.',
+      order,
+    });
+  } catch (error) {
+    console.error('Reject lab result error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Pending-verification queue: lab orders waiting for a peer review. The
+// queue is shared (assignment is a hint, not a lock), so any lab tech other
+// than the entry tech sees every pending row. We surface the assigned
+// reviewer so the team can self-organise without enforcing a hard lock.
+export const getPendingVerificationQueue = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    await ensureLabVerificationSchema();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const userRole = authReq.user?.role;
+
+    if (userRole !== 'lab' && userRole !== 'admin') {
+      res.status(403).json({ error: 'Only lab users can view the verification queue.' });
+      return;
+    }
+
+    // Exclude rows the caller entered themselves — they cannot self-verify,
+    // so showing them would just be noise. Admins see everything.
+    const excludeOwn = userRole === 'lab';
+
+    const queue = await pool.query(
+      `SELECT lo.id, lo.patient_id, lo.encounter_id, lo.test_name, lo.test_code,
+              lo.priority, lo.result, lo.result_document_id,
+              lo.verification_status, lo.assigned_reviewer_id, lo.entered_by,
+              lo.rejection_count, lo.updated_at, lo.ordered_date,
+              pd.document_name as result_document_name,
+              u_entered.first_name || ' ' || u_entered.last_name AS entered_by_name,
+              u_reviewer.first_name || ' ' || u_reviewer.last_name AS assigned_reviewer_name,
+              u_patient.first_name || ' ' || u_patient.last_name AS patient_name,
+              p.patient_number
+         FROM lab_orders lo
+         LEFT JOIN users u_entered ON lo.entered_by = u_entered.id
+         LEFT JOIN users u_reviewer ON lo.assigned_reviewer_id = u_reviewer.id
+         LEFT JOIN patients p ON lo.patient_id = p.id
+         LEFT JOIN users u_patient ON p.user_id = u_patient.id
+         LEFT JOIN patient_documents pd ON lo.result_document_id = pd.id
+        WHERE lo.verification_status = 'pending'
+          ${excludeOwn ? 'AND (lo.entered_by IS NULL OR lo.entered_by <> $1)' : ''}
+        ORDER BY
+          CASE WHEN lo.priority = 'stat' THEN 0
+               WHEN lo.priority = 'urgent' THEN 1
+               ELSE 2 END,
+          CASE WHEN lo.assigned_reviewer_id = $1 THEN 0 ELSE 1 END,
+          lo.updated_at DESC`,
+      excludeOwn ? [userId] : [userId]
+    );
+
+    res.json({ pending: queue.rows });
+  } catch (error) {
+    console.error('Get pending verification queue error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -1560,6 +1976,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
          LEFT JOIN rooms r ON e.room_id = r.id
         WHERE lo.ordering_provider = $1
           AND lo.status = 'completed'
+          AND lo.verification_status IN ('verified', 'not_required')
           AND lo.result_date >= NOW() - INTERVAL '7 days'
         ORDER BY lo.result_date DESC
         LIMIT 20`,

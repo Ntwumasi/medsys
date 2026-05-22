@@ -6,7 +6,7 @@ const sseConnections: Map<number, Response[]> = new Map();
 
 export interface NotificationPayload {
   userId: number;
-  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert' | 'pharmacy_tech_action';
+  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert' | 'pharmacy_tech_action' | 'lab_result_rejected';
   title: string;
   message: string;
   entityType?: string;
