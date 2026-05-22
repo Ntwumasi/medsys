@@ -717,23 +717,55 @@ const PatientDetails: React.FC = () => {
                             </div>
                           )}
 
-                          {encounter.hp_sections && encounter.hp_sections.length > 0 && (
-                            <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">SOAP / History & Physical</p>
-                              <div className="space-y-2">
-                                {encounter.hp_sections
-                                  .filter((hp: any) => hp.content && hp.content.trim())
-                                  .map((hp: any) => (
-                                  <div key={hp.section_id} className="border-l-2 border-indigo-300 pl-3">
-                                    <span className="text-xs font-bold text-indigo-700 capitalize">
-                                      {hp.section_id.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
-                                    </span>
-                                    <p className="text-sm text-gray-900 whitespace-pre-wrap mt-0.5">{hp.content}</p>
-                                  </div>
-                                ))}
+                          {encounter.hp_sections && encounter.hp_sections.length > 0 && (() => {
+                            // Render SOAP sections in the same clinical order
+                            // the doctor enters them in (HPAccordion), not the
+                            // alphabetical order the API returns. Unknown
+                            // section_ids fall through to the bottom in their
+                            // original relative order.
+                            const SOAP_ORDER = [
+                              'chief_complaint',
+                              'hpi',
+                              'past_medical_history',
+                              'past_surgical_history',
+                              'health_maintenance',
+                              'immunization_history',
+                              'home_medications',
+                              'allergies',
+                              'social_history',
+                              'family_history',
+                              'primary_care_provider',
+                              'review_of_systems',
+                              'vital_signs',
+                              'physical_exam',
+                              'lab_results',
+                              'imaging_results',
+                              'assessment',
+                              'plan',
+                            ];
+                            const orderIndex = (id: string) => {
+                              const i = SOAP_ORDER.indexOf(id);
+                              return i === -1 ? SOAP_ORDER.length : i;
+                            };
+                            const sorted = [...encounter.hp_sections]
+                              .filter((hp: any) => hp.content && hp.content.trim())
+                              .sort((a: any, b: any) => orderIndex(a.section_id) - orderIndex(b.section_id));
+                            return (
+                              <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100 md:col-span-2">
+                                <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">SOAP / History & Physical</p>
+                                <div className="space-y-2">
+                                  {sorted.map((hp: any) => (
+                                    <div key={hp.section_id} className="border-l-2 border-indigo-300 pl-3">
+                                      <span className="text-xs font-bold text-indigo-700 capitalize">
+                                        {hp.section_id.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                                      </span>
+                                      <p className="text-sm text-gray-900 whitespace-pre-wrap mt-0.5">{hp.content}</p>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
 
                           {encounter.diagnoses && encounter.diagnoses.length > 0 && (
                             <div className="bg-rose-50 rounded-lg p-4 border border-rose-100 md:col-span-2">
