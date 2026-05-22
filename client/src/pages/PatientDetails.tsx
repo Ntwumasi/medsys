@@ -1055,7 +1055,10 @@ const PatientDetails: React.FC = () => {
                                     const res = await apiClient.get(`/documents/${lab.result_document_id}`);
                                     const { file_data, file_type, document_name } = res.data;
                                     if (!file_data) {
-                                      showToast('File data not available', 'error');
+                                      showToast(
+                                        'File no longer accessible. Ask the lab tech to re-upload the result PDF for this test.',
+                                        'error'
+                                      );
                                       return;
                                     }
                                     // file_data is base64; convert to blob and open
