@@ -31,6 +31,8 @@ interface LabOrder {
   result_document_id?: number | null;
   result_document_name?: string | null;
   result_document_file_type?: string | null;
+  patient_dob?: string | null;
+  patient_gender?: string | null;
 }
 
 interface GroupedPatientLabOrders {
@@ -1131,6 +1133,38 @@ const LabDashboard: React.FC = () => {
     return `SP${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
   };
 
+  // Format "<age>/<M|F>" from a patient's DOB + gender — matches the Medics
+  // .docx templates where age/sex appears as e.g. "28/M" or "10/F".
+  const formatAgeSex = (dob?: string | null, gender?: string | null): string => {
+    if (!dob && !gender) return '';
+    let age = '';
+    if (dob) {
+      const birth = new Date(dob);
+      if (!isNaN(birth.getTime())) {
+        const now = new Date();
+        let years = now.getFullYear() - birth.getFullYear();
+        const m = now.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) years--;
+        age = String(years);
+      }
+    }
+    const sex = (gender || '').toLowerCase().startsWith('m') ? 'M'
+      : (gender || '').toLowerCase().startsWith('f') ? 'F'
+      : '';
+    if (age && sex) return `${age}/${sex}`;
+    return age || sex;
+  };
+
+  // Short date for the lab template (DD/MM/YYYY — matches the .docx style).
+  const formatDateShort = (d?: string | null): string => {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${dt.getFullYear()}`;
+  };
+
   // Print lab report
   const printLabReport = (order: LabOrder) => {
     setSelectedOrderForPrint(order);
@@ -1149,18 +1183,26 @@ const LabDashboard: React.FC = () => {
         <head>
           <title>Lab Report - ${selectedOrderForPrint?.patient_name}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; color: #1e40af; }
-            .patient-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-            .info-row { display: flex; gap: 10px; }
-            .label { font-weight: bold; color: #666; }
-            .result-section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            .result-value { font-size: 24px; font-weight: bold; color: #1e40af; }
-            .reference { color: #666; font-size: 14px; }
-            .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; color: #666; }
-            .signature-line { margin-top: 40px; border-top: 1px solid #333; width: 200px; }
-            @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+            @page { size: A4; margin: 15mm 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: 'Times New Roman', Times, serif; color: #000; margin: 0; padding: 0; }
+            .lab-report { padding: 0; }
+            .header { text-align: center; margin-bottom: 6px; }
+            .header img { height: 70px; }
+            .header .text-xs { font-size: 11px; color: #444; margin-top: 2px; }
+            h2 { font-size: 14px; font-weight: 700; text-align: center; letter-spacing: 0.05em; margin: 12px 0; }
+            table { border-collapse: collapse; width: 100%; font-size: 12px; }
+            .patient-info td { padding: 4px 8px; font-size: 12px; }
+            .investigation { background: #f0f0f0; padding: 6px 10px; font-weight: 700; font-size: 12px; }
+            .results { border: 1px solid #000; }
+            .results th { padding: 6px 8px; border: 1px solid #000; background: #f0f0f0; text-align: left; }
+            .results td { padding: 6px 8px; border: 1px solid #000; }
+            .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 60px; font-size: 11px; }
+            .signatures > div > div:first-child { border-top: 1px solid #000; width: 90%; margin-bottom: 4px; }
+            @media print {
+              body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+              .lab-report { padding: 0; }
+            }
           </style>
         </head>
         <body>
@@ -3223,51 +3265,95 @@ const LabDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div ref={printRef} className="p-8">
-              <div className="header text-center border-b-2 border-gray-800 pb-4 mb-6">
-                <div className="logo text-2xl font-bold text-primary-800">MedSys Healthcare</div>
-                <div className="text-gray-600">Laboratory Department</div>
-                <div className="text-sm text-gray-500">123 Medical Center Drive | Phone: (555) 123-4567</div>
+            <div ref={printRef} className="lab-report p-8 font-serif text-black">
+              {/* Header — Medics Group logo + clinic info */}
+              <div className="header text-center mb-2">
+                <img src="/medics-logo.png" alt="Medics Group" className="mx-auto mb-1" style={{ height: 70 }} />
+                <div className="text-xs text-gray-700">N41 Nmatie Abonase St · Tse Addo, Accra · lab.medicsclinic@gmail.com</div>
               </div>
 
-              <h2 className="text-xl font-bold text-center mb-6">LABORATORY REPORT</h2>
+              <div style={{ borderTop: '2px solid #000', margin: '4px 0 10px' }} />
 
-              <div className="patient-info grid grid-cols-2 gap-4 mb-6">
+              <h2 className="text-base font-bold text-center mb-4" style={{ letterSpacing: '0.05em' }}>
+                MEDICAL LABORATORY REPORT
+              </h2>
+
+              {/* Patient info — 2-column block matching the .docx layout */}
+              <table className="patient-info w-full text-sm mb-3" style={{ borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '4px 8px', width: '15%' }}><strong>Patient Name:</strong></td>
+                    <td style={{ padding: '4px 8px', width: '40%' }}>{selectedOrderForPrint.patient_name?.toUpperCase()}</td>
+                    <td style={{ padding: '4px 8px', width: '15%' }}><strong>Age / Sex:</strong></td>
+                    <td style={{ padding: '4px 8px', width: '30%' }}>{formatAgeSex(selectedOrderForPrint.patient_dob, selectedOrderForPrint.patient_gender) || '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '4px 8px' }}><strong>Path No:</strong></td>
+                    <td style={{ padding: '4px 8px' }}>{selectedOrderForPrint.patient_number}</td>
+                    <td style={{ padding: '4px 8px' }}><strong>Registration Date:</strong></td>
+                    <td style={{ padding: '4px 8px' }}>{formatDateShort(selectedOrderForPrint.ordered_at)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Investigation banner */}
+              <div className="investigation text-sm font-bold mb-1" style={{ background: '#f0f0f0', padding: '6px 10px' }}>
+                INVESTIGATION: {(selectedOrderForPrint.test_name || '').toUpperCase()}
+              </div>
+
+              {/* Sample / Report Date row */}
+              <table className="w-full text-xs mb-2" style={{ borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '4px 10px', width: '50%' }}><strong>SAMPLE DATE:</strong> {formatDateShort(selectedOrderForPrint.specimen_collected_at || selectedOrderForPrint.ordered_at)}</td>
+                    <td style={{ padding: '4px 10px', width: '50%', textAlign: 'right' }}><strong>REPORT DATE:</strong> {formatDateShort(selectedOrderForPrint.results_available_at || undefined)}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {/* Results table — single row for simple tests. Phase 2 will
+                  parse multi-line results into multiple rows for panels (FBC etc.) */}
+              <table className="results w-full text-sm mb-6" style={{ borderCollapse: 'collapse', border: '1px solid #000' }}>
+                <thead>
+                  <tr style={{ background: '#f0f0f0' }}>
+                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '40%' }}>TEST</th>
+                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>RESULTS OBSERVED</th>
+                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>REFERENCE RANGE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ padding: '6px 8px', border: '1px solid #000' }}>{selectedOrderForPrint.test_name}</td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #000', whiteSpace: 'pre-wrap' }}>
+                      {selectedOrderForPrint.results || '—'}
+                    </td>
+                    <td style={{ padding: '6px 8px', border: '1px solid #000' }}>—</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {selectedOrderForPrint.specimen_id && (
+                <div className="text-xs text-gray-700 mb-4">Specimen ID: {selectedOrderForPrint.specimen_id}</div>
+              )}
+
+              {selectedOrderForPrint.notes && (
+                <div className="text-xs text-gray-700 mb-4"><strong>REMARKS:</strong> {selectedOrderForPrint.notes}</div>
+              )}
+
+              {/* Signature block — two lines, matching the .docx layout */}
+              <div className="signatures grid grid-cols-2 gap-8 mt-16 text-xs">
                 <div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Patient Name:</span> {selectedOrderForPrint.patient_name}</div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Patient ID:</span> {selectedOrderForPrint.patient_number}</div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Encounter:</span> {selectedOrderForPrint.encounter_number}</div>
+                  <div style={{ borderTop: '1px solid #000', width: '90%', marginBottom: 4 }} />
+                  <div>Medical Laboratory Technologist</div>
                 </div>
                 <div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Order Date:</span> {new Date(selectedOrderForPrint.ordered_at).toLocaleString()}</div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Report Date:</span> {selectedOrderForPrint.results_available_at ? new Date(selectedOrderForPrint.results_available_at).toLocaleString() : 'N/A'}</div>
-                  <div className="info-row"><span className="label text-gray-600 font-bold">Ordering Physician:</span> {selectedOrderForPrint.ordering_provider_name}</div>
+                  <div style={{ borderTop: '1px solid #000', width: '90%', marginBottom: 4 }} />
+                  <div>Laboratory Director</div>
                 </div>
               </div>
 
-              <div className="result-section bg-gray-100 p-4 rounded-lg mb-6">
-                <h3 className="font-bold text-lg mb-2">{selectedOrderForPrint.test_name} {selectedOrderForPrint.test_code && `(${selectedOrderForPrint.test_code})`}</h3>
-                <div className="result-value text-2xl font-bold text-primary-800 mb-2">
-                  {selectedOrderForPrint.results}
-                </div>
-                {selectedOrderForPrint.specimen_id && (
-                  <div className="text-sm text-gray-600">Specimen ID: {selectedOrderForPrint.specimen_id}</div>
-                )}
-              </div>
-
-              <div className="footer mt-8 border-t border-gray-300 pt-4 text-sm text-gray-600">
-                <p className="mb-4">This report is electronically generated and verified.</p>
-                <div className="grid grid-cols-2 gap-8 mt-8">
-                  <div>
-                    <div className="signature-line border-t border-gray-800 w-48 mt-8"></div>
-                    <div>Medical Laboratory Technologist</div>
-                  </div>
-                  <div>
-                    <div className="signature-line border-t border-gray-800 w-48 mt-8"></div>
-                    <div>Laboratory Director</div>
-                  </div>
-                </div>
-                <p className="mt-6 text-xs">Report generated: {new Date().toLocaleString()}</p>
+              <div className="text-[10px] text-gray-500 mt-6 text-center">
+                Report generated electronically on {new Date().toLocaleString()}
               </div>
             </div>
           </div>

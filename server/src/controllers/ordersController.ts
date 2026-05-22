@@ -102,6 +102,8 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         u_entered.first_name || ' ' || u_entered.last_name as entered_by_name,
         e.encounter_number,
         p.patient_number,
+        p.date_of_birth as patient_dob,
+        p.gender as patient_gender,
         p.allergies as patient_allergies,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name
       FROM lab_orders lo

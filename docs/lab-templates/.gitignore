@@ -1,0 +1,4 @@
+# Heavy reference assets — not shipped to production.
+# These are used locally to build branded report layouts.
+manual-templates/
+pricing/
