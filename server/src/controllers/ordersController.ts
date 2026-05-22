@@ -6,6 +6,44 @@ import drugInteractionService from '../services/drugInteractionService';
 import { dispenseFromBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
+// Allocate the next Path No for today. Format is DDMM###, daily sequence,
+// matching the lab's existing convention (e.g. "2205001" = 22nd May, #001).
+// Uses INSERT ... ON CONFLICT DO UPDATE so concurrent allocations don't
+// collide — the counter row is locked for the duration of the upsert.
+const allocatePathNo = async (): Promise<string> => {
+  // Ensure the counter table exists (idempotent — for first-run safety
+  // before the addLabPathNoAndTemplates migration has executed).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS path_no_counters (
+      date_key CHAR(4) PRIMARY KEY,
+      next_seq INTEGER NOT NULL DEFAULT 1,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // DDMM in local-server time. The clinic operates in UTC+00 (Accra), so
+  // server-local matches what the lab tech expects on paper labels.
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dateKey = `${dd}${mm}`;
+
+  const result = await pool.query(
+    `INSERT INTO path_no_counters (date_key, next_seq)
+     VALUES ($1, 2)
+     ON CONFLICT (date_key) DO UPDATE
+       SET next_seq = path_no_counters.next_seq + 1,
+           updated_at = CURRENT_TIMESTAMP
+     RETURNING next_seq`,
+    [dateKey],
+  );
+  // On first row of the day next_seq returned is 2 (we inserted 2), so the
+  // allocated number is next_seq - 1 = 1. On subsequent rows the UPDATE
+  // increments and returns the new value, also requiring -1 for the number
+  // we just claimed.
+  const seq = result.rows[0].next_seq - 1;
+  return `${dateKey}${String(seq).padStart(3, '0')}`;
+};
+
 // Lab Orders
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -27,12 +65,25 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       enteredBy = currentUserId;
     }
 
+    // Allocate the lab's accession number (Path No). Best-effort — if the
+    // counter fails we still create the order; an admin can patch path_no
+    // later. (Falling back to NULL keeps go-live moving.)
+    let pathNo: string | null = null;
+    try {
+      // Defensive: ensure path_no column exists too. The migration adds it,
+      // but if code deploys first the column won't be there yet.
+      await pool.query(`ALTER TABLE lab_orders ADD COLUMN IF NOT EXISTS path_no VARCHAR(10)`);
+      pathNo = await allocatePathNo();
+    } catch (pathErr) {
+      console.error('Failed to allocate Path No, continuing without:', pathErr);
+    }
+
     const result = await pool.query(
       `INSERT INTO lab_orders (
-        patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes, path_no
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
-      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes]
+      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes, pathNo]
     );
 
     // Billing deferred to completion — lab orders are only added to the invoice
@@ -97,6 +148,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.priority,
         lo.notes,
         lo.specimen_id,
+        lo.path_no,
         lo.ordered_date as ordered_at,
         lo.collected_date as specimen_collected_at,
         lo.result_date as results_available_at,
@@ -272,36 +324,101 @@ const runLabCompletionSideEffects = async (
   orderId: number,
   order: any
 ): Promise<void> => {
-  // 1. Critical-result alert
+  // 1. Critical-result alerts
+  //
+  // Two shapes are possible in lab_orders.result:
+  //   - JSON {parameter_code: value, ...} from the structured entry modal
+  //   - Free text (legacy / non-templated tests like "5.4 mmol/L Normal")
+  //
+  // For the JSON case we look up critical thresholds per parameter in
+  // lab_test_parameters and fire an alert for every parameter that is out
+  // of critical range. For the free-text case we fall back to the legacy
+  // single-number parse against lab_test_catalog.
   if (order.result) {
     try {
-      const catalogResult = await pool.query(
-        `SELECT * FROM lab_test_catalog
-         WHERE test_code = $1 OR test_name ILIKE $2
-         LIMIT 1`,
-        [order.test_code, order.test_name]
-      );
-
-      if (catalogResult.rows.length > 0) {
-        const catalog = catalogResult.rows[0];
-        const resultValue = parseFloat(order.result);
-
-        if (!isNaN(resultValue)) {
-          let alertType: string | null = null;
-          if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
-            alertType = 'critical_low';
-          } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
-            alertType = 'critical_high';
+      // Try to parse as structured JSON first.
+      let structured: Record<string, string> | null = null;
+      const trimmed = (order.result || '').trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            structured = parsed as Record<string, string>;
           }
+        } catch {
+          // Not valid JSON — fall through to legacy path
+        }
+      }
 
-          if (alertType) {
-            await pool.query(
-              `INSERT INTO critical_result_alerts
-                 (lab_order_id, ordering_provider_id, alert_type, result_value)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT DO NOTHING`,
-              [orderId, order.ordering_provider, alertType, order.result]
-            );
+      if (structured) {
+        // Resolve the order to its template, then check every parameter.
+        const tmpl = await pool.query(
+          `SELECT id FROM lab_test_catalog
+            WHERE test_code = $1 OR test_name = $2
+            LIMIT 1`,
+          [order.test_code, order.test_name],
+        );
+        if (tmpl.rows.length > 0) {
+          const params = await pool.query(
+            `SELECT parameter_name, parameter_code, critical_low, critical_high
+               FROM lab_test_parameters
+              WHERE lab_test_id = $1 AND value_type = 'numeric'`,
+            [tmpl.rows[0].id],
+          );
+          for (const p of params.rows) {
+            const key = p.parameter_code || p.parameter_name;
+            const raw = structured[key];
+            if (raw == null || raw === '') continue;
+            const v = parseFloat(String(raw));
+            if (Number.isNaN(v)) continue;
+
+            let alertType: string | null = null;
+            if (p.critical_low != null && v < parseFloat(p.critical_low)) {
+              alertType = 'critical_low';
+            } else if (p.critical_high != null && v > parseFloat(p.critical_high)) {
+              alertType = 'critical_high';
+            }
+            if (alertType) {
+              await pool.query(
+                `INSERT INTO critical_result_alerts
+                   (lab_order_id, ordering_provider_id, alert_type, result_value)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT DO NOTHING`,
+                [orderId, order.ordering_provider, alertType, `${p.parameter_name}: ${raw}`],
+              );
+            }
+          }
+        }
+      } else {
+        // Legacy single-number path
+        const catalogResult = await pool.query(
+          `SELECT * FROM lab_test_catalog
+           WHERE test_code = $1 OR test_name ILIKE $2
+           LIMIT 1`,
+          [order.test_code, order.test_name],
+        );
+
+        if (catalogResult.rows.length > 0) {
+          const catalog = catalogResult.rows[0];
+          const resultValue = parseFloat(order.result);
+
+          if (!isNaN(resultValue)) {
+            let alertType: string | null = null;
+            if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
+              alertType = 'critical_low';
+            } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
+              alertType = 'critical_high';
+            }
+
+            if (alertType) {
+              await pool.query(
+                `INSERT INTO critical_result_alerts
+                   (lab_order_id, ordering_provider_id, alert_type, result_value)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT DO NOTHING`,
+                [orderId, order.ordering_provider, alertType, order.result],
+              );
+            }
           }
         }
       }

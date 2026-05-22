@@ -551,6 +551,157 @@ export const getLabTestCatalog = async (req: Request, res: Response): Promise<vo
   }
 };
 
+// Resolve a lab order to its parameter template. The matching strategy is
+// deliberately layered because lab_orders.test_name is often free-text and
+// the lab tech may type variations of the same panel name:
+//
+//   1) Exact test_code or test_name match in lab_test_catalog.
+//   2) Fuzzy ILIKE match on test_name (handles minor formatting variants).
+//   3) FBC special case — pick the right variant based on patient sex + age:
+//        FBC_AM / FBC_AF / FBC_C6 / FBC_CU
+//      so the lab tech doesn't have to remember which variant to order.
+//   4) Chem panel special case — sex-specific variant.
+//
+// Returns null if no template matches; the result modal falls back to its
+// legacy single-field form.
+const findTestTemplate = async (
+  testNameOrCode: string,
+  patientGender: string | null,
+  patientAgeYears: number | null,
+): Promise<{ testId: number; matchedName: string } | null> => {
+  // 1. Exact code match
+  const byCode = await pool.query(
+    `SELECT id, test_name FROM lab_test_catalog WHERE test_code = $1 LIMIT 1`,
+    [testNameOrCode],
+  );
+  if (byCode.rows.length > 0) {
+    return { testId: byCode.rows[0].id, matchedName: byCode.rows[0].test_name };
+  }
+
+  // 2. Exact name match
+  const byName = await pool.query(
+    `SELECT id, test_name FROM lab_test_catalog WHERE test_name = $1 LIMIT 1`,
+    [testNameOrCode],
+  );
+  if (byName.rows.length > 0) {
+    return { testId: byName.rows[0].id, matchedName: byName.rows[0].test_name };
+  }
+
+  const lower = testNameOrCode.toLowerCase();
+  const sex = patientGender && /^M/i.test(patientGender) ? 'M' : patientGender && /^F/i.test(patientGender) ? 'F' : null;
+
+  // 3. FBC variant routing
+  if (/\b(fbc|full blood count)\b/.test(lower)) {
+    let code = 'FBC_AF';
+    if (patientAgeYears != null) {
+      if (patientAgeYears < 6) code = 'FBC_CU';
+      else if (patientAgeYears <= 12) code = 'FBC_C6';
+      else code = sex === 'M' ? 'FBC_AM' : 'FBC_AF';
+    } else if (sex === 'M') {
+      code = 'FBC_AM';
+    }
+    const r = await pool.query(
+      `SELECT id, test_name FROM lab_test_catalog WHERE test_code = $1 LIMIT 1`,
+      [code],
+    );
+    if (r.rows.length > 0) return { testId: r.rows[0].id, matchedName: r.rows[0].test_name };
+  }
+
+  // 4. Chem panel sex routing
+  const chemMap: Array<[RegExp, string, string]> = [
+    [/\b(bue\s*&?\s*cr|urea.*electrolyte|electrolyte.*creatinine)\b/i, 'BUE_M', 'BUE_F'],
+    [/\b(lipid)\b/i, 'LIPID_M', 'LIPID_F'],
+    [/\b(lft|liver function)\b/i, 'LFT_M', 'LFT_F'],
+  ];
+  for (const [pattern, mCode, fCode] of chemMap) {
+    if (pattern.test(lower)) {
+      const code = sex === 'M' ? mCode : fCode;
+      const r = await pool.query(
+        `SELECT id, test_name FROM lab_test_catalog WHERE test_code = $1 LIMIT 1`,
+        [code],
+      );
+      if (r.rows.length > 0) return { testId: r.rows[0].id, matchedName: r.rows[0].test_name };
+    }
+  }
+
+  // 5. Fuzzy fallback — last resort
+  const fuzzy = await pool.query(
+    `SELECT id, test_name FROM lab_test_catalog
+      WHERE test_name ILIKE $1 OR test_code ILIKE $1
+      ORDER BY LENGTH(test_name) ASC
+      LIMIT 1`,
+    [`%${testNameOrCode}%`],
+  );
+  if (fuzzy.rows.length > 0) {
+    return { testId: fuzzy.rows[0].id, matchedName: fuzzy.rows[0].test_name };
+  }
+
+  return null;
+};
+
+// Parameter template lookup for a given lab order. Picks the best variant
+// (sex / age-specific FBC, chem panel) based on the patient on the order,
+// then returns the parameter rows. The frontend uses this to render the
+// structured result entry form.
+export const getLabOrderParameters = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const orderId = parseInt(req.params.order_id as string, 10);
+    if (!orderId || Number.isNaN(orderId)) {
+      res.status(400).json({ error: 'Invalid lab order id' });
+      return;
+    }
+
+    const orderRow = await pool.query(
+      `SELECT lo.test_name, lo.test_code,
+              p.date_of_birth, p.gender
+         FROM lab_orders lo
+         LEFT JOIN patients p ON lo.patient_id = p.id
+        WHERE lo.id = $1
+        LIMIT 1`,
+      [orderId],
+    );
+    if (orderRow.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+    const order = orderRow.rows[0];
+    const ageYears = order.date_of_birth
+      ? Math.floor((Date.now() - new Date(order.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
+      : null;
+
+    const template = await findTestTemplate(
+      order.test_code || order.test_name,
+      order.gender,
+      ageYears,
+    );
+
+    if (!template) {
+      res.json({ has_template: false, parameters: [] });
+      return;
+    }
+
+    const params = await pool.query(
+      `SELECT id, parameter_name, parameter_code, value_type, unit,
+              normal_low, normal_high, critical_low, critical_high,
+              reference_range_text, qualitative_options,
+              default_qualitative_value, age_group, sex, section_label, sort_order
+         FROM lab_test_parameters
+        WHERE lab_test_id = $1
+        ORDER BY sort_order ASC, id ASC`,
+      [template.testId],
+    );
+
+    res.json({
+      has_template: true,
+      matched_test_name: template.matchedName,
+      parameters: params.rows,
+    });
+  } catch (error) {
+    console.error('Get lab order parameters error:', error);
+    res.status(500).json({ error: 'Failed to fetch lab parameter template' });
+  }
+};
+
 // Create lab test in catalog
 export const createLabTest = async (req: Request, res: Response): Promise<void> => {
   try {

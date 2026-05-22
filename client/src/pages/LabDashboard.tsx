@@ -44,6 +44,7 @@ interface LabOrder {
   verified_at?: string | null;
   verification_notes?: string | null;
   rejection_count?: number;
+  path_no?: string | null;
 }
 
 interface LabReviewer {
@@ -322,6 +323,31 @@ const LabDashboard: React.FC = () => {
     notes: '',
     specimen_id: '',
   });
+
+  // Structured parameter template (multi-row entry form). When the lab tech
+  // opens the result modal, we fetch the template for the test+patient. If
+  // one exists, we render a row per parameter; if not, we fall back to the
+  // legacy single-field form above (structuredResult).
+  interface ParameterDef {
+    id: number;
+    parameter_name: string;
+    parameter_code: string | null;
+    value_type: 'numeric' | 'qualitative' | 'text';
+    unit: string | null;
+    normal_low: number | string | null;
+    normal_high: number | string | null;
+    critical_low: number | string | null;
+    critical_high: number | string | null;
+    reference_range_text: string | null;
+    qualitative_options: string | null;
+    default_qualitative_value: string | null;
+    section_label: string | null;
+    sort_order: number;
+  }
+  const [templateParams, setTemplateParams] = useState<ParameterDef[]>([]);
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateNotes, setTemplateNotes] = useState('');
 
   // Peer-review verification state
   const { user: currentUser } = useAuth();
@@ -872,7 +898,33 @@ const LabDashboard: React.FC = () => {
     }
 
     try {
-      const resultText = `${structuredResult.value} ${structuredResult.unit}${structuredResult.notes ? '\n' + structuredResult.notes : ''}`;
+      // Templated tests submit a JSON payload keyed by parameter_code so the
+      // server can run per-parameter critical-value checks and the printed
+      // report can render a structured table. Non-templated tests fall back
+      // to the legacy free-text result string.
+      const hasTemplate = templateParams.length > 0;
+      const resultText = hasTemplate
+        ? JSON.stringify({
+            ...templateValues,
+            ...(templateNotes.trim() ? { __notes: templateNotes.trim() } : {}),
+          })
+        : `${structuredResult.value} ${structuredResult.unit}${
+            structuredResult.notes ? '\n' + structuredResult.notes : ''
+          }`;
+
+      if (hasTemplate) {
+        const missingRequired = templateParams.find((p) => {
+          const key = p.parameter_code || p.parameter_name;
+          return p.value_type === 'numeric' && !templateValues[key];
+        });
+        if (missingRequired) {
+          showToast(
+            `Enter a value for ${missingRequired.parameter_name} (or any other missing numeric field).`,
+            'error',
+          );
+          return;
+        }
+      }
 
       // First update the lab order
       await apiClient.put(`/orders/lab/${selectedOrderForResult.id}`, {
@@ -928,6 +980,9 @@ const LabDashboard: React.FC = () => {
       setTestReferenceRanges(null);
       setSelectedFile(null);
       setAssignedReviewerId('');
+      setTemplateParams([]);
+      setTemplateValues({});
+      setTemplateNotes('');
       fetchLabOrders();
       fetchCriticalAlerts();
       fetchPendingVerification();
@@ -1004,6 +1059,47 @@ const LabDashboard: React.FC = () => {
     }
   };
 
+  // Render a lab result either as a structured parameter table (when the
+  // payload is JSON keyed by parameter code) or as plain text (legacy).
+  // Used in the order list, the verification queue, and the details panel.
+  const renderResultPayload = (
+    raw: string | null | undefined,
+    opts?: { compact?: boolean },
+  ): React.ReactNode => {
+    if (!raw || !raw.trim()) return null;
+    const trimmed = raw.trim();
+    if (!trimmed.startsWith('{')) {
+      return <div className="text-sm whitespace-pre-wrap">{raw}</div>;
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, string>;
+      const entries = Object.entries(parsed).filter(([k]) => k !== '__notes');
+      const notes = typeof parsed.__notes === 'string' ? parsed.__notes : null;
+      if (entries.length === 0) {
+        return notes ? <div className="text-sm italic text-gray-600">{notes}</div> : null;
+      }
+      return (
+        <div>
+          <table className={`w-full text-sm ${opts?.compact ? '' : 'border border-gray-200 rounded'}`}>
+            <tbody>
+              {entries.map(([k, v]) => (
+                <tr key={k} className="border-t border-gray-100">
+                  <td className="py-1 pr-3 text-gray-600 align-top w-1/2">{k}</td>
+                  <td className="py-1 font-mono">{String(v)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {notes && (
+            <div className="text-xs italic text-gray-600 mt-1">Remarks: {notes}</div>
+          )}
+        </div>
+      );
+    } catch {
+      return <div className="text-sm whitespace-pre-wrap">{raw}</div>;
+    }
+  };
+
   // Peer-review verification actions. The server enforces the same
   // constraints (lab role, can't verify own work), so these handlers are
   // intentionally thin — they just POST and refresh.
@@ -1069,19 +1165,88 @@ const LabDashboard: React.FC = () => {
   const openResultModal = async (order: LabOrder) => {
     setSelectedOrderForResult(order);
     setStructuredResult({ value: '', unit: '', notes: '', specimen_id: order.specimen_id || '' });
+    setTemplateParams([]);
+    setTemplateValues({});
+    setTemplateNotes('');
+    setTemplateLoading(true);
 
-    // Fetch reference ranges for this test
+    // Two lookups in parallel:
+    //   - structured parameter template (multi-row entry form)
+    //   - single-test reference range (legacy form fallback + critical banner)
     try {
-      const response = await apiClient.get(`/lab/test-catalog?search=${encodeURIComponent(order.test_name)}`);
-      if (response.data.tests && response.data.tests.length > 0) {
-        setTestReferenceRanges(response.data.tests[0]);
-        setStructuredResult(prev => ({ ...prev, unit: response.data.tests[0].unit || '' }));
+      const [tmplResp, catalogResp] = await Promise.all([
+        apiClient.get(`/lab/orders/${order.id}/parameters`).catch(() => null),
+        apiClient
+          .get(`/lab/test-catalog?search=${encodeURIComponent(order.test_name)}`)
+          .catch(() => null),
+      ]);
+
+      if (tmplResp?.data?.has_template && Array.isArray(tmplResp.data.parameters)) {
+        const params = tmplResp.data.parameters as ParameterDef[];
+        setTemplateParams(params);
+        // Pre-fill qualitative defaults so the lab tech can submit without
+        // touching every dropdown when the result is "all negative".
+        const initial: Record<string, string> = {};
+        params.forEach((p) => {
+          const key = p.parameter_code || p.parameter_name;
+          if (p.value_type === 'qualitative' && p.default_qualitative_value) {
+            initial[key] = p.default_qualitative_value;
+          } else {
+            initial[key] = '';
+          }
+        });
+        // If we're editing an already-entered structured result, pre-fill
+        // from the existing JSON payload.
+        if (order.results) {
+          const trimmed = order.results.trim();
+          if (trimmed.startsWith('{')) {
+            try {
+              const existing = JSON.parse(trimmed);
+              if (existing && typeof existing === 'object') {
+                Object.assign(initial, existing);
+                if (typeof existing.__notes === 'string') {
+                  setTemplateNotes(existing.__notes);
+                }
+              }
+            } catch {
+              /* ignore — fall back to blank */
+            }
+          }
+        }
+        setTemplateValues(initial);
+      }
+
+      if (catalogResp?.data?.tests && catalogResp.data.tests.length > 0) {
+        setTestReferenceRanges(catalogResp.data.tests[0]);
+        setStructuredResult((prev) => ({ ...prev, unit: catalogResp.data.tests[0].unit || '' }));
       }
     } catch (error) {
-      console.error('Error fetching reference ranges:', error);
+      console.error('Error fetching template / reference ranges:', error);
+    } finally {
+      setTemplateLoading(false);
     }
 
     setShowResultModal(true);
+  };
+
+  // Helper: classify a parameter value as NORMAL / LOW / HIGH / CRITICAL.
+  // Used for the live flag column in the structured entry table.
+  const classifyValue = (
+    p: ParameterDef,
+    raw: string,
+  ): 'NORMAL' | 'LOW' | 'HIGH' | 'CRITICAL_LOW' | 'CRITICAL_HIGH' | null => {
+    if (p.value_type !== 'numeric' || !raw) return null;
+    const v = parseFloat(raw);
+    if (Number.isNaN(v)) return null;
+    const cl = p.critical_low != null ? parseFloat(String(p.critical_low)) : null;
+    const ch = p.critical_high != null ? parseFloat(String(p.critical_high)) : null;
+    const nl = p.normal_low != null ? parseFloat(String(p.normal_low)) : null;
+    const nh = p.normal_high != null ? parseFloat(String(p.normal_high)) : null;
+    if (cl != null && v < cl) return 'CRITICAL_LOW';
+    if (ch != null && v > ch) return 'CRITICAL_HIGH';
+    if (nl != null && v < nl) return 'LOW';
+    if (nh != null && v > nh) return 'HIGH';
+    return 'NORMAL';
   };
 
   // Helper functions
@@ -1296,9 +1461,24 @@ const LabDashboard: React.FC = () => {
     return `${dd}/${mm}/${dt.getFullYear()}`;
   };
 
-  // Print lab report
-  const printLabReport = (order: LabOrder) => {
+  // Print lab report. Loads the parameter template so the printed table can
+  // include units, reference ranges, and flags per parameter (matches the
+  // .docx layout). Falls back gracefully when no template exists.
+  const printLabReport = async (order: LabOrder) => {
     setSelectedOrderForPrint(order);
+    // Reuse templateParams state so the print render finds units/ranges per
+    // parameter. Even if the modal is closed, this state survives.
+    try {
+      const tmplResp = await apiClient.get(`/lab/orders/${order.id}/parameters`);
+      if (tmplResp.data?.has_template && Array.isArray(tmplResp.data.parameters)) {
+        setTemplateParams(tmplResp.data.parameters as ParameterDef[]);
+      } else {
+        setTemplateParams([]);
+      }
+    } catch (error) {
+      console.error('Failed to load template for print:', error);
+      setTemplateParams([]);
+    }
     setShowPrintModal(true);
   };
 
@@ -1894,7 +2074,7 @@ const LabDashboard: React.FC = () => {
                           {order.status === 'completed' && order.results && order.results.trim() && (
                             <div className="mt-2 p-3 bg-success-50 rounded border border-success-200 ml-7">
                               <div className="text-xs font-bold text-success-800 mb-1">Results:</div>
-                              <div className="text-sm text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                              {renderResultPayload(order.results, { compact: true })}
                             </div>
                           )}
                           {/* Attached file indicator — lab tech can verify what they uploaded */}
@@ -2194,8 +2374,8 @@ const LabDashboard: React.FC = () => {
                             {order.assigned_reviewer_name || 'anyone'}
                           </div>
                           {order.results && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm font-mono whitespace-pre-wrap">
-                              {order.results}
+                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                              {renderResultPayload(order.results, { compact: true })}
                             </div>
                           )}
                           {order.result_document_id && (
@@ -3337,12 +3517,146 @@ const LabDashboard: React.FC = () => {
       {/* Structured Result Entry Modal */}
       {showResultModal && selectedOrderForResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
+          <div className={`bg-white rounded-xl shadow-2xl w-full ${templateParams.length > 0 ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col`}>
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-success-50 to-success-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">Enter Test Results</h2>
-              <p className="text-sm text-gray-600">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Enter Test Results</h2>
+                  <p className="text-sm text-gray-600">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
+                </div>
+                {selectedOrderForResult.path_no && (
+                  <div className="text-right">
+                    <div className="text-xs text-gray-500 uppercase">Path No</div>
+                    <div className="text-lg font-mono font-bold text-primary-700">{selectedOrderForResult.path_no}</div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto">
+              {/* Structured template form (multi-row) */}
+              {templateParams.length > 0 && (() => {
+                // Group parameters by section_label for visual hierarchy
+                const sections: Array<{ label: string | null; rows: ParameterDef[] }> = [];
+                templateParams.forEach((p) => {
+                  const lastSection = sections[sections.length - 1];
+                  if (!lastSection || lastSection.label !== (p.section_label || null)) {
+                    sections.push({ label: p.section_label || null, rows: [p] });
+                  } else {
+                    lastSection.rows.push(p);
+                  }
+                });
+                return (
+                  <div className="mb-4">
+                    <div className="text-xs text-gray-500 mb-2">
+                      Structured entry — flags show next to each value as you type.
+                    </div>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-semibold text-gray-700">Parameter</th>
+                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-40">Value</th>
+                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-24">Unit</th>
+                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-24">Flag</th>
+                            <th className="text-left px-3 py-2 font-semibold text-gray-700">Reference</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sections.map((section, sIdx) => (
+                            <React.Fragment key={`section-${sIdx}`}>
+                              {section.label && (
+                                <tr className="bg-gray-50 border-t border-gray-200">
+                                  <td colSpan={5} className="px-3 py-1 text-xs font-bold text-gray-600 uppercase">
+                                    {section.label}
+                                  </td>
+                                </tr>
+                              )}
+                              {section.rows.map((p) => {
+                                const key = p.parameter_code || p.parameter_name;
+                                const value = templateValues[key] || '';
+                                const flag = classifyValue(p, value);
+                                const flagClass =
+                                  flag === 'CRITICAL_LOW' || flag === 'CRITICAL_HIGH'
+                                    ? 'bg-danger-100 text-danger-700 font-bold'
+                                    : flag === 'LOW' || flag === 'HIGH'
+                                    ? 'bg-warning-100 text-warning-700 font-semibold'
+                                    : flag === 'NORMAL'
+                                    ? 'text-success-700'
+                                    : 'text-gray-400';
+                                const flagLabel =
+                                  flag === 'CRITICAL_LOW' ? 'CRIT-LOW'
+                                  : flag === 'CRITICAL_HIGH' ? 'CRIT-HIGH'
+                                  : flag === 'LOW' ? 'LOW'
+                                  : flag === 'HIGH' ? 'HIGH'
+                                  : flag === 'NORMAL' ? '—'
+                                  : '';
+
+                                return (
+                                  <tr key={p.id} className="border-t border-gray-200 hover:bg-gray-50">
+                                    <td className="px-3 py-2">{p.parameter_name}</td>
+                                    <td className="px-3 py-2">
+                                      {p.value_type === 'qualitative' && p.qualitative_options ? (
+                                        <select
+                                          value={value}
+                                          onChange={(e) =>
+                                            setTemplateValues({ ...templateValues, [key]: e.target.value })
+                                          }
+                                          className="w-full px-2 py-1 border border-gray-300 rounded"
+                                        >
+                                          <option value="">—</option>
+                                          {p.qualitative_options.split('|').map((opt) => (
+                                            <option key={opt} value={opt}>
+                                              {opt}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type={p.value_type === 'numeric' ? 'text' : 'text'}
+                                          inputMode={p.value_type === 'numeric' ? 'decimal' : 'text'}
+                                          value={value}
+                                          onChange={(e) =>
+                                            setTemplateValues({ ...templateValues, [key]: e.target.value })
+                                          }
+                                          className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+                                          placeholder={p.value_type === 'numeric' ? '0.0' : ''}
+                                        />
+                                      )}
+                                    </td>
+                                    <td className="px-3 py-2 text-gray-600">{p.unit || ''}</td>
+                                    <td className={`px-3 py-2 ${flagClass}`}>{flagLabel}</td>
+                                    <td className="px-3 py-2 text-gray-500 text-xs">
+                                      {p.reference_range_text || ''}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks / Comments</label>
+                      <textarea
+                        value={templateNotes}
+                        onChange={(e) => setTemplateNotes(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="Methodology notes, observations, lot numbers, etc."
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {templateLoading && templateParams.length === 0 && (
+                <div className="mb-4 text-sm text-gray-500">Looking up template…</div>
+              )}
+
+              {/* Legacy single-value form — only when no structured template */}
+              {!templateLoading && templateParams.length === 0 && (
+                <>
               {/* Reference ranges display */}
               {testReferenceRanges && (
                 <div className="mb-4 p-3 bg-primary-50 rounded-lg border border-primary-200">
@@ -3437,6 +3751,31 @@ const LabDashboard: React.FC = () => {
                   placeholder="Additional observations, methodology notes, etc."
                 />
               </div>
+                </>
+              )}
+
+              {/* Specimen ID — shown in both flows */}
+              {templateParams.length > 0 && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Specimen ID</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={structuredResult.specimen_id}
+                      onChange={(e) => setStructuredResult({ ...structuredResult, specimen_id: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                      placeholder="SP20240221-ABC123"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setStructuredResult({ ...structuredResult, specimen_id: generateSpecimenId() })}
+                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                    >
+                      Generate
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Reviewer assignment — required when the order has not been
                   verified yet. Hidden on grandfathered/already-verified rows
@@ -3537,7 +3876,14 @@ const LabDashboard: React.FC = () => {
               <button
                 onClick={submitStructuredResult}
                 disabled={
-                  !structuredResult.value ||
+                  // Legacy form requires a single value; structured form
+                  // requires at least one parameter to be filled in.
+                  (templateParams.length === 0 && !structuredResult.value) ||
+                  (templateParams.length > 0 &&
+                    !templateParams.some((p) => {
+                      const key = p.parameter_code || p.parameter_name;
+                      return (templateValues[key] || '').trim() !== '';
+                    })) ||
                   uploadingFile ||
                   (selectedOrderForResult.verification_status !== 'verified' && !assignedReviewerId)
                 }
@@ -3572,8 +3918,8 @@ const LabDashboard: React.FC = () => {
             </div>
             <div className="p-6 space-y-4">
               {verifyingOrder.results && (
-                <div className="p-3 bg-gray-50 rounded text-sm font-mono whitespace-pre-wrap">
-                  {verifyingOrder.results}
+                <div className="p-3 bg-gray-50 rounded text-sm">
+                  {renderResultPayload(verifyingOrder.results)}
                 </div>
               )}
               <p className="text-sm text-gray-600">
@@ -3714,7 +4060,7 @@ const LabDashboard: React.FC = () => {
                   </tr>
                   <tr>
                     <td style={{ padding: '4px 8px' }}><strong>Path No:</strong></td>
-                    <td style={{ padding: '4px 8px' }}>{selectedOrderForPrint.patient_number}</td>
+                    <td style={{ padding: '4px 8px' }}>{selectedOrderForPrint.path_no || selectedOrderForPrint.patient_number}</td>
                     <td style={{ padding: '4px 8px' }}><strong>Registration Date:</strong></td>
                     <td style={{ padding: '4px 8px' }}>{formatDateShort(selectedOrderForPrint.ordered_at)}</td>
                   </tr>
@@ -3736,26 +4082,91 @@ const LabDashboard: React.FC = () => {
                 </tbody>
               </table>
 
-              {/* Results table — single row for simple tests. Phase 2 will
-                  parse multi-line results into multiple rows for panels (FBC etc.) */}
-              <table className="results w-full text-sm mb-6" style={{ borderCollapse: 'collapse', border: '1px solid #000' }}>
-                <thead>
-                  <tr style={{ background: '#f0f0f0' }}>
-                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '40%' }}>TEST</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>RESULTS OBSERVED</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>REFERENCE RANGE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ padding: '6px 8px', border: '1px solid #000' }}>{selectedOrderForPrint.test_name}</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #000', whiteSpace: 'pre-wrap' }}>
-                      {selectedOrderForPrint.results || '—'}
-                    </td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #000' }}>—</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* Results table — renders one row per parameter when the
+                  result payload is a structured JSON object (FBC, chem
+                  panels, urinalysis). Falls back to a single row when it's
+                  legacy free-text. The parameter template (loaded earlier)
+                  provides units, reference ranges, and flag thresholds so
+                  the printed report matches William's docx layout. */}
+              {(() => {
+                const raw = (selectedOrderForPrint.results || '').trim();
+                let structured: Record<string, string> | null = null;
+                if (raw.startsWith('{')) {
+                  try { structured = JSON.parse(raw); } catch { structured = null; }
+                }
+                if (structured) {
+                  const entries = Object.entries(structured).filter(([k]) => k !== '__notes');
+                  const notes = typeof structured.__notes === 'string' ? structured.__notes : null;
+                  // Build a lookup from the template (loaded for printPreview)
+                  // so we can include units + reference ranges. If template
+                  // wasn't loaded (printing a different order), entries still
+                  // render but without reference range / unit decoration.
+                  const paramByKey = new Map<string, ParameterDef>();
+                  templateParams.forEach((p) => {
+                    paramByKey.set(p.parameter_code || p.parameter_name, p);
+                  });
+                  return (
+                    <table className="results w-full text-xs mb-6" style={{ borderCollapse: 'collapse', border: '1px solid #000' }}>
+                      <thead>
+                        <tr style={{ background: '#f0f0f0' }}>
+                          <th style={{ padding: '5px 8px', border: '1px solid #000', textAlign: 'left' }}>TEST</th>
+                          <th style={{ padding: '5px 8px', border: '1px solid #000', textAlign: 'left' }}>VALUE</th>
+                          <th style={{ padding: '5px 8px', border: '1px solid #000', textAlign: 'left' }}>UNIT</th>
+                          <th style={{ padding: '5px 8px', border: '1px solid #000', textAlign: 'left' }}>FLAG</th>
+                          <th style={{ padding: '5px 8px', border: '1px solid #000', textAlign: 'left' }}>REFERENCE RANGE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entries.map(([k, v]) => {
+                          const p = paramByKey.get(k);
+                          const flag = p ? classifyValue(p, String(v)) : null;
+                          const flagText = flag === 'CRITICAL_LOW' || flag === 'CRITICAL_HIGH' ? '*' + (flag === 'CRITICAL_LOW' ? 'LOW' : 'HIGH') + '*'
+                            : flag === 'LOW' ? 'LOW' : flag === 'HIGH' ? 'HIGH' : '';
+                          return (
+                            <tr key={k}>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p?.parameter_name || k}</td>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000', fontFamily: 'monospace' }}>{String(v) || '—'}</td>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p?.unit || ''}</td>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000', fontWeight: flag && flag !== 'NORMAL' ? 700 : 400 }}>{flagText}</td>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p?.reference_range_text || ''}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {notes && (
+                        <tfoot>
+                          <tr>
+                            <td colSpan={5} style={{ padding: '6px 8px', borderTop: '1px solid #000', fontStyle: 'italic' }}>
+                              <strong>REMARKS:</strong> {notes}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  );
+                }
+                // Legacy / single-value fallback
+                return (
+                  <table className="results w-full text-sm mb-6" style={{ borderCollapse: 'collapse', border: '1px solid #000' }}>
+                    <thead>
+                      <tr style={{ background: '#f0f0f0' }}>
+                        <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '40%' }}>TEST</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>RESULTS OBSERVED</th>
+                        <th style={{ padding: '6px 8px', border: '1px solid #000', textAlign: 'left', width: '30%' }}>REFERENCE RANGE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style={{ padding: '6px 8px', border: '1px solid #000' }}>{selectedOrderForPrint.test_name}</td>
+                        <td style={{ padding: '6px 8px', border: '1px solid #000', whiteSpace: 'pre-wrap' }}>
+                          {selectedOrderForPrint.results || '—'}
+                        </td>
+                        <td style={{ padding: '6px 8px', border: '1px solid #000' }}>—</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                );
+              })()}
 
               {selectedOrderForPrint.specimen_id && (
                 <div className="text-xs text-gray-700 mb-4">Specimen ID: {selectedOrderForPrint.specimen_id}</div>

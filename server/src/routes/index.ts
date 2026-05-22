@@ -264,6 +264,7 @@ import {
   getLabTestCatalog,
   createLabTest,
   updateLabTest,
+  getLabOrderParameters,
 } from '../controllers/labInventoryController';
 import {
   getLabAnalytics,
@@ -689,6 +690,9 @@ router.post('/lab-inventory/use', authenticateToken, authorizeRoles('lab'), useL
 router.get('/lab/test-catalog', authenticateToken, getLabTestCatalog);
 router.post('/lab/test-catalog', authenticateToken, authorizeRoles('lab', 'admin'), createLabTest);
 router.put('/lab/test-catalog/:id', authenticateToken, authorizeRoles('lab', 'admin'), updateLabTest);
+// Structured-result template for a specific lab order. Picks the right
+// variant (FBC by sex/age, chem by sex) based on the patient on the order.
+router.get('/lab/orders/:order_id/parameters', authenticateToken, authorizeRoles('lab', 'admin', 'doctor', 'nurse'), getLabOrderParameters);
 
 // Lab Analytics routes
 router.get('/lab/analytics', authenticateToken, authorizeRoles('lab', 'admin'), getLabAnalytics);
