@@ -175,10 +175,55 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Auto-create the audit table on first use so the feature works even
+// before the addLabResultAudit migration is run against this environment.
+let labResultAuditEnsured = false;
+const ensureLabResultAudit = async (): Promise<void> => {
+  if (labResultAuditEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lab_result_audit (
+      id SERIAL PRIMARY KEY,
+      lab_order_id INTEGER NOT NULL REFERENCES lab_orders(id) ON DELETE CASCADE,
+      edited_by INTEGER NOT NULL REFERENCES users(id),
+      edit_type VARCHAR(40) NOT NULL,
+      old_result TEXT,
+      new_result TEXT,
+      old_document_id INTEGER,
+      new_document_id INTEGER,
+      reason TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_lab_result_audit_order
+      ON lab_result_audit(lab_order_id, created_at DESC)
+  `);
+  labResultAuditEnsured = true;
+};
+
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureLabResultAudit();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
     const id = req.params.id as string;
     const updateData = { ...req.body };
+    const reason: string | undefined = updateData.reason;
+    delete updateData.reason; // never goes into the lab_orders row
+
+    // Read the existing row BEFORE updating so we can detect changes and
+    // log to the audit trail. Required when a 'completed' result is being
+    // edited (paper-trail requirement).
+    const beforeResult = await pool.query(
+      `SELECT id, status, result, result_document_id FROM lab_orders WHERE id = $1`,
+      [id]
+    );
+    if (beforeResult.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+    const before = beforeResult.rows[0];
+    const wasCompleted = before.status === 'completed';
 
     // Map frontend status values to database status values
     if (updateData.status) {
@@ -210,6 +255,19 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       updateData.result_date = new Date().toISOString();
     }
 
+    // Paper trail enforcement: if the row was already completed and the
+    // result text is being changed, require a reason.
+    const resultTextChanged =
+      wasCompleted &&
+      updateData.result !== undefined &&
+      (updateData.result || '').trim() !== (before.result || '').trim();
+    if (resultTextChanged && (!reason || !reason.trim())) {
+      res.status(400).json({
+        error: 'A reason is required when editing a completed result. Please supply a reason.',
+      });
+      return;
+    }
+
     const { setClause, values } = buildSafeUpdateClause('lab_orders', updateData, 2);
 
     const result = await pool.query(
@@ -225,6 +283,23 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     }
 
     const updatedOrder = result.rows[0];
+
+    // Log to audit trail if a completed result's text changed.
+    // (File replacement is logged in documentsController when the new
+    // document is uploaded.)
+    if (resultTextChanged && userId) {
+      try {
+        await pool.query(
+          `INSERT INTO lab_result_audit
+             (lab_order_id, edited_by, edit_type, old_result, new_result, reason)
+           VALUES ($1, $2, 'result_text_change', $3, $4, $5)`,
+          [id, userId, before.result || null, updateData.result || null, reason || 'No reason given']
+        );
+      } catch (auditErr) {
+        // Non-blocking — the update itself succeeded
+        console.error('Failed to write lab result audit:', auditErr);
+      }
+    }
 
     // Auto-flag critical results when completing a test
     if (updateData.status === 'completed' && updateData.result) {
@@ -270,7 +345,6 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     }
 
     // Audit log
-    const authReq = req as any;
     await auditService.log({
       userId: authReq.user?.id,
       action: 'update',
@@ -356,6 +430,95 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('Update lab order error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Clear a completed result and send the order back to in-progress. Requires
+// a reason; logged to the audit trail. Used when the lab tech realises they
+// attached the wrong file or entered values against the wrong order.
+export const deleteLabResult = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureLabResultAudit();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const id = req.params.id as string;
+    const reason: string | undefined = req.body?.reason;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ error: 'A reason is required to clear a completed result.' });
+      return;
+    }
+
+    const beforeResult = await pool.query(
+      `SELECT id, status, result, result_document_id FROM lab_orders WHERE id = $1`,
+      [id]
+    );
+    if (beforeResult.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found' });
+      return;
+    }
+    const before = beforeResult.rows[0];
+    if (before.status !== 'completed') {
+      res.status(400).json({ error: 'Only completed orders can have their results cleared.' });
+      return;
+    }
+
+    // Clear result fields and revert status. The previous patient_documents
+    // row stays in place (referenced by the audit log for paper trail) — we
+    // just stop pointing at it from this lab order.
+    await pool.query(
+      `UPDATE lab_orders
+          SET result = NULL,
+              result_document_id = NULL,
+              result_date = NULL,
+              status = 'in-progress',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [id]
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO lab_result_audit
+           (lab_order_id, edited_by, edit_type, old_result, new_result, old_document_id, new_document_id, reason)
+         VALUES ($1, $2, 'delete', $3, NULL, $4, NULL, $5)`,
+        [id, userId, before.result || null, before.result_document_id || null, reason.trim()]
+      );
+    } catch (auditErr) {
+      console.error('Failed to write lab result audit (delete):', auditErr);
+    }
+
+    res.json({ message: 'Result cleared. Order is back in-progress.' });
+  } catch (error) {
+    console.error('Delete lab result error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Audit history for a single lab order. Returns every recorded edit (text
+// change, file replace, delete) so the doctor can see exactly what the
+// lab tech changed and why.
+export const getLabResultAudit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureLabResultAudit();
+    const id = req.params.id as string;
+    const result = await pool.query(
+      `SELECT a.id, a.lab_order_id, a.edit_type, a.old_result, a.new_result,
+              a.old_document_id, a.new_document_id, a.reason, a.created_at,
+              u.first_name || ' ' || u.last_name AS edited_by_name,
+              u.role AS edited_by_role
+         FROM lab_result_audit a
+         JOIN users u ON a.edited_by = u.id
+        WHERE a.lab_order_id = $1
+        ORDER BY a.created_at DESC`,
+      [id]
+    );
+    res.json({ audit: result.rows });
+  } catch (error) {
+    // If the table doesn't exist yet (migration not run), return empty
+    // history instead of erroring out the whole row.
+    console.error('Get lab result audit error:', error);
+    res.json({ audit: [] });
   }
 };
 

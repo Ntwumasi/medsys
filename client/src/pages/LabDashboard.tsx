@@ -162,7 +162,7 @@ interface LeveyJenningsData {
 
 const LabDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const { confirm: confirmDialog } = useDialog();
+  const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main tab state
@@ -528,6 +528,30 @@ const LabDashboard: React.FC = () => {
     }
   };
 
+  // Delete a completed result with a paper trail. Requires a reason
+  // (e.g. 'attached to wrong patient'). Sends order back to in-progress.
+  const deleteLabResult = async (order: LabOrder) => {
+    const reason = await promptDialog({
+      title: `Delete result for ${order.test_name}?`,
+      message:
+        `Patient: ${order.patient_name}\n\n` +
+        `This clears the result and sends the order back to In Progress so it can be re-entered. ` +
+        `A reason is required for the audit log.`,
+      placeholder: 'e.g. Result attached to wrong patient',
+      required: true,
+      multiline: true,
+      confirmLabel: 'Delete result',
+    });
+    if (!reason) return; // user cancelled
+    try {
+      await apiClient.post(`/orders/lab/${order.id}/delete-result`, { reason });
+      showToast('Result cleared. Order is back in In Progress.', 'success');
+      fetchLabOrders();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to clear result', 'error');
+    }
+  };
+
   // Fetch the uploaded result file and open it (PDF/image preview in new tab,
   // download otherwise). Used both by the lab tech to verify what they
   // uploaded and by anyone clicking View File on a completed lab order.
@@ -741,6 +765,23 @@ const LabDashboard: React.FC = () => {
   // Submit structured result with optional file upload
   const submitStructuredResult = async () => {
     if (!selectedOrderForResult) return;
+
+    // If we're editing a result on a previously completed order, require a
+    // reason for the audit trail. Skip when this is the first save.
+    let reason: string | null | undefined;
+    if (selectedOrderForResult.status === 'completed') {
+      reason = await promptDialog({
+        title: 'Reason for edit',
+        message:
+          `This order was already marked completed. Provide a reason for the change — it will be recorded in the audit log.`,
+        placeholder: 'e.g. Wrong value entered, corrected after lab re-run',
+        required: true,
+        multiline: true,
+        confirmLabel: 'Save edit',
+      });
+      if (!reason) return; // user cancelled the reason prompt
+    }
+
     try {
       const resultText = `${structuredResult.value} ${structuredResult.unit}${structuredResult.notes ? '\n' + structuredResult.notes : ''}`;
 
@@ -749,6 +790,7 @@ const LabDashboard: React.FC = () => {
         status: 'completed',
         results: resultText,
         specimen_id: structuredResult.specimen_id,
+        ...(reason ? { reason } : {}),
       });
 
       // If file is selected, upload it
@@ -766,6 +808,7 @@ const LabDashboard: React.FC = () => {
               file_data: reader.result,
               file_type: selectedFile.type,
               description: `Lab result for ${selectedOrderForResult.test_name}`,
+              ...(reason ? { reason } : {}),
             });
             showToast('Result and document uploaded successfully', 'success');
           } catch (uploadError) {
@@ -1636,6 +1679,18 @@ const LabDashboard: React.FC = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
                                   Edit / Re-upload
+                                </button>
+                              )}
+                              {order.status === 'completed' && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteLabResult(order); }}
+                                  className="px-3 py-1.5 text-xs font-medium text-danger-700 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100 flex items-center gap-1"
+                                  title="Clear the result (e.g. attached to wrong patient) — requires a reason and is audit-logged"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                                  </svg>
+                                  Delete Result
                                 </button>
                               )}
                               {order.status === 'completed' && (

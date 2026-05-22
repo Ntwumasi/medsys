@@ -95,6 +95,8 @@ import {
   createLabOrder,
   getLabOrders,
   updateLabOrder,
+  deleteLabResult,
+  getLabResultAudit,
   createImagingOrder,
   getImagingOrders,
   updateImagingOrder,

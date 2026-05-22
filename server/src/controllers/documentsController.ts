@@ -170,11 +170,42 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
     );
 
     // If linked to a lab order, update the lab order with document reference
+    // and log to audit trail when this replaces a previously attached file.
     if (lab_order_id) {
+      const prevDoc = await pool.query(
+        `SELECT result_document_id, status FROM lab_orders WHERE id = $1`,
+        [lab_order_id]
+      );
+      const oldDocId = prevDoc.rows[0]?.result_document_id || null;
+      const wasCompleted = prevDoc.rows[0]?.status === 'completed';
+
       await pool.query(
         `UPDATE lab_orders SET result_document_id = $1 WHERE id = $2`,
         [result.rows[0].id, lab_order_id]
       );
+
+      // Paper trail: log file replacement / first attach when the order
+      // had already been marked completed. (Initial attach on still-in-progress
+      // orders doesn't need an audit row — it's the first save.)
+      if (wasCompleted) {
+        try {
+          await pool.query(
+            `INSERT INTO lab_result_audit
+               (lab_order_id, edited_by, edit_type, old_document_id, new_document_id, reason)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [
+              lab_order_id,
+              userId,
+              oldDocId ? 'file_replace' : 'file_add',
+              oldDocId,
+              result.rows[0].id,
+              (req.body && req.body.reason) || (oldDocId ? 'File replaced' : 'File attached'),
+            ]
+          );
+        } catch (auditErr) {
+          console.error('Failed to write lab result audit (file change):', auditErr);
+        }
+      }
     }
 
     res.json({
