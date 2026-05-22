@@ -3944,7 +3944,7 @@ const PharmacyDashboard: React.FC = () => {
                             <div>
                               <label className="text-xs text-gray-500">Subtotal</label>
                               <p className="px-2 py-1.5 text-sm font-bold text-success-600">
-                                GH₵{(med.unit_price * med.quantity).toFixed(2)}
+                                GH₵{(Number(med.unit_price || 0) * Number(med.quantity || 0)).toFixed(2)}
                               </p>
                             </div>
                           </div>
@@ -4003,7 +4003,7 @@ const PharmacyDashboard: React.FC = () => {
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-success-800">Total</span>
                         <span className="text-2xl font-bold text-success-600">
-                          GH₵{walkInMedications.reduce((sum, med) => sum + (med.unit_price * med.quantity), 0).toFixed(2)}
+                          GH₵{walkInMedications.reduce((sum, med) => sum + Number(med.unit_price || 0) * Number(med.quantity || 0), 0).toFixed(2)}
                         </span>
                       </div>
                     </div>

@@ -3680,7 +3680,7 @@ const ReceptionistDashboard: React.FC = () => {
                               />
                             </td>
                             <td className="px-4 py-2 text-right text-sm font-medium text-gray-700">
-                              GHS {(item.quantity * item.unit_price).toFixed(2)}
+                              GHS {(Number(item.quantity || 0) * Number(item.unit_price || 0)).toFixed(2)}
                             </td>
                             <td className="px-2 py-2">
                               {specialInvoiceItems.length > 1 && (
@@ -3701,7 +3701,7 @@ const ReceptionistDashboard: React.FC = () => {
                         <tr className="border-t-2 border-gray-200 bg-gray-50">
                           <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-700">Grand Total</td>
                           <td className="px-4 py-3 text-right font-bold text-lg text-warning-700">
-                            GHS {specialInvoiceItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0).toFixed(2)}
+                            GHS {specialInvoiceItems.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0).toFixed(2)}
                           </td>
                           <td></td>
                         </tr>
