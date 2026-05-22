@@ -279,8 +279,28 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     };
   }, []);
 
+  // Completed orders for this encounter — used to auto-mark Lab Results /
+  // Imaging Results sections as completed and to render their results
+  // inline inside the SOAP section view.
+  const [completedLabs, setCompletedLabs] = useState<Array<{
+    id: number;
+    test_name: string;
+    results?: string | null;
+    result_document_id?: number | null;
+    result_document_name?: string | null;
+    results_available_at?: string | null;
+  }>>([]);
+  const [completedImaging, setCompletedImaging] = useState<Array<{
+    id: number;
+    imaging_type: string;
+    body_part?: string;
+    findings?: string | null;
+    completed_date?: string | null;
+  }>>([]);
+
   useEffect(() => {
     loadHPData();
+    loadOrdersForCompletion();
   }, [encounterId]);
 
   const loadHPData = async () => {
@@ -293,6 +313,41 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       console.error('Error loading H&P data:', error);
     }
   };
+
+  const loadOrdersForCompletion = async () => {
+    try {
+      const [labs, imaging] = await Promise.all([
+        apiClient.get(`/orders/lab?encounter_id=${encounterId}&status=completed`),
+        apiClient.get(`/orders/imaging?encounter_id=${encounterId}&status=completed`),
+      ]);
+      setCompletedLabs(labs.data.lab_orders || []);
+      setCompletedImaging(imaging.data.imaging_orders || []);
+    } catch {
+      // Non-blocking — auto-completion just won't apply
+    }
+  };
+
+  // Effective sections: mix the stored hp_sections state with live data from
+  // the encounter (vitals, completed lab/imaging orders) so the doctor sees
+  // green checkmarks reflecting what's actually been done.
+  const hasVitalsData =
+    !!vitalSigns &&
+    Object.values(vitalSigns).some(v => v !== undefined && v !== null && v !== '');
+  const hasCompletedLabs = completedLabs.length > 0;
+  const hasCompletedImaging = completedImaging.length > 0;
+
+  const effectiveSections = sections.map(s => {
+    if (s.id === 'vital_signs' && hasVitalsData && !s.completed) {
+      return { ...s, completed: true };
+    }
+    if (s.id === 'lab_results' && hasCompletedLabs && !s.completed) {
+      return { ...s, completed: true };
+    }
+    if (s.id === 'imaging_results' && hasCompletedImaging && !s.completed) {
+      return { ...s, completed: true };
+    }
+    return s;
+  });
 
   const handleSectionClick = (sectionId: string) => {
     // Save any pending changes before switching sections (use ref to avoid stale closure)
@@ -620,7 +675,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     );
   };
 
-  const currentSection = expandedSection ? findSection(sections, expandedSection) : null;
+  const currentSection = expandedSection ? findSection(effectiveSections, expandedSection) : null;
 
   return (
     <div className="flex flex-col gap-6 px-4">
@@ -632,7 +687,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-bold">SOAP</h2>
             <span className="text-primary-100 text-sm">
-              {sections.filter(s => s.completed).length} of {sections.length} completed
+              {effectiveSections.filter(s => s.completed).length} of {effectiveSections.length} completed
             </span>
           </div>
           {/* Smart Dictate Button */}
@@ -649,7 +704,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {sections.map(section => renderSection(section))}
+          {effectiveSections.map(section => renderSection(section))}
         </div>
       </div>
 
@@ -808,6 +863,81 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                 </div>
               )}
 
+              {/* Auto-populated Lab Results — pulled from completed lab_orders */}
+              {expandedSection === 'lab_results' && completedLabs.length > 0 && (
+                <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <h4 className="font-bold text-emerald-900">
+                      Completed Lab Results ({completedLabs.length})
+                    </h4>
+                  </div>
+                  <ul className="space-y-2">
+                    {completedLabs.map(lab => (
+                      <li key={lab.id} className="bg-white rounded p-3 border border-emerald-100">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <span className="font-semibold text-gray-900">{lab.test_name}</span>
+                          {lab.results_available_at && (
+                            <span className="text-xs text-gray-500">
+                              {new Date(lab.results_available_at).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        {lab.results && lab.results.trim() && (
+                          <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">{lab.results}</pre>
+                        )}
+                        {lab.result_document_id && (
+                          <div className="text-xs text-blue-700 mt-1">
+                            📎 Attached file: {lab.result_document_name || 'lab report'}
+                          </div>
+                        )}
+                        {!lab.results?.trim() && !lab.result_document_id && (
+                          <div className="text-xs text-amber-700">⚠ Result not yet entered by lab tech.</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-emerald-700 mt-2">
+                    Lab results above are pulled automatically. Add your interpretation in the notes below.
+                  </p>
+                </div>
+              )}
+
+              {/* Auto-populated Imaging Results */}
+              {expandedSection === 'imaging_results' && completedImaging.length > 0 && (
+                <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    <h4 className="font-bold text-emerald-900">
+                      Completed Imaging ({completedImaging.length})
+                    </h4>
+                  </div>
+                  <ul className="space-y-2">
+                    {completedImaging.map(img => (
+                      <li key={img.id} className="bg-white rounded p-3 border border-emerald-100">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <span className="font-semibold text-gray-900">
+                            {img.imaging_type}{img.body_part ? ` — ${img.body_part}` : ''}
+                          </span>
+                          {img.completed_date && (
+                            <span className="text-xs text-gray-500">
+                              {new Date(img.completed_date).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        {img.findings && (
+                          <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">{img.findings}</pre>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="mb-4">
                 <SmartTextArea
                   value={editingContent}
@@ -905,7 +1035,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            {sections.filter(s => s.completed).length} of {sections.length} sections completed
+            {effectiveSections.filter(s => s.completed).length} of {effectiveSections.length} sections completed
           </div>
           <div className="flex items-center gap-3">
             {/* Preview Button */}
