@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
@@ -127,7 +127,9 @@ const PatientDetails: React.FC = () => {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging'>('overview');
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as 'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging' | null) || 'overview';
+  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging'>(initialTab);
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
@@ -1012,10 +1014,26 @@ const PatientDetails: React.FC = () => {
                             )}
                           </div>
 
-                          {lab.results && (
+                          {lab.results && lab.results.trim() && (
                             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
                               <h4 className="text-sm font-bold text-emerald-800 mb-2">Results:</h4>
                               <p className="text-gray-900 whitespace-pre-wrap">{lab.results}</p>
+                            </div>
+                          )}
+
+                          {/* Status = completed but no result text AND no file — make the gap explicit so the doctor knows the lab tech still needs to record values */}
+                          {lab.status === 'completed' && (!lab.results || !lab.results.trim()) && !lab.result_document_id && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" />
+                              </svg>
+                              <div className="text-sm">
+                                <p className="font-semibold text-amber-900">Result data not entered yet</p>
+                                <p className="text-amber-700 text-xs mt-0.5">
+                                  The lab marked this test completed but didn&apos;t record the value or upload a file.
+                                  Ask the lab tech to open this order and enter the result.
+                                </p>
+                              </div>
                             </div>
                           )}
 

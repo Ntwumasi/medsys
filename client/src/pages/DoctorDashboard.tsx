@@ -94,6 +94,7 @@ interface PharmacyOrder {
 
 interface DoctorAlert {
   id: number;
+  patient_id?: number;
   patient_name: string;
   patient_number: string;
   room_number?: string;
@@ -105,6 +106,7 @@ interface DoctorAlert {
   results?: string;
   completed_date?: string;
   priority: string;
+  result_document_id?: number | null;
 }
 
 const DoctorDashboard: React.FC = () => {
@@ -1081,7 +1083,12 @@ const DoctorDashboard: React.FC = () => {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {labAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
+                          <div
+                            key={alert.id}
+                            onClick={() => alert.patient_id && navigate(`/patients/${alert.patient_id}?tab=labs`)}
+                            className={`px-4 py-3 transition-colors ${alert.patient_id ? 'hover:bg-warning-50 cursor-pointer' : ''}`}
+                            title={alert.patient_id ? 'Open patient lab results' : ''}
+                          >
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm">{alert.test_name}</div>
