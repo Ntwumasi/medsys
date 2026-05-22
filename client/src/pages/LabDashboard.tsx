@@ -1229,6 +1229,24 @@ const LabDashboard: React.FC = () => {
     setShowResultModal(true);
   };
 
+  // Compose a display string for the Reference column. Falls back to
+  // building one from normal_low/normal_high when the server didn't supply
+  // an explicit reference_range_text — keeps the column populated even on
+  // older seeds.
+  const formatReference = (p: ParameterDef): string => {
+    if (p.reference_range_text && p.reference_range_text.trim()) {
+      return p.reference_range_text;
+    }
+    const lo = p.normal_low != null ? String(p.normal_low) : null;
+    const hi = p.normal_high != null ? String(p.normal_high) : null;
+    const rawUnit = p.unit || '';
+    const unit = rawUnit.startsWith('10^') ? `x${rawUnit}` : rawUnit;
+    if (lo == null && hi == null) return '';
+    if (lo != null && hi != null) return `${lo} - ${hi}${unit ? ' ' + unit : ''}`;
+    if (lo != null) return `> ${lo}${unit ? ' ' + unit : ''}`;
+    return `< ${hi}${unit ? ' ' + unit : ''}`;
+  };
+
   // Helper: classify a parameter value as NORMAL / LOW / HIGH / CRITICAL.
   // Used for the live flag column in the structured entry table.
   const classifyValue = (
@@ -3626,7 +3644,7 @@ const LabDashboard: React.FC = () => {
                                     <td className="px-3 py-2 text-gray-600">{p.unit || ''}</td>
                                     <td className={`px-3 py-2 ${flagClass}`}>{flagLabel}</td>
                                     <td className="px-3 py-2 text-gray-500 text-xs">
-                                      {p.reference_range_text || ''}
+                                      {formatReference(p)}
                                     </td>
                                   </tr>
                                 );
@@ -4128,7 +4146,7 @@ const LabDashboard: React.FC = () => {
                               <td style={{ padding: '4px 8px', border: '1px solid #000', fontFamily: 'monospace' }}>{String(v) || '—'}</td>
                               <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p?.unit || ''}</td>
                               <td style={{ padding: '4px 8px', border: '1px solid #000', fontWeight: flag && flag !== 'NORMAL' ? 700 : 400 }}>{flagText}</td>
-                              <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p?.reference_range_text || ''}</td>
+                              <td style={{ padding: '4px 8px', border: '1px solid #000' }}>{p ? formatReference(p) : ''}</td>
                             </tr>
                           );
                         })}

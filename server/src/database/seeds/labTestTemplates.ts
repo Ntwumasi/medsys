@@ -55,6 +55,22 @@ const QUAL_URINE_CHEM = 'Negative|Trace|+|++|+++|++++';
 const QUAL_UROBIL = 'Normal|Abnormal';
 const QUAL_OBSERVED = 'Not observed|Observed';
 
+// Build a human-friendly reference range string from a low/high pair.
+// Mirrors the format the lab uses on printed reports ("4.0 - 12.0 x10^9/L").
+const formatRange = (
+  lo: number | null,
+  hi: number | null,
+  unit: string,
+): string => {
+  if (lo == null && hi == null) return '';
+  // Render unit using "x10^N/L" style for the analyzer-native units; pass
+  // through everything else as-is.
+  const displayUnit = unit.startsWith('10^') ? `x${unit}` : unit;
+  if (lo != null && hi != null) return `${lo} - ${hi}${displayUnit ? ' ' + displayUnit : ''}`;
+  if (lo != null) return `> ${lo}${displayUnit ? ' ' + displayUnit : ''}`;
+  return `< ${hi}${displayUnit ? ' ' + displayUnit : ''}`;
+};
+
 // FBC parameter list — the parameter NAMES are the same across age/sex,
 // only the reference ranges differ. We define the parameter scaffold once
 // and inject ranges from the per-variant tables below.
@@ -80,7 +96,9 @@ const fbcParameterTemplate = (
       unit,
       normal_low: lo ?? undefined,
       normal_high: hi ?? undefined,
-      reference_range_text: refText,
+      // Use the explicit refText if provided; otherwise derive from the
+      // range so every row in the printed report has something legible.
+      reference_range_text: refText || formatRange(lo, hi, unit),
       age_group: ageGroup,
       sex,
       section_label: section,
