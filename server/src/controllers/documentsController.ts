@@ -143,6 +143,26 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       .substring(0, 50);
     const fileName = `${timestamp}_${randomSuffix}_${baseName}${ext}`;
 
+    // Diagnostic: log incoming buffer size so we can verify the bytes are
+    // arriving end-to-end. If buffer length is non-zero but the saved
+    // file_blob is null on retrieval, the issue is the column or the driver.
+    console.log(
+      `[uploadDocument] incoming buffer length=${fileSize}, file_type=${mimeType}, ` +
+      `is_buffer=${Buffer.isBuffer(buffer)}, lab_order_id=${lab_order_id ?? 'none'}`
+    );
+
+    // Ensure file_blob column exists. If the addDocumentBlobStorage migration
+    // never ran on this database, BYTEA storage isn't available and every
+    // upload silently saves as null. Auto-create here is idempotent.
+    await pool.query(`
+      ALTER TABLE patient_documents
+        ADD COLUMN IF NOT EXISTS file_blob BYTEA
+    `);
+    // Make file_path nullable defensively (older deployments had it NOT NULL)
+    try {
+      await pool.query(`ALTER TABLE patient_documents ALTER COLUMN file_path DROP NOT NULL`);
+    } catch { /* already nullable — fine */ }
+
     // Save metadata + raw bytes to the database.
     const result = await pool.query(
       `INSERT INTO patient_documents
@@ -168,6 +188,22 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
         buffer,
       ]
     );
+
+    // Verify the blob actually persisted. If null, something stripped the
+    // bytes between Node and Postgres (driver issue, NOT NULL constraint,
+    // or column missing). Log so we can see in Vercel logs.
+    try {
+      const verify = await pool.query(
+        `SELECT id, octet_length(file_blob) AS blob_size FROM patient_documents WHERE id = $1`,
+        [result.rows[0].id]
+      );
+      console.log(
+        `[uploadDocument] post-insert verify: id=${result.rows[0].id}, ` +
+        `blob_size=${verify.rows[0]?.blob_size ?? 'NULL'}, expected=${fileSize}`
+      );
+    } catch (verifyErr) {
+      console.error('[uploadDocument] verify query failed:', verifyErr);
+    }
 
     // If linked to a lab order, update the lab order with document reference
     // and log to audit trail when this replaces a previously attached file.
@@ -212,9 +248,14 @@ export const uploadDocument = async (req: Request, res: Response): Promise<void>
       message: 'Document uploaded successfully',
       document: result.rows[0]
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error uploading document:', error);
-    res.status(500).json({ error: 'Failed to upload document' });
+    res.status(500).json({
+      error: 'Failed to upload document',
+      // Surface the underlying DB error in the API response so the client
+      // toast shows the root cause (e.g. 'column file_blob does not exist').
+      detail: error?.message,
+    });
   }
 };
 
