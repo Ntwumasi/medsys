@@ -273,7 +273,8 @@ const ensureLabVerificationSchema = async (): Promise<void> => {
         ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP,
         ADD COLUMN IF NOT EXISTS verification_notes TEXT,
         ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
-        ADD COLUMN IF NOT EXISTS rejection_count INTEGER DEFAULT 0
+        ADD COLUMN IF NOT EXISTS rejection_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS path_no VARCHAR(10)
     `);
     await pool.query(`
       UPDATE lab_orders SET verification_status = 'not_required'
