@@ -39,9 +39,54 @@ interface HPAccordionProps {
   signedBy?: string;
 }
 
+interface Addendum {
+  id: number;
+  encounter_id: number;
+  content: string;
+  created_by: number;
+  created_by_name: string;
+  created_by_role: string;
+  created_at: string;
+}
+
 const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns, onSign, isSigned, signedAt, signedBy }) => {
   const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  // Addenda — append-only notes added after the SOAP is finalized
+  const [addenda, setAddenda] = useState<Addendum[]>([]);
+  const [addingAddendum, setAddingAddendum] = useState(false);
+  const [addendumDraft, setAddendumDraft] = useState('');
+  const [savingAddendum, setSavingAddendum] = useState(false);
+  const loadAddenda = useCallback(async () => {
+    if (!encounterId) return;
+    try {
+      const res = await apiClient.get(`/hp/${encounterId}/addenda`);
+      setAddenda(res.data.addenda || []);
+    } catch {
+      // table may not exist yet on a fresh deploy — silently empty
+      setAddenda([]);
+    }
+  }, [encounterId]);
+  useEffect(() => { loadAddenda(); }, [loadAddenda]);
+  const handleSaveAddendum = async () => {
+    if (!addendumDraft.trim()) {
+      showToast('Addendum cannot be empty', 'warning');
+      return;
+    }
+    setSavingAddendum(true);
+    try {
+      const res = await apiClient.post(`/hp/${encounterId}/addenda`, { content: addendumDraft.trim() });
+      setAddenda(prev => [...prev, res.data.addendum]);
+      setAddendumDraft('');
+      setAddingAddendum(false);
+      showToast('Addendum added', 'success');
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to add addendum', 'error');
+    } finally {
+      setSavingAddendum(false);
+    }
+  };
   const [sections, setSections] = useState<HPSection[]>([
     {
       id: 'chief_complaint',
@@ -906,6 +951,85 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             )}
           </div>
         </div>
+
+        {/* Addenda — append-only notes added after the visit (e.g. when lab
+            results come back). Each addendum is timestamped and attributed. */}
+        {(addenda.length > 0 || userRole === 'doctor') && (
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
+                Addenda {addenda.length > 0 && <span className="text-gray-400 font-normal normal-case">({addenda.length})</span>}
+              </h4>
+              {userRole === 'doctor' && !addingAddendum && (
+                <button
+                  onClick={() => { setAddingAddendum(true); setAddendumDraft(''); }}
+                  className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 inline-flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Addendum
+                </button>
+              )}
+            </div>
+
+            {addenda.length === 0 && !addingAddendum && (
+              <p className="text-xs text-gray-400 italic">
+                No addenda. Use addenda to add notes after the original visit — e.g. when lab/imaging results come back.
+              </p>
+            )}
+
+            {addenda.length > 0 && (
+              <ol className="space-y-3 mb-3">
+                {addenda.map((a, idx) => (
+                  <li key={a.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between text-xs text-blue-700 mb-1.5 font-medium">
+                      <span>
+                        Addendum #{idx + 1} — {a.created_by_role === 'doctor' ? 'Dr. ' : ''}{a.created_by_name}
+                      </span>
+                      <span>{new Date(a.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{a.content}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            {addingAddendum && (
+              <div className="bg-white border border-primary-300 rounded-lg p-3">
+                <textarea
+                  rows={4}
+                  autoFocus
+                  value={addendumDraft}
+                  onChange={(e) => setAddendumDraft(e.target.value)}
+                  placeholder="e.g. Lab results received — FBS within normal limits. No change to plan."
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Addenda are append-only — once saved they cannot be edited or deleted. The original SOAP stays intact.
+                </p>
+                <div className="flex items-center justify-end gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setAddingAddendum(false); setAddendumDraft(''); }}
+                    disabled={savingAddendum}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAddendum}
+                    disabled={savingAddendum || !addendumDraft.trim()}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60"
+                  >
+                    {savingAddendum ? 'Saving…' : 'Save Addendum'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

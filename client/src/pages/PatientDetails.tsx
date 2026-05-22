@@ -22,6 +22,9 @@ interface LabResult {
   ordering_provider_name: string;
   encounter_number: string;
   notes?: string;
+  result_document_id?: number | null;
+  result_document_name?: string | null;
+  result_document_file_type?: string | null;
 }
 
 const PatientDetails: React.FC = () => {
@@ -909,6 +912,55 @@ const PatientDetails: React.FC = () => {
                             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
                               <h4 className="text-sm font-bold text-emerald-800 mb-2">Results:</h4>
                               <p className="text-gray-900 whitespace-pre-wrap">{lab.results}</p>
+                            </div>
+                          )}
+
+                          {/* Uploaded result file (PDF/image) — separate from inline text */}
+                          {lab.result_document_id && (
+                            <div className={`${lab.results ? 'mt-3' : ''} bg-blue-50 rounded-lg p-3 border border-blue-200 flex items-center justify-between gap-3`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span className="text-sm font-medium text-blue-900 truncate">
+                                  {lab.result_document_name || 'Attached result file'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    const res = await apiClient.get(`/documents/${lab.result_document_id}`);
+                                    const { file_data, file_type, document_name } = res.data;
+                                    if (!file_data) {
+                                      showToast('File data not available', 'error');
+                                      return;
+                                    }
+                                    // file_data is base64; convert to blob and open
+                                    const byteChars = atob(file_data);
+                                    const byteArr = new Uint8Array(byteChars.length);
+                                    for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+                                    const blob = new Blob([byteArr], { type: file_type || 'application/octet-stream' });
+                                    const url = URL.createObjectURL(blob);
+                                    // Open in new tab for PDFs/images; for others, trigger download
+                                    const previewable = (file_type || '').startsWith('image/') || file_type === 'application/pdf';
+                                    if (previewable) {
+                                      window.open(url, '_blank');
+                                    } else {
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = document_name || 'lab-result';
+                                      a.click();
+                                    }
+                                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                                  } catch (err: any) {
+                                    showToast(err?.response?.data?.error || 'Failed to load file', 'error');
+                                  }
+                                }}
+                                className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                              >
+                                View file
+                              </button>
                             </div>
                           )}
 

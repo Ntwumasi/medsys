@@ -221,6 +221,102 @@ export const getHPStatus = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// Auto-create soap_addenda table on first use so the feature works even
+// before the migration is run.
+let addendaTableEnsured = false;
+const ensureAddendaTable = async (): Promise<void> => {
+  if (addendaTableEnsured) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS soap_addenda (
+      id SERIAL PRIMARY KEY,
+      encounter_id INTEGER NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_soap_addenda_encounter
+      ON soap_addenda(encounter_id, created_at DESC)
+  `);
+  addendaTableEnsured = true;
+};
+
+// GET /api/hp/:encounter_id/addenda — list addenda for an encounter
+export const getAddenda = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureAddendaTable();
+    const { encounter_id } = req.params;
+    const result = await pool.query(
+      `SELECT a.id, a.encounter_id, a.content, a.created_by, a.created_at,
+              u.first_name || ' ' || u.last_name AS created_by_name,
+              u.role AS created_by_role
+         FROM soap_addenda a
+         JOIN users u ON a.created_by = u.id
+        WHERE a.encounter_id = $1
+        ORDER BY a.created_at ASC`,
+      [encounter_id]
+    );
+    res.json({ addenda: result.rows });
+  } catch (error) {
+    console.error('Get addenda error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// POST /api/hp/:encounter_id/addenda — add an addendum to a (signed or unsigned) SOAP
+// Why: doctors often need to add notes after labs/imaging come back. The
+// original SOAP stays intact (legal record); addenda are append-only,
+// timestamped, and attributed.
+export const addAddendum = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await ensureAddendaTable();
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    const userRole = authReq.user?.role;
+    const { encounter_id } = req.params;
+    const { content } = req.body || {};
+
+    if (userRole !== 'doctor' && userRole !== 'admin') {
+      res.status(403).json({ error: 'Only doctors can add addenda to SOAP notes' });
+      return;
+    }
+    if (!content || typeof content !== 'string' || !content.trim()) {
+      res.status(400).json({ error: 'Addendum content is required' });
+      return;
+    }
+
+    const exists = await pool.query(`SELECT id FROM encounters WHERE id = $1`, [encounter_id]);
+    if (exists.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    const ins = await pool.query(
+      `INSERT INTO soap_addenda (encounter_id, content, created_by)
+       VALUES ($1, $2, $3)
+       RETURNING id, encounter_id, content, created_by, created_at`,
+      [encounter_id, content.trim(), userId]
+    );
+    const row = ins.rows[0];
+    // Hydrate created_by_name for the immediate response
+    const u = await pool.query(
+      `SELECT first_name || ' ' || last_name AS name, role FROM users WHERE id = $1`,
+      [userId]
+    );
+    res.status(201).json({
+      addendum: {
+        ...row,
+        created_by_name: u.rows[0]?.name || '',
+        created_by_role: u.rows[0]?.role || '',
+      },
+    });
+  } catch (error) {
+    console.error('Add addendum error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Sign SOAP note
 export const signSOAP = async (req: Request, res: Response): Promise<void> => {
   try {

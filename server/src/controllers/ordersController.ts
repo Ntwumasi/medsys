@@ -87,6 +87,9 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         lo.result_date as results_available_at,
         lo.result_date as completed_at,
         lo.result as results,
+        lo.result_document_id,
+        pd.document_name as result_document_name,
+        pd.file_type as result_document_file_type,
         lo.created_at,
         lo.updated_at,
         CASE
@@ -107,6 +110,7 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
       LEFT JOIN encounters e ON lo.encounter_id = e.id
       LEFT JOIN patients p ON lo.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
+      LEFT JOIN patient_documents pd ON lo.result_document_id = pd.id
       WHERE 1=1
     `;
     const params: any[] = [];
