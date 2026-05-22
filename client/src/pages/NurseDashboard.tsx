@@ -14,6 +14,8 @@ import VitalSignsHistory from '../components/VitalSignsHistory';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import NurseGuide from '../components/NurseGuide';
 import AllergyWarningModal from '../components/AllergyWarningModal';
+import LabTestSetChips from '../components/LabTestSetChips';
+import type { LabTestSetItem } from '../api/labTestSets';
 import type { ApiError } from '../types';
 
 interface ClinicalNote {
@@ -520,6 +522,49 @@ const NurseDashboard: React.FC = () => {
         console.error('Error starting encounter:', error);
         // Don't show error to user - this is a background update
       }
+    }
+  };
+
+  // Apply a saved test set inside the nurse lab order modal — batch-creates
+  // one lab_order per item using the doctor currently selected in the form.
+  // Nurses can read + apply but cannot create new sets (that's doctor-only).
+  const handleApplySetForNurse = async (items: LabTestSetItem[]) => {
+    if (!selectedPatient) {
+      showToast('Please select a patient first', 'warning');
+      return;
+    }
+    if (!labOrderForm.ordering_provider_id) {
+      showToast('Pick the ordering doctor first, then click the set.', 'warning');
+      return;
+    }
+    setCreatingLabOrder(true);
+    try {
+      await Promise.all(
+        items.map(it =>
+          apiClient.post('/orders/lab', {
+            encounter_id: selectedPatient.id,
+            patient_id: selectedPatient.patient_id,
+            test_name: it.test_name,
+            priority: it.default_priority || 'routine',
+            ordering_provider_id: labOrderForm.ordering_provider_id,
+          })
+        )
+      );
+      showToast(`Created ${items.length} lab order(s) from set`, 'success');
+      setShowLabOrderModal(false);
+      setLabOrderForm({
+        test_name: '',
+        test_code: '',
+        priority: 'routine',
+        ordering_provider_id: null,
+        notes: '',
+      });
+      loadOrders();
+    } catch (err) {
+      const apiError = err as ApiError;
+      showToast(apiError.response?.data?.error || 'Failed to apply test set', 'error');
+    } finally {
+      setCreatingLabOrder(false);
     }
   };
 
@@ -3933,6 +3978,11 @@ const NurseDashboard: React.FC = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* Read-only test sets — nurse can apply, only doctors create */}
+                <div className="border-t border-gray-200 pt-3">
+                  <LabTestSetChips pendingLabOrders={[]} onApplySet={handleApplySetForNurse} />
                 </div>
 
                 {/* Test Name */}

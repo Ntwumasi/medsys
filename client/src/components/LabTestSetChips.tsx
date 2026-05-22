@@ -21,10 +21,13 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const { user, impersonation } = useAuth();
+  // Only doctors / admins can author the clinic set catalog (create + delete).
+  // Nurses can read and apply but not modify.
   const isAdminLike =
     user?.role === 'admin' ||
     user?.is_super_admin === true ||
     impersonation.originalUser?.is_super_admin === true;
+  const canAuthorSets = user?.role === 'doctor' || isAdminLike;
 
   const [sets, setSets] = useState<LabTestSet[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,7 +149,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
     }
   };
 
-  const canSave = pendingLabOrders.length >= 1;
+  const canSave = canAuthorSets && pendingLabOrders.length >= 1;
 
   if (loading && sets.length === 0) {
     return (
@@ -168,15 +171,15 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
 
         {pinned.length === 0 && (
           <span className="text-xs text-gray-500 italic">
-            No saved sets yet. Add lab tests below, then click{' '}
-            <span className="font-semibold text-primary-700">Save current as set</span>{' '}
-            on the right.
+            {canAuthorSets
+              ? <>No saved sets yet. Add lab tests below, then click <span className="font-semibold text-primary-700">Save current as set</span> on the right.</>
+              : 'No saved sets yet — ask a doctor to create one.'}
           </span>
         )}
 
-        {/* Always show a Save-as-set affordance so it's discoverable even
-            when nothing is staged yet. Disabled state is the prompt. */}
-        {!canSave && (
+        {/* Save-as-set affordance only visible to authors (doctors / admins).
+            Disabled state is the discovery cue when nothing is staged. */}
+        {canAuthorSets && !canSave && (
           <button
             type="button"
             disabled
@@ -341,7 +344,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
                         {set.use_count > 0 && ` · Used ${set.use_count}×`}
                       </div>
                     </button>
-                    {(set.is_mine || isAdminLike) && (
+                    {canAuthorSets && (set.is_mine || isAdminLike) && (
                       <button
                         type="button"
                         onClick={() => handleDelete(set)}

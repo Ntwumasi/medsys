@@ -511,9 +511,12 @@ router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'),
 router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor'), getDoctorDelinquent);
 
 // Lab test sets - reusable bundles of labs (BIGPAY Screening, Olams Pre-Employment, etc.)
-router.get('/lab-test-sets', authenticateToken, authorizeRoles('doctor', 'admin'), getLabTestSets);
+// Nurses can read and apply lab sets (useful when entering labs on behalf
+// of a doctor for walk-in screenings) but not create or delete — that's
+// reserved for doctors and admins so the clinic's set catalog stays curated.
+router.get('/lab-test-sets', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), getLabTestSets);
+router.post('/lab-test-sets/:id/apply', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), applyLabTestSet);
 router.post('/lab-test-sets', authenticateToken, authorizeRoles('doctor', 'admin'), createLabTestSet);
-router.post('/lab-test-sets/:id/apply', authenticateToken, authorizeRoles('doctor', 'admin'), applyLabTestSet);
 router.delete('/lab-test-sets/:id', authenticateToken, authorizeRoles('doctor', 'admin'), deleteLabTestSet);
 
 // Payer sources routes - Corporate Clients
