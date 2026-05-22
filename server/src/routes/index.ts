@@ -490,6 +490,8 @@ router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, 
 router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse'), createLabOrder);
 router.get('/orders/lab', authenticateToken, getLabOrders);
 router.put('/orders/lab/:id', authenticateToken, updateLabOrder);
+router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('lab', 'admin'), deleteLabResult);
+router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 
 // Orders routes - Imaging (nurses can create for verbal orders)
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse'), createImagingOrder);

@@ -1053,31 +1053,35 @@ const PatientDetails: React.FC = () => {
                                 onClick={async () => {
                                   try {
                                     const res = await apiClient.get(`/documents/${lab.result_document_id}`);
-                                    const { file_data, file_type, document_name } = res.data;
-                                    if (!file_data) {
+                                    // Server returns { document: { file_data: 'data:<mime>;base64,...', ... } }
+                                    const doc = res.data?.document;
+                                    const fileData: string | undefined = doc?.file_data;
+                                    const fileType: string | undefined = doc?.file_type;
+                                    const documentName: string | undefined = doc?.document_name;
+                                    if (!fileData) {
                                       showToast(
                                         'File no longer accessible. Ask the lab tech to re-upload the result PDF for this test.',
                                         'error'
                                       );
                                       return;
                                     }
-                                    // file_data is base64; convert to blob and open
-                                    const byteChars = atob(file_data);
-                                    const byteArr = new Uint8Array(byteChars.length);
-                                    for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-                                    const blob = new Blob([byteArr], { type: file_type || 'application/octet-stream' });
-                                    const url = URL.createObjectURL(blob);
-                                    // Open in new tab for PDFs/images; for others, trigger download
-                                    const previewable = (file_type || '').startsWith('image/') || file_type === 'application/pdf';
+                                    const previewable = (fileType || '').startsWith('image/') || fileType === 'application/pdf';
                                     if (previewable) {
-                                      window.open(url, '_blank');
+                                      const win = window.open();
+                                      if (win) {
+                                        win.document.write(
+                                          `<title>${documentName || 'Lab Result'}</title>` +
+                                            ((fileType || '').startsWith('image/')
+                                              ? `<img src="${fileData}" style="max-width:100%;height:auto;" />`
+                                              : `<iframe src="${fileData}" style="border:0;width:100vw;height:100vh;"></iframe>`)
+                                        );
+                                      }
                                     } else {
                                       const a = document.createElement('a');
-                                      a.href = url;
-                                      a.download = document_name || 'lab-result';
+                                      a.href = fileData;
+                                      a.download = documentName || 'lab-result';
                                       a.click();
                                     }
-                                    setTimeout(() => URL.revokeObjectURL(url), 60_000);
                                   } catch (err: any) {
                                     showToast(err?.response?.data?.error || 'Failed to load file', 'error');
                                   }

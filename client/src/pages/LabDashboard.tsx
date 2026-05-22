@@ -558,29 +558,39 @@ const LabDashboard: React.FC = () => {
   const viewLabResultFile = async (documentId: number) => {
     try {
       const res = await apiClient.get(`/documents/${documentId}`);
-      const { file_data, file_type, document_name } = res.data || {};
-      if (!file_data) {
+      // Server returns { document: { file_data, file_type, document_name, ... } }
+      // where file_data is already a 'data:<mime>;base64,...' URL.
+      const doc = res.data?.document;
+      const fileData: string | undefined = doc?.file_data;
+      const fileType: string | undefined = doc?.file_type;
+      const documentName: string | undefined = doc?.document_name;
+      if (!fileData) {
         showToast(
           'This file is no longer accessible — it was uploaded before the storage upgrade. Please re-upload the result PDF.',
           'error'
         );
         return;
       }
-      const byteChars = atob(file_data);
-      const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteArr], { type: file_type || 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const previewable = (file_type || '').startsWith('image/') || file_type === 'application/pdf';
+      const previewable = (fileType || '').startsWith('image/') || fileType === 'application/pdf';
       if (previewable) {
-        window.open(url, '_blank');
+        // Render a small wrapper page so the browser frames the file with a
+        // title. Data URLs can't be opened directly as window.open in some
+        // browsers (popup blockers / about:blank quirks).
+        const win = window.open();
+        if (win) {
+          win.document.write(
+            `<title>${documentName || 'Lab Result'}</title>` +
+              ((fileType || '').startsWith('image/')
+                ? `<img src="${fileData}" style="max-width:100%;height:auto;" />`
+                : `<iframe src="${fileData}" style="border:0;width:100vw;height:100vh;"></iframe>`)
+          );
+        }
       } else {
         const a = document.createElement('a');
-        a.href = url;
-        a.download = document_name || 'lab-result';
+        a.href = fileData;
+        a.download = documentName || 'lab-result';
         a.click();
       }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err: any) {
       showToast(err?.response?.data?.error || 'Failed to load file', 'error');
     }
