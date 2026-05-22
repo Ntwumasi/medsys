@@ -9,6 +9,7 @@ import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { useAuth } from '../context/AuthContext';
 
 interface LabResult {
   id: number;
@@ -27,6 +28,100 @@ interface LabResult {
   result_document_file_type?: string | null;
 }
 
+// Inline addenda block — used inside the Previous Visits encounter card so
+// doctors can review (and add) addenda directly from a past visit. Append-
+// only by design; once saved, addenda can't be edited or deleted.
+const EncounterAddenda: React.FC<{ encounterId: number; canAdd: boolean }> = ({ encounterId, canAdd }) => {
+  const [list, setList] = useState<any[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get(`/hp/${encounterId}/addenda`);
+        if (!cancelled) setList(res.data.addenda || []);
+      } catch {
+        if (!cancelled) setList([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [encounterId]);
+  const handleSave = async () => {
+    if (!draft.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiClient.post(`/hp/${encounterId}/addenda`, { content: draft.trim() });
+      setList(prev => [...prev, res.data.addendum]);
+      setDraft('');
+      setAdding(false);
+    } catch {
+      // Surfacing error via toast lives at parent; keep child silent
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (list.length === 0 && !canAdd) return null;
+  return (
+    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 md:col-span-2 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+          Addenda {list.length > 0 && <span className="text-blue-400 font-normal normal-case">({list.length})</span>}
+        </p>
+        {canAdd && !adding && (
+          <button
+            type="button"
+            onClick={() => { setAdding(true); setDraft(''); }}
+            className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-white border border-blue-300 rounded hover:bg-blue-100"
+          >
+            + Add Addendum
+          </button>
+        )}
+      </div>
+      {list.length === 0 && !adding && (
+        <p className="text-xs text-blue-400 italic">No addenda. Add one for follow-up notes after labs / imaging come back.</p>
+      )}
+      {list.length > 0 && (
+        <ol className="space-y-2">
+          {list.map((a, idx) => (
+            <li key={a.id} className="bg-white rounded p-2 border border-blue-100">
+              <div className="flex items-center justify-between text-[11px] text-blue-700 font-medium mb-1">
+                <span>#{idx + 1} — {a.created_by_role === 'doctor' ? 'Dr. ' : ''}{a.created_by_name}</span>
+                <span>{new Date(a.created_at).toLocaleString()}</span>
+              </div>
+              <p className="text-sm text-gray-900 whitespace-pre-wrap">{a.content}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+      {adding && (
+        <div className="mt-2 bg-white rounded p-2 border border-blue-300">
+          <textarea
+            rows={3}
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="e.g. Lab results received — FBS normal. No change to plan."
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-[11px] text-gray-400 mt-1">Append-only. Once saved, this can't be edited.</p>
+          <div className="flex items-center justify-end gap-2 mt-1.5">
+            <button type="button" onClick={() => { setAdding(false); setDraft(''); }} disabled={saving}
+              className="px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-60">
+              Cancel
+            </button>
+            <button type="button" onClick={handleSave} disabled={saving || !draft.trim()}
+              className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-60">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PatientDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -42,6 +137,12 @@ const PatientDetails: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
+  const { user, impersonation } = useAuth();
+  // Doctors (or super admins viewing as a doctor) can add addenda
+  const canAddAddendum =
+    user?.role === 'doctor' ||
+    user?.is_super_admin === true ||
+    impersonation.originalUser?.is_super_admin === true;
 
   useEffect(() => {
     if (id) {
@@ -704,6 +805,9 @@ const PatientDetails: React.FC = () => {
                               </div>
                             </div>
                           )}
+
+                          {/* Addenda — append-only follow-up notes for this visit */}
+                          <EncounterAddenda encounterId={encounter.id} canAdd={canAddAddendum} />
                         </div>
                       </div>
                     ))}
