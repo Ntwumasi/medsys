@@ -639,12 +639,31 @@ const findTestTemplate = async (
   return null;
 };
 
+// Idempotent schema + seed for the structured-result templates. Vercel
+// can't run ts-node migrations from the CLI, so the seed self-applies on
+// the first lab parameter lookup. Once per process: the addLabPathNoAndTemplates
+// migration uses CREATE TABLE IF NOT EXISTS + ON CONFLICT upserts so calling
+// it repeatedly is safe, but we only need it to land once per cold start.
+let labTemplatesEnsured = false;
+const ensureLabTemplates = async (): Promise<void> => {
+  if (labTemplatesEnsured) return;
+  try {
+    const { addLabPathNoAndTemplates } = await import('../database/migrations/addLabPathNoAndTemplates');
+    await addLabPathNoAndTemplates();
+    labTemplatesEnsured = true;
+  } catch (err) {
+    // Don't flip the flag — next call retries.
+    console.error('Failed to ensure lab templates schema/seed:', err);
+  }
+};
+
 // Parameter template lookup for a given lab order. Picks the best variant
 // (sex / age-specific FBC, chem panel) based on the patient on the order,
 // then returns the parameter rows. The frontend uses this to render the
 // structured result entry form.
 export const getLabOrderParameters = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureLabTemplates();
     const orderId = parseInt(req.params.order_id as string, 10);
     if (!orderId || Number.isNaN(orderId)) {
       res.status(400).json({ error: 'Invalid lab order id' });
