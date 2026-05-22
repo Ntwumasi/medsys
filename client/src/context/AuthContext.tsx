@@ -134,8 +134,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return response;
   };
 
-  // Super admin "view as" — actually impersonates the demo user for that role
-  // so workflows route to predictable test users (e.g. nurse → Sarah Johnson).
+  // Super admin "view as" — two modes:
+  //   1. Real identity (no demo): when the super admin picks their OWN role
+  //      (e.g. Sedo, who is is_super_admin + role='doctor', picking Doctor)
+  //      OR picks Admin (since super admin ⊇ admin). The session, JWT, and
+  //      audited user_id stay as the real super admin — only the UI view
+  //      changes. This is the path Sedo uses to see patients as himself.
+  //   2. Demo impersonation: when the super admin picks a role they don't
+  //      have (e.g. Sedo previewing Nurse). The /switch-to-demo endpoint
+  //      swaps the JWT for a predictable demo user (Sarah Johnson etc.) so
+  //      workflows route correctly during testing. Reversible via
+  //      setActiveRole(null).
   const setActiveRole = async (role: string | null) => {
     // Returning to super admin home: restore the original session.
     if (!role) {
@@ -160,6 +169,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('No active session to switch from');
     }
 
+    // Real-identity branch: own role, or admin when the original user is a
+    // super admin. No demo session, no JWT swap — just flip the UI view.
+    const ownRoleOrAdmin =
+      role === originalUser.role ||
+      (originalUser.is_super_admin && role === 'admin');
+
+    if (ownRoleOrAdmin) {
+      // If we were impersonating a demo, restore the original session first.
+      if (impersonation.isImpersonating) {
+        setUser(originalUser);
+        setToken(originalToken);
+        localStorage.setItem('token', originalToken);
+        localStorage.setItem('user', JSON.stringify(originalUser));
+        setImpersonation({ isImpersonating: false, originalUser: null, originalToken: null });
+        localStorage.removeItem('impersonation');
+      }
+      setActiveRoleState(role);
+      localStorage.setItem('activeRole', role);
+      return;
+    }
+
+    // Demo-preview branch: spawn a demo user for the picked role.
     // The /switch-to-demo endpoint requires a super-admin JWT. If we are
     // currently sitting on a demo-user token (already impersonating), we
     // briefly put the super admin token back in localStorage so the axios

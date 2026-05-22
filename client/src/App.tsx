@@ -57,9 +57,18 @@ const RoleDashboard: React.FC = () => {
     return <Navigate to="/login" />;
   }
 
-  // Super admin with no active role selected - show role picker
+  // Super admin landing logic:
+  //   - Clinical-role super admins (e.g. Sedo: is_super_admin + role='doctor')
+  //     skip the role picker and land directly on their real role's dashboard.
+  //     Their day job is the clinical role; super admin is a privilege accessed
+  //     via the top-nav switcher when needed.
+  //   - Pure-admin super admins (role='admin' or missing) still see the role
+  //     picker (SuperAdminDashboard) on first load.
   if (user.is_super_admin && !activeRole) {
-    return <ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>;
+    if (!user.role || user.role === 'admin') {
+      return <ErrorBoundary><SuperAdminDashboard /></ErrorBoundary>;
+    }
+    // Fall through using user.role as the effective role.
   }
 
   // Use activeRole for super admins, otherwise use user's actual role

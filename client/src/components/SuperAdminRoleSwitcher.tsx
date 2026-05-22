@@ -92,20 +92,25 @@ const SuperAdminRoleSwitcher: React.FC = () => {
             </div>
           )}
 
+          {/* Admin view — routes to setActiveRole('admin') which keeps the
+              real super-admin identity (no demo session) so privileges and
+              audit attribution stay correct. For clinical-role super admins
+              (e.g. Sedo, role='doctor'), this is the one-click path to
+              admin features without leaving their own identity. */}
           <button
             disabled={switching}
-            onClick={() => handleRoleChange(null)}
+            onClick={() => handleRoleChange('admin')}
             className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-purple-600 font-medium"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
-            Super Admin Home
+            Admin View
           </button>
 
           <div className="border-t border-gray-100 my-1"></div>
 
-          {Object.entries(roleLabels).map(([role, label]) => (
+          {Object.entries(roleLabels).filter(([role]) => role !== 'admin').map(([role, label]) => (
             <button
               key={role}
               disabled={switching}
