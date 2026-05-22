@@ -1237,6 +1237,11 @@ const LabDashboard: React.FC = () => {
     if (p.reference_range_text && p.reference_range_text.trim()) {
       return p.reference_range_text;
     }
+    // Qualitative parameters: show the expected/default value as the
+    // reference (e.g. "Negative" for urine Glucose, "Normal" for Urobilinogen).
+    if (p.value_type === 'qualitative' && p.default_qualitative_value) {
+      return p.default_qualitative_value;
+    }
     const lo = p.normal_low != null ? String(p.normal_low) : null;
     const hi = p.normal_high != null ? String(p.normal_high) : null;
     const rawUnit = p.unit || '';
