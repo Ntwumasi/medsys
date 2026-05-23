@@ -17,6 +17,7 @@ import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import InsightCard from '../components/ui/InsightCard';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
@@ -915,6 +916,47 @@ const DoctorDashboard: React.FC = () => {
           </>
         )}
       />
+
+      {/* Auto-derived insight — surface the most pressing thing the
+          doctor should do before patient care starts. */}
+      {(() => {
+        if (unsignedNotes.length >= 3) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="warning"
+                title={`${unsignedNotes.length} encounter notes still unsigned`}
+                body="Unsigned notes block billing and audit. Take a few minutes to review and sign them."
+              />
+            </div>
+          );
+        }
+        const newResults = labAlerts.length + imagingAlerts.length;
+        if (newResults >= 3) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="info"
+                title={`${newResults} new result${newResults === 1 ? '' : 's'} ready to review`}
+                body="Open Results Alerts to view inline — no need to navigate to each patient's chart."
+              />
+            </div>
+          );
+        }
+        if (roomEncounters.length === 0 && unsignedNotes.length === 0 && newResults === 0) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="positive"
+                title="Inbox at zero"
+                body="No active patients, unsigned notes, or pending results. Great moment for a coffee or to catch up on the day."
+              />
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
           {/* Active Patients List */}
           <div className="xl:col-span-1">

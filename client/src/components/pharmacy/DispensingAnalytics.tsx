@@ -16,6 +16,7 @@ import {
 import { format, subDays } from 'date-fns';
 import apiClient from '../../api/client';
 import { StatCard } from '../ui';
+import InsightCard from '../ui/InsightCard';
 
 interface AnalyticsData {
   hourly: { hour: number; count: number; total_quantity: number }[];
@@ -116,24 +117,51 @@ const DispensingAnalytics: React.FC = () => {
         <StatCard
           title="Total Dispensed"
           value={data?.summary?.total_dispensed || 0}
-          variant="primary"
+          variant={(data?.summary?.total_dispensed || 0) > 0 ? 'primary' : 'neutral'}
         />
         <StatCard
           title="Unique Patients"
           value={data?.summary?.unique_patients || 0}
-          variant="secondary"
+          variant={(data?.summary?.unique_patients || 0) > 0 ? 'secondary' : 'neutral'}
         />
         <StatCard
           title="Total Units"
           value={data?.summary?.total_units || 0}
-          variant="success"
+          variant={(data?.summary?.total_units || 0) > 0 ? 'success' : 'neutral'}
         />
         <StatCard
           title="Avg Turnaround"
           value={data?.summary?.avg_turnaround_minutes ? `${data.summary.avg_turnaround_minutes} min` : 'N/A'}
-          variant="info"
+          variant={data?.summary?.avg_turnaround_minutes ? 'info' : 'neutral'}
         />
       </div>
+
+      {/* Auto-derived insight on turnaround. Heuristic: > 20 min average
+          is worth a nudge; < 5 min is worth celebrating. */}
+      {(() => {
+        const tat = data?.summary?.avg_turnaround_minutes || 0;
+        const total = data?.summary?.total_dispensed || 0;
+        if (total === 0) return null;
+        if (tat >= 20) {
+          return (
+            <InsightCard
+              tone="warning"
+              title={`Average dispense turnaround is ${tat} minutes`}
+              body="Patients waiting >15 min for a routine fill is worth examining. Check the queue depth at peak hours and whether OTC/walk-ins are being routed correctly."
+            />
+          );
+        }
+        if (tat > 0 && tat < 5) {
+          return (
+            <InsightCard
+              tone="positive"
+              title={`Fast dispense turnaround at ${tat} minutes`}
+              body={`${total} orders dispensed in the window with strong throughput. Keep it up.`}
+            />
+          );
+        }
+        return null;
+      })()}
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

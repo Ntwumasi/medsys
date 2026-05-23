@@ -18,6 +18,7 @@ import type { LabTestSetItem } from '../api/labTestSets';
 import type { ApiError } from '../types';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import InsightCard from '../components/ui/InsightCard';
 
 interface ClinicalNote {
   id: number;
@@ -1398,53 +1399,89 @@ const NurseDashboard: React.FC = () => {
         )}
       />
 
-      {/* Room Status - At Top (only on patients view) */}
-      {mainView === 'patients' && (
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-gradient-to-r from-primary-600 to-secondary-600 p-2 rounded-lg">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-gray-900">Room Status</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-            {rooms.map((room) => {
-              // Find if there's a patient in this room
-              const patientInRoom = assignedPatients.find(
-                (p) => p.room_number === room.room_number
-              );
-
-              return (
-                <div
-                  key={room.id}
-                  className={`p-4 rounded-xl text-center border-2 transition-all hover:shadow-lg ${
-                    room.is_available
-                      ? 'bg-success-50 border-success-500 text-success-900'
-                      : 'bg-gray-100 border-slate-400 text-gray-900'
-                  }`}
-                >
-                  <div className="font-bold text-lg">Room {room.room_number}</div>
-                  {room.is_available ? (
-                    <div className="text-sm mt-1 font-medium">Available</div>
-                  ) : patientInRoom ? (
-                    <button
-                      onClick={() => navigate(`/patients/${patientInRoom.patient_id}`)}
-                      className="text-sm mt-1 font-medium text-primary-700 hover:text-primary-900 hover:underline truncate block w-full"
-                      title={`Click to view ${patientInRoom.patient_name}'s medical history`}
-                    >
-                      {patientInRoom.patient_name}
-                    </button>
-                  ) : (
-                    <div className="text-sm mt-1 font-medium">Occupied</div>
-                  )}
+      {/* Room Status — refined card grid. Color reserved for state
+          accent (left stripe + tiny dot), surface stays neutral. */}
+      {mainView === 'patients' && (() => {
+        const availableRooms = rooms.filter((r) => r.is_available).length;
+        const occupiedRooms = rooms.length - availableRooms;
+        return (
+          <>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-text-primary">Room Status</h2>
+                  <span className="text-xs text-text-secondary">
+                    {availableRooms} available · {occupiedRooms} occupied
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                {rooms.map((room) => {
+                  const patientInRoom = assignedPatients.find(
+                    (p) => p.room_number === room.room_number,
+                  );
+                  const stripe = room.is_available ? 'bg-success-500' : 'bg-primary-500';
+                  const dotColor = room.is_available ? 'bg-success-500' : 'bg-primary-500';
+                  return (
+                    <div
+                      key={room.id}
+                      className="relative bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex"
+                    >
+                      <div className={`w-1 ${stripe}`} />
+                      <div className="flex-1 p-3 min-w-0">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                          <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                          Room {room.room_number}
+                        </div>
+                        {room.is_available ? (
+                          <div className="text-sm font-medium text-text-primary mt-1">Available</div>
+                        ) : patientInRoom ? (
+                          <button
+                            onClick={() => navigate(`/patients/${patientInRoom.patient_id}`)}
+                            className="text-sm mt-1 font-semibold text-primary-700 hover:text-primary-900 hover:underline truncate block w-full text-left"
+                            title={`Click to view ${patientInRoom.patient_name}'s medical history`}
+                          >
+                            {patientInRoom.patient_name}
+                          </button>
+                        ) : (
+                          <div className="text-sm font-medium text-text-primary mt-1">Occupied</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Auto-derived nurse insight */}
+            {(() => {
+              if (unreadNotifications >= 3) {
+                return (
+                  <div className="mb-4">
+                    <InsightCard
+                      tone="warning"
+                      title={`${unreadNotifications} unread notes from doctors`}
+                      body="Doctor follow-up notifications include reasons and target dates. Acknowledge them so they leave the queue."
+                    />
+                  </div>
+                );
+              }
+              if (availableRooms === 0 && rooms.length > 0) {
+                return (
+                  <div className="mb-4">
+                    <InsightCard
+                      tone="warning"
+                      title="All rooms occupied"
+                      body="No rooms are free for new check-ins. Reception will queue incoming patients until a room opens up."
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </>
+        );
+      })()}
 
         {/* Patients View */}
         {mainView === 'patients' && (
