@@ -2084,6 +2084,8 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
     const labAlerts = await pool.query(
       `SELECT lo.id, lo.patient_id, lo.encounter_id, lo.test_name, lo.test_code,
               lo.priority, lo.status, lo.ordered_date, lo.result_date, lo.result,
+              lo.result_document_id, lo.path_no,
+              pd.document_name AS result_document_name,
               u.first_name || ' ' || u.last_name AS patient_name,
               p.patient_number,
               r.room_number
@@ -2092,6 +2094,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
          LEFT JOIN users u ON p.user_id = u.id
          LEFT JOIN encounters e ON lo.encounter_id = e.id
          LEFT JOIN rooms r ON e.room_id = r.id
+         LEFT JOIN patient_documents pd ON lo.result_document_id = pd.id
         WHERE lo.ordering_provider = $1
           AND lo.status = 'completed'
           AND lo.verification_status IN ('verified', 'not_required')

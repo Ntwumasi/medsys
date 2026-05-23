@@ -15,6 +15,8 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import LabTestSetChips from '../components/LabTestSetChips';
+import LabResultModal from '../components/LabResultModal';
+import type { LabResultAlert } from '../components/LabResultModal';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
@@ -99,14 +101,20 @@ interface DoctorAlert {
   patient_number: string;
   room_number?: string;
   test_name?: string;
+  test_code?: string;
+  path_no?: string;
   imaging_type?: string;
   body_part?: string;
   medication_name?: string;
   status: string;
   results?: string;
+  result?: string;
+  ordered_date?: string;
+  result_date?: string;
   completed_date?: string;
   priority: string;
   result_document_id?: number | null;
+  result_document_name?: string | null;
 }
 
 const DoctorDashboard: React.FC = () => {
@@ -164,6 +172,7 @@ const DoctorDashboard: React.FC = () => {
   // Doctor Alerts state
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
   const [imagingAlerts, setImagingAlerts] = useState<DoctorAlert[]>([]);
+  const [openedLabResult, setOpenedLabResult] = useState<LabResultAlert | null>(null);
   // Rx removed from Results Alerts at the doctor's request — dispenses are
   // billing/pharmacy events, not clinical results the doctor needs to chase.
   const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging'>('lab');
@@ -1075,9 +1084,24 @@ const DoctorDashboard: React.FC = () => {
                         {labAlerts.map((alert) => (
                           <div
                             key={alert.id}
-                            onClick={() => alert.patient_id && navigate(`/patients/${alert.patient_id}?tab=labs`)}
-                            className={`px-4 py-3 transition-colors ${alert.patient_id ? 'hover:bg-warning-50 cursor-pointer' : ''}`}
-                            title={alert.patient_id ? 'Open patient lab results' : ''}
+                            onClick={() => setOpenedLabResult({
+                              id: alert.id,
+                              test_name: alert.test_name,
+                              test_code: alert.test_code,
+                              path_no: alert.path_no,
+                              patient_name: alert.patient_name,
+                              patient_number: alert.patient_number,
+                              priority: alert.priority,
+                              status: alert.status,
+                              ordered_date: alert.ordered_date,
+                              result_date: alert.result_date || alert.completed_date,
+                              result: alert.result || alert.results,
+                              result_document_id: alert.result_document_id ?? null,
+                              result_document_name: alert.result_document_name ?? null,
+                              room_number: alert.room_number,
+                            })}
+                            className="px-4 py-3 transition-colors hover:bg-warning-50 cursor-pointer"
+                            title="Open lab result"
                           >
                             <div className="flex justify-between items-start">
                               <div>
@@ -3275,6 +3299,11 @@ const DoctorDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Lab Result modal — opens from the Results Alerts widget */}
+      {openedLabResult && (
+        <LabResultModal order={openedLabResult} onClose={() => setOpenedLabResult(null)} />
       )}
     </AppLayout>
   );
