@@ -112,3 +112,93 @@ export const getDoctorRevenue = async (req: Request, res: Response): Promise<voi
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// GET /admin/reports/doctor-revenue/lines?provider_id=&start=&end=
+//
+// Per-line-item drill-down for a single doctor in a date range. Returns
+// one row per distinct service description with quantity, count of times
+// billed, and total revenue — modeled after the "Physician Production"
+// breakdown the user uses on paper. Optionally filter by category.
+export const getDoctorRevenueLines = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const providerId = parseInt(String(req.query.provider_id || ''), 10);
+    if (!providerId) {
+      res.status(400).json({ error: 'provider_id is required' });
+      return;
+    }
+    const { start, end, category } = req.query as { start?: string; end?: string; category?: string };
+
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const startDate = start || defaultStart;
+    const endDate = end || defaultEnd;
+
+    const params: any[] = [providerId, startDate, endDate];
+    let categoryClause = '';
+    if (category) {
+      params.push(category);
+      categoryClause = `AND LOWER(COALESCE(ii.category, 'other')) = LOWER($${params.length})`;
+    }
+
+    // Aggregate by (category, description) so similarly-named items roll up.
+    const linesSql = `
+      SELECT
+        LOWER(COALESCE(ii.category, 'other'))     AS category,
+        ii.description                            AS description,
+        COUNT(*)::int                             AS line_count,
+        COALESCE(SUM(ii.quantity), 0)::int        AS quantity,
+        COALESCE(SUM(ii.total_price), 0)          AS total
+      FROM invoice_items ii
+      JOIN invoices i  ON ii.invoice_id = i.id
+      JOIN encounters e ON i.encounter_id = e.id
+      WHERE e.provider_id = $1
+        AND DATE(i.invoice_date) >= $2::date
+        AND DATE(i.invoice_date) <= $3::date
+        ${categoryClause}
+      GROUP BY LOWER(COALESCE(ii.category, 'other')), ii.description
+      ORDER BY total DESC
+    `;
+    const linesResult = await pool.query(linesSql, params);
+
+    const lines = linesResult.rows.map(r => ({
+      category: r.category,
+      description: r.description,
+      line_count: parseInt(r.line_count) || 0,
+      quantity: parseInt(r.quantity) || 0,
+      total: parseFloat(r.total) || 0,
+    }));
+
+    // Per-category subtotals for the drill-down panel.
+    const categoryTotals: Record<string, number> = {};
+    for (const l of lines) {
+      categoryTotals[l.category] = (categoryTotals[l.category] || 0) + l.total;
+    }
+    const grandTotal = lines.reduce((s, l) => s + l.total, 0);
+
+    // Doctor's display name for the report header.
+    const doctorResult = await pool.query(
+      `SELECT first_name || ' ' || last_name AS doctor_name, clinic
+         FROM users WHERE id = $1`,
+      [providerId]
+    );
+    const doctorName = doctorResult.rows[0]?.doctor_name || 'Unknown';
+    const doctorClinic = doctorResult.rows[0]?.clinic || null;
+
+    res.json({
+      provider_id: providerId,
+      doctor_name: doctorName,
+      doctor_clinic: doctorClinic,
+      start_date: startDate,
+      end_date: endDate,
+      lines,
+      totals: {
+        grand_total: grandTotal,
+        by_category: categoryTotals,
+      },
+    });
+  } catch (error) {
+    console.error('Get doctor revenue lines error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

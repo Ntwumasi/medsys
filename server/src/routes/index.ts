@@ -385,9 +385,10 @@ router.post('/auth/request-reset', requestPasswordReset);
 router.post('/auth/reset-password', validateBody(resetPasswordSchema), resetPassword);
 router.get('/auth/login-history', authenticateToken, getLoginHistory);
 
-// Admin reports
-import { getDoctorRevenue } from '../controllers/adminReportsController';
-router.get('/admin/reports/doctor-revenue', authenticateToken, authorizeRoles('admin'), getDoctorRevenue);
+// Admin reports — also exposed to accountants for the financial dashboard.
+import { getDoctorRevenue, getDoctorRevenueLines } from '../controllers/adminReportsController';
+router.get('/admin/reports/doctor-revenue',       authenticateToken, authorizeRoles('admin', 'accountant'), getDoctorRevenue);
+router.get('/admin/reports/doctor-revenue/lines', authenticateToken, authorizeRoles('admin', 'accountant'), getDoctorRevenueLines);
 
 // Admin clinic-operations task tracker
 import { listAdminTasks, createAdminTask, updateAdminTask, deleteAdminTask } from '../controllers/adminTasksController';

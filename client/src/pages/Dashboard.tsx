@@ -8,6 +8,7 @@ import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
 import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
+import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
@@ -280,48 +281,6 @@ const Dashboard: React.FC = () => {
     } catch (_) { /* ignore */ }
   };
 
-  // Doctor revenue report state
-  interface DoctorRevenueRow {
-    provider_id: number;
-    doctor_name: string;
-    doctor_clinic: string | null;
-    by_category: Record<string, number>;
-    total: number;
-    invoice_count: number;
-  }
-  // Default date range: current month
-  const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
-  const [revenueStart, setRevenueStart] = useState(monthStart);
-  const [revenueEnd, setRevenueEnd] = useState(monthEnd);
-  const [revenueData, setRevenueData] = useState<{
-    doctors: DoctorRevenueRow[];
-    categories: string[];
-    totals: { grand_total: number; by_category: Record<string, number> };
-  } | null>(null);
-  const [revenueLoading, setRevenueLoading] = useState(false);
-
-  const loadDoctorRevenue = async () => {
-    setRevenueLoading(true);
-    try {
-      const res = await apiClient.get('/admin/reports/doctor-revenue', {
-        params: { start: revenueStart, end: revenueEnd },
-      });
-      setRevenueData(res.data);
-    } catch (err) {
-      console.error('Error loading doctor revenue:', err);
-    } finally {
-      setRevenueLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === 'revenue') {
-      loadDoctorRevenue();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
   const [charges, setCharges] = useState<Array<{ id: number; service_name: string; service_code: string; category: string; price: string; description: string; is_active: boolean; payer_price?: string | null; payer_excluded?: boolean }>>([]);
   const [chargesLoading, setChargesLoading] = useState(false);
   const [chargeSearch, setChargeSearch] = useState('');
@@ -2729,136 +2688,7 @@ const Dashboard: React.FC = () => {
 
         {/* Doctor Revenue Tab */}
         {activeTab === 'revenue' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">Doctor Revenue</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Revenue attributed to each doctor by line item type, for the selected date range.
-                </p>
-              </div>
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
-                  <input
-                    type="date"
-                    value={revenueStart}
-                    onChange={(e) => setRevenueStart(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
-                  <input
-                    type="date"
-                    value={revenueEnd}
-                    onChange={(e) => setRevenueEnd(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                </div>
-                <button
-                  onClick={loadDoctorRevenue}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
-                >
-                  Apply
-                </button>
-              </div>
-            </div>
-
-            {/* Summary cards */}
-            {revenueData && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="bg-gradient-to-br from-success-50 to-success-100 rounded-lg p-4 border border-success-200">
-                  <div className="text-xs font-semibold text-success-700 uppercase">Total Revenue</div>
-                  <div className="text-2xl font-bold text-success-800 mt-1">
-                    GHS {revenueData.totals.grand_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-lg p-4 border border-primary-200">
-                  <div className="text-xs font-semibold text-primary-700 uppercase">Doctors with Revenue</div>
-                  <div className="text-2xl font-bold text-primary-800 mt-1">{revenueData.doctors.length}</div>
-                </div>
-                <div className="bg-gradient-to-br from-warning-50 to-warning-100 rounded-lg p-4 border border-warning-200">
-                  <div className="text-xs font-semibold text-warning-700 uppercase">Top Doctor</div>
-                  <div className="text-lg font-bold text-warning-800 mt-1 truncate">
-                    {revenueData.doctors[0]?.doctor_name || '—'}
-                  </div>
-                  <div className="text-xs text-warning-700 mt-0.5">
-                    {revenueData.doctors[0] ? `GHS ${revenueData.doctors[0].total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
-                  </div>
-                </div>
-                <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 rounded-lg p-4 border border-secondary-200">
-                  <div className="text-xs font-semibold text-secondary-700 uppercase">Top Category</div>
-                  {(() => {
-                    const top = Object.entries(revenueData.totals.by_category).sort((a, b) => b[1] - a[1])[0];
-                    if (!top) return <div className="text-lg font-bold text-secondary-800 mt-1">—</div>;
-                    return (
-                      <>
-                        <div className="text-lg font-bold text-secondary-800 mt-1 capitalize">{top[0]}</div>
-                        <div className="text-xs text-secondary-700 mt-0.5">
-                          GHS {top[1].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {revenueLoading ? (
-              <div className="py-8 text-center text-gray-500 text-sm">Loading...</div>
-            ) : !revenueData || revenueData.doctors.length === 0 ? (
-              <div className="py-12 text-center text-gray-500 text-sm">
-                No revenue attributed to doctors in this date range.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Doctor</th>
-                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Clinic</th>
-                      {revenueData.categories.map(cat => (
-                        <th key={cat} className="text-right px-3 py-2 font-semibold text-gray-700 capitalize">{cat}</th>
-                      ))}
-                      <th className="text-right px-3 py-2 font-semibold text-gray-900">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {revenueData.doctors.map(d => (
-                      <tr key={d.provider_id} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-3 py-2 font-medium text-gray-900">{d.doctor_name}</td>
-                        <td className="px-3 py-2 text-gray-600 text-xs">{d.doctor_clinic || '—'}</td>
-                        {revenueData.categories.map(cat => (
-                          <td key={cat} className="px-3 py-2 text-right text-gray-700 font-mono">
-                            {d.by_category[cat]
-                              ? d.by_category[cat].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                              : '—'}
-                          </td>
-                        ))}
-                        <td className="px-3 py-2 text-right font-bold text-gray-900 font-mono">
-                          {d.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-50 border-t-2 border-gray-300">
-                    <tr>
-                      <td className="px-3 py-2 font-bold text-gray-900" colSpan={2}>All doctors</td>
-                      {revenueData.categories.map(cat => (
-                        <td key={cat} className="px-3 py-2 text-right font-bold text-gray-900 font-mono">
-                          {(revenueData.totals.by_category[cat] || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      ))}
-                      <td className="px-3 py-2 text-right font-bold text-success-700 font-mono">
-                        {revenueData.totals.grand_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
+          <DoctorRevenuePanel />
         )}
 
         {/* Past Patients Tab */}

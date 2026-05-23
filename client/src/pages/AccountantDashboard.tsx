@@ -3,6 +3,7 @@ import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, startOfY
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
+import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import {
@@ -268,7 +269,7 @@ interface ReminderHistory {
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { prompt: promptDialog } = useDialog();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -854,6 +855,7 @@ const AccountantDashboard: React.FC = () => {
                 { id: 'aging', label: 'Aging Report' },
                 { id: 'claims', label: 'Insurance Claims' },
                 { id: 'reminders', label: 'Payment Reminders' },
+                { id: 'doctorRevenue', label: 'Doctor Revenue' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -1753,6 +1755,11 @@ const AccountantDashboard: React.FC = () => {
                   </table>
                 </div>
               </div>
+            )}
+
+            {/* Doctor Revenue Tab */}
+            {activeTab === 'doctorRevenue' && (
+              <DoctorRevenuePanel />
             )}
           </div>
         </div>
