@@ -5,7 +5,6 @@ import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import PrintableInvoice from '../components/PrintableInvoice';
-import SearchBar from '../components/SearchBar';
 import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
@@ -168,7 +167,7 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'charges' | 'revenue' | 'tasks'>('staff');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'charges' | 'revenue' | 'tasks'>('tasks');
 
   // ---- Admin clinic-ops Tasks state ----
   interface AdminTask {
@@ -269,6 +268,13 @@ const Dashboard: React.FC = () => {
   const inlineUpdateStatus = async (taskId: number, status: AdminTask['status']) => {
     try {
       await apiClient.put(`/admin/tasks/${taskId}`, { status });
+      loadAdminTasks();
+    } catch (_) { /* ignore */ }
+  };
+
+  const inlineUpdateDueDate = async (taskId: number, due_date: string) => {
+    try {
+      await apiClient.put(`/admin/tasks/${taskId}`, { due_date: due_date || null });
       loadAdminTasks();
     } catch (_) { /* ignore */ }
   };
@@ -1149,11 +1155,67 @@ const Dashboard: React.FC = () => {
   const paginatedCharges = filteredCharges.slice((chargesPage - 1) * chargesPerPage, chargesPage * chargesPerPage);
 
 
+  const openTaskCount = (adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0);
+  const blockedTaskCount = adminTasksCounts.blocked || 0;
+  const completeTaskCount = adminTasksCounts.complete || 0;
+  const todayAppointmentsCount = todayAppointments.length;
+
   return (
-    <AppLayout title="Admin Dashboard">
-      {/* Search Bar */}
-      <div className="mb-6">
-        <SearchBar />
+    <AppLayout>
+      {/* Summary cards — top-of-fold at-a-glance ops view for the admin */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <button
+          onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('all'); }}
+          className="text-left bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-warning-500 hover:to-warning-700 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium opacity-90">Open Tasks</h3>
+            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold mt-2">{openTaskCount}</p>
+          <p className="text-xs opacity-75 mt-1">Pending + In Progress</p>
+        </button>
+        <button
+          onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('blocked'); }}
+          className="text-left bg-gradient-to-br from-danger-400 to-danger-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-danger-500 hover:to-danger-700 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium opacity-90">Blocked Tasks</h3>
+            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold mt-2">{blockedTaskCount}</p>
+          <p className="text-xs opacity-75 mt-1">Needs attention</p>
+        </button>
+        <button
+          onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('complete'); }}
+          className="text-left bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-success-500 hover:to-success-700 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium opacity-90">Completed Tasks</h3>
+            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold mt-2">{completeTaskCount}</p>
+          <p className="text-xs opacity-75 mt-1">Done</p>
+        </button>
+        <button
+          onClick={() => setActiveTab('appointments')}
+          className="text-left bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-primary-500 hover:to-primary-700 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium opacity-90">Today's Appointments</h3>
+            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-3xl font-bold mt-2">{todayAppointmentsCount}</p>
+          <p className="text-xs opacity-75 mt-1">Scheduled for today</p>
+        </button>
       </div>
 
       {/* Tabs */}
@@ -2537,6 +2599,7 @@ const Dashboard: React.FC = () => {
                               <th className="text-left px-3 py-2 font-semibold text-gray-700">Responsibility</th>
                               <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
                               <th className="text-left px-3 py-2 font-semibold text-gray-700">Cost</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Deadline</th>
                               <th className="text-left px-3 py-2 font-semibold text-gray-700">Remarks</th>
                               <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
                             </tr>
@@ -2560,6 +2623,21 @@ const Dashboard: React.FC = () => {
                                   </select>
                                 </td>
                                 <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
+                                <td className="px-3 py-2">
+                                  {(() => {
+                                    const dd = t.due_date ? t.due_date.slice(0, 10) : '';
+                                    const overdue = dd && t.status !== 'complete' && dd < new Date().toISOString().slice(0, 10);
+                                    return (
+                                      <input
+                                        type="date"
+                                        value={dd}
+                                        onChange={(e) => inlineUpdateDueDate(t.id, e.target.value)}
+                                        className={`text-xs px-2 py-1 rounded border bg-white ${overdue ? 'border-danger-400 text-danger-700 font-semibold' : 'border-gray-300 text-gray-700'}`}
+                                        title={overdue ? 'Overdue' : 'Set deadline'}
+                                      />
+                                    );
+                                  })()}
+                                </td>
                                 <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
                                 <td className="px-3 py-2 text-right whitespace-nowrap">
                                   <button onClick={() => openEditTask(t)} className="text-primary-600 hover:underline text-xs mr-3">Edit</button>
