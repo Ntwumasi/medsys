@@ -431,7 +431,7 @@ router.post('/users', authenticateToken, authorizeRoles('admin', 'receptionist')
 router.put('/users/:id', authenticateToken, authorizeRoles('admin'), updateUser);
 router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUser);
 router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);
-router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin'), resetUserPassword);
+router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin', 'receptionist'), resetUserPassword);
 
 // Patient routes (with input validation)
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);

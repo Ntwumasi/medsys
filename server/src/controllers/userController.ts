@@ -316,17 +316,30 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 // Admin: Reset user password to default
 export const resetUserPassword = async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
+  const authReq = req as any;
+  const requesterRole = authReq.user?.role;
+  const requesterIsSuperAdmin = authReq.user?.is_super_admin === true;
 
   try {
-    // Check if user exists
+    // Check if user exists — pull role too so we can apply the receptionist guard
     const existingUser = await pool.query(
-      'SELECT id, username, first_name, last_name FROM users WHERE id = $1',
+      'SELECT id, username, first_name, last_name, role FROM users WHERE id = $1',
       [id]
     );
 
     if (existingUser.rows.length === 0) {
       res.status(404).json({ error: 'User not found' });
       return;
+    }
+
+    // Receptionist can reset staff passwords but never an admin's. Mirrors
+    // the receptionist-can't-create-admin guard in createUser.
+    if (requesterRole === 'receptionist' && !requesterIsSuperAdmin) {
+      const targetRole = existingUser.rows[0].role;
+      if (targetRole === 'admin') {
+        res.status(403).json({ error: "Receptionists cannot reset an admin's password." });
+        return;
+      }
     }
 
     // Hash default password

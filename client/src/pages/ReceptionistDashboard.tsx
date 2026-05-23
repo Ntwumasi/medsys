@@ -266,6 +266,27 @@ const ReceptionistDashboard: React.FC = () => {
   });
   const [savingNewStaff, setSavingNewStaff] = useState(false);
   const [newStaffCredentials, setNewStaffCredentials] = useState<{ username: string; temporary_password: string } | null>(null);
+  const [resetPwResult, setResetPwResult] = useState<{ username: string; temporary_password: string; name: string } | null>(null);
+  const [resettingPwId, setResettingPwId] = useState<number | null>(null);
+
+  const handleResetPassword = async (s: StaffMember) => {
+    if (s.role === 'admin') return; // belt + suspenders; server also rejects
+    const fullName = `${s.first_name} ${s.last_name}`;
+    if (!window.confirm(`Reset password for ${fullName}? They will be forced to change it on next login.`)) return;
+    setResettingPwId(s.id);
+    try {
+      const res = await apiClient.post(`/users/${s.id}/reset-password`);
+      setResetPwResult({
+        username: res.data.credentials.username,
+        temporary_password: res.data.credentials.temporary_password,
+        name: fullName,
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to reset password');
+    } finally {
+      setResettingPwId(null);
+    }
+  };
 
   const loadStaffList = async () => {
     setStaffLoading(true);
@@ -3955,6 +3976,7 @@ const ReceptionistDashboard: React.FC = () => {
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Clinic</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Phone</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
+                      <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3976,6 +3998,20 @@ const ReceptionistDashboard: React.FC = () => {
                             {s.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">
+                          {/* Receptionist can reset passwords for non-admin staff. Edit / Deactivate stay admin-only. */}
+                          {s.role !== 'admin' ? (
+                            <button
+                              onClick={() => handleResetPassword(s)}
+                              disabled={resettingPwId === s.id}
+                              className="text-warning-700 hover:underline text-xs disabled:opacity-50"
+                            >
+                              {resettingPwId === s.id ? 'Resetting...' : 'Reset PW'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">Admin-only</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -3986,6 +4022,46 @@ const ReceptionistDashboard: React.FC = () => {
         )}
 
         {/* Add Staff Member modal */}
+        {/* Reset-password result modal — shows the temporary credentials so
+            the receptionist can hand them to the staff member. */}
+        {resetPwResult && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900">Password Reset</h3>
+                <button
+                  onClick={() => setResetPwResult(null)}
+                  className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="p-6 space-y-3">
+                <div className="bg-success-50 border border-success-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-success-800 mb-2">
+                    Password reset for {resetPwResult.name}.
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Give these credentials to the staff member. They will be required to change the password on next login.
+                  </p>
+                  <div className="font-mono text-sm bg-white border border-gray-200 rounded p-3">
+                    <div><span className="text-gray-500">Username:</span> {resetPwResult.username}</div>
+                    <div><span className="text-gray-500">Password:</span> {resetPwResult.temporary_password}</div>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setResetPwResult(null)}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showAddStaffModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
