@@ -19,6 +19,58 @@ These decisions shape everything below.
 
 ---
 
+## Current hardware (MED-DC1)
+
+The clinic has one on-prem server today, captured 2026-05-22:
+
+| Spec | Value | Verdict |
+|---|---|---|
+| Model | Dell PowerEdge T150 (bare-metal) | OK |
+| OS | Windows Server 2019 Standard (1809, **never patched**) | ⚠️ needs critical-security pass |
+| CPU | Intel Pentium Gold G6405T — 2 cores / 4 threads @ 3.5 GHz | ❌ Below Phase 1 minimum (kiosk-grade chip) |
+| RAM | 32 GB | ✅ Comfortable |
+| Storage | Single 1 TB Seagate ST1000DM010 (consumer HDD, no RAID), partitioned C: 493 GB / D: 437 GB empty / E: 29 GB | ❌ Single point of failure; spinning disk is slow for Postgres |
+| NICs | 2× embedded; NIC 1 disconnected, NIC 2 carrying all traffic | ⚠️ no redundancy |
+| Domain | This box is the Domain Controller for `Medics.gh.com` | ⚠️ stacking clinical workload on DC = bad blast radius |
+| Roles installed | AD DS, DNS, Hyper-V (unused), File/Storage, NPAS, RDS (CAL issue) | Hyper-V + RDS should come off — extra attack surface |
+| IP | `192.168.1.10` | ✅ matches Orthanc / runbook |
+
+### What this means
+
+- **For Phase 0 / current state (Orthanc PACS only):** the server is *fine*. PACS workload is light; the CPU and disk aren't stressed by image storage.
+- **For Phase 1 (all-in-one edge MedSys + Postgres + Orthanc + gateway):** the server is **not adequate**.
+  - The 2-core Pentium Gold will bottleneck under a multi-user clinic's concurrent Postgres + Node workload.
+  - Postgres on a single 7200 rpm spinning HDD that's *also* writing DICOM images = IO contention.
+  - Single non-RAID consumer drive is a clinical-grade single point of failure.
+  - Running the clinical app on the Domain Controller couples two failure domains that should be independent.
+
+---
+
+## Hardware decision pending
+
+Phase 1 is blocked on a hardware decision. Three paths, ordered by recommendation:
+
+### Path A (recommended): keep MED-DC1 as PACS-only; provision a second box for MedSys edge
+- New machine: modern mini-PC (Intel NUC / Beelink / Dell OptiPlex Micro). i5-13500 or Ryzen 5, 32 GB RAM, 1 TB NVMe SSD. **~$700–1,100.**
+- Clean architectural separation: DC + PACS on the T150, clinical app + Postgres on the new box.
+- Each machine is right-sized; one's crash doesn't take down the other.
+- Recipe is then reusable for clinic #2.
+
+### Path B: upgrade the T150 in place
+- NVMe M.2 SSD (~$80) for Postgres + Node + OS — biggest single-cost performance win.
+- CPU swap to i5-11400 (LGA 1200 socket, ~$130) for 6C / 12T — ~3× the throughput.
+- **Total ~$200 + ~2 hours of work.**
+- Better but still single-disk, still single-box, still DC + everything.
+
+### Path C: defer Phase 1 indefinitely; stay cloud-only
+- Cheapest path. Accept that until hardware is procured, the clinic remains internet-dependent.
+- Mitigations: UPS on Starlink router + 4G failover.
+- Risk: every Starlink outage halts the clinic.
+
+**Current decision (2026-05-22):** Path C for go-live (Phase 0). Stakeholder conversation about hardware budget happens after go-live is stable. Path A is the architectural recommendation but not committed.
+
+---
+
 ## Target shape
 
 ```
@@ -97,15 +149,18 @@ These decisions shape everything below.
 
 ## Phased roadmap
 
-### Phase 0 — Go-live (THIS WEEK, no architecture change)
+### Phase 0 — Go-live (current state, indefinite until hardware decision)
 - Ship MedSys as-is, cloud-only on Vercel + Neon
+- On-prem server runs Orthanc PACS only (per [`orthanc-deployment-runbook.md`](./orthanc-deployment-runbook.md))
 - UPS on the Starlink router at the clinic
 - 4G mobile failover when feasible
-- Accept that internet outages halt clinic ops; track frequency in week 1 to size the offline work
+- Accept that internet outages halt clinic ops; track frequency to inform the hardware-budget conversation
 - **What to do beforehand:** nothing — the current architecture stays
+- **Exit criteria:** stakeholders agree on hardware procurement (see [Hardware decision pending](#hardware-decision-pending))
 
-### Phase 1 — Stand up edge server, one-way sync (2–3 weeks post-go-live)
-- Package MedSys Node app as a Windows service alongside Orthanc on the existing on-prem server
+### Phase 1 — Stand up edge server, one-way sync (2–3 weeks post-procurement)
+- **Blocked on:** hardware decision (Path A new box, or Path B upgrade T150)
+- Package MedSys Node app as a Windows service on the edge server
 - Local Postgres (same schema as Neon), initialised from a Neon snapshot
 - One-way sync worker: local → Neon. Cloud becomes a read-only mirror of clinic data.
 - Clinic browsers switch to the LAN URL. Cloud URL still works as remote backup.
@@ -142,6 +197,22 @@ These decisions shape everything below.
 | Migrations | `ts-node` against `DATABASE_URL` | Coordinator runs migrations locally first, then propagates to Neon. Auto-ensure stays as a safety net. |
 | Orthanc | On-prem, MedSys never talks to it directly | Edge gateway in MedSys posts to Orthanc REST when doctor orders imaging; Orthanc Python plugin posts back to MedSys when study lands. All on-prem. |
 | Lab analyzers | Not integrated | Edge gateway opens HL7/ASTM TCP listeners or polls device REST endpoints. Posts normalised events to MedSys API on the same machine. |
+
+---
+
+## Day-1 server hygiene (Phase 0)
+
+The PACS-only role still needs the T150 patched and locked down. From the on-site pre-deployment audit (2026-05-22):
+
+| Item | Decision | Notes |
+|---|---|---|
+| Windows updates (never run since OS install) | **Critical security only, defer feature updates** | Single DC, no failover, no real backup — full patch cycle is too risky without a rollback path |
+| Backup target | **Use D: as interim backup target** | Better than nothing; protects against software corruption but **not disk failure**. USB drive procurement is the next upgrade. |
+| NIC teaming (degraded) | **Break team, run single NIC** | Pragmatic; no failover but stable. Re-cabling NIC 1 is a follow-up. |
+| RDS role (CAL error) | **Uninstall** | Removes the whole licensing class of problem. The 2 free admin RDP sessions are sufficient for IT management. |
+| Hyper-V role (unused) | **Remove in hardening pass** | Extra attack surface for no benefit. |
+| Hardware redundancy | **On the roadmap, not Day-1** | RAID 1 + enterprise SSD when budget allows. If Path A is chosen, the new edge server becomes the de-facto reliable storage tier for clinical data; T150 redundancy still matters for images. |
+| `OrthancStorage` backup | **Before any real PHI lands** | Once the lab tech starts pushing images, this directory contains patient data. The HDD has no redundancy — back it up to D: nightly + an external drive once available. |
 
 ---
 
