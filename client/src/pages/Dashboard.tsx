@@ -10,6 +10,8 @@ import AppLayout from '../components/AppLayout';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import LoginActivityPanel from '../components/LoginActivityPanel';
 import DashboardHeader from '../components/DashboardHeader';
+import NumberTicker from '../components/ui/NumberTicker';
+import InsightCard from '../components/ui/InsightCard';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
@@ -153,6 +155,48 @@ interface PastPatientEncounter {
   clinic?: string;
   provider_name?: string;
 }
+
+// Single style for every stat card on the admin landing. Color is
+// reserved for the number itself — surface stays neutral so the cards
+// read as data, not decoration.
+type AdminStatAccent = 'neutral' | 'primary' | 'warning' | 'danger' | 'success';
+const ADMIN_ACCENT: Record<AdminStatAccent, { num: string; ring: string; iconBg: string; iconFg: string; chip: string }> = {
+  neutral: { num: 'text-text-primary', ring: 'ring-gray-200/60', iconBg: 'bg-gray-100', iconFg: 'text-gray-500', chip: 'bg-gray-100 text-gray-600' },
+  primary: { num: 'text-primary-700', ring: 'ring-primary-200/60', iconBg: 'bg-primary-100', iconFg: 'text-primary-600', chip: 'bg-primary-100 text-primary-700' },
+  warning: { num: 'text-warning-700', ring: 'ring-warning-200/60', iconBg: 'bg-warning-100', iconFg: 'text-warning-600', chip: 'bg-warning-100 text-warning-700' },
+  danger:  { num: 'text-danger-700',  ring: 'ring-danger-200/60',  iconBg: 'bg-danger-100',  iconFg: 'text-danger-600',  chip: 'bg-danger-100 text-danger-700'  },
+  success: { num: 'text-success-700', ring: 'ring-success-200/60', iconBg: 'bg-success-100', iconFg: 'text-success-600', chip: 'bg-success-100 text-success-700' },
+};
+
+interface AdminStatCardProps {
+  label: string;
+  value: number;
+  accent: AdminStatAccent;
+  hint?: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}
+
+const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hint, icon, onClick }) => {
+  const a = ADMIN_ACCENT[accent];
+  return (
+    <button
+      onClick={onClick}
+      className={`group text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-1 transition-all p-4 ${a.ring}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</span>
+        <span className={`w-9 h-9 rounded-lg ${a.iconBg} ${a.iconFg} flex items-center justify-center`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+        </span>
+      </div>
+      <div className={`text-3xl font-bold tabular-nums ${a.num}`}>
+        <NumberTicker value={value} />
+      </div>
+      {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
+    </button>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const { user, impersonateUser, impersonation } = useAuth();
@@ -1182,61 +1226,81 @@ const Dashboard: React.FC = () => {
   return (
     <AppLayout>
       <DashboardHeader title="Admin Dashboard" />
-      {/* Summary cards — top-of-fold at-a-glance ops view for the admin */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <button
+      {/* Summary cards — refined number-first style. Color carries signal,
+          not decoration. NumberTicker gives a subtle count-up on load. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <AdminStatCard
+          label="Open Tasks"
+          value={openTaskCount}
+          accent={openTaskCount > 0 ? 'warning' : 'neutral'}
+          hint="Pending + In Progress"
+          icon={
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          }
           onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('all'); }}
-          className="text-left bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-primary-500 hover:to-primary-700 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium opacity-90">Open Tasks</h3>
-            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <p className="text-3xl font-bold mt-2">{openTaskCount}</p>
-          <p className="text-xs opacity-75 mt-1">Pending + In Progress</p>
-        </button>
-        <button
+        />
+        <AdminStatCard
+          label="Blocked Tasks"
+          value={blockedTaskCount}
+          accent={blockedTaskCount > 0 ? 'danger' : 'neutral'}
+          hint="Needs attention"
+          icon={
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          }
           onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('blocked'); }}
-          className="text-left bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-secondary-500 hover:to-secondary-700 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium opacity-90">Blocked Tasks</h3>
-            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <p className="text-3xl font-bold mt-2">{blockedTaskCount}</p>
-          <p className="text-xs opacity-75 mt-1">Needs attention</p>
-        </button>
-        <button
+        />
+        <AdminStatCard
+          label="Completed Tasks"
+          value={completeTaskCount}
+          accent="success"
+          hint="Done"
+          icon={
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 13l4 4L19 7" />
+          }
           onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('complete'); }}
-          className="text-left bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-success-500 hover:to-success-700 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium opacity-90">Completed Tasks</h3>
-            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <p className="text-3xl font-bold mt-2">{completeTaskCount}</p>
-          <p className="text-xs opacity-75 mt-1">Done</p>
-        </button>
-        <button
+        />
+        <AdminStatCard
+          label="Today's Appointments"
+          value={todayAppointmentsCount}
+          accent="primary"
+          hint="Scheduled for today"
+          icon={
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          }
           onClick={() => setActiveTab('appointments')}
-          className="text-left bg-gradient-to-br from-accent-400 to-accent-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-accent-500 hover:to-accent-700 transition-all"
-        >
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium opacity-90">Today's Appointments</h3>
-            <svg className="w-7 h-7 opacity-75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <p className="text-3xl font-bold mt-2">{todayAppointmentsCount}</p>
-          <p className="text-xs opacity-75 mt-1">Scheduled for today</p>
-        </button>
+        />
       </div>
+
+      {/* Auto-derived insight — uses already-loaded data, no extra fetch. */}
+      {(() => {
+        const blockedShare = openTaskCount + blockedTaskCount > 0
+          ? (blockedTaskCount / (openTaskCount + blockedTaskCount)) * 100
+          : 0;
+        if (blockedTaskCount >= 3) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="warning"
+                title={`${blockedTaskCount} blocked tasks need unblocking`}
+                body={`Blocked items are ${blockedShare.toFixed(0)}% of the active workload. Review the blocked list and identify what's stalling them.`}
+                action={{ label: 'View blocked tasks', onClick: () => { setActiveTab('tasks'); setAdminTasksStatusFilter('blocked'); } }}
+              />
+            </div>
+          );
+        }
+        if (openTaskCount === 0 && completeTaskCount > 0) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="positive"
+                title="All tasks complete"
+                body={`Nice work — ${completeTaskCount} task${completeTaskCount === 1 ? '' : 's'} closed and nothing currently open or blocked.`}
+              />
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Tabs */}
         <div className="border-b border-gray-200 mb-6 bg-white rounded-t-xl shadow-lg">

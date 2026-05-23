@@ -152,11 +152,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, onOpen
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-40 z-[60] flex items-start justify-center pt-[12vh] px-4"
+      className="fixed inset-0 bg-gray-900/30 backdrop-blur-sm z-[60] flex items-start justify-center pt-[12vh] px-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-xl overflow-hidden"
+        className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onKeyDown}
       >

@@ -7,6 +7,8 @@ import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import NumberTicker from '../components/ui/NumberTicker';
+import InsightCard from '../components/ui/InsightCard';
 
 // Interfaces
 interface LabOrder {
@@ -182,6 +184,39 @@ interface LeveyJenningsData {
     is_within_limits: boolean;
   }[];
 }
+
+type LabAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+const LAB_ACCENT: Record<LabAccent, { num: string; ring: string }> = {
+  neutral:   { num: 'text-text-primary',  ring: 'ring-gray-200/60' },
+  primary:   { num: 'text-primary-700',   ring: 'ring-primary-200/60' },
+  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60' },
+  warning:   { num: 'text-warning-700',   ring: 'ring-warning-200/60' },
+  danger:    { num: 'text-danger-700',    ring: 'ring-danger-200/60' },
+  success:   { num: 'text-success-700',   ring: 'ring-success-200/60' },
+};
+
+interface LabStatProps {
+  label: string;
+  value: number | string;
+  accent: LabAccent;
+  active?: boolean;
+  onClick: () => void;
+}
+
+const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick }) => {
+  const a = LAB_ACCENT[accent];
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
+    >
+      <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">{label}</div>
+      <div className={`text-2xl font-bold tabular-nums mt-1 ${a.num}`}>
+        {typeof value === 'number' ? <NumberTicker value={value} /> : value}
+      </div>
+    </button>
+  );
+};
 
 const LabDashboard: React.FC = () => {
   const { showToast } = useNotification();
@@ -1561,72 +1596,69 @@ const LabDashboard: React.FC = () => {
           </>
         )}
       />
-      {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-warning-50 ${activeTab === 'orders' && statusFilter === 'pending' ? 'border-warning-400 ring-2 ring-warning-200' : 'border-gray-200'}`}
-            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('pending'); }}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending</div>
-            <div className="text-2xl font-bold text-warning-600 mt-1">
-              {labOrders.filter(o => o.status === 'pending').length}
+      {/* Stat cards — refined number-first style, click to drill in. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+        <LabStat label="Pending" value={labOrders.filter(o => o.status === 'pending').length}
+          accent={labOrders.filter(o => o.status === 'pending').length > 0 ? 'warning' : 'neutral'}
+          active={activeTab === 'orders' && statusFilter === 'pending'}
+          onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('pending'); }} />
+        <LabStat label="In Progress" value={labOrders.filter(o => o.status === 'in_progress').length}
+          accent="primary"
+          active={activeTab === 'orders' && statusFilter === 'in_progress'}
+          onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('in_progress'); }} />
+        <LabStat label="Completed" value={labOrders.filter(o => o.status === 'completed').length}
+          accent="success"
+          active={activeTab === 'orders' && ordersSubTab === 'completed' && !statusFilter}
+          onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); setStatusFilter(''); }} />
+        <LabStat label="STAT" value={labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length}
+          accent={labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length > 0 ? 'danger' : 'neutral'}
+          active={activeTab === 'orders' && statusFilter === 'stat'}
+          onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('stat'); }} />
+        <LabStat label="Critical" value={criticalAlerts.filter(a => !a.is_acknowledged).length}
+          accent={criticalAlerts.filter(a => !a.is_acknowledged).length > 0 ? 'danger' : 'neutral'}
+          active={activeTab === 'alerts'}
+          onClick={() => setActiveTab('alerts')} />
+        <LabStat label="Avg TAT"
+          value={analytics?.turnaround_time?.average_tat_hours ? formatTAT(analytics.turnaround_time.average_tat_hours) : 'N/A'}
+          accent="secondary"
+          active={activeTab === 'analytics'}
+          onClick={() => setActiveTab('analytics')} />
+        <LabStat label="Low Stock" value={inventoryStats?.low_stock_count || 0}
+          accent={(inventoryStats?.low_stock_count || 0) > 0 ? 'warning' : 'neutral'}
+          active={activeTab === 'inventory'}
+          onClick={() => setActiveTab('inventory')} />
+      </div>
+
+      {/* Auto-derived insight */}
+      {(() => {
+        const statCount = labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length;
+        const critical = criticalAlerts.filter(a => !a.is_acknowledged).length;
+        if (critical > 0) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="warning"
+                title={`${critical} unacknowledged critical alert${critical === 1 ? '' : 's'}`}
+                body="Critical values flag results that may need urgent provider attention. Acknowledge them after the on-call doctor has been notified."
+                action={{ label: 'Open alerts', onClick: () => setActiveTab('alerts') }}
+              />
             </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-primary-50 ${activeTab === 'orders' && statusFilter === 'in_progress' ? 'border-primary-400 ring-2 ring-primary-200' : 'border-gray-200'}`}
-            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('in_progress'); }}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">In Progress</div>
-            <div className="text-2xl font-bold text-primary-600 mt-1">
-              {labOrders.filter(o => o.status === 'in_progress').length}
+          );
+        }
+        if (statCount >= 3) {
+          return (
+            <div className="mb-4">
+              <InsightCard
+                tone="warning"
+                title={`${statCount} open STAT orders`}
+                body="STAT orders should be processed first — pull them to the top of the bench queue."
+                action={{ label: 'View STAT orders', onClick: () => { setActiveTab('orders'); setStatusFilter('stat'); } }}
+              />
             </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-success-50 ${activeTab === 'orders' && ordersSubTab === 'completed' && !statusFilter ? 'border-success-400 ring-2 ring-success-200' : 'border-gray-200'}`}
-            onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); setStatusFilter(''); }}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completed</div>
-            <div className="text-2xl font-bold text-success-600 mt-1">
-              {labOrders.filter(o => o.status === 'completed').length}
-            </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-danger-50 ${activeTab === 'orders' && statusFilter === 'stat' ? 'border-danger-400 ring-2 ring-danger-200' : 'border-gray-200'}`}
-            onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('stat'); }}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">STAT Orders</div>
-            <div className="text-2xl font-bold text-danger-600 mt-1">
-              {labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length}
-            </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-danger-50 ${activeTab === 'alerts' ? 'border-danger-400 ring-2 ring-danger-200' : 'border-gray-200'}`}
-            onClick={() => setActiveTab('alerts')}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Critical Pending</div>
-            <div className="text-2xl font-bold text-danger-600 mt-1">
-              {criticalAlerts.filter(a => !a.is_acknowledged).length}
-            </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-secondary-50 ${activeTab === 'analytics' ? 'border-secondary-400 ring-2 ring-secondary-200' : 'border-gray-200'}`}
-            onClick={() => setActiveTab('analytics')}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Avg TAT</div>
-            <div className="text-2xl font-bold text-secondary-600 mt-1">
-              {analytics?.turnaround_time?.average_tat_hours ? formatTAT(analytics.turnaround_time.average_tat_hours) : 'N/A'}
-            </div>
-          </div>
-          <div
-            className={`bg-white rounded-xl shadow-lg border p-4 cursor-pointer transition-colors hover:bg-orange-50 ${activeTab === 'inventory' ? 'border-orange-400 ring-2 ring-orange-200' : 'border-gray-200'}`}
-            onClick={() => setActiveTab('inventory')}
-          >
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Low Stock</div>
-            <div className="text-2xl font-bold text-orange-600 mt-1">
-              {inventoryStats?.low_stock_count || 0}
-            </div>
-          </div>
-        </div>
+          );
+        }
+        return null;
+      })()}
 
         {/* Main Tabs */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">

@@ -379,7 +379,17 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Ambient background — three large blurred color blobs at low
+          opacity give the canvas quiet depth without competing with
+          content. Pure CSS, no render cost. Fixed positioning so the
+          blobs stay put while content scrolls above them. */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden -z-0">
+        <div className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary-200 opacity-20 blur-3xl" />
+        <div className="absolute top-1/3 right-[-180px] w-[480px] h-[480px] rounded-full bg-secondary-200 opacity-15 blur-3xl" />
+        <div className="absolute bottom-[-200px] left-1/3 w-[520px] h-[520px] rounded-full bg-accent-200 opacity-15 blur-3xl" />
+      </div>
+      <div className="relative z-10">
       {/* Skip to content link for accessibility */}
       <a href="#main-content" className="skip-to-content">
         Skip to content
@@ -773,6 +783,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           )}
         </div>
       </nav>
+      </div>
     </div>
   );
 };

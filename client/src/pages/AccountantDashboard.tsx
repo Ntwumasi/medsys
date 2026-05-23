@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
+import InsightCard from '../components/ui/InsightCard';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import {
@@ -265,6 +266,44 @@ interface ReminderHistory {
   sent_at: string;
   sent_by_name: string;
 }
+
+type FinanceAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'success';
+const FINANCE_ACCENT: Record<FinanceAccent, { num: string; ring: string; iconBg: string; iconFg: string }> = {
+  neutral:   { num: 'text-text-primary', ring: 'ring-gray-200/60',     iconBg: 'bg-gray-100',      iconFg: 'text-gray-500' },
+  primary:   { num: 'text-primary-700',  ring: 'ring-primary-200/60',  iconBg: 'bg-primary-100',   iconFg: 'text-primary-600' },
+  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60', iconBg: 'bg-secondary-100', iconFg: 'text-secondary-600' },
+  warning:   { num: 'text-warning-700',  ring: 'ring-warning-200/60',  iconBg: 'bg-warning-100',   iconFg: 'text-warning-600' },
+  success:   { num: 'text-success-700',  ring: 'ring-success-200/60',  iconBg: 'bg-success-100',   iconFg: 'text-success-600' },
+};
+
+interface FinanceStatCardProps {
+  label: string;
+  value: string;
+  hint?: string;
+  accent: FinanceAccent;
+  icon: React.ReactNode;
+  onClick?: () => void;
+}
+
+const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, accent, icon, onClick }) => {
+  const a = FINANCE_ACCENT[accent];
+  const Comp = onClick ? 'button' : 'div';
+  return (
+    <Comp
+      onClick={onClick}
+      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-1 transition-all p-4 ${a.ring} ${onClick ? 'cursor-pointer' : ''}`}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</span>
+        <span className={`w-9 h-9 rounded-lg ${a.iconBg} ${a.iconFg} flex items-center justify-center`}>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+        </span>
+      </div>
+      <div className={`text-2xl font-bold tabular-nums ${a.num} leading-tight`}>{value}</div>
+      {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
+    </Comp>
+  );
+};
 
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
@@ -880,65 +919,73 @@ const AccountantDashboard: React.FC = () => {
                   <OverviewSkeleton />
                 ) : (
                   <>
-                    {/* Summary Cards */}
+                    {/* Summary cards — refined number-first style. Color
+                        reserved for the value text; surface stays white. */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div
-                        className="bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-primary-500 hover:to-primary-700 transition-all hover:shadow-xl"
+                      <FinanceStatCard
+                        label="Total Billed"
+                        value={formatCurrency(summary?.total_billed || 0)}
+                        hint={`${summary?.total_invoices || 0} invoices`}
+                        accent="primary"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('all'); }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium opacity-90">Total Billed</h3>
-                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_billed || 0)}</p>
-                        <p className="text-sm opacity-75 mt-1">{summary?.total_invoices || 0} invoices</p>
-                      </div>
-                      <div
-                        className="bg-gradient-to-br from-success-400 to-success-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-success-500 hover:to-success-700 transition-all hover:shadow-xl"
+                      />
+                      <FinanceStatCard
+                        label="Total Collected"
+                        value={formatCurrency(summary?.total_collected || 0)}
+                        hint={`${summary?.paid_count || 0} fully paid`}
+                        accent="success"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('paid'); }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium opacity-90">Total Collected</h3>
-                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_collected || 0)}</p>
-                        <p className="text-sm opacity-75 mt-1">{summary?.paid_count || 0} fully paid</p>
-                      </div>
-                      <div
-                        className="bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-warning-500 hover:to-warning-700 transition-all hover:shadow-xl"
+                      />
+                      <FinanceStatCard
+                        label="Outstanding"
+                        value={formatCurrency(summary?.total_outstanding || 0)}
+                        hint={`${summary?.pending_count || 0} pending`}
+                        accent={summary?.total_outstanding && summary.total_outstanding > 0 ? 'warning' : 'neutral'}
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('pending'); }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium opacity-90">Outstanding</h3>
-                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <p className="text-3xl font-bold mt-2">{formatCurrency(summary?.total_outstanding || 0)}</p>
-                        <p className="text-sm opacity-75 mt-1">{summary?.pending_count || 0} pending</p>
-                      </div>
-                      <div
-                        className="bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-6 text-white shadow-lg cursor-pointer hover:from-secondary-500 hover:to-secondary-700 transition-all hover:shadow-xl"
+                      />
+                      <FinanceStatCard
+                        label="Collection Rate"
+                        value={`${summary?.total_billed && summary.total_billed > 0
+                          ? ((parseFloat(summary.total_collected as unknown as string) / parseFloat(summary.total_billed as unknown as string)) * 100).toFixed(1)
+                          : 0}%`}
+                        hint={`${summary?.partial_count || 0} partial`}
+                        accent="secondary"
+                        icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('partial'); }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium opacity-90">Collection Rate</h3>
-                          <svg className="w-8 h-8 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                        </div>
-                        <p className="text-3xl font-bold mt-2">
-                          {summary?.total_billed && summary.total_billed > 0
-                            ? ((parseFloat(summary.total_collected as unknown as string) / parseFloat(summary.total_billed as unknown as string)) * 100).toFixed(1)
-                            : 0}%
-                        </p>
-                        <p className="text-sm opacity-75 mt-1">{summary?.partial_count || 0} partial</p>
-                      </div>
+                      />
                     </div>
+
+                    {/* Auto-derived collections insight */}
+                    {(() => {
+                      const billed = parseFloat((summary?.total_billed as unknown as string) || '0');
+                      const collected = parseFloat((summary?.total_collected as unknown as string) || '0');
+                      const outstanding = parseFloat((summary?.total_outstanding as unknown as string) || '0');
+                      if (billed === 0) return null;
+                      const rate = (collected / billed) * 100;
+                      if (rate < 70 && outstanding > 0) {
+                        return (
+                          <InsightCard
+                            tone="warning"
+                            title={`Collection rate is ${rate.toFixed(0)}% — below target`}
+                            body={`${formatCurrency(outstanding)} is sitting in pending invoices. Aging report and payment reminders can help bring this down.`}
+                            action={{ label: 'Open aging report', onClick: () => setActiveTab('aging') }}
+                          />
+                        );
+                      }
+                      if (rate >= 90) {
+                        return (
+                          <InsightCard
+                            tone="positive"
+                            title={`Strong collection rate at ${rate.toFixed(0)}%`}
+                            body={`Only ${formatCurrency(outstanding)} outstanding across ${summary?.pending_count || 0} invoices.`}
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {/* Revenue Trend Chart */}
                     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
