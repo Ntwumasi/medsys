@@ -10,14 +10,13 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SearchBar from '../components/SearchBar';
 import AppLayout from '../components/AppLayout';
-import DepartmentGuide from '../components/DepartmentGuide';
-import { receptionistGuideSections } from '../components/guides/receptionistGuideContent';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { useSmartPolling } from '../hooks/useSmartPolling';
+import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -347,7 +346,6 @@ const ReceptionistDashboard: React.FC = () => {
     if (staffStatusFilter === 'inactive' && s.is_active) return false;
     return true;
   });
-  const [showGuide, setShowGuide] = useState(false);
   // Ready-for-Billing accordion: closed by default. With 20+ checkouts a
   // day the expanded list eats most of the queue view; receptionists open
   // it only when actively processing checkouts.
@@ -1407,15 +1405,19 @@ const ReceptionistDashboard: React.FC = () => {
   }
 
   console.log('ReceptionistDashboard: Rendering main UI');
+  const checkedInToday = todayAppointments.filter((a) => a.status === 'checked_in').length;
   return (
-    <AppLayout title="Receptionist Dashboard">
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setShowGuide(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-          How-To Guide
-        </button>
-      </div>
-      <DepartmentGuide isOpen={showGuide} onClose={() => setShowGuide(false)} title="Receptionist Dashboard Guide" sections={receptionistGuideSections} />
+    <AppLayout>
+      <DashboardHeader
+        title="Receptionist Dashboard"
+        stats={(
+          <>
+            <StatPill label="today" value={todayAppointments.length} tone="primary" title="Today's appointments" />
+            <StatPill label="checked in" value={checkedInToday} tone="success" title="Patients checked in today" />
+            <StatPill label="billing" value={billingAlerts.length} tone={billingAlerts.length > 0 ? 'warning' : 'neutral'} title="Patients ready for checkout" />
+          </>
+        )}
+      />
       {/* Search Bar */}
       <div className="mb-6">
         <SearchBar

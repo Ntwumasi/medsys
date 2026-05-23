@@ -5,15 +5,20 @@ import Logo from './Logo';
 import NotificationCenter from './NotificationCenter';
 import SuperAdminRoleSwitcher from './SuperAdminRoleSwitcher';
 import MessageBadge from './MessageBadge';
-import WeatherIcon from './WeatherIcon';
+import { useGuide } from '../context/GuideContext';
 import apiClient from '../api/client';
 
 interface NavItem {
   label: string;
-  path: string;
+  // Either path (link) or actionId (triggers a global handler) must be set.
+  path?: string;
+  actionId?: 'open-guide';
   icon: React.ReactNode;
   roles?: string[];
   headNurseOnly?: boolean;
+  // When true, only renders if the corresponding action is currently
+  // available (e.g., guide only exists for some roles).
+  conditional?: 'has-guide';
 }
 
 const navItems: NavItem[] = [
@@ -245,6 +250,18 @@ const navItems: NavItem[] = [
     ),
     roles: ['admin'],
   },
+  // How-To Guide is a click-action, not a route. Sidebar triggers the
+  // GuideContext to open the role-specific walkthrough modal.
+  {
+    label: 'How-To Guide',
+    actionId: 'open-guide',
+    conditional: 'has-guide',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" />
+      </svg>
+    ),
+  },
 ];
 
 interface AppLayoutProps {
@@ -263,6 +280,7 @@ interface SearchResult {
 
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
   const { user, logout, activeRole, impersonation } = useAuth();
+  const { open: openGuide, hasGuide } = useGuide();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -335,8 +353,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   const filteredNavItems = navItems.filter((item) => {
     if (item.roles && !item.roles.includes(effectiveRole || '')) return false;
     if (item.headNurseOnly && !user?.is_head_nurse && !isSuperAdminSession) return false;
+    if (item.conditional === 'has-guide' && !hasGuide) return false;
     return true;
   });
+
+  // Single source of truth for what each nav item does when clicked.
+  // Items with a path render as Link; items with actionId fire a handler.
+  const navItemHandler = (item: NavItem): React.MouseEventHandler | undefined => {
+    if (item.actionId === 'open-guide') return () => openGuide();
+    return undefined;
+  };
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
@@ -545,16 +571,33 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           {/* Navigation */}
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
             {filteredNavItems.map((item) => {
-              const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+              const key = item.path || item.actionId || item.label;
+              const isActive = !!item.path && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
+              const cls = `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full text-left ${
+                isActive
+                  ? 'bg-primary-50 text-primary-600 font-medium'
+                  : 'text-text-secondary hover:bg-primary-50 hover:text-primary-600'
+              } ${sidebarCollapsed ? 'justify-center' : ''}`;
+              const handler = navItemHandler(item);
+              if (handler) {
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={handler}
+                    className={cls}
+                    title={sidebarCollapsed ? item.label : undefined}
+                  >
+                    {item.icon}
+                    {!sidebarCollapsed && <span>{item.label}</span>}
+                  </button>
+                );
+              }
               return (
                 <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-600 font-medium'
-                      : 'text-text-secondary hover:bg-primary-50 hover:text-primary-600'
-                  } ${sidebarCollapsed ? 'justify-center' : ''}`}
+                  key={key}
+                  to={item.path!}
+                  className={cls}
                   title={sidebarCollapsed ? item.label : undefined}
                 >
                   {item.icon}
@@ -596,17 +639,33 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
             </div>
             <nav className="p-3 space-y-1">
               {filteredNavItems.map((item) => {
-                const isActive = location.pathname === item.path;
+                const key = item.path || item.actionId || item.label;
+                const isActive = !!item.path && location.pathname === item.path;
+                const cls = `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full text-left ${
+                  isActive
+                    ? 'bg-primary-50 text-primary-600 font-medium'
+                    : 'text-text-secondary hover:bg-primary-50 hover:text-primary-600'
+                }`;
+                const handler = navItemHandler(item);
+                if (handler) {
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={(e) => { handler(e); setMobileMenuOpen(false); }}
+                      className={cls}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                }
                 return (
                   <Link
-                    key={item.path}
-                    to={item.path}
+                    key={key}
+                    to={item.path!}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-600 font-medium'
-                        : 'text-text-secondary hover:bg-primary-50 hover:text-primary-600'
-                    }`}
+                    className={cls}
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -625,48 +684,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
         }`}
       >
-        {/* Personalized greeting — only on /dashboard. Uses Ghana local
-            time (Africa/Accra, UTC+0) since the clinic is in Ghana and
-            users on US laptops would otherwise see the wrong greeting.
-            No external weather API — Starlink can flap. */}
-        {user && location.pathname === '/dashboard' && (() => {
-          const TZ = 'Africa/Accra';
-          // Pull the hour as an integer in Ghana time, independent of the
-          // viewer's browser timezone.
-          const h = parseInt(
-            new Intl.DateTimeFormat('en-US', {
-              timeZone: TZ,
-              hour: 'numeric',
-              hour12: false,
-            }).format(new Date()),
-            10
-          );
-          const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-          const weatherVariant: 'morning' | 'afternoon' | 'evening' | 'night' =
-            h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
-          const dateLabel = new Intl.DateTimeFormat(undefined, {
-            timeZone: TZ,
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric',
-          }).format(new Date());
-          return (
-            <div className="bg-gradient-to-r from-primary-50 via-secondary-50 to-primary-50 border-b border-border px-4 lg:px-6 py-3">
-              <div className="flex items-center gap-3">
-                <WeatherIcon variant={weatherVariant} size={32} className="text-primary-600" />
-                <div>
-                  <p className="text-lg font-semibold text-text-primary">
-                    {greeting}, {user.first_name}.
-                  </p>
-                  <p className="text-xs text-text-secondary">{dateLabel} · Accra time</p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {/* Greeting and breadcrumb strips were removed in favor of the slim
+            DashboardHeader component each role dashboard renders itself.
+            Breadcrumbs are still rendered below for non-dashboard pages
+            (patient detail, etc.) where they add real value. */}
 
         {/* Page header with breadcrumbs and title */}
-        {(title || location.pathname !== '/dashboard') && (
+        {title && location.pathname !== '/dashboard' && (
           <div className="bg-surface border-b border-border px-4 lg:px-6 py-3">
             {/* Auto breadcrumb */}
             <nav className="flex items-center gap-1.5 text-sm mb-1">
@@ -715,12 +739,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
       {/* Mobile Bottom Tab Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-40 lg:hidden safe-area-bottom">
         <div className="flex justify-around items-center h-16">
-          {filteredNavItems.slice(0, 5).map((item) => {
+          {/* Mobile bottom nav: only show items with a real path. Actions
+              like How-To Guide are surfaced from the slide-out menu only. */}
+          {filteredNavItems.filter((i) => i.path).slice(0, 5).map((item) => {
             const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={item.path!}
                 className={`flex flex-col items-center justify-center flex-1 h-full px-2 transition-colors ${
                   isActive ? 'text-primary-600' : 'text-text-secondary'
                 }`}

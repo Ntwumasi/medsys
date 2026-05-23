@@ -3,8 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import HPAccordion from '../components/HPAccordion';
-import DepartmentGuide from '../components/DepartmentGuide';
-import { doctorGuideSections } from '../components/guides/doctorGuideContent';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
@@ -18,6 +16,7 @@ import LabTestSetChips from '../components/LabTestSetChips';
 import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
 import { useSmartPolling } from '../hooks/useSmartPolling';
+import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
@@ -203,7 +202,6 @@ const DoctorDashboard: React.FC = () => {
 
   // Follow-up modal state
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [followUpRequired, setFollowUpRequired] = useState(false);
   const [followUpTimeframe, setFollowUpTimeframe] = useState('2 weeks');
   const [followUpReason, setFollowUpReason] = useState('');
@@ -906,14 +904,17 @@ const DoctorDashboard: React.FC = () => {
   }
 
   return (
-    <AppLayout title="Doctor Dashboard">
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setShowGuide(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-          How-To Guide
-        </button>
-      </div>
-      <DepartmentGuide isOpen={showGuide} onClose={() => setShowGuide(false)} title="Doctor Dashboard Guide" sections={doctorGuideSections} />
+    <AppLayout>
+      <DashboardHeader
+        title="Doctor Dashboard"
+        stats={(
+          <>
+            <StatPill label="active" value={roomEncounters.length} tone={roomEncounters.length > 0 ? 'primary' : 'neutral'} title="Active patients in rooms" />
+            <StatPill label="results" value={labAlerts.length + imagingAlerts.length} tone={(labAlerts.length + imagingAlerts.length) > 0 ? 'warning' : 'neutral'} title="New lab + imaging results" />
+            <StatPill label="action items" value={unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length} tone={(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length) > 0 ? 'danger' : 'neutral'} title="Unsigned notes + delinquent orders" />
+          </>
+        )}
+      />
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
           {/* Active Patients List */}
           <div className="xl:col-span-1">

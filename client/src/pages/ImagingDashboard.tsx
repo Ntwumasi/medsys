@@ -6,6 +6,7 @@ import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } fro
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { useSmartPolling } from '../hooks/useSmartPolling';
+import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 
 interface RoutingRequest {
   id: number;
@@ -222,7 +223,18 @@ const ImagingDashboard: React.FC = () => {
   });
 
   return (
-    <AppLayout title="Imaging Dashboard">
+    <AppLayout>
+      <DashboardHeader
+        title="Imaging Dashboard"
+        stats={(
+          <>
+            <StatPill label="walk-ins" value={walkIns.length} tone={walkIns.length > 0 ? 'warning' : 'neutral'} title="Imaging walk-in queue" />
+            <StatPill label="pending" value={pendingCount} tone="primary" title="Orders awaiting study" />
+            <StatPill label="in progress" value={inProgressCount} tone="primary" title="Studies in progress" />
+            <StatPill label="completed" value={completedCount} tone="success" title="Studies completed" />
+          </>
+        )}
+      />
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {loading ? (

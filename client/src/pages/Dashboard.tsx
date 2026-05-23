@@ -9,6 +9,7 @@ import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import LoginActivityPanel from '../components/LoginActivityPanel';
+import DashboardHeader from '../components/DashboardHeader';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
@@ -1180,6 +1181,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <AppLayout>
+      <DashboardHeader title="Admin Dashboard" />
       {/* Summary cards — top-of-fold at-a-glance ops view for the admin */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <button

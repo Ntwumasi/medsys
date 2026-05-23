@@ -2,6 +2,8 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { GuideProvider } from './context/GuideContext';
+import { CommandPaletteProvider } from './context/CommandPaletteContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -174,7 +176,13 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
-          <AppContent />
+          {/* GuideProvider must wrap CommandPaletteProvider — the palette
+              calls useGuide() to surface the "Open How-To Guide" action. */}
+          <GuideProvider>
+            <CommandPaletteProvider>
+              <AppContent />
+            </CommandPaletteProvider>
+          </GuideProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

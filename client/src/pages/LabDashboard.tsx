@@ -6,6 +6,7 @@ import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { useSmartPolling } from '../hooks/useSmartPolling';
+import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 
 // Interfaces
 interface LabOrder {
@@ -1544,8 +1545,22 @@ const LabDashboard: React.FC = () => {
     );
   }
 
+  const pendingCount = labOrders.filter((o) => o.status === 'pending').length;
+  const inProgressCount = labOrders.filter((o) => o.status === 'in_progress').length;
+  const unackedCritical = criticalAlerts.filter((a) => !a.is_acknowledged).length;
   return (
-    <AppLayout title="Lab Dashboard">
+    <AppLayout>
+      <DashboardHeader
+        title="Lab Dashboard"
+        stats={(
+          <>
+            <StatPill label="pending" value={pendingCount} tone={pendingCount > 0 ? 'warning' : 'neutral'} title="Orders waiting on collection" />
+            <StatPill label="in progress" value={inProgressCount} tone="primary" title="Specimens being processed" />
+            <StatPill label="verification" value={pendingVerification.length} tone={pendingVerification.length > 0 ? 'warning' : 'neutral'} title="Results awaiting peer review" />
+            <StatPill label="critical" value={unackedCritical} tone={unackedCritical > 0 ? 'danger' : 'neutral'} title="Unacknowledged critical alerts" />
+          </>
+        )}
+      />
       {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
           <div
