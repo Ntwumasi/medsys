@@ -1,25 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { messagesAPI } from '../api/messages';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 const MessageBadge: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    loadUnreadCount();
-    // Poll for new messages every 30 seconds
-    const interval = setInterval(loadUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadUnreadCount = async () => {
+  const loadUnreadCount = useCallback(async () => {
     try {
       const data = await messagesAPI.getUnreadCount();
       setUnreadCount(data.unread_count);
     } catch (error) {
       console.error('Failed to load unread count:', error);
     }
-  };
+  }, []);
+
+  // Visibility-aware polling: 20s while tab visible, paused when hidden,
+  // refresh on tab-return so message badge is up to date when staff
+  // switch back from another app.
+  useSmartPolling(loadUnreadCount, 20_000, true);
 
   return (
     <Link

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import Toast from '../components/Toast';
 import type { ToastType } from '../components/Toast';
 import apiClient from '../api/client';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 interface Notification {
   id: string;
@@ -78,83 +79,50 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   // setting tokenVersion), so SSE reconnects with the correct token after login/logout.
   const [tokenVersion, setTokenVersion] = useState(0);
 
+  // When the polled list contains an unseen STAT/warning/error item, raise
+  // it as a toast. We track which notification ids have already been
+  // surfaced so the user doesn't see the same toast every poll cycle.
+  const surfacedIdsRef = useRef<Set<string>>(new Set());
+  const firstLoadRef = useRef(true);
+
+  useEffect(() => {
+    if (firstLoadRef.current) {
+      // On the very first hydration, mark everything as "already seen" so
+      // we don't pop toasts for stale notifications that happened before
+      // the tab was open.
+      notifications.forEach((n) => surfacedIdsRef.current.add(n.id));
+      if (notifications.length > 0) firstLoadRef.current = false;
+      return;
+    }
+    for (const n of notifications) {
+      if (surfacedIdsRef.current.has(n.id)) continue;
+      surfacedIdsRef.current.add(n.id);
+      if (n.is_read) continue;
+      // Same urgency filter the old SSE path used.
+      if (n.type === 'warning' || n.type === 'error') {
+        setActiveToast(n);
+      }
+    }
+  }, [notifications]);
+
+  // Smart polling: pauses when the tab is hidden, refreshes immediately
+  // when the user comes back. Replaces the previous SSE + 60s fallback —
+  // Vercel serverless functions can't hold SSE connections open, so the
+  // EventSource path was effectively dead and the 60s tick was the real
+  // delivery latency. Polling at 15s gives sub-minute notification arrival
+  // without burning bandwidth in background tabs.
+  useSmartPolling(fetchNotifications, 15_000, true);
+
+  // Reset state on logout / login (token change). tokenVersion bumps via the
+  // storage listener below.
   useEffect(() => {
     if (!isLoggedIn()) {
       setNotifications([]);
       setUnreadCount(0);
-      return;
+      surfacedIdsRef.current.clear();
+      firstLoadRef.current = true;
     }
-
-    fetchNotifications();
-
-    // Set up Server-Sent Events for real-time notifications
-    let eventSource: EventSource | null = null;
-    let sseReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let disposed = false;
-
-    const setupSSE = () => {
-      if (disposed || !isLoggedIn()) return;
-
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-      // Note: EventSource doesn't support custom headers, so we pass token as query param
-      eventSource = new EventSource(`${apiUrl}/notifications/stream?token=${token}`);
-
-      eventSource.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-
-          if (data.type === 'notification') {
-            // Add new notification to the list
-            const notification: Notification = {
-              id: data.id?.toString() || Date.now().toString(),
-              message: data.message,
-              type: data.notificationType || 'info',
-              timestamp: new Date(),
-              is_read: false,
-            };
-
-            setNotifications(prev => [notification, ...prev].slice(0, 50));
-            setUnreadCount(prev => prev + 1);
-
-            // Show toast for important notifications
-            if (data.priority === 'stat' || data.notificationType === 'warning' || data.notificationType === 'error') {
-              setActiveToast(notification);
-            }
-          }
-        } catch (e) {
-          // Ignore parse errors for heartbeat messages
-        }
-      };
-
-      eventSource.onerror = () => {
-        eventSource?.close();
-        // Only reconnect if still logged in and effect hasn't been cleaned up
-        if (!disposed && isLoggedIn()) {
-          sseReconnectTimer = setTimeout(setupSSE, 5000);
-        }
-      };
-    };
-
-    setupSSE();
-
-    // Fallback: polling every 60 seconds (reduced from 30 since SSE handles real-time)
-    const interval = setInterval(() => {
-      if (isLoggedIn()) {
-        fetchNotifications();
-      }
-    }, 60000);
-
-    return () => {
-      disposed = true;
-      clearInterval(interval);
-      if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
-      eventSource?.close();
-    };
-  }, [fetchNotifications, tokenVersion]);
+  }, [tokenVersion]);
 
   // Listen for storage events (login/logout in other tabs)
   // Bump tokenVersion so SSE reconnects with the new (or cleared) token
