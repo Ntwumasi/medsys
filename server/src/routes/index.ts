@@ -82,6 +82,8 @@ import {
   getCompletedEncounters,
   getReceptionistAlerts,
   markAlertAsRead,
+  getAlertDetails,
+  rescheduleFollowUp,
   checkoutPatient,
 } from '../controllers/workflowController';
 import {
@@ -465,6 +467,8 @@ router.post('/workflow/release-to-nurse', authenticateToken, authorizeRoles('lab
 // Workflow routes - Receptionist alerts
 router.get('/workflow/receptionist/alerts', authenticateToken, authorizeRoles('receptionist'), getReceptionistAlerts);
 router.post('/workflow/alerts/:alert_id/read', authenticateToken, markAlertAsRead);
+router.get('/workflow/alerts/:alert_id/details', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getAlertDetails);
+router.post('/workflow/follow-up/reschedule', authenticateToken, authorizeRoles('nurse', 'admin'), rescheduleFollowUp);
 
 // Workflow routes - Receptionist checkout
 router.post('/workflow/checkout', authenticateToken, authorizeRoles('receptionist'), checkoutPatient);

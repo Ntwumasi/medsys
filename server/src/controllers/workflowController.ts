@@ -1198,6 +1198,48 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
       );
     }
 
+    // If doctor schedules a follow-up visit, auto-create an appointment so it
+    // lands on the receptionist's calendar without manual scheduling. Date is
+    // computed from the timeframe (e.g. "2 weeks" → today + 14d). The nurse
+    // can later reschedule via /workflow/follow-up/reschedule.
+    if (follow_up_required && follow_up_timeframe && patient_id) {
+      const timeframeDays: Record<string, number> = {
+        '1 week':  7,
+        '2 weeks': 14,
+        '3 weeks': 21,
+        '4 weeks': 28,
+        '1 month': 30,
+        '2 months': 60,
+        '3 months': 90,
+        '6 months': 180,
+      };
+      const days = timeframeDays[follow_up_timeframe] ?? 14;
+      const apptDate = new Date();
+      apptDate.setDate(apptDate.getDate() + days);
+      // Default to 10:00 local time so it doesn't collide at midnight
+      apptDate.setHours(10, 0, 0, 0);
+
+      try {
+        await pool.query(
+          `INSERT INTO appointments
+             (patient_id, provider_id, appointment_date, duration_minutes,
+              appointment_type, reason, notes, created_by, status)
+           VALUES ($1, $2, $3, 30, 'follow_up', $4, $5, $6, 'scheduled')`,
+          [
+            patient_id,
+            doctor_id,
+            apptDate,
+            follow_up_reason || 'Follow-up visit',
+            `Auto-scheduled follow-up for encounter ${encounter_id}. Reason: ${follow_up_reason || 'follow-up care'}`,
+            doctor_id,
+          ]
+        );
+      } catch (apptErr) {
+        // Non-fatal — encounter completes even if appointment creation fails
+        console.error('Auto-appointment creation failed:', apptErr);
+      }
+    }
+
     res.json({
       message: review_required
         ? 'Encounter completed. Review call scheduled for nurse.'
@@ -1525,6 +1567,139 @@ export const markAlertAsRead = async (req: Request, res: Response): Promise<void
     res.json({ message: 'Alert marked as read' });
   } catch (error) {
     console.error('Mark alert as read error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Full details for a single alert — used by the nurse dashboard modal that
+// pops when the nurse clicks a Doctor Notification. Returns the alert
+// itself plus the related encounter's follow-up state, the doctor's notes
+// (chief complaint, plan), the doctor's review-call task if any, and any
+// auto-created follow-up appointment so the nurse sees the whole context
+// without bouncing between tabs.
+export const getAlertDetails = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { alert_id } = req.params;
+
+    const alertRow = await pool.query(
+      `SELECT a.id, a.encounter_id, a.patient_id, a.from_user_id, a.to_user_id,
+              a.alert_type, a.message, a.is_read, a.read_at, a.created_at,
+              u_from.first_name || ' ' || u_from.last_name AS from_user_name,
+              u_to.first_name   || ' ' || u_to.last_name   AS to_user_name,
+              u_pat.first_name  || ' ' || u_pat.last_name  AS patient_name,
+              p.patient_number
+         FROM alerts a
+         LEFT JOIN users u_from ON a.from_user_id = u_from.id
+         LEFT JOIN users u_to   ON a.to_user_id   = u_to.id
+         LEFT JOIN patients p   ON a.patient_id   = p.id
+         LEFT JOIN users u_pat  ON p.user_id      = u_pat.id
+        WHERE a.id = $1`,
+      [alert_id]
+    );
+
+    if (alertRow.rows.length === 0) {
+      res.status(404).json({ error: 'Alert not found' });
+      return;
+    }
+    const alert = alertRow.rows[0];
+
+    let encounter: any = null;
+    let followUpAppointment: any = null;
+    let reviewTask: any = null;
+
+    if (alert.encounter_id) {
+      const encResult = await pool.query(
+        `SELECT id, encounter_number, encounter_date, chief_complaint,
+                assessment, plan, status,
+                follow_up_required, follow_up_timeframe, follow_up_reason
+           FROM encounters
+          WHERE id = $1`,
+        [alert.encounter_id]
+      );
+      encounter = encResult.rows[0] || null;
+
+      // Find the auto-created follow-up appointment if any
+      const apptResult = await pool.query(
+        `SELECT id, appointment_date, reason, notes, status
+           FROM appointments
+          WHERE patient_id = $1
+            AND notes ILIKE '%encounter ' || $2 || '%'
+          ORDER BY appointment_date ASC
+          LIMIT 1`,
+        [alert.patient_id, alert.encounter_id]
+      );
+      followUpAppointment = apptResult.rows[0] || null;
+
+      const reviewResult = await pool.query(
+        `SELECT nft.id, nft.scheduled_date, nft.review_reason, nft.status,
+                u_rev.first_name || ' ' || u_rev.last_name AS review_requested_by_name
+           FROM nurse_follow_up_tasks nft
+           LEFT JOIN users u_rev ON nft.review_requested_by = u_rev.id
+          WHERE nft.encounter_id = $1 AND nft.type = 'review'
+          ORDER BY nft.created_at DESC
+          LIMIT 1`,
+        [alert.encounter_id]
+      );
+      reviewTask = reviewResult.rows[0] || null;
+    }
+
+    res.json({
+      alert,
+      encounter,
+      follow_up_appointment: followUpAppointment,
+      review_task: reviewTask,
+    });
+  } catch (error) {
+    console.error('Get alert details error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Nurse reschedules either the follow-up appointment date or the review-call
+// scheduled date. Accepts EITHER appointment_id+new_date OR follow_up_task_id+new_date.
+// Same endpoint covers both because the modal triggers from one place.
+export const rescheduleFollowUp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { appointment_id, follow_up_task_id, new_date } = req.body;
+
+    if (!new_date) {
+      res.status(400).json({ error: 'new_date is required' });
+      return;
+    }
+    if (!appointment_id && !follow_up_task_id) {
+      res.status(400).json({ error: 'Either appointment_id or follow_up_task_id is required' });
+      return;
+    }
+
+    if (appointment_id) {
+      const r = await pool.query(
+        `UPDATE appointments SET appointment_date = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2 RETURNING *`,
+        [new_date, appointment_id]
+      );
+      if (r.rows.length === 0) {
+        res.status(404).json({ error: 'Appointment not found' });
+        return;
+      }
+      res.json({ message: 'Appointment rescheduled', appointment: r.rows[0] });
+      return;
+    }
+
+    // follow_up_task_id
+    const r = await pool.query(
+      `UPDATE nurse_follow_up_tasks
+          SET scheduled_date = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2 AND status = 'pending'
+        RETURNING *`,
+      [new_date, follow_up_task_id]
+    );
+    if (r.rows.length === 0) {
+      res.status(404).json({ error: 'Follow-up task not found or already completed' });
+      return;
+    }
+    res.json({ message: 'Review call rescheduled', task: r.rows[0] });
+  } catch (error) {
+    console.error('Reschedule follow-up error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

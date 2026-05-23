@@ -309,6 +309,21 @@ const NurseDashboard: React.FC = () => {
   // Doctor Notifications state
   const [doctorNotifications, setDoctorNotifications] = useState<DoctorNotification[]>([]);
 
+  // Modal for expanding a Doctor Notification — shows full message,
+  // doctor's follow-up + review context, and lets the nurse reschedule
+  // either date inline.
+  const [openNotification, setOpenNotification] = useState<DoctorNotification | null>(null);
+  const [notificationDetails, setNotificationDetails] = useState<{
+    alert: any;
+    encounter: any;
+    follow_up_appointment: any;
+    review_task: any;
+  } | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [editingFollowUpDate, setEditingFollowUpDate] = useState('');
+  const [editingReviewDate, setEditingReviewDate] = useState('');
+  const [savingReschedule, setSavingReschedule] = useState(false);
+
   // Lab Order Creation state
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [showLabOrderModal, setShowLabOrderModal] = useState(false);
@@ -480,6 +495,91 @@ const NurseDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading doctor notifications:', error);
     }
+  };
+
+  // Open the notification modal with full context (full message, follow-up
+  // appointment, review task). Also marks the notification as read.
+  const openNotificationModal = async (notification: DoctorNotification) => {
+    setOpenNotification(notification);
+    setNotificationDetails(null);
+    setLoadingDetails(true);
+
+    if (!notification.is_read) {
+      try {
+        await apiClient.post(`/workflow/alerts/${notification.id}/read`);
+      } catch (_) { /* ignore */ }
+    }
+
+    try {
+      const res = await apiClient.get(`/workflow/alerts/${notification.id}/details`);
+      setNotificationDetails(res.data);
+      // Pre-fill the edit fields with current scheduled dates so the nurse
+      // can tweak instead of retyping
+      const apptDate = res.data?.follow_up_appointment?.appointment_date;
+      const reviewDate = res.data?.review_task?.scheduled_date;
+      setEditingFollowUpDate(apptDate ? new Date(apptDate).toISOString().slice(0, 10) : '');
+      setEditingReviewDate(reviewDate ? new Date(reviewDate).toISOString().slice(0, 10) : '');
+    } catch (error) {
+      console.error('Error loading notification details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const closeNotificationModal = () => {
+    setOpenNotification(null);
+    setNotificationDetails(null);
+    setEditingFollowUpDate('');
+    setEditingReviewDate('');
+    // Refresh notifications list so the unread badge updates
+    loadDoctorNotifications();
+  };
+
+  const rescheduleFollowUpAppointment = async () => {
+    if (!notificationDetails?.follow_up_appointment || !editingFollowUpDate) return;
+    setSavingReschedule(true);
+    try {
+      await apiClient.post('/workflow/follow-up/reschedule', {
+        appointment_id: notificationDetails.follow_up_appointment.id,
+        new_date: editingFollowUpDate,
+      });
+      showToast('Follow-up appointment rescheduled', 'success');
+      // Refresh details
+      const res = await apiClient.get(`/workflow/alerts/${openNotification!.id}/details`);
+      setNotificationDetails(res.data);
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to reschedule', 'error');
+    } finally {
+      setSavingReschedule(false);
+    }
+  };
+
+  const rescheduleReviewTask = async () => {
+    if (!notificationDetails?.review_task || !editingReviewDate) return;
+    setSavingReschedule(true);
+    try {
+      await apiClient.post('/workflow/follow-up/reschedule', {
+        follow_up_task_id: notificationDetails.review_task.id,
+        new_date: editingReviewDate,
+      });
+      showToast('Review call rescheduled', 'success');
+      // Refresh details
+      const res = await apiClient.get(`/workflow/alerts/${openNotification!.id}/details`);
+      setNotificationDetails(res.data);
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to reschedule', 'error');
+    } finally {
+      setSavingReschedule(false);
+    }
+  };
+
+  const openPatientFromNotification = () => {
+    if (!openNotification) return;
+    const patient = assignedPatients.find(p => p.id === openNotification.encounter_id);
+    if (patient) {
+      setSelectedPatient(patient);
+    }
+    closeNotificationModal();
   };
 
   const loadDueTasks = async () => {
@@ -1440,19 +1540,7 @@ const NurseDashboard: React.FC = () => {
                         className={`px-4 py-3 hover:bg-gray-50 cursor-pointer ${
                           !notification.is_read ? 'bg-warning-50' : ''
                         }`}
-                        onClick={async () => {
-                          // Mark as read
-                          if (!notification.is_read) {
-                            try {
-                              await apiClient.post(`/workflow/alerts/${notification.id}/read`);
-                            } catch (_) { /* ignore */ }
-                          }
-                          // Find and select the patient from the notification
-                          const patient = assignedPatients.find(p => p.id === notification.encounter_id);
-                          if (patient) {
-                            setSelectedPatient(patient);
-                          }
-                        }}
+                        onClick={() => openNotificationModal(notification)}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -4516,6 +4604,173 @@ const NurseDashboard: React.FC = () => {
           setPendingAdminOrder(null);
         }}
       />
+
+      {/* Doctor Notification details modal — full message + follow-up /
+          review context with inline date editing. Opened when the nurse
+          clicks a row in the Doctor Notifications card. */}
+      {openNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-800 to-gray-900 rounded-t-xl">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-lg font-bold text-white">Doctor's note</h2>
+                  <p className="text-sm text-gray-300 mt-1">
+                    {openNotification.patient_name} · From Dr. {openNotification.doctor_name}
+                  </p>
+                </div>
+                <button
+                  onClick={closeNotificationModal}
+                  className="text-gray-300 hover:text-white text-2xl leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+              {/* Full alert message */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Message</p>
+                <p className="text-sm text-gray-900 whitespace-pre-wrap">{openNotification.message}</p>
+              </div>
+
+              {loadingDetails ? (
+                <div className="text-sm text-gray-500 italic">Loading details...</div>
+              ) : (
+                <>
+                  {/* Encounter notes from the doctor */}
+                  {notificationDetails?.encounter && (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        Encounter context
+                      </p>
+                      {notificationDetails.encounter.chief_complaint && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600">Chief complaint: </span>
+                          <span className="text-sm text-gray-900">{notificationDetails.encounter.chief_complaint}</span>
+                        </div>
+                      )}
+                      {notificationDetails.encounter.assessment && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600">Assessment: </span>
+                          <span className="text-sm text-gray-900 whitespace-pre-wrap">{notificationDetails.encounter.assessment}</span>
+                        </div>
+                      )}
+                      {notificationDetails.encounter.plan && (
+                        <div>
+                          <span className="text-xs font-medium text-gray-600">Plan: </span>
+                          <span className="text-sm text-gray-900 whitespace-pre-wrap">{notificationDetails.encounter.plan}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Follow-up appointment */}
+                  {notificationDetails?.follow_up_appointment ? (
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
+                          Follow-up visit
+                        </p>
+                        <span className="text-xs text-blue-600">on the calendar</span>
+                      </div>
+                      {notificationDetails.encounter?.follow_up_reason && (
+                        <p className="text-sm text-gray-900 mb-2">
+                          <span className="font-medium">Reason:</span> {notificationDetails.encounter.follow_up_reason}
+                        </p>
+                      )}
+                      <div className="flex items-end gap-2 mt-2">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Scheduled date</label>
+                          <input
+                            type="date"
+                            value={editingFollowUpDate}
+                            onChange={(e) => setEditingFollowUpDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                        <button
+                          onClick={rescheduleFollowUpAppointment}
+                          disabled={savingReschedule || !editingFollowUpDate ||
+                            editingFollowUpDate === new Date(notificationDetails.follow_up_appointment.appointment_date).toISOString().slice(0, 10)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                        >
+                          {savingReschedule ? 'Saving...' : 'Reschedule'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : notificationDetails?.encounter?.follow_up_required ? (
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 text-sm text-gray-700">
+                      Follow-up visit was requested ({notificationDetails.encounter.follow_up_timeframe || 'no timeframe'}), but no appointment was auto-created.
+                    </div>
+                  ) : null}
+
+                  {/* Review call task */}
+                  {notificationDetails?.review_task ? (
+                    <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                          Review call
+                        </p>
+                        <span className="text-xs text-amber-600">in your Calls queue</span>
+                      </div>
+                      {notificationDetails.review_task.review_reason && (
+                        <p className="text-sm text-gray-900 mb-2">
+                          <span className="font-medium">Reason:</span> {notificationDetails.review_task.review_reason}
+                        </p>
+                      )}
+                      <div className="flex items-end gap-2 mt-2">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Scheduled date</label>
+                          <input
+                            type="date"
+                            value={editingReviewDate}
+                            onChange={(e) => setEditingReviewDate(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                        <button
+                          onClick={rescheduleReviewTask}
+                          disabled={savingReschedule || !editingReviewDate ||
+                            editingReviewDate === new Date(notificationDetails.review_task.scheduled_date).toISOString().slice(0, 10)}
+                          className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 text-sm"
+                        >
+                          {savingReschedule ? 'Saving...' : 'Reschedule'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {!notificationDetails?.follow_up_appointment &&
+                   !notificationDetails?.review_task &&
+                   !notificationDetails?.encounter?.follow_up_required && (
+                    <div className="text-sm text-gray-500 italic">
+                      No follow-up or review tasks scheduled for this encounter.
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2">
+              <button
+                onClick={closeNotificationModal}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+              <button
+                onClick={openPatientFromNotification}
+                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+              >
+                Open patient visit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 };
