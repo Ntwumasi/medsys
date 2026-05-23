@@ -280,3 +280,17 @@ The PACS-only role still needs the T150 patched and locked down. From the on-sit
 - **Patient portal off-LAN** — patients access from outside the clinic, so the portal stays cloud-hosted. Read-only mirror of clinic data is sufficient for the things patients see.
 - **Cross-clinic patient identity** — see "hard parts" item 4. Defer.
 - **Compliance review** — re-check Ghana data residency law before Phase 3. Cloud aggregator location matters more once we're storing months of clinic data there.
+
+---
+
+## Browser support notes (Phase 0)
+
+**Chrome on Windows is the supported browser for clinic workstations.**
+
+Reason: voice dictation uses the browser's Web Speech API, which on Chromium browsers (Chrome, Edge) streams audio to Google's cloud speech service. On the Ghana clinic LAN, Edge specifically returned "Network error please check connection" while Chrome on the same machine worked — likely an Edge install / policy / cert path difference, not a MedSys issue. Confirmed 2026-05-23.
+
+Safari works on Mac because it uses Apple's on-device speech recognition (no cloud round-trip).
+
+### Post-go-live to-do
+- Detect non-Chrome on Windows and show a soft "use Chrome for voice features" banner
+- Replace browser Web Speech API with server-side OpenAI Whisper transcription — browser-agnostic, doesn't depend on Google's service being reachable
