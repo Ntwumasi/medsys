@@ -259,7 +259,7 @@ const NurseFollowUpCalls: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Follow-Up
+            Follow-up Visits
             {followUpCounts && followUpCounts.total > 0 && (
               <span className="ml-2 px-2 py-0.5 text-xs bg-primary-100 text-primary-700 rounded-full">
                 {followUpCounts.total}
@@ -274,7 +274,7 @@ const NurseFollowUpCalls: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Review
+            Follow-up Calls
             {reviewCounts && reviewCounts.total > 0 && (
               <span className="ml-2 px-2 py-0.5 text-xs bg-warning-100 text-warning-700 rounded-full">
                 {reviewCounts.total}
@@ -318,7 +318,7 @@ const NurseFollowUpCalls: React.FC = () => {
                 : 'bg-gradient-to-r from-primary-600 to-secondary-600'
             }`}>
               <h3 className="text-lg font-bold text-white">
-                Log {loggingTask.type === 'review' ? 'Review' : 'Follow-Up'} Call
+                Log {loggingTask.type === 'review' ? 'Follow-up Call' : 'Follow-up Visit'}
               </h3>
               <p className="text-white/80 text-sm">
                 {loggingTask.patient_name} — {loggingTask.patient_phone || 'No phone'}

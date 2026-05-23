@@ -3267,15 +3267,15 @@ const DoctorDashboard: React.FC = () => {
                   className="w-5 h-5 text-warning-600 border-gray-300 rounded focus:ring-warning-500"
                 />
                 <div>
-                  <span className="font-medium text-warning-800">Mark for nurse review call</span>
-                  <p className="text-xs text-warning-600">Nurse will call the patient on the specified date instead of the standard follow-up</p>
+                  <span className="font-medium text-warning-800">Schedule follow-up call</span>
+                  <p className="text-xs text-warning-600">Nurse will call the patient on the specified date instead of the standard auto-scheduled follow-up</p>
                 </div>
               </label>
 
               {reviewRequired && (
                 <div className="space-y-4 pl-2 border-l-4 border-warning-300 ml-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Review Date *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Call Date *</label>
                     <input
                       type="date"
                       value={reviewDate}

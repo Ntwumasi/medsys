@@ -125,7 +125,7 @@ const navItems: NavItem[] = [
     roles: ['nurse'],
   },
   {
-    label: 'Follow-Up Calls',
+    label: 'Calls',
     path: '/nurse/follow-up-calls',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

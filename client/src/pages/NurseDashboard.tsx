@@ -1481,7 +1481,7 @@ const NurseDashboard: React.FC = () => {
                         <div>
                           <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
                           <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
-                            {task.type === 'review' ? 'Review' : 'Follow-up'}
+                            {task.type === 'review' ? 'Call' : 'Visit'}
                           </span>
                         </div>
                         {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
@@ -1497,7 +1497,7 @@ const NurseDashboard: React.FC = () => {
                         <div>
                           <span className="text-sm font-medium text-gray-900">{task.patient_name}</span>
                           <span className={`ml-2 text-xs px-1.5 py-0.5 rounded font-medium ${task.type === 'review' ? 'bg-warning-100 text-warning-700' : 'bg-primary-100 text-primary-700'}`}>
-                            {task.type === 'review' ? 'Review' : 'Follow-up'}
+                            {task.type === 'review' ? 'Call' : 'Visit'}
                           </span>
                         </div>
                         {task.patient_phone && <span className="text-xs text-gray-500">{task.patient_phone}</span>}
