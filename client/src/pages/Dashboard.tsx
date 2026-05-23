@@ -1166,7 +1166,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <button
           onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('all'); }}
-          className="text-left bg-gradient-to-br from-warning-400 to-warning-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-warning-500 hover:to-warning-700 transition-all"
+          className="text-left bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-primary-500 hover:to-primary-700 transition-all"
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium opacity-90">Open Tasks</h3>
@@ -1179,7 +1179,7 @@ const Dashboard: React.FC = () => {
         </button>
         <button
           onClick={() => { setActiveTab('tasks'); setAdminTasksStatusFilter('blocked'); }}
-          className="text-left bg-gradient-to-br from-danger-400 to-danger-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-danger-500 hover:to-danger-700 transition-all"
+          className="text-left bg-gradient-to-br from-secondary-400 to-secondary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-secondary-500 hover:to-secondary-700 transition-all"
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium opacity-90">Blocked Tasks</h3>
@@ -1205,7 +1205,7 @@ const Dashboard: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('appointments')}
-          className="text-left bg-gradient-to-br from-primary-400 to-primary-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-primary-500 hover:to-primary-700 transition-all"
+          className="text-left bg-gradient-to-br from-accent-400 to-accent-600 rounded-xl p-5 text-white shadow-lg hover:shadow-xl hover:from-accent-500 hover:to-accent-700 transition-all"
         >
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium opacity-90">Today's Appointments</h3>
@@ -1221,6 +1221,24 @@ const Dashboard: React.FC = () => {
       {/* Tabs */}
         <div className="border-b border-gray-200 mb-6 bg-white rounded-t-xl shadow-lg">
           <nav className="-mb-px flex space-x-8 px-6">
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`${
+                activeTab === 'tasks'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              Tasks
+              {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0) > 0 && (
+                <span className="ml-1 px-2 py-0.5 text-xs bg-warning-100 text-warning-700 rounded-full font-bold">
+                  {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0)}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setActiveTab('staff')}
               className={`${
@@ -1296,24 +1314,6 @@ const Dashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Doctor Revenue
-            </button>
-            <button
-              onClick={() => setActiveTab('tasks')}
-              className={`${
-                activeTab === 'tasks'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-              </svg>
-              Tasks
-              {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0) > 0 && (
-                <span className="ml-1 px-2 py-0.5 text-xs bg-warning-100 text-warning-700 rounded-full font-bold">
-                  {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0)}
-                </span>
-              )}
             </button>
             <button
               onClick={() => setActiveTab('pastPatients')}
