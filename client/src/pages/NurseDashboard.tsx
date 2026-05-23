@@ -17,6 +17,7 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import LabTestSetChips from '../components/LabTestSetChips';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { ApiError } from '../types';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 interface ClinicalNote {
   id: number;
@@ -368,21 +369,20 @@ const NurseDashboard: React.FC = () => {
     }
   }, [selectedPatient?.id]);
 
-  // Polling — uses ref to avoid re-creating interval on patient selection
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadAssignedPatients();
-      loadNurseProcedures();
-      loadRooms();
-      loadShortStayBeds();
-      loadDoctorNotifications();
-      if (selectedPatientRef.current) {
-        loadOrders();
-        loadClinicalNotes();
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // Smart polling: pauses when tab is hidden, refreshes immediately on
+  // tab return. selectedPatientRef avoids re-subscribing on each patient
+  // selection.
+  useSmartPolling(() => {
+    loadAssignedPatients();
+    loadNurseProcedures();
+    loadRooms();
+    loadShortStayBeds();
+    loadDoctorNotifications();
+    if (selectedPatientRef.current) {
+      loadOrders();
+      loadClinicalNotes();
+    }
+  }, 30_000, true);
 
   // Load nurse inventory from API
   const loadNurseInventory = async () => {

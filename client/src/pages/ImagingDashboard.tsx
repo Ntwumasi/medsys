@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 interface RoutingRequest {
   id: number;
@@ -105,15 +106,10 @@ const ImagingDashboard: React.FC = () => {
     }
   };
 
-  useEffect(() => {
+  useSmartPolling(() => {
     fetchWalkIns();
     fetchImagingOrders();
-    const interval = setInterval(() => {
-      fetchWalkIns();
-      fetchImagingOrders();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  }, 30_000, true);
 
   const fetchWalkIns = async () => {
     try {

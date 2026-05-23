@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 // Interfaces
 interface LabOrder {
@@ -543,18 +544,18 @@ const LabDashboard: React.FC = () => {
     }
   }, []);
 
-  // Initial load and polling
+  // One-time bootstrap of reviewers + analytics (cards), independent of
+  // polling cadence.
   useEffect(() => {
-    fetchLabOrders();
-    fetchAnalytics(); // Load analytics for stats cards
+    fetchAnalytics();
     fetchLabReviewers();
+  }, [fetchAnalytics, fetchLabReviewers]);
+
+  // Smart polling: pauses when tab hidden, fires immediately on return.
+  useSmartPolling(() => {
+    fetchLabOrders();
     fetchPendingVerification();
-    const interval = setInterval(() => {
-      fetchLabOrders();
-      fetchPendingVerification();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [fetchLabOrders, fetchAnalytics, fetchLabReviewers, fetchPendingVerification]);
+  }, 30_000, true);
 
   useEffect(() => {
     if (activeTab === 'inventory') fetchInventory();
@@ -564,13 +565,7 @@ const LabDashboard: React.FC = () => {
     if (activeTab === 'analytics') fetchAnalytics();
   }, [activeTab, fetchAnalytics]);
 
-  useEffect(() => {
-    if (activeTab === 'alerts') fetchCriticalAlerts();
-    const interval = setInterval(() => {
-      if (activeTab === 'alerts') fetchCriticalAlerts();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [activeTab, fetchCriticalAlerts]);
+  useSmartPolling(fetchCriticalAlerts, 30_000, activeTab === 'alerts');
 
   useEffect(() => {
     if (activeTab === 'catalog') fetchTestCatalog();
@@ -582,15 +577,8 @@ const LabDashboard: React.FC = () => {
     }
   }, [activeTab, fetchQCData]);
 
-  useEffect(() => {
-    if (activeTab === 'walkins') {
-      fetchWalkIns();
-    }
-    const interval = setInterval(() => {
-      if (activeTab === 'walkins') fetchWalkIns();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [activeTab, fetchWalkIns]);
+  // Walk-ins queue refreshes faster (15s) since techs watch it actively.
+  useSmartPolling(fetchWalkIns, 15_000, activeTab === 'walkins');
 
   useEffect(() => {
     if (selectedQCTest) {

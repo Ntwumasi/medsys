@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -397,9 +398,11 @@ const PharmacyDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchRoutingRequests, 30000);
-    return () => clearInterval(interval);
   }, []);
+
+  // Wrap in arrow so the reference resolves at call-time, not during
+  // render — fetchRoutingRequests is declared further down in the file.
+  useSmartPolling(() => { fetchRoutingRequests(); }, 30_000, true);
 
   useEffect(() => {
     if (ordersSubTab === 'history') {

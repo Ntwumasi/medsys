@@ -17,6 +17,7 @@ import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
 import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -503,19 +504,13 @@ const ReceptionistDashboard: React.FC = () => {
   // optimistic UI with stale server data.
   const assigningRef = React.useRef(false);
 
-  useEffect(() => {
-    loadData();
+  // Smart polling — skips while an assignment is in-flight to protect
+  // optimistic UI, pauses when tab hidden, refreshes on tab return.
+  useSmartPolling(() => {
+    if (!assigningRef.current) loadData();
     loadBillingAlerts();
-    loadTodayAppointments(); // Load today's appointments for counter
-    const interval = setInterval(() => {
-      if (!assigningRef.current) {
-        loadData();
-      }
-      loadBillingAlerts();
-      loadTodayAppointments();
-    }, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+    loadTodayAppointments();
+  }, 30_000, true);
 
   const loadData = async () => {
     console.log('ReceptionistDashboard: loadData starting');

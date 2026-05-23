@@ -17,6 +17,7 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import LabTestSetChips from '../components/LabTestSetChips';
 import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
+import { useSmartPolling } from '../hooks/useSmartPolling';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
@@ -210,32 +211,28 @@ const DoctorDashboard: React.FC = () => {
   const [reviewDate, setReviewDate] = useState('');
   const [reviewReason, setReviewReason] = useState('');
 
-  useEffect(() => {
+  // Smart polling for the main dashboard queues — paused when tab hidden,
+  // immediate refresh on tab-return.
+  useSmartPolling(() => {
     loadRoomEncounters();
     loadDoctorAlerts();
     loadDelinquent();
     loadPendingClaims();
-    const interval = setInterval(() => {
-      loadRoomEncounters();
-      loadDoctorAlerts();
-      loadDelinquent();
-      loadPendingClaims();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  }, 30_000, true);
 
   useEffect(() => {
     if (selectedEncounter) {
       loadEncounterNotes(selectedEncounter.id);
       loadEncounterOrders(selectedEncounter.id);
       loadEncounterDiagnoses(selectedEncounter.id);
-      // Auto-refresh orders every 30 seconds
-      const ordersInterval = setInterval(() => {
-        loadEncounterOrders(selectedEncounter.id);
-      }, 30000);
-      return () => clearInterval(ordersInterval);
     }
   }, [selectedEncounter]);
+
+  // Orders for the active encounter refresh on the same smart cadence so
+  // labs/imaging/Rx the nurse just sent appear without a manual refresh.
+  useSmartPolling(() => {
+    if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
+  }, 30_000, !!selectedEncounter);
 
   const loadRoomEncounters = async () => {
     try {
