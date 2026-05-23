@@ -591,13 +591,30 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
         }`}
       >
-        {/* Personalized greeting — only on /dashboard. Uses local time for
-            the greeting word + a time-of-day emoji (no external weather
-            API; the Ghana clinic's connection is unreliable). */}
+        {/* Personalized greeting — only on /dashboard. Uses Ghana local
+            time (Africa/Accra, UTC+0) since the clinic is in Ghana and
+            users on US laptops would otherwise see the wrong greeting.
+            No external weather API — Starlink can flap. */}
         {user && location.pathname === '/dashboard' && (() => {
-          const h = new Date().getHours();
-          const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 22 ? 'Good evening' : 'Good evening';
+          const TZ = 'Africa/Accra';
+          // Pull the hour as an integer in Ghana time, independent of the
+          // viewer's browser timezone.
+          const h = parseInt(
+            new Intl.DateTimeFormat('en-US', {
+              timeZone: TZ,
+              hour: 'numeric',
+              hour12: false,
+            }).format(new Date()),
+            10
+          );
+          const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
           const emoji = h < 12 ? '☀️' : h < 17 ? '🌤️' : h < 22 ? '🌆' : '🌙';
+          const dateLabel = new Intl.DateTimeFormat(undefined, {
+            timeZone: TZ,
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          }).format(new Date());
           return (
             <div className="bg-gradient-to-r from-primary-50 via-secondary-50 to-primary-50 border-b border-border px-4 lg:px-6 py-3">
               <div className="flex items-center gap-3">
@@ -606,9 +623,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                   <p className="text-lg font-semibold text-text-primary">
                     {greeting}, {user.first_name}.
                   </p>
-                  <p className="text-xs text-text-secondary">
-                    {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </p>
+                  <p className="text-xs text-text-secondary">{dateLabel} · Accra time</p>
                 </div>
               </div>
             </div>
