@@ -385,6 +385,10 @@ router.post('/auth/request-reset', requestPasswordReset);
 router.post('/auth/reset-password', validateBody(resetPasswordSchema), resetPassword);
 router.get('/auth/login-history', authenticateToken, getLoginHistory);
 
+// Admin reports
+import { getDoctorRevenue } from '../controllers/adminReportsController';
+router.get('/admin/reports/doctor-revenue', authenticateToken, authorizeRoles('admin'), getDoctorRevenue);
+
 // Admin security routes
 router.get('/admin/login-attempts', authenticateToken, authorizeRoles('admin'), getAllLoginAttempts);
 router.get('/admin/breakglass-alerts', authenticateToken, authorizeRoles('admin'), getBreakglassAlerts);
