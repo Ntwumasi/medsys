@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Logo from '../components/Logo';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import type { ApiError } from '../types';
 
@@ -133,7 +132,11 @@ const Login: React.FC = () => {
       <div className="relative w-full max-w-md mx-auto">
         {/* Logo */}
         <div className="flex justify-center mb-10">
-          <Logo size="lg" />
+          <img
+            src="/medics-logo.png"
+            alt="Medics Clinic"
+            className="h-16 w-auto object-contain"
+          />
         </div>
 
         {/* Login Card */}

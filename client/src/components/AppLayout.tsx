@@ -5,6 +5,7 @@ import Logo from './Logo';
 import NotificationCenter from './NotificationCenter';
 import SuperAdminRoleSwitcher from './SuperAdminRoleSwitcher';
 import MessageBadge from './MessageBadge';
+import WeatherIcon from './WeatherIcon';
 import apiClient from '../api/client';
 
 interface NavItem {
@@ -608,7 +609,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
             10
           );
           const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-          const emoji = h < 12 ? '☀️' : h < 17 ? '🌤️' : h < 22 ? '🌆' : '🌙';
+          const weatherVariant: 'morning' | 'afternoon' | 'evening' | 'night' =
+            h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
           const dateLabel = new Intl.DateTimeFormat(undefined, {
             timeZone: TZ,
             weekday: 'long',
@@ -618,7 +620,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           return (
             <div className="bg-gradient-to-r from-primary-50 via-secondary-50 to-primary-50 border-b border-border px-4 lg:px-6 py-3">
               <div className="flex items-center gap-3">
-                <span className="text-2xl" aria-hidden="true">{emoji}</span>
+                <WeatherIcon variant={weatherVariant} size={32} className="text-primary-600" />
                 <div>
                   <p className="text-lg font-semibold text-text-primary">
                     {greeting}, {user.first_name}.
