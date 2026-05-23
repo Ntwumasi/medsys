@@ -12,6 +12,8 @@ import LoginActivityPanel from '../components/LoginActivityPanel';
 import DashboardHeader from '../components/DashboardHeader';
 import NumberTicker from '../components/ui/NumberTicker';
 import InsightCard from '../components/ui/InsightCard';
+import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
+import Delta from '../components/ui/Delta';
 import LabDocs from '../components/docs/LabDocs';
 import QBDocs from '../components/docs/QBDocs';
 import { useNotification } from '../context/NotificationContext';
@@ -175,9 +177,11 @@ interface AdminStatCardProps {
   hint?: string;
   icon: React.ReactNode;
   onClick: () => void;
+  series?: SparkPoint[];
+  trendDirection?: 'up-is-good' | 'up-is-bad';
 }
 
-const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hint, icon, onClick }) => {
+const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hint, icon, onClick, series, trendDirection = 'up-is-good' }) => {
   const a = ADMIN_ACCENT[accent];
   return (
     <button
@@ -193,6 +197,12 @@ const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hin
       <div className={`text-3xl font-bold tabular-nums ${a.num}`}>
         <NumberTicker value={value} />
       </div>
+      {series && series.length > 1 && (
+        <div className={`flex items-center gap-2 mt-1.5 ${a.num}`}>
+          <Sparkline data={series} />
+          <Delta series={series.map((p) => p.value)} direction={trendDirection} />
+        </div>
+      )}
       {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
     </button>
   );
@@ -246,6 +256,30 @@ const Dashboard: React.FC = () => {
   }
   const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
   const [adminTasksCounts, setAdminTasksCounts] = useState<Record<string, number>>({});
+
+  // 30-day trends for the admin stat cards' sparklines.
+  const [adminTrends, setAdminTrends] = useState<{
+    tasks_created: SparkPoint[];
+    tasks_completed: SparkPoint[];
+    appointments: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/admin/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setAdminTrends({
+          tasks_created: map(s.tasks_created),
+          tasks_completed: map(s.tasks_completed),
+          appointments: map(s.appointments),
+        });
+      })
+      .catch((err) => console.error('Failed to load admin trends:', err));
+  }, []);
+
   const [adminTasksLoading, setAdminTasksLoading] = useState(false);
   const [adminTasksStatusFilter, setAdminTasksStatusFilter] = useState<string>('all');
   const [editingTask, setEditingTask] = useState<AdminTask | null>(null);
@@ -1234,6 +1268,8 @@ const Dashboard: React.FC = () => {
           value={openTaskCount}
           accent={openTaskCount > 0 ? 'warning' : 'neutral'}
           hint="Pending + In Progress"
+          series={adminTrends?.tasks_created}
+          trendDirection="up-is-bad"
           icon={
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           }
@@ -1254,6 +1290,8 @@ const Dashboard: React.FC = () => {
           value={completeTaskCount}
           accent="success"
           hint="Done"
+          series={adminTrends?.tasks_completed}
+          trendDirection="up-is-good"
           icon={
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 13l4 4L19 7" />
           }
@@ -1264,6 +1302,8 @@ const Dashboard: React.FC = () => {
           value={todayAppointmentsCount}
           accent="primary"
           hint="Scheduled for today"
+          series={adminTrends?.appointments}
+          trendDirection="up-is-good"
           icon={
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           }

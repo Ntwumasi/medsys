@@ -1,5 +1,7 @@
 import React from 'react';
 import NumberTicker from './NumberTicker';
+import Sparkline, { type SparkPoint } from './Sparkline';
+import Delta from './Delta';
 
 // Shared stat card. Used directly by Pharmacy and Imaging dashboards;
 // other dashboards have inline equivalents that follow the same visual
@@ -20,6 +22,13 @@ interface StatCardProps {
     value: number;
     isPositive: boolean;
   };
+  // Optional sparkline data. When provided, renders an inline trend
+  // chart + auto-derived ▲/▼ delta under the number.
+  series?: SparkPoint[];
+  // When the metric "going up" is bad (avg turnaround, outstanding
+  // balance, etc.) pass 'up-is-bad' so the delta colors invert.
+  trendDirection?: 'up-is-good' | 'up-is-bad';
+  trendMode?: 'sum' | 'avg';
   className?: string;
   onClick?: () => void;
 }
@@ -41,6 +50,9 @@ const StatCard: React.FC<StatCardProps> = ({
   icon,
   variant = 'neutral',
   trend,
+  series,
+  trendDirection = 'up-is-good',
+  trendMode = 'sum',
   className = '',
   onClick,
 }) => {
@@ -58,6 +70,12 @@ const StatCard: React.FC<StatCardProps> = ({
           <p className={`text-3xl font-bold tabular-nums leading-tight ${styles.num}`}>
             {numericValue !== null ? <NumberTicker value={numericValue} /> : value}
           </p>
+          {series && series.length > 1 && (
+            <div className={`flex items-center gap-2 mt-1.5 ${styles.num}`}>
+              <Sparkline data={series} />
+              <Delta series={series.map((p) => p.value)} direction={trendDirection} mode={trendMode} />
+            </div>
+          )}
           {subtitle && <p className="text-xs text-text-secondary mt-1">{subtitle}</p>}
           {trend && (
             <div className={`flex items-center mt-2 text-xs ${trend.isPositive ? 'text-success-600' : 'text-danger-600'}`}>

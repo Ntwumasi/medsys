@@ -5,6 +5,8 @@ import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import InsightCard from '../components/ui/InsightCard';
+import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
+import Delta from '../components/ui/Delta';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import {
@@ -283,9 +285,11 @@ interface FinanceStatCardProps {
   accent: FinanceAccent;
   icon: React.ReactNode;
   onClick?: () => void;
+  series?: SparkPoint[];
+  trendDirection?: 'up-is-good' | 'up-is-bad';
 }
 
-const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, accent, icon, onClick }) => {
+const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, accent, icon, onClick, series, trendDirection = 'up-is-good' }) => {
   const a = FINANCE_ACCENT[accent];
   const Comp = onClick ? 'button' : 'div';
   return (
@@ -300,6 +304,12 @@ const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, a
         </span>
       </div>
       <div className={`text-2xl font-bold tabular-nums ${a.num} leading-tight`}>{value}</div>
+      {series && series.length > 1 && (
+        <div className={`flex items-center gap-2 mt-1.5 ${a.num}`}>
+          <Sparkline data={series} />
+          <Delta series={series.map((p) => p.value)} direction={trendDirection} />
+        </div>
+      )}
       {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
     </Comp>
   );
@@ -407,6 +417,29 @@ const AccountantDashboard: React.FC = () => {
 
   // Reminders
   const [outstandingInvoices, setOutstandingInvoices] = useState<OutstandingInvoice[]>([]);
+
+  // 30-day trends for the finance stat cards' sparklines.
+  const [financeTrends, setFinanceTrends] = useState<{
+    billed: SparkPoint[];
+    collected: SparkPoint[];
+    outstanding: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/accountant/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setFinanceTrends({
+          billed: map(s.billed),
+          collected: map(s.collected),
+          outstanding: map(s.outstanding),
+        });
+      })
+      .catch((err) => console.error('Failed to load accountant trends:', err));
+  }, []);
   const [outstandingSummary, setOutstandingSummary] = useState<any>(null);
   const [reminderSettings, setReminderSettings] = useState<ReminderSettings | null>(null);
   const [remindersLoading, setRemindersLoading] = useState(false);
@@ -927,6 +960,8 @@ const AccountantDashboard: React.FC = () => {
                         value={formatCurrency(summary?.total_billed || 0)}
                         hint={`${summary?.total_invoices || 0} invoices`}
                         accent="primary"
+                        series={financeTrends?.billed}
+                        trendDirection="up-is-good"
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('all'); }}
                       />
@@ -935,6 +970,8 @@ const AccountantDashboard: React.FC = () => {
                         value={formatCurrency(summary?.total_collected || 0)}
                         hint={`${summary?.paid_count || 0} fully paid`}
                         accent="success"
+                        series={financeTrends?.collected}
+                        trendDirection="up-is-good"
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('paid'); }}
                       />
@@ -943,6 +980,8 @@ const AccountantDashboard: React.FC = () => {
                         value={formatCurrency(summary?.total_outstanding || 0)}
                         hint={`${summary?.pending_count || 0} pending`}
                         accent={summary?.total_outstanding && summary.total_outstanding > 0 ? 'warning' : 'neutral'}
+                        series={financeTrends?.outstanding}
+                        trendDirection="up-is-bad"
                         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                         onClick={() => { setActiveTab('invoices'); setInvoiceFilter('pending'); }}
                       />

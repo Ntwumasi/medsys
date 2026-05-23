@@ -9,6 +9,8 @@ import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import NumberTicker from '../components/ui/NumberTicker';
 import InsightCard from '../components/ui/InsightCard';
+import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
+import Delta from '../components/ui/Delta';
 
 // Interfaces
 interface LabOrder {
@@ -201,9 +203,12 @@ interface LabStatProps {
   accent: LabAccent;
   active?: boolean;
   onClick: () => void;
+  series?: SparkPoint[];
+  trendDirection?: 'up-is-good' | 'up-is-bad';
+  trendMode?: 'sum' | 'avg';
 }
 
-const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick }) => {
+const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick, series, trendDirection = 'up-is-good', trendMode = 'sum' }) => {
   const a = LAB_ACCENT[accent];
   return (
     <button
@@ -214,6 +219,12 @@ const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick
       <div className={`text-2xl font-bold tabular-nums mt-1 ${a.num}`}>
         {typeof value === 'number' ? <NumberTicker value={value} /> : value}
       </div>
+      {series && series.length > 1 && (
+        <div className={`flex items-center gap-1.5 mt-1 ${a.num}`}>
+          <Sparkline data={series} width={60} height={18} />
+          <Delta series={series.map((p) => p.value)} direction={trendDirection} mode={trendMode} />
+        </div>
+      )}
     </button>
   );
 };
@@ -257,6 +268,33 @@ const LabDashboard: React.FC = () => {
 
   // Alerts state
   const [criticalAlerts, setCriticalAlerts] = useState<CriticalResultAlert[]>([]);
+
+  // 30-day trends for the lab stat strip sparklines.
+  const [labTrends, setLabTrends] = useState<{
+    orders_created: SparkPoint[];
+    orders_completed: SparkPoint[];
+    stat_orders: SparkPoint[];
+    avg_tat_hours: SparkPoint[];
+    critical_alerts: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/lab/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setLabTrends({
+          orders_created: map(s.orders_created),
+          orders_completed: map(s.orders_completed),
+          stat_orders: map(s.stat_orders),
+          avg_tat_hours: map(s.avg_tat_hours),
+          critical_alerts: map(s.critical_alerts),
+        });
+      })
+      .catch((err) => console.error('Failed to load lab trends:', err));
+  }, []);
 
   // Test Catalog state
   const [testCatalog, setTestCatalog] = useState<LabTest[]>([]);
@@ -1601,6 +1639,8 @@ const LabDashboard: React.FC = () => {
         <LabStat label="Pending" value={labOrders.filter(o => o.status === 'pending').length}
           accent={labOrders.filter(o => o.status === 'pending').length > 0 ? 'warning' : 'neutral'}
           active={activeTab === 'orders' && statusFilter === 'pending'}
+          series={labTrends?.orders_created}
+          trendDirection="up-is-bad"
           onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('pending'); }} />
         <LabStat label="In Progress" value={labOrders.filter(o => o.status === 'in_progress').length}
           accent="primary"
@@ -1609,19 +1649,28 @@ const LabDashboard: React.FC = () => {
         <LabStat label="Completed" value={labOrders.filter(o => o.status === 'completed').length}
           accent="success"
           active={activeTab === 'orders' && ordersSubTab === 'completed' && !statusFilter}
+          series={labTrends?.orders_completed}
+          trendDirection="up-is-good"
           onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); setStatusFilter(''); }} />
         <LabStat label="STAT" value={labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length}
           accent={labOrders.filter(o => o.priority === 'stat' && o.status !== 'completed').length > 0 ? 'danger' : 'neutral'}
           active={activeTab === 'orders' && statusFilter === 'stat'}
+          series={labTrends?.stat_orders}
+          trendDirection="up-is-bad"
           onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); setStatusFilter('stat'); }} />
         <LabStat label="Critical" value={criticalAlerts.filter(a => !a.is_acknowledged).length}
           accent={criticalAlerts.filter(a => !a.is_acknowledged).length > 0 ? 'danger' : 'neutral'}
           active={activeTab === 'alerts'}
+          series={labTrends?.critical_alerts}
+          trendDirection="up-is-bad"
           onClick={() => setActiveTab('alerts')} />
         <LabStat label="Avg TAT"
           value={analytics?.turnaround_time?.average_tat_hours ? formatTAT(analytics.turnaround_time.average_tat_hours) : 'N/A'}
           accent="secondary"
           active={activeTab === 'analytics'}
+          series={labTrends?.avg_tat_hours}
+          trendDirection="up-is-bad"
+          trendMode="avg"
           onClick={() => setActiveTab('analytics')} />
         <LabStat label="Low Stock" value={inventoryStats?.low_stock_count || 0}
           accent={(inventoryStats?.low_stock_count || 0) > 0 ? 'warning' : 'neutral'}

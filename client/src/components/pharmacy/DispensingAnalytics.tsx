@@ -17,6 +17,7 @@ import { format, subDays } from 'date-fns';
 import apiClient from '../../api/client';
 import { StatCard } from '../ui';
 import InsightCard from '../ui/InsightCard';
+import type { SparkPoint } from '../ui/Sparkline';
 
 interface AnalyticsData {
   hourly: { hour: number; count: number; total_quantity: number }[];
@@ -40,6 +41,33 @@ const DispensingAnalytics: React.FC = () => {
     from: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     to: format(new Date(), 'yyyy-MM-dd'),
   });
+
+  // 30-day trends, independent of the date-range picker — the
+  // sparklines always show the most recent 30 days so the trend stays
+  // meaningful even when the user is exploring older windows.
+  const [pharmacyTrends, setPharmacyTrends] = useState<{
+    dispensed_count: SparkPoint[];
+    unique_patients: SparkPoint[];
+    total_units: SparkPoint[];
+    avg_turnaround_minutes: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/pharmacy/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setPharmacyTrends({
+          dispensed_count: map(s.dispensed_count),
+          unique_patients: map(s.unique_patients),
+          total_units: map(s.total_units),
+          avg_turnaround_minutes: map(s.avg_turnaround_minutes),
+        });
+      })
+      .catch((err) => console.error('Failed to load pharmacy trends:', err));
+  }, []);
 
   useEffect(() => {
     fetchAnalytics();
@@ -118,21 +146,30 @@ const DispensingAnalytics: React.FC = () => {
           title="Total Dispensed"
           value={data?.summary?.total_dispensed || 0}
           variant={(data?.summary?.total_dispensed || 0) > 0 ? 'primary' : 'neutral'}
+          series={pharmacyTrends?.dispensed_count}
+          trendDirection="up-is-good"
         />
         <StatCard
           title="Unique Patients"
           value={data?.summary?.unique_patients || 0}
           variant={(data?.summary?.unique_patients || 0) > 0 ? 'secondary' : 'neutral'}
+          series={pharmacyTrends?.unique_patients}
+          trendDirection="up-is-good"
         />
         <StatCard
           title="Total Units"
           value={data?.summary?.total_units || 0}
           variant={(data?.summary?.total_units || 0) > 0 ? 'success' : 'neutral'}
+          series={pharmacyTrends?.total_units}
+          trendDirection="up-is-good"
         />
         <StatCard
           title="Avg Turnaround"
           value={data?.summary?.avg_turnaround_minutes ? `${data.summary.avg_turnaround_minutes} min` : 'N/A'}
           variant={data?.summary?.avg_turnaround_minutes ? 'info' : 'neutral'}
+          series={pharmacyTrends?.avg_turnaround_minutes}
+          trendDirection="up-is-bad"
+          trendMode="avg"
         />
       </div>
 
