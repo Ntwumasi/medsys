@@ -167,7 +167,118 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'charges' | 'revenue'>('staff');
+  const [activeTab, setActiveTab] = useState<'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'charges' | 'revenue' | 'tasks'>('staff');
+
+  // ---- Admin clinic-ops Tasks state ----
+  interface AdminTask {
+    id: number;
+    category: string;
+    task: string;
+    contact_person: string | null;
+    responsibility: string | null;
+    status: 'pending' | 'in_progress' | 'complete' | 'blocked';
+    remarks: string | null;
+    cost: string | null;
+    due_date: string | null;
+  }
+  const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
+  const [adminTasksCounts, setAdminTasksCounts] = useState<Record<string, number>>({});
+  const [adminTasksLoading, setAdminTasksLoading] = useState(false);
+  const [adminTasksStatusFilter, setAdminTasksStatusFilter] = useState<string>('all');
+  const [editingTask, setEditingTask] = useState<AdminTask | null>(null);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const blankTaskForm = {
+    category: '',
+    task: '',
+    contact_person: '',
+    responsibility: '',
+    status: 'pending' as AdminTask['status'],
+    remarks: '',
+    cost: '',
+    due_date: '',
+  };
+  const [taskForm, setTaskForm] = useState<typeof blankTaskForm>(blankTaskForm);
+
+  const loadAdminTasks = async () => {
+    setAdminTasksLoading(true);
+    try {
+      const params = adminTasksStatusFilter !== 'all' ? { status: adminTasksStatusFilter } : {};
+      const res = await apiClient.get('/admin/tasks', { params });
+      setAdminTasks(res.data.tasks || []);
+      setAdminTasksCounts(res.data.counts || {});
+    } catch (err) {
+      console.error('Error loading admin tasks:', err);
+    } finally {
+      setAdminTasksLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'tasks') loadAdminTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, adminTasksStatusFilter]);
+
+  const openCreateTask = () => {
+    setEditingTask(null);
+    setTaskForm(blankTaskForm);
+    setShowTaskModal(true);
+  };
+  const openEditTask = (t: AdminTask) => {
+    setEditingTask(t);
+    setTaskForm({
+      category: t.category,
+      task: t.task,
+      contact_person: t.contact_person || '',
+      responsibility: t.responsibility || '',
+      status: t.status,
+      remarks: t.remarks || '',
+      cost: t.cost || '',
+      due_date: t.due_date ? t.due_date.slice(0, 10) : '',
+    });
+    setShowTaskModal(true);
+  };
+
+  const saveTask = async () => {
+    if (!taskForm.category || !taskForm.task) {
+      alert('Category and Task are required.');
+      return;
+    }
+    const payload = {
+      ...taskForm,
+      // backend treats '' as null
+      contact_person: taskForm.contact_person || null,
+      responsibility: taskForm.responsibility || null,
+      remarks: taskForm.remarks || null,
+      cost: taskForm.cost || null,
+      due_date: taskForm.due_date || null,
+    };
+    try {
+      if (editingTask) {
+        await apiClient.put(`/admin/tasks/${editingTask.id}`, payload);
+      } else {
+        await apiClient.post('/admin/tasks', payload);
+      }
+      setShowTaskModal(false);
+      loadAdminTasks();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save task');
+    }
+  };
+
+  const inlineUpdateStatus = async (taskId: number, status: AdminTask['status']) => {
+    try {
+      await apiClient.put(`/admin/tasks/${taskId}`, { status });
+      loadAdminTasks();
+    } catch (_) { /* ignore */ }
+  };
+
+  const deleteTask = async (taskId: number) => {
+    if (!confirm('Delete this task? Cannot be undone.')) return;
+    try {
+      await apiClient.delete(`/admin/tasks/${taskId}`);
+      loadAdminTasks();
+    } catch (_) { /* ignore */ }
+  };
 
   // Doctor revenue report state
   interface DoctorRevenueRow {
@@ -1164,6 +1275,24 @@ const Dashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
               Doctor Revenue
+            </button>
+            <button
+              onClick={() => setActiveTab('tasks')}
+              className={`${
+                activeTab === 'tasks'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+              Tasks
+              {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0) > 0 && (
+                <span className="ml-1 px-2 py-0.5 text-xs bg-warning-100 text-warning-700 rounded-full font-bold">
+                  {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0)}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('pastPatients')}
@@ -2377,6 +2506,224 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tasks Tab — clinic operations tracker */}
+        {activeTab === 'tasks' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Tasks</h2>
+                <p className="text-sm text-gray-600 mt-1">Clinic operations — facility, registrations, marketing, IT, vendors.</p>
+              </div>
+              <button
+                onClick={openCreateTask}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                + Add Task
+              </button>
+            </div>
+
+            {/* Status filter chips */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {(['all', 'pending', 'in_progress', 'blocked', 'complete'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setAdminTasksStatusFilter(s)}
+                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                    adminTasksStatusFilter === s
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  {s !== 'all' && adminTasksCounts[s] !== undefined && (
+                    <span className="ml-2 text-xs opacity-75">{adminTasksCounts[s]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {adminTasksLoading ? (
+              <div className="py-8 text-center text-gray-500 text-sm">Loading...</div>
+            ) : adminTasks.length === 0 ? (
+              <div className="py-12 text-center text-gray-500 text-sm">No tasks match this filter.</div>
+            ) : (() => {
+              // Group by category
+              const groups: Record<string, AdminTask[]> = {};
+              for (const t of adminTasks) {
+                if (!groups[t.category]) groups[t.category] = [];
+                groups[t.category].push(t);
+              }
+              const statusStyle: Record<AdminTask['status'], string> = {
+                complete:    'bg-success-100 text-success-700 border-success-200',
+                in_progress: 'bg-primary-100 text-primary-700 border-primary-200',
+                pending:     'bg-warning-100 text-warning-700 border-warning-200',
+                blocked:     'bg-danger-100 text-danger-700 border-danger-200',
+              };
+              return (
+                <div className="space-y-6">
+                  {Object.keys(groups).map(cat => (
+                    <div key={cat}>
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">
+                        {cat} <span className="text-gray-400 font-normal">({groups[cat].length})</span>
+                      </h3>
+                      <div className="overflow-x-auto rounded-lg border border-gray-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Task</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Contact</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Responsibility</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Cost</th>
+                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Remarks</th>
+                              <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {groups[cat].map(t => (
+                              <tr key={t.id} className="border-t border-gray-100 hover:bg-gray-50">
+                                <td className="px-3 py-2 text-gray-900">{t.task}</td>
+                                <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
+                                <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={t.status}
+                                    onChange={(e) => inlineUpdateStatus(t.id, e.target.value as AdminTask['status'])}
+                                    className={`text-xs px-2 py-1 rounded-full font-medium border cursor-pointer ${statusStyle[t.status]}`}
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="blocked">Blocked</option>
+                                    <option value="complete">Complete</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
+                                <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
+                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                  <button onClick={() => openEditTask(t)} className="text-primary-600 hover:underline text-xs mr-3">Edit</button>
+                                  <button onClick={() => deleteTask(t.id)} className="text-danger-600 hover:underline text-xs">Delete</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Add/Edit Task modal */}
+        {showTaskModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-bold text-gray-900">{editingTask ? 'Edit Task' : 'Add Task'}</h3>
+                <button onClick={() => setShowTaskModal(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
+                  <input
+                    type="text"
+                    list="adminTaskCategories"
+                    value={taskForm.category}
+                    onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
+                    placeholder="e.g. Facility Needs, Marketing, IT"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <datalist id="adminTaskCategories">
+                    {[...new Set(adminTasks.map(t => t.category))].map(c => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Task *</label>
+                  <input
+                    type="text"
+                    value={taskForm.task}
+                    onChange={(e) => setTaskForm({ ...taskForm, task: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Contact Person</label>
+                    <input
+                      type="text"
+                      value={taskForm.contact_person}
+                      onChange={(e) => setTaskForm({ ...taskForm, contact_person: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Responsibility</label>
+                    <input
+                      type="text"
+                      value={taskForm.responsibility}
+                      onChange={(e) => setTaskForm({ ...taskForm, responsibility: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={taskForm.status}
+                      onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value as AdminTask['status'] })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="blocked">Blocked</option>
+                      <option value="complete">Complete</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Due Date</label>
+                    <input
+                      type="date"
+                      value={taskForm.due_date}
+                      onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Cost</label>
+                  <input
+                    type="text"
+                    value={taskForm.cost}
+                    onChange={(e) => setTaskForm({ ...taskForm, cost: e.target.value })}
+                    placeholder="e.g. GHS 1,200 or GHS 1,200 / head"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                  <textarea
+                    value={taskForm.remarks}
+                    onChange={(e) => setTaskForm({ ...taskForm, remarks: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2">
+                <button onClick={() => setShowTaskModal(false)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button onClick={saveTask} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+                  {editingTask ? 'Save' : 'Create'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -389,6 +389,13 @@ router.get('/auth/login-history', authenticateToken, getLoginHistory);
 import { getDoctorRevenue } from '../controllers/adminReportsController';
 router.get('/admin/reports/doctor-revenue', authenticateToken, authorizeRoles('admin'), getDoctorRevenue);
 
+// Admin clinic-operations task tracker
+import { listAdminTasks, createAdminTask, updateAdminTask, deleteAdminTask } from '../controllers/adminTasksController';
+router.get   ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), listAdminTasks);
+router.post  ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), createAdminTask);
+router.put   ('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), updateAdminTask);
+router.delete('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), deleteAdminTask);
+
 // Admin security routes
 router.get('/admin/login-attempts', authenticateToken, authorizeRoles('admin'), getAllLoginAttempts);
 router.get('/admin/breakglass-alerts', authenticateToken, authorizeRoles('admin'), getBreakglassAlerts);
