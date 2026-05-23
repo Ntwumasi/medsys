@@ -221,8 +221,21 @@ const ReceptionistDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [searchParams] = useSearchParams();
-  const initialView = searchParams.get('view') === 'special-invoice' ? 'special-invoice' : 'queue';
+  // initialView is also driven by ?view= so left-nav links (e.g. Staff) deep-link straight to a section.
+  const viewParam = searchParams.get('view');
+  const initialView: 'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff' =
+    viewParam === 'special-invoice' ? 'special-invoice'
+    : viewParam === 'staff' ? 'staff'
+    : 'queue';
   const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff'>(initialView);
+
+  // Respond to ?view= changes after mount (e.g. user clicks the left-nav
+  // Staff link while already on the dashboard).
+  useEffect(() => {
+    if (viewParam === 'staff' && activeView !== 'staff') setActiveView('staff');
+    else if (viewParam === 'special-invoice' && activeView !== 'special-invoice') setActiveView('special-invoice');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewParam]);
 
   // Staff Directory (read-only list + Add) for the receptionist. Admin still
   // owns edit / reset-pw / deactivate / login-as via the admin dashboard.
@@ -1510,24 +1523,6 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
           </button>
 
-          <button
-            onClick={() => setActiveView('staff')}
-            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
-              activeView === 'staff' ? 'border-secondary-500' : 'border-transparent'
-            }`}
-          >
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-secondary-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-secondary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h2 className="text-lg font-bold text-gray-900">Staff</h2>
-                <p className="text-sm text-gray-600">Directory</p>
-              </div>
-            </div>
-          </button>
 
         </div>
 
