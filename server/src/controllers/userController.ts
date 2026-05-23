@@ -92,6 +92,9 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 // Create new user (staff member)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   const { email, role, first_name, last_name, phone } = req.body;
+  const authReq = req as any;
+  const requesterRole = authReq.user?.role;
+  const requesterIsSuperAdmin = authReq.user?.is_super_admin === true;
 
   try {
     // Validate required fields (password no longer required - we use default)
@@ -105,6 +108,16 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     if (!validRoles.includes(role)) {
       res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
       return;
+    }
+
+    // Privilege gate: receptionist can create staff, but never an admin.
+    // Admins (or super admins acting as admin) can create any role.
+    if (requesterRole === 'receptionist' && !requesterIsSuperAdmin) {
+      const disallowedForReceptionist = ['admin'];
+      if (disallowedForReceptionist.includes(role)) {
+        res.status(403).json({ error: 'Receptionists cannot create admin accounts.' });
+        return;
+      }
     }
 
     // Generate unique username

@@ -413,9 +413,10 @@ router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor'
 router.get('/users/lab-reviewers', authenticateToken, authorizeRoles('lab', 'admin'), getActiveLabReviewers);
 
 // User Management routes (Admin only)
-router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
+// Receptionist can list + create staff (read-only on the list; cannot create admins — enforced in controller)
+router.get('/users', authenticateToken, authorizeRoles('admin', 'receptionist'), getAllUsers);
 router.get('/users/:id', authenticateToken, authorizeRoles('admin'), getUserById);
-router.post('/users', authenticateToken, authorizeRoles('admin'), createUser);
+router.post('/users', authenticateToken, authorizeRoles('admin', 'receptionist'), createUser);
 router.put('/users/:id', authenticateToken, authorizeRoles('admin'), updateUser);
 router.delete('/users/:id', authenticateToken, authorizeRoles('admin'), deleteUser);
 router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), activateUser);

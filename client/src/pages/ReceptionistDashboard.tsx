@@ -222,7 +222,92 @@ const ReceptionistDashboard: React.FC = () => {
   const { confirm: confirmDialog } = useDialog();
   const [searchParams] = useSearchParams();
   const initialView = searchParams.get('view') === 'special-invoice' ? 'special-invoice' : 'queue';
-  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice'>(initialView);
+  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff'>(initialView);
+
+  // Staff Directory (read-only list + Add) for the receptionist. Admin still
+  // owns edit / reset-pw / deactivate / login-as via the admin dashboard.
+  interface StaffMember {
+    id: number;
+    username: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+    phone?: string;
+    email?: string;
+    is_active: boolean;
+  }
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState<string>('all');
+  const [staffStatusFilter, setStaffStatusFilter] = useState<string>('all');
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [newStaffForm, setNewStaffForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    role: 'nurse',
+  });
+  const [savingNewStaff, setSavingNewStaff] = useState(false);
+  const [newStaffCredentials, setNewStaffCredentials] = useState<{ username: string; temporary_password: string } | null>(null);
+
+  const loadStaffList = async () => {
+    setStaffLoading(true);
+    try {
+      const res = await apiClient.get('/users');
+      setStaffList(res.data.users || []);
+    } catch (error) {
+      console.error('Error loading staff list:', error);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  const handleAddStaff = async () => {
+    if (!newStaffForm.first_name || !newStaffForm.last_name || !newStaffForm.role) {
+      return;
+    }
+    setSavingNewStaff(true);
+    setNewStaffCredentials(null);
+    try {
+      const res = await apiClient.post('/users', {
+        first_name: newStaffForm.first_name.trim(),
+        last_name: newStaffForm.last_name.trim(),
+        email: newStaffForm.email.trim() || undefined,
+        phone: newStaffForm.phone.trim() || undefined,
+        role: newStaffForm.role,
+      });
+      setNewStaffCredentials(res.data.credentials);
+      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+      loadStaffList();
+    } catch (error: any) {
+      const msg = error?.response?.data?.error || 'Failed to create staff member';
+      alert(msg);
+    } finally {
+      setSavingNewStaff(false);
+    }
+  };
+
+  // Load staff when the tab opens
+  useEffect(() => {
+    if (activeView === 'staff') {
+      loadStaffList();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView]);
+
+  const filteredStaff = staffList.filter(s => {
+    const term = staffSearch.trim().toLowerCase();
+    if (term) {
+      const haystack = `${s.first_name} ${s.last_name} ${s.username}`.toLowerCase();
+      if (!haystack.includes(term)) return false;
+    }
+    if (staffRoleFilter !== 'all' && s.role !== staffRoleFilter) return false;
+    if (staffStatusFilter === 'active' && !s.is_active) return false;
+    if (staffStatusFilter === 'inactive' && s.is_active) return false;
+    return true;
+  });
   const [showGuide, setShowGuide] = useState(false);
   // Ready-for-Billing accordion: closed by default. With 20+ checkouts a
   // day the expanded list eats most of the queue view; receptionists open
@@ -1421,6 +1506,25 @@ const ReceptionistDashboard: React.FC = () => {
               <div className="ml-4">
                 <h2 className="text-lg font-bold text-gray-900">Special Invoice</h2>
                 <p className="text-sm text-gray-600">Manual</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveView('staff')}
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'staff' ? 'border-secondary-500' : 'border-transparent'
+            }`}
+          >
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-secondary-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-secondary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h2 className="text-lg font-bold text-gray-900">Staff</h2>
+                <p className="text-sm text-gray-600">Directory</p>
               </div>
             </div>
           </button>
@@ -3776,6 +3880,242 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Staff Directory (receptionist: read-only list + Add). Edit /
+            reset-pw / deactivate / login-as stay admin-only. */}
+        {activeView === 'staff' && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">Staff Directory</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  View clinic staff and add new members. Edits, password resets, and deactivation are admin-only.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setNewStaffCredentials(null);
+                  setShowAddStaffModal(true);
+                }}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+              >
+                Add Staff Member
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <input
+                type="text"
+                placeholder="Search by name or username..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+              <select
+                value={staffRoleFilter}
+                onChange={(e) => setStaffRoleFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="all">All Roles</option>
+                <option value="doctor">Doctor</option>
+                <option value="nurse">Nurse</option>
+                <option value="receptionist">Receptionist</option>
+                <option value="lab">Lab</option>
+                <option value="pharmacy">Pharmacy</option>
+                <option value="pharmacist">Pharmacist</option>
+                <option value="pharmacy_tech">Pharmacy Tech</option>
+                <option value="imaging">Imaging</option>
+                <option value="accountant">Accountant</option>
+                <option value="admin">Admin</option>
+              </select>
+              <select
+                value={staffStatusFilter}
+                onChange={(e) => setStaffStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            {staffLoading ? (
+              <div className="py-8 text-center text-gray-500 text-sm">Loading...</div>
+            ) : filteredStaff.length === 0 ? (
+              <div className="py-8 text-center text-gray-500 text-sm">No staff members found.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Name</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Username</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Role</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Phone</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStaff.map(s => (
+                      <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
+                        <td className="px-3 py-2 text-gray-700">{s.username}</td>
+                        <td className="px-3 py-2">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            {s.role}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-700">{s.phone || '—'}</td>
+                        <td className="px-3 py-2">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            s.is_active ? 'bg-success-100 text-success-700' : 'bg-gray-200 text-gray-600'
+                          }`}>
+                            {s.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Add Staff Member modal */}
+        {showAddStaffModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900">Add Staff Member</h3>
+                  <button
+                    onClick={() => {
+                      setShowAddStaffModal(false);
+                      setNewStaffCredentials(null);
+                      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+                    }}
+                    className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+
+              {newStaffCredentials ? (
+                <div className="p-6 space-y-4">
+                  <div className="bg-success-50 border border-success-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-success-800 mb-2">Staff member created.</p>
+                    <p className="text-xs text-gray-600">Give these credentials to the new staff member:</p>
+                    <div className="mt-3 font-mono text-sm bg-white border border-gray-200 rounded p-3">
+                      <div><span className="text-gray-500">Username:</span> {newStaffCredentials.username}</div>
+                      <div><span className="text-gray-500">Password:</span> {newStaffCredentials.temporary_password}</div>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">They will be required to change the password on first login.</p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setNewStaffCredentials(null);
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Add Another
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddStaffModal(false);
+                        setNewStaffCredentials(null);
+                      }}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">First name *</label>
+                      <input
+                        type="text"
+                        value={newStaffForm.first_name}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, first_name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Last name *</label>
+                      <input
+                        type="text"
+                        value={newStaffForm.last_name}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, last_name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
+                    <select
+                      value={newStaffForm.role}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="doctor">Doctor</option>
+                      <option value="nurse">Nurse</option>
+                      <option value="receptionist">Receptionist</option>
+                      <option value="lab">Lab</option>
+                      <option value="pharmacy">Pharmacy</option>
+                      <option value="pharmacist">Pharmacist</option>
+                      <option value="pharmacy_tech">Pharmacy Tech</option>
+                      <option value="imaging">Imaging</option>
+                      <option value="accountant">Accountant</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Admin accounts must be created by an existing admin.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Email (optional)</label>
+                    <input
+                      type="email"
+                      value={newStaffForm.email}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Phone (optional)</label>
+                    <input
+                      type="tel"
+                      value={newStaffForm.phone}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+                    <button
+                      onClick={() => {
+                        setShowAddStaffModal(false);
+                        setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleAddStaff}
+                      disabled={savingNewStaff || !newStaffForm.first_name || !newStaffForm.last_name}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    >
+                      {savingNewStaff ? 'Creating...' : 'Create'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
