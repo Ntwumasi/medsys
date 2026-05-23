@@ -46,6 +46,55 @@ The clinic has one on-prem server today, captured 2026-05-22:
 
 ---
 
+## What runs where (Phase 0 — current state)
+
+### On-prem: MED-DC1 (Windows server at the clinic, `192.168.1.10`)
+
+| Service / role | Purpose | Notes |
+|---|---|---|
+| **Active Directory Domain Controller** | Auth for staff workstations on `Medics.gh.com` | Pre-existing; predates MedSys |
+| **DNS** | Domain name resolution for LAN | Part of AD role |
+| **Orthanc PACS** | DICOM image storage; modality worklist; web viewer | Listening on `4242` (DICOM, LAN-open) + `8042` (HTTP, localhost-only) |
+| **Orthanc plugins (active)** | `dicom-web`, `ohif`, `stone-webviewer`, `orthanc-worklists`, `gdcm`, `web-viewer`, `serve-folders`, `advanced-storage`, `authorization`, `connectivity-checks`, `housekeeper`, `transfers` | ~13 active after cleanup; unused plugins moved to `Plugins\disabled` |
+| **Worklist directory** | `C:\OrthancWorklists` — modalities pull patient schedules from here | Populated by MedSys → Orthanc integration (Phase 1+) |
+| **File / Storage role** | Generic Windows file share | Not actively used by MedSys today |
+
+**Network posture:** static IP `192.168.1.10`, gateway `192.168.1.1`. Firewall rules: DICOM port LAN-open, HTTP port localhost-only. Outbound only — nothing from outside the clinic dials in.
+
+### Cloud: Vercel + Neon
+
+| Service | Purpose | Notes |
+|---|---|---|
+| **React frontend** | The MedSys web app — registration, encounters, vitals, orders, prescriptions, lab results, dashboards | medsys-five.vercel.app |
+| **Express API (Vercel serverless)** | All EMR business logic | Same Express code as future edge; gated by `VERCEL` env var in `server/src/index.ts` |
+| **PostgreSQL (Neon)** | Source of truth for patients, encounters, orders, prescriptions, audit logs, billing, charges, charge_master | Connection via `DATABASE_URL` |
+| **JWT auth** | Login + role-based access (`is_super_admin`, role-switcher, etc.) | Signing secret on Vercel |
+| **Documents (bytea in Postgres)** | PDF lab results, uploaded docs | Stored as binary in Neon; not on S3 |
+| **Email / SMS gateways** | Receipts, reminders, password resets | Via SMTP / Twilio |
+| **QuickBooks integration** | Accounting sync | Optional, runs from cloud |
+
+### What's NOT yet integrated (the gap in Phase 0)
+
+- Modalities (Redwood, future Luminos) push DICOM images to Orthanc on the LAN — but the cloud MedSys doesn't know a study landed
+- Doctors order imaging in cloud MedSys — but Orthanc's worklist isn't populated, so the technologist types patient info manually on the modality
+- Lab tech types results manually into cloud MedSys (no auto-ingest from Wondfo / AFINION)
+- No automated flow between on-prem Orthanc and cloud MedSys
+
+This is the gap Phase 1 closes by adding an on-prem MedSys edge service alongside Orthanc.
+
+### Phase 1+ will add on-prem (pending hardware decision)
+
+| New on-prem service | Purpose |
+|---|---|
+| **MedSys edge app (Node + nginx)** | Long-running Express server; browsers connect to LAN URL; same codebase as Vercel build |
+| **Local PostgreSQL** | Clinic-authoritative source of truth for clinical data; syncs outbound to Neon |
+| **Device gateway** (in-process module of the edge app) | Receives Orthanc webhooks on study landing; opens HL7 / ASTM TCP listeners for lab analyzers; polls device REST endpoints |
+| **Sync worker** (in-process) | Outbound CDC events → Neon when internet is up; queue when offline |
+
+When Phase 1 lands, the cloud's role narrows to: aggregator + admin portal + patient portal + telehealth + backup of record. Clinic operations keep running through internet outages.
+
+---
+
 ## Hardware decision pending
 
 Phase 1 is blocked on a hardware decision. Three paths, ordered by recommendation:
