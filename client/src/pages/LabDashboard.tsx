@@ -11,6 +11,7 @@ import NumberTicker from '../components/ui/NumberTicker';
 import InsightCard from '../components/ui/InsightCard';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
+import LabResultModal, { type LabResultAlert } from '../components/LabResultModal';
 
 // Interfaces
 interface LabOrder {
@@ -4013,58 +4014,76 @@ const LabDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Verify confirmation modal */}
-      {verifyingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900">Verify lab result</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {verifyingOrder.test_name} for {verifyingOrder.patient_name}
-              </p>
-            </div>
-            <div className="p-6 space-y-4">
-              {verifyingOrder.results && (
-                <div className="p-3 bg-gray-50 rounded text-sm">
-                  {renderResultPayload(verifyingOrder.results)}
+      {/* Verify modal — reuses the rich lab-result viewer the doctor sees,
+          with reviewer-notes banner + approve footer slotted in. The lab
+          tech now sees structured parameters (name, value, unit, ref
+          range, abnormal flag) and any attached PDF before approving. */}
+      {verifyingOrder && (() => {
+        const orderForModal: LabResultAlert = {
+          id: verifyingOrder.id,
+          test_name: verifyingOrder.test_name,
+          test_code: verifyingOrder.test_code,
+          path_no: (verifyingOrder as unknown as { path_no?: string }).path_no,
+          patient_name: verifyingOrder.patient_name,
+          patient_number: verifyingOrder.patient_number,
+          priority: verifyingOrder.priority,
+          status: verifyingOrder.status,
+          ordered_date: verifyingOrder.ordered_at,
+          result_date: verifyingOrder.results_available_at,
+          result: verifyingOrder.results,
+          result_document_id: verifyingOrder.result_document_id ?? null,
+          result_document_name: verifyingOrder.result_document_name ?? null,
+        };
+        const closeVerify = () => {
+          setVerifyingOrder(null);
+          setVerifyNotes('');
+        };
+        return (
+          <LabResultModal
+            order={orderForModal}
+            onClose={closeVerify}
+            banner={
+              <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-warning-900">
+                  <span className="font-semibold">Peer review.</span> Approving will mark the order
+                  completed and notify the doctor. Critical-value alerts (if any) will fire now.
+                </p>
+                <div>
+                  <label className="block text-xs font-medium text-warning-900 mb-1">
+                    Reviewer notes (optional)
+                  </label>
+                  <textarea
+                    value={verifyNotes}
+                    onChange={(e) => setVerifyNotes(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-warning-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                    placeholder="e.g. Cross-checked against control"
+                  />
                 </div>
-              )}
-              <p className="text-sm text-gray-600">
-                Approving this result will mark the order completed and notify the doctor. Critical-value alerts (if any) will fire now.
-              </p>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (optional)
-                </label>
-                <textarea
-                  value={verifyNotes}
-                  onChange={(e) => setVerifyNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-                  placeholder="e.g. Cross-checked against control"
-                />
               </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setVerifyingOrder(null);
-                  setVerifyNotes('');
-                }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={submitVerification}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
-              >
-                Approve & release to doctor
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            }
+            footer={
+              <>
+                <button
+                  onClick={closeVerify}
+                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitVerification}
+                  className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 text-sm inline-flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Approve & release to doctor
+                </button>
+              </>
+            }
+          />
+        );
+      })()}
 
       {/* Reject modal */}
       {rejectingOrder && (

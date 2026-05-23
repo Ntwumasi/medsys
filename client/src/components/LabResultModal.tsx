@@ -27,6 +27,13 @@ export interface LabResultAlert {
 interface LabResultModalProps {
   order: LabResultAlert;
   onClose: () => void;
+  // Optional override for the footer row. When provided, the default
+  // "Close" button is replaced. Used by the lab verification flow to
+  // surface Approve / Reject actions inside the rich result view.
+  footer?: React.ReactNode;
+  // Optional banner shown above the results body (e.g., reviewer notes
+  // textarea for the verify flow).
+  banner?: React.ReactNode;
 }
 
 // The lab tech can store the result two ways:
@@ -88,7 +95,7 @@ const flagFor = (
   return { label: '', tone: 'normal' };
 };
 
-const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose }) => {
+const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose, footer, banner }) => {
   const [paramDefs, setParamDefs] = useState<ParameterDef[]>([]);
   const [paramsLoading, setParamsLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -226,6 +233,7 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose }) => {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {banner}
           {hasNoResultText && !order.result_document_id && (
             <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 flex items-start gap-2">
               <svg className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -336,13 +344,15 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm"
-          >
-            Close
-          </button>
+        <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end items-center gap-2">
+          {footer ?? (
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm"
+            >
+              Close
+            </button>
+          )}
         </div>
       </div>
     </div>

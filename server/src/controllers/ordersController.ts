@@ -1026,14 +1026,20 @@ export const getPendingVerificationQueue = async (
 
     const queue = await pool.query(
       `SELECT lo.id, lo.patient_id, lo.encounter_id, lo.test_name, lo.test_code,
-              lo.priority, lo.result, lo.result_document_id,
+              lo.priority, lo.status,
+              lo.result, lo.result as results,
+              lo.result_document_id, lo.notes, lo.path_no,
+              lo.ordered_date, lo.ordered_date as ordered_at,
+              lo.collected_date as specimen_collected_at,
+              lo.result_date as results_available_at,
               lo.verification_status, lo.assigned_reviewer_id, lo.entered_by,
-              lo.rejection_count, lo.updated_at, lo.ordered_date,
+              lo.rejection_count, lo.rejection_reason, lo.updated_at,
               pd.document_name as result_document_name,
+              pd.file_type as result_document_file_type,
               u_entered.first_name || ' ' || u_entered.last_name AS entered_by_name,
               u_reviewer.first_name || ' ' || u_reviewer.last_name AS assigned_reviewer_name,
               u_patient.first_name || ' ' || u_patient.last_name AS patient_name,
-              p.patient_number
+              p.patient_number, p.date_of_birth AS patient_dob, p.gender AS patient_gender
          FROM lab_orders lo
          LEFT JOIN users u_entered ON lo.entered_by = u_entered.id
          LEFT JOIN users u_reviewer ON lo.assigned_reviewer_id = u_reviewer.id
