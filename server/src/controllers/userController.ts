@@ -464,10 +464,13 @@ export const getActiveLabReviewers = async (req: Request, res: Response): Promis
   try {
     const authReq = req as any;
     const currentUserId = authReq.user?.id;
+    // Reviewers must be lab staff — admins were previously included but the
+    // clinic's lead lab tech reminded us only qualified lab techs should
+    // approve results before a doctor sees them.
     const result = await pool.query(
       `SELECT id, username, first_name, last_name, role
          FROM users
-        WHERE role IN ('lab', 'admin') AND is_active = true
+        WHERE role = 'lab' AND is_active = true
           AND ($1::int IS NULL OR id <> $1)
         ORDER BY last_name ASC, first_name ASC`,
       [currentUserId || null]

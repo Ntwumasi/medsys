@@ -598,9 +598,9 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
         res.status(400).json({ error: 'Assigned reviewer is not an active user.' });
         return;
       }
-      if (reviewer.role !== 'lab' && reviewer.role !== 'admin') {
+      if (reviewer.role !== 'lab') {
         res.status(400).json({
-          error: 'Assigned reviewer must be a lab user.',
+          error: 'Assigned reviewer must be a lab tech.',
         });
         return;
       }

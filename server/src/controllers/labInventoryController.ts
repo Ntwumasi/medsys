@@ -569,9 +569,18 @@ const findTestTemplate = async (
   patientGender: string | null,
   patientAgeYears: number | null,
 ): Promise<{ testId: number; matchedName: string } | null> => {
+  // Always require an exact / fuzzy match AND that the catalog row has at
+  // least one parameter — otherwise the modal renders a blank "template".
+  // The seed file leaves placeholder rows (LIPID, LFT, UA) that act as
+  // generic labels but have no parameters; the sex-specific variants
+  // (LIPID_M / LIPID_F / LFT_M / LFT_F / URINE) hold the real definitions.
+  // Without this filter, byName="Lipid Panel" matches the empty LIPID row
+  // and the lab tech sees the bare-bones "enter result" form.
+  const HAS_PARAMS = 'AND EXISTS (SELECT 1 FROM lab_test_parameters p WHERE p.lab_test_id = c.id)';
+
   // 1. Exact code match
   const byCode = await pool.query(
-    `SELECT id, test_name FROM lab_test_catalog WHERE test_code = $1 LIMIT 1`,
+    `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_code = $1 ${HAS_PARAMS} LIMIT 1`,
     [testNameOrCode],
   );
   if (byCode.rows.length > 0) {
@@ -580,7 +589,7 @@ const findTestTemplate = async (
 
   // 2. Exact name match
   const byName = await pool.query(
-    `SELECT id, test_name FROM lab_test_catalog WHERE test_name = $1 LIMIT 1`,
+    `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_name = $1 ${HAS_PARAMS} LIMIT 1`,
     [testNameOrCode],
   );
   if (byName.rows.length > 0) {
@@ -624,11 +633,12 @@ const findTestTemplate = async (
     }
   }
 
-  // 5. Fuzzy fallback — last resort
+  // 5. Fuzzy fallback — last resort. Skip empty-parameter shells.
   const fuzzy = await pool.query(
-    `SELECT id, test_name FROM lab_test_catalog
-      WHERE test_name ILIKE $1 OR test_code ILIKE $1
-      ORDER BY LENGTH(test_name) ASC
+    `SELECT c.id, c.test_name FROM lab_test_catalog c
+      WHERE (c.test_name ILIKE $1 OR c.test_code ILIKE $1)
+        AND EXISTS (SELECT 1 FROM lab_test_parameters p WHERE p.lab_test_id = c.id)
+      ORDER BY LENGTH(c.test_name) ASC
       LIMIT 1`,
     [`%${testNameOrCode}%`],
   );

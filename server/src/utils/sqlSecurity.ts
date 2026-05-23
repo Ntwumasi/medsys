@@ -37,24 +37,30 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'checked_in_at', 'completed_at', 'signed_at', 'signed_by'
   ],
   lab_orders: [
-    'patient_id', 'encounter_id', 'ordering_provider', 'test_name',
-    'test_code', 'priority', 'status', 'notes', 'clinical_info',
-    'collected_at', 'collected_by', 'completed_at', 'result_notes',
-    'result_date', 'result_value', 'result_unit', 'reference_range',
-    'abnormal_flag', 'verified_by', 'verified_at'
+    'patient_id', 'encounter_id', 'ordering_provider', 'entered_by',
+    'test_name', 'test_code', 'priority', 'status', 'notes',
+    'ordered_date', 'collected_date', 'result_date',
+    'result', 'result_document_id', 'specimen_id', 'path_no',
+    'verification_status', 'assigned_reviewer_id',
+    'verified_by', 'verified_at', 'verification_notes',
+    'rejection_reason', 'rejection_count'
   ],
   imaging_orders: [
-    'patient_id', 'encounter_id', 'ordering_provider', 'modality',
-    'imaging_type', 'study_type', 'body_part', 'priority', 'status',
-    'notes', 'clinical_info', 'scheduled_date', 'completed_at',
-    'findings', 'impression', 'radiologist_notes'
+    'patient_id', 'encounter_id', 'ordering_provider',
+    'imaging_type', 'body_part', 'priority', 'status', 'notes',
+    'ordered_date', 'scheduled_date', 'completed_date',
+    'findings', 'clinical_indication', 'accession_number',
+    'study_instance_uid', 'scheduled_station_ae_title',
+    'scheduled_procedure_step_id', 'modality_worklist_pushed', 'mpps_received'
   ],
   pharmacy_orders: [
-    'patient_id', 'encounter_id', 'medication_name', 'dosage',
-    'frequency', 'route', 'quantity', 'duration', 'priority',
-    'status', 'notes', 'dispensed_at', 'dispensed_by', 'dispensed_date',
-    'prepared_by', 'substitute_medication', 'substitute_reason',
-    'refills', 'days_supply', 'inventory_id'
+    'patient_id', 'encounter_id', 'ordering_provider', 'medication_name',
+    'dosage', 'frequency', 'route', 'quantity', 'refills', 'priority',
+    'status', 'notes', 'ordered_date', 'dispensed_date',
+    'dispensed_by', 'prepared_by', 'days_supply', 'parent_order_id',
+    'inventory_id', 'substitute_medication', 'substitute_reason',
+    'return_quantity', 'return_reason', 'returned_at', 'returned_by',
+    'administered_by', 'administered_at', 'administration_notes'
   ],
   invoices: [
     'patient_id', 'encounter_id', 'status', 'subtotal', 'tax_amount',

@@ -164,8 +164,9 @@ const DoctorDashboard: React.FC = () => {
   // Doctor Alerts state
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
   const [imagingAlerts, setImagingAlerts] = useState<DoctorAlert[]>([]);
-  const [pharmacyAlerts, setPharmacyAlerts] = useState<DoctorAlert[]>([]);
-  const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
+  // Rx removed from Results Alerts at the doctor's request — dispenses are
+  // billing/pharmacy events, not clinical results the doctor needs to chase.
+  const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging'>('lab');
 
   // Delinquent items state
   const [unsignedNotes, setUnsignedNotes] = useState<Array<{ id: number; encounter_number: string; patient_id: number; patient_name: string; patient_number: string; encounter_date: string; chief_complaint: string; status: string }>>([]);
@@ -274,7 +275,6 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get('/orders/doctor-alerts');
       setLabAlerts(res.data.lab_alerts || []);
       setImagingAlerts(res.data.imaging_alerts || []);
-      setPharmacyAlerts(res.data.pharmacy_alerts || []);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
     }
@@ -1033,7 +1033,7 @@ const DoctorDashboard: React.FC = () => {
                     </h2>
                   </div>
                   <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
-                    {labAlerts.length + imagingAlerts.length + pharmacyAlerts.length}
+                    {labAlerts.length + imagingAlerts.length}
                   </span>
                 </div>
               </div>
@@ -1059,16 +1059,6 @@ const DoctorDashboard: React.FC = () => {
                   }`}
                 >
                   Imaging ({imagingAlerts.length})
-                </button>
-                <button
-                  onClick={() => setAlertsTab('pharmacy')}
-                  className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
-                    alertsTab === 'pharmacy'
-                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  Rx ({pharmacyAlerts.length})
                 </button>
               </div>
 
@@ -1148,37 +1138,6 @@ const DoctorDashboard: React.FC = () => {
                   </>
                 )}
 
-                {alertsTab === 'pharmacy' && (
-                  <>
-                    {pharmacyAlerts.length === 0 ? (
-                      <div className="p-4 text-center text-gray-400 text-sm">
-                        No pharmacy updates
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-gray-100">
-                        {pharmacyAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <div className="font-semibold text-gray-900 text-sm">{alert.medication_name}</div>
-                                <div className="text-xs text-gray-500">{alert.patient_name}</div>
-                                {alert.room_number && (
-                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
-                                )}
-                              </div>
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.status === 'dispensed' ? 'bg-success-100 text-success-700' :
-                                'bg-primary-100 text-primary-700'
-                              }`}>
-                                {alert.status}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
               </div>
             </div>
 
