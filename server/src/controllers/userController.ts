@@ -5,6 +5,21 @@ import pool from '../database/db';
 // Default password for new users
 const DEFAULT_PASSWORD = 'demo123';
 
+// One-time schema ensure: add users.clinic (specialty / clinic the doctor
+// belongs to). Idempotent; gated by a module-level flag so we only hit
+// the DDL once per process. Kept here rather than a separate migration
+// so the column lands automatically on any deploy.
+let usersClinicEnsured = false;
+const ensureUsersClinic = async (): Promise<void> => {
+  if (usersClinicEnsured) return;
+  try {
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clinic VARCHAR(100)`);
+    usersClinicEnsured = true;
+  } catch (err) {
+    console.error('Failed to ensure users.clinic column:', err);
+  }
+};
+
 // Generate unique username from first name and last name
 const generateUsername = async (firstName: string, lastName: string): Promise<string> => {
   // Base username: first initial + lastname (lowercase, alphanumeric only)
@@ -38,10 +53,11 @@ const generateUsername = async (firstName: string, lastName: string): Promise<st
 // Get all users (staff members) - optionally filter by role
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
+    await ensureUsersClinic();
     const { role } = req.query;
 
     let query = `
-      SELECT id, username, email, role, first_name, last_name, phone, is_active,
+      SELECT id, username, email, role, first_name, last_name, phone, clinic, is_active,
              must_change_password, last_login_at, created_at, updated_at
       FROM users
       WHERE role != 'patient'
@@ -91,7 +107,8 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
 // Create new user (staff member)
 export const createUser = async (req: Request, res: Response): Promise<void> => {
-  const { email, role, first_name, last_name, phone } = req.body;
+  await ensureUsersClinic();
+  const { email, role, first_name, last_name, phone, clinic } = req.body;
   const authReq = req as any;
   const requesterRole = authReq.user?.role;
   const requesterIsSuperAdmin = authReq.user?.is_super_admin === true;
@@ -154,12 +171,15 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     // Generate a placeholder email if not provided
     const userEmail = email || `${username}@medsys.local`;
 
+    // Only store clinic for doctors. Other roles ignore the field.
+    const clinicToStore = role === 'doctor' && clinic ? String(clinic).trim() || null : null;
+
     // Insert user with must_change_password = true
     const result = await pool.query(
-      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone, is_active, must_change_password, password_changed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, true, NULL)
-       RETURNING id, username, email, role, first_name, last_name, phone, is_active, must_change_password, created_at`,
-      [username, userEmail, password_hash, role, first_name, last_name, phone]
+      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone, clinic, is_active, must_change_password, password_changed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, true, NULL)
+       RETURNING id, username, email, role, first_name, last_name, phone, clinic, is_active, must_change_password, created_at`,
+      [username, userEmail, password_hash, role, first_name, last_name, phone, clinicToStore]
     );
 
     const user = result.rows[0];
@@ -191,8 +211,9 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
 // Update user
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
+  await ensureUsersClinic();
   const { id } = req.params;
-  const { email, role, first_name, last_name, phone, is_active } = req.body;
+  const { email, role, first_name, last_name, phone, is_active, clinic } = req.body;
 
   try {
     // Check if user exists
@@ -257,6 +278,13 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       updateFields.push(`is_active = $${paramIndex++}`);
       updateValues.push(is_active);
     }
+    if (clinic !== undefined) {
+      // Clinic only stored for doctors; clear it for non-doctors.
+      const newRole = role !== undefined ? role : null;
+      const willBeDoctor = newRole === 'doctor' || (newRole === null && (await pool.query(`SELECT role FROM users WHERE id = $1`, [id])).rows[0]?.role === 'doctor');
+      updateFields.push(`clinic = $${paramIndex++}`);
+      updateValues.push(willBeDoctor && clinic ? String(clinic).trim() || null : null);
+    }
 
     if (updateFields.length === 0) {
       res.status(400).json({ error: 'No fields to update' });
@@ -270,7 +298,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       UPDATE users
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, username, email, role, first_name, last_name, phone, is_active, updated_at
+      RETURNING id, username, email, role, first_name, last_name, phone, clinic, is_active, updated_at
     `;
 
     const result = await pool.query(query, updateValues);

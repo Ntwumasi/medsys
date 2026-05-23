@@ -241,7 +241,8 @@ const Dashboard: React.FC = () => {
     role: 'doctor',
     first_name: '',
     last_name: '',
-    phone: ''
+    phone: '',
+    clinic: '', // only relevant when role === 'doctor'
   });
 
   // Staff filtering, sorting, and pagination state
@@ -486,7 +487,7 @@ const Dashboard: React.FC = () => {
         showToast('Staff member created successfully!', 'success');
       }
 
-      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
       setShowStaffForm(false);
       setEditingStaff(null);
       loadStaff();
@@ -505,7 +506,8 @@ const Dashboard: React.FC = () => {
       role: staffMember.role,
       first_name: staffMember.first_name,
       last_name: staffMember.last_name,
-      phone: staffMember.phone || ''
+      phone: staffMember.phone || '',
+      clinic: (staffMember as any).clinic || '',
     });
     setShowStaffForm(true);
   };
@@ -1872,7 +1874,7 @@ const Dashboard: React.FC = () => {
                     setShowStaffForm(!showStaffForm);
                     if (showStaffForm) {
                       setEditingStaff(null);
-                      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+                      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
                     }
                   }}
                   className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -2015,7 +2017,7 @@ const Dashboard: React.FC = () => {
                     </label>
                     <select
                       value={staffForm.role}
-                      onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
+                      onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value, clinic: e.target.value === 'doctor' ? staffForm.clinic : '' })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                       required
                     >
@@ -2028,6 +2030,34 @@ const Dashboard: React.FC = () => {
                       <option value="admin">Administrator</option>
                     </select>
                   </div>
+                  {staffForm.role === 'doctor' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Clinic / Specialty</label>
+                      <select
+                        value={staffForm.clinic}
+                        onChange={(e) => setStaffForm({ ...staffForm, clinic: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">— Select clinic —</option>
+                        <option value="General Practice">General Practice</option>
+                        <option value="ENT (Ear, Nose & Throat)">ENT (Ear, Nose & Throat)</option>
+                        <option value="Urology">Urology</option>
+                        <option value="Cardiology">Cardiology</option>
+                        <option value="Dermatology">Dermatology</option>
+                        <option value="Gastroenterology">Gastroenterology</option>
+                        <option value="Neurology">Neurology</option>
+                        <option value="Obstetrics & Gynecology">Obstetrics & Gynecology</option>
+                        <option value="Ophthalmology">Ophthalmology</option>
+                        <option value="Orthopedics">Orthopedics</option>
+                        <option value="Pediatrics">Pediatrics</option>
+                        <option value="Psychiatry">Psychiatry</option>
+                        <option value="Pulmonology">Pulmonology</option>
+                        <option value="Rheumatology">Rheumatology</option>
+                        <option value="Endocrinology">Endocrinology</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Which clinic this doctor practices in.</p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Password {editingStaff ? '(leave blank to keep current)' : '*'}
@@ -2054,7 +2084,7 @@ const Dashboard: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setEditingStaff(null);
-                        setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '' });
+                        setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
                         setShowStaffForm(false);
                       }}
                       className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"

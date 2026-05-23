@@ -247,6 +247,7 @@ const ReceptionistDashboard: React.FC = () => {
     role: string;
     phone?: string;
     email?: string;
+    clinic?: string | null;
     is_active: boolean;
   }
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
@@ -261,6 +262,7 @@ const ReceptionistDashboard: React.FC = () => {
     email: '',
     phone: '',
     role: 'nurse',
+    clinic: '', // only relevant when role === 'doctor'
   });
   const [savingNewStaff, setSavingNewStaff] = useState(false);
   const [newStaffCredentials, setNewStaffCredentials] = useState<{ username: string; temporary_password: string } | null>(null);
@@ -290,9 +292,11 @@ const ReceptionistDashboard: React.FC = () => {
         email: newStaffForm.email.trim() || undefined,
         phone: newStaffForm.phone.trim() || undefined,
         role: newStaffForm.role,
+        // Only pass clinic when role is doctor; server also enforces this
+        clinic: newStaffForm.role === 'doctor' ? (newStaffForm.clinic || undefined) : undefined,
       });
       setNewStaffCredentials(res.data.credentials);
-      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse', clinic: '' });
       loadStaffList();
     } catch (error: any) {
       const msg = error?.response?.data?.error || 'Failed to create staff member';
@@ -3948,6 +3952,7 @@ const ReceptionistDashboard: React.FC = () => {
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Name</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Username</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Role</th>
+                      <th className="text-left px-3 py-2 font-semibold text-gray-700">Clinic</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Phone</th>
                       <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
                     </tr>
@@ -3962,6 +3967,7 @@ const ReceptionistDashboard: React.FC = () => {
                             {s.role}
                           </span>
                         </td>
+                        <td className="px-3 py-2 text-gray-600 text-xs">{s.role === 'doctor' ? (s.clinic || '—') : ''}</td>
                         <td className="px-3 py-2 text-gray-700">{s.phone || '—'}</td>
                         <td className="px-3 py-2">
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -3990,7 +3996,7 @@ const ReceptionistDashboard: React.FC = () => {
                     onClick={() => {
                       setShowAddStaffModal(false);
                       setNewStaffCredentials(null);
-                      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+                      setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse', clinic: '' });
                     }}
                     className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
                   >
@@ -4057,7 +4063,7 @@ const ReceptionistDashboard: React.FC = () => {
                     <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
                     <select
                       value={newStaffForm.role}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value })}
+                      onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value, clinic: e.target.value === 'doctor' ? newStaffForm.clinic : '' })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     >
                       <option value="doctor">Doctor</option>
@@ -4072,6 +4078,23 @@ const ReceptionistDashboard: React.FC = () => {
                     </select>
                     <p className="text-xs text-gray-500 mt-1">Admin accounts must be created by an existing admin.</p>
                   </div>
+
+                  {newStaffForm.role === 'doctor' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Clinic / Specialty</label>
+                      <select
+                        value={newStaffForm.clinic}
+                        onChange={(e) => setNewStaffForm({ ...newStaffForm, clinic: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="">— Select clinic —</option>
+                        {clinics.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Which clinic this doctor practices in.</p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Email (optional)</label>
                     <input
@@ -4094,7 +4117,7 @@ const ReceptionistDashboard: React.FC = () => {
                     <button
                       onClick={() => {
                         setShowAddStaffModal(false);
-                        setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse' });
+                        setNewStaffForm({ first_name: '', last_name: '', email: '', phone: '', role: 'nurse', clinic: '' });
                       }}
                       className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                     >
