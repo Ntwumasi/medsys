@@ -392,11 +392,13 @@ router.get('/admin/reports/doctor-revenue/lines', authenticateToken, authorizeRo
 
 // Trend endpoints — daily aggregates that power the sparklines on each
 // dashboard. One per dashboard area to keep response size small.
-import { getAdminTrends, getLabTrends, getAccountantTrends, getPharmacyTrends } from '../controllers/trendsController';
+import { getAdminTrends, getLabTrends, getAccountantTrends, getPharmacyTrends, getImagingTrends, getDoctorTrends } from '../controllers/trendsController';
 router.get('/admin/trends',      authenticateToken, authorizeRoles('admin'),                              getAdminTrends);
 router.get('/lab/trends',        authenticateToken, authorizeRoles('lab', 'admin'),                       getLabTrends);
 router.get('/accountant/trends', authenticateToken, authorizeRoles('accountant', 'admin'),                getAccountantTrends);
 router.get('/pharmacy/trends',   authenticateToken, authorizeRoles('pharmacist', 'admin'),                getPharmacyTrends);
+router.get('/imaging/trends',    authenticateToken, authorizeRoles('imaging', 'admin'),                   getImagingTrends);
+router.get('/doctor/trends',     authenticateToken, authorizeRoles('doctor', 'admin'),                    getDoctorTrends);
 
 // Admin clinic-operations task tracker
 import { listAdminTasks, createAdminTask, updateAdminTask, deleteAdminTask } from '../controllers/adminTasksController';

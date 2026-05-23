@@ -228,6 +228,124 @@ export const getAccountantTrends = async (req: Request, res: Response): Promise<
   }
 };
 
+// GET /imaging/trends?days=30
+// Series: orders_created, orders_completed, stat_orders. Walk-ins are
+// derivable but live in a different table — skipped here so the response
+// stays focused on imaging_orders aggregates.
+export const getImagingTrends = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const days = parseDays(req.query.days);
+    const index = buildDayIndex(days);
+    const since = index[0];
+
+    const created = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM imaging_orders
+        WHERE ordered_date >= $1::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [since],
+    );
+    const completed = await pool.query(
+      `SELECT DATE(completed_date) AS day, COUNT(*)::int AS value
+         FROM imaging_orders
+        WHERE completed_date IS NOT NULL AND completed_date >= $1::date
+        GROUP BY DATE(completed_date)
+        ORDER BY DATE(completed_date) ASC`,
+      [since],
+    );
+    const stat = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM imaging_orders
+        WHERE priority = 'stat' AND ordered_date >= $1::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [since],
+    );
+
+    res.json({
+      days,
+      series: {
+        orders_created: fillSeries(created.rows, index),
+        orders_completed: fillSeries(completed.rows, index),
+        stat_orders: fillSeries(stat.rows, index),
+      },
+    });
+  } catch (error) {
+    console.error('Imaging trends error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// GET /doctor/trends?days=30
+// Doctor-personal series for the logged-in provider:
+//   patients_seen   — encounters where this provider was the provider_id
+//   labs_ordered    — lab orders this provider ordered
+//   imaging_ordered — imaging orders this provider ordered
+//   rx_ordered      — pharmacy orders this provider ordered
+//
+// All grouped by ordered_date (or encounter_date) so a doctor sees
+// their own activity arc, not the whole clinic's.
+export const getDoctorTrends = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const userId = authReq.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+    const days = parseDays(req.query.days);
+    const index = buildDayIndex(days);
+    const since = index[0];
+
+    const patients = await pool.query(
+      `SELECT DATE(encounter_date) AS day, COUNT(*)::int AS value
+         FROM encounters
+        WHERE provider_id = $1 AND encounter_date >= $2::date
+        GROUP BY DATE(encounter_date)
+        ORDER BY DATE(encounter_date) ASC`,
+      [userId, since],
+    );
+    const labs = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM lab_orders
+        WHERE ordering_provider = $1 AND ordered_date >= $2::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [userId, since],
+    );
+    const imaging = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM imaging_orders
+        WHERE ordering_provider = $1 AND ordered_date >= $2::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [userId, since],
+    );
+    const rx = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM pharmacy_orders
+        WHERE ordering_provider = $1 AND ordered_date >= $2::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [userId, since],
+    );
+
+    res.json({
+      days,
+      series: {
+        patients_seen: fillSeries(patients.rows, index),
+        labs_ordered: fillSeries(labs.rows, index),
+        imaging_ordered: fillSeries(imaging.rows, index),
+        rx_ordered: fillSeries(rx.rows, index),
+      },
+    });
+  } catch (error) {
+    console.error('Doctor trends error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // GET /pharmacy/trends?days=30
 // Series: dispensed_count (per day), unique_patients (per day), total_units,
 // avg_turnaround_minutes.

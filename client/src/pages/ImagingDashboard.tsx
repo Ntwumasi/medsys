@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
@@ -7,6 +7,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import type { SparkPoint } from '../components/ui/Sparkline';
 
 interface RoutingRequest {
   id: number;
@@ -111,6 +112,29 @@ const ImagingDashboard: React.FC = () => {
     fetchWalkIns();
     fetchImagingOrders();
   }, 30_000, true);
+
+  // 30-day trends for the imaging stat cards' sparklines.
+  const [imagingTrends, setImagingTrends] = useState<{
+    orders_created: SparkPoint[];
+    orders_completed: SparkPoint[];
+    stat_orders: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/imaging/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setImagingTrends({
+          orders_created: map(s.orders_created),
+          orders_completed: map(s.orders_completed),
+          stat_orders: map(s.stat_orders),
+        });
+      })
+      .catch((err) => console.error('Failed to load imaging trends:', err));
+  }, []);
 
   const fetchWalkIns = async () => {
     try {
@@ -249,6 +273,8 @@ const ImagingDashboard: React.FC = () => {
               title="Pending Studies"
               value={pendingCount}
               variant="warning"
+              series={imagingTrends?.orders_created}
+              trendDirection="up-is-bad"
               onClick={() => { setActiveTab('orders'); setOrdersSubTab('pending'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,6 +286,8 @@ const ImagingDashboard: React.FC = () => {
               title="In Progress"
               value={inProgressCount}
               variant="primary"
+              series={imagingTrends?.stat_orders}
+              trendDirection="up-is-bad"
               onClick={() => { setActiveTab('orders'); setOrdersSubTab('in_progress'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -271,6 +299,8 @@ const ImagingDashboard: React.FC = () => {
               title="Completed Today"
               value={completedCount}
               variant="success"
+              series={imagingTrends?.orders_completed}
+              trendDirection="up-is-good"
               onClick={() => { setActiveTab('orders'); setOrdersSubTab('completed'); }}
               icon={
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

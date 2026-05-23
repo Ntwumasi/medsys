@@ -18,6 +18,8 @@ import type { LabResultAlert } from '../components/LabResultModal';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import InsightCard from '../components/ui/InsightCard';
+import StatCard from '../components/ui/StatCard';
+import type { SparkPoint } from '../components/ui/Sparkline';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
 
@@ -174,6 +176,36 @@ const DoctorDashboard: React.FC = () => {
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
   const [imagingAlerts, setImagingAlerts] = useState<DoctorAlert[]>([]);
   const [openedLabResult, setOpenedLabResult] = useState<LabResultAlert | null>(null);
+
+  // 30-day personal trends for this doctor — patients seen, orders placed.
+  const [doctorTrends, setDoctorTrends] = useState<{
+    patients_seen: SparkPoint[];
+    labs_ordered: SparkPoint[];
+    imaging_ordered: SparkPoint[];
+    rx_ordered: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/doctor/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setDoctorTrends({
+          patients_seen: map(s.patients_seen),
+          labs_ordered: map(s.labs_ordered),
+          imaging_ordered: map(s.imaging_ordered),
+          rx_ordered: map(s.rx_ordered),
+        });
+      })
+      .catch((err) => console.error('Failed to load doctor trends:', err));
+  }, []);
+
+  // Today's totals derived from the trend series — last element of each.
+  const todaysPatients = doctorTrends?.patients_seen?.[doctorTrends.patients_seen.length - 1]?.value ?? 0;
+  const todaysLabs = doctorTrends?.labs_ordered?.[doctorTrends.labs_ordered.length - 1]?.value ?? 0;
+  const todaysImaging = doctorTrends?.imaging_ordered?.[doctorTrends.imaging_ordered.length - 1]?.value ?? 0;
   // Rx removed from Results Alerts at the doctor's request — dispenses are
   // billing/pharmacy events, not clinical results the doctor needs to chase.
   const [alertsTab, setAlertsTab] = useState<'lab' | 'imaging'>('lab');
@@ -916,6 +948,39 @@ const DoctorDashboard: React.FC = () => {
           </>
         )}
       />
+
+      {/* 30-day personal stat strip — today's count up top, sparkline
+          shows the doctor's own arc over the last month. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <StatCard
+          title="Patients seen today"
+          value={todaysPatients}
+          variant={todaysPatients > 0 ? 'primary' : 'neutral'}
+          series={doctorTrends?.patients_seen}
+          trendDirection="up-is-good"
+        />
+        <StatCard
+          title="Labs ordered"
+          value={todaysLabs}
+          variant={todaysLabs > 0 ? 'secondary' : 'neutral'}
+          series={doctorTrends?.labs_ordered}
+          trendDirection="up-is-good"
+        />
+        <StatCard
+          title="Imaging ordered"
+          value={todaysImaging}
+          variant={todaysImaging > 0 ? 'info' : 'neutral'}
+          series={doctorTrends?.imaging_ordered}
+          trendDirection="up-is-good"
+        />
+        <StatCard
+          title="Prescriptions"
+          value={doctorTrends?.rx_ordered?.[doctorTrends.rx_ordered.length - 1]?.value ?? 0}
+          variant={(doctorTrends?.rx_ordered?.[doctorTrends.rx_ordered.length - 1]?.value ?? 0) > 0 ? 'success' : 'neutral'}
+          series={doctorTrends?.rx_ordered}
+          trendDirection="up-is-good"
+        />
+      </div>
 
       {/* Auto-derived insight — surface the most pressing thing the
           doctor should do before patient care starts. */}
