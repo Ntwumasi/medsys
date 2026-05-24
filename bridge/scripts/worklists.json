@@ -1,0 +1,8 @@
+{
+    "Worklists" : {
+        "Enable": true,
+        "Database": "C:\\OrthancWorklists",
+        "FilterIssuerAet": false,
+        "LimitAnswers": 0
+    }
+}
