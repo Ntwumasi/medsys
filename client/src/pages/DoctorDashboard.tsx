@@ -1028,19 +1028,23 @@ const DoctorDashboard: React.FC = () => {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
           {/* Active Patients List */}
           <div className="xl:col-span-1">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               {/* Header */}
-              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+              <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <h2 className="text-sm font-semibold text-white">
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
                       Active Patients
                     </h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
+                    roomEncounters.length > 0
+                      ? 'bg-primary-50 text-primary-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
                     {roomEncounters.length}
                   </span>
                 </div>
@@ -1138,18 +1142,22 @@ const DoctorDashboard: React.FC = () => {
             </div>
 
             {/* Results Alerts Section */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-              <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+              <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                     </svg>
-                    <h2 className="text-sm font-semibold text-white">
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
                       Results Alerts
                     </h2>
                   </div>
-                  <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
+                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
+                    (labAlerts.length + imagingAlerts.length) > 0
+                      ? 'bg-warning-50 text-warning-700'
+                      : 'bg-gray-100 text-gray-500'
+                  }`}>
                     {labAlerts.length + imagingAlerts.length}
                   </span>
                 </div>
@@ -1275,16 +1283,16 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Action Items — unsigned notes + pending orders (delinquent) */}
             {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+                <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <h2 className="text-sm font-semibold text-white">Action Items</h2>
+                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
                     </div>
-                    <span className="px-2.5 py-1 bg-warning-500 text-white text-xs font-bold rounded-full">
+                    <span className="px-2 py-0.5 bg-warning-50 text-warning-700 text-xs font-bold rounded-full tabular-nums">
                       {unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length}
                     </span>
                   </div>
@@ -1508,17 +1516,17 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Messages Section */}
             {selectedEncounter && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+                <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
-                      <h2 className="text-sm font-semibold text-white">Messages</h2>
+                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Messages</h2>
                     </div>
                     {notes.length > 0 && (
-                      <span className="px-2.5 py-1 bg-primary-500 text-white text-xs font-bold rounded-full">
+                      <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-bold rounded-full tabular-nums">
                         {notes.length}
                       </span>
                     )}
