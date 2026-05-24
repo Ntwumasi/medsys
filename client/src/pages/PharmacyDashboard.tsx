@@ -69,6 +69,9 @@ interface PharmacyOrder {
   days_supply?: number;
   substitute_medication?: string;
   substitute_reason?: string;
+  /** True when this encounter has already been routed back to nurse from pharmacy.
+   *  Server-derived from department_routing — persists across refresh. */
+  routed_back_to_nurse?: boolean;
 }
 
 interface InventoryItem {
@@ -848,8 +851,7 @@ const PharmacyDashboard: React.FC = () => {
       showToast('Prescription updated', 'success');
       setShowEditOrderModal(false);
       setEditingOrder(null);
-      if (ordersSubTab === 'pending') fetchPendingOrders();
-      else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+      refreshActiveOrdersTab();
     } catch (error) {
       console.error('Error updating order:', error);
       showToast('Failed to update prescription', 'error');
@@ -918,13 +920,26 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Refetch whichever orders sub-tab the user is currently looking at.
+  // Use this instead of hard-coding fetchPendingOrders() after a mutation —
+  // otherwise mutations made on (e.g.) the Dispensed tab would replace
+  // pharmacyOrders with pending data and the list would appear to vanish.
+  const refreshActiveOrdersTab = async () => {
+    switch (ordersSubTab) {
+      case 'pending':     await fetchPendingOrders(); break;
+      case 'in_progress': await fetchInProgressOrders(); break;
+      case 'ready':       await fetchReadyOrders(); break;
+      case 'history':     await fetchOrderHistory(); break;
+    }
+  };
+
   const markReadyForPickup = async (orderId: number) => {
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
         status: 'ready'
       });
       showToast('Medication marked ready for pickup - Nurse notified', 'success');
-      fetchInProgressOrders();
+      refreshActiveOrdersTab();
       fetchOrderStats();
     } catch (error) {
       console.error('Error marking order ready:', error);
@@ -953,7 +968,7 @@ const PharmacyDashboard: React.FC = () => {
       });
       setReleasedToNurse(prev => new Set(prev).add(encounterId));
       showToast(`${patientName} sent back to nurse`, 'success');
-      fetchPendingOrders();
+      refreshActiveOrdersTab();
     } catch (err: any) {
       showToast(err?.response?.data?.error || 'Failed to release patient', 'error');
     } finally {
@@ -971,7 +986,7 @@ const PharmacyDashboard: React.FC = () => {
         status: 'in_progress'
       });
       showToast('Order moved to In Progress', 'success');
-      fetchPendingOrders();
+      refreshActiveOrdersTab();
       fetchOrderStats();
     } catch (error) {
       console.error('Error starting order:', error);
@@ -1194,10 +1209,7 @@ const PharmacyDashboard: React.FC = () => {
         dispensed_date: new Date().toISOString()
       });
       showToast('Medication dispensed successfully', 'success');
-      // Refresh the appropriate tab and stats
-      if (ordersSubTab === 'pending') fetchPendingOrders();
-      else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
-      else if (ordersSubTab === 'ready') fetchReadyOrders();
+      refreshActiveOrdersTab();
       fetchOrderStats();
     } catch (error) {
       console.error('Error dispensing medication:', error);
@@ -1634,7 +1646,10 @@ const PharmacyDashboard: React.FC = () => {
                             </button>
                             {(() => {
                               const inFlight = releasingNurse.has(group.encounter_id);
-                              const done = releasedToNurse.has(group.encounter_id);
+                              // "done" is persistent: either we released this session, or
+                              // the server tells us a prior session already did.
+                              const done = releasedToNurse.has(group.encounter_id)
+                                || group.orders.some(o => o.routed_back_to_nurse);
                               const disabled = inFlight || done;
                               return (
                                 <button

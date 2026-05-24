@@ -1424,7 +1424,13 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
            WHERE d.encounter_id = po.encounter_id
            ORDER BY d.created_at
            LIMIT 1)
-        ) as primary_diagnosis
+        ) as primary_diagnosis,
+        EXISTS(
+          SELECT 1 FROM department_routing dr
+          WHERE dr.encounter_id = po.encounter_id
+            AND dr.department = 'pharmacy'
+            AND dr.status = 'completed'
+        ) as routed_back_to_nurse
       FROM pharmacy_orders po
       LEFT JOIN users u ON po.ordering_provider = u.id
       LEFT JOIN encounters e ON po.encounter_id = e.id
