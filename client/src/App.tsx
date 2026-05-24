@@ -32,7 +32,6 @@ import QuickBooksData from './pages/QuickBooksData';
 import MessagesPage from './pages/MessagesPage';
 import NurseFollowUpCalls from './pages/NurseFollowUpCalls';
 import NurseProcurement from './pages/NurseProcurement';
-import ImpersonationBanner from './components/ImpersonationBanner';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
 
@@ -132,11 +131,9 @@ const SessionTimeoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 };
 
-// Wrapper to include impersonation banner within auth context
 const AppContent: React.FC = () => {
   return (
     <SessionTimeoutWrapper>
-      <ImpersonationBanner />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/updates" element={<PublicUpdates />} />
