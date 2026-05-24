@@ -338,6 +338,14 @@ import {
   deleteRequisition,
 } from '../controllers/nurseRequisitionsController';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import { authenticateBridge } from '../middleware/bridgeAuth';
+import {
+  getPendingWorklist,
+  markWorklistPushed,
+  orthancStudyWebhook,
+  getStudiesByOrder,
+  getViewerUrl,
+} from '../controllers/imagingIntegrationController';
 import {
   validateBody,
   loginSchema,
@@ -550,6 +558,15 @@ router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse'), createImagingOrder);
 router.get('/orders/imaging', authenticateToken, getImagingOrders);
 router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
+
+// Imaging integration routes — frontend
+router.get('/imaging/studies/by-order/:order_id', authenticateToken, getStudiesByOrder);
+router.get('/imaging/studies/:id/viewer-url', authenticateToken, getViewerUrl);
+
+// Imaging integration routes — bridge (X-Bridge-Key auth, no JWT)
+router.get('/imaging/integration/pending-worklist', authenticateBridge, getPendingWorklist);
+router.post('/imaging/integration/orders/:id/worklist-pushed', authenticateBridge, markWorklistPushed);
+router.post('/webhooks/orthanc/study', authenticateBridge, orthancStudyWebhook);
 
 // Orders routes - Pharmacy
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor'), createPharmacyOrder);

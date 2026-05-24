@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
+import { imagingAPI } from '../api/imaging';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -80,6 +81,8 @@ interface ImagingOrder {
   ordered_date?: string;
   completed_at?: string;
   completed_date?: string;
+  study_instance_uid?: string | null;
+  accession_number?: string | null;
 }
 
 interface PharmacyOrder {
@@ -2947,6 +2950,20 @@ const DoctorDashboard: React.FC = () => {
                                     className="ml-2 px-3 py-1.5 text-xs font-semibold text-danger-600 bg-white border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors"
                                   >
                                     Cancel
+                                  </button>
+                                )}
+                                {order.study_instance_uid && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await imagingAPI.openViewerForOrder(order.id);
+                                      } catch (err: any) {
+                                        showToast(err?.response?.data?.detail || err?.message || 'Failed to open viewer', 'error');
+                                      }
+                                    }}
+                                    className="ml-2 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                                  >
+                                    View Images
                                   </button>
                                 )}
                               </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
+import { imagingAPI } from '../api/imaging';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
 import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } from '../components/ui';
@@ -44,6 +45,8 @@ interface ImagingOrder {
   patient_allergies?: string;
   encounter_number: string;
   ordering_provider_name: string;
+  study_instance_uid?: string | null;
+  accession_number?: string | null;
 }
 
 const ImagingDashboard: React.FC = () => {
@@ -600,6 +603,21 @@ const ImagingDashboard: React.FC = () => {
                               onClick={() => openResultsModal(order)}
                             >
                               Edit Results
+                            </Button>
+                          )}
+                          {order.study_instance_uid && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  await imagingAPI.openViewerForOrder(order.id);
+                                } catch (err: any) {
+                                  showToast(err?.response?.data?.detail || err?.message || 'Failed to open viewer', 'error');
+                                }
+                              }}
+                            >
+                              View Images
                             </Button>
                           )}
                           {(() => {

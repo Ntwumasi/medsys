@@ -15,6 +15,39 @@ Companion doc: [`equipment-inventory.md`](./equipment-inventory.md) — the IPs 
 
 ---
 
+## Step 0 — Install Tailscale on MED-DC1 (10 min, one-time)
+
+Without this, you can only RDP/admin the box when physically inside the
+clinic LAN. Tailscale gives you a stable encrypted path to it from anywhere
+without exposing any port on the public internet.
+
+1. Sign up at https://login.tailscale.com (free tier is fine for this) and
+   create a tailnet for the clinic. Use a clinic-owned email so the tailnet
+   survives staff turnover.
+2. On MED-DC1 (you must be at the console or on the clinic wifi — this is the
+   one-time bootstrap):
+   ```powershell
+   # Download and install Tailscale
+   winget install tailscale.tailscale
+   # Or download from https://tailscale.com/download/windows
+   ```
+3. Run `tailscale up` and authenticate in the browser that opens. Approve the
+   device in the admin console: https://login.tailscale.com/admin/machines
+4. Pin the Tailscale IP (looks like `100.x.y.z`) for the box and tag the
+   device `tag:clinic-server` for ACL purposes.
+5. Enable **MagicDNS** in the tailnet settings so you can RDP to `med-dc1`
+   instead of remembering the IP.
+6. Install Tailscale on your laptop too, log into the same tailnet.
+
+**Done when:** from your laptop *outside* the clinic, `ping med-dc1` succeeds
+and Microsoft Remote Desktop connects to `med-dc1` (no IP, no VPN).
+
+**Highly recommended:** install Tailscale on a second always-on device at the
+clinic (a Raspberry Pi or spare laptop is fine) so you can still reach the
+LAN if MED-DC1 ever drops off the tailnet.
+
+---
+
 ## State at the start of this runbook (what's already done)
 
 - ✅ Orthanc service installed and running at `192.168.1.10`
@@ -196,13 +229,146 @@ Commit + push.
 
 ---
 
+## Step 9 — Install DCMTK (10 min)
+
+The bridge service uses DCMTK's `dump2dcm.exe` to convert text MWL definitions
+into binary `.wl` files that Orthanc's worklist plugin reads.
+
+1. Download the latest DCMTK Windows binary release:
+   https://dicom.offis.de/download/dcmtk/dcmtk368/bin/dcmtk-3.6.8-win64-dynamic.zip
+2. Extract to `C:\Program Files\DCMTK\`
+3. Verify:
+   ```powershell
+   & 'C:\Program Files\DCMTK\bin\dump2dcm.exe' --version
+   ```
+
+**Done when:** `dump2dcm.exe --version` prints version info.
+
+---
+
+## Step 10 — Install Node.js (5 min, if not present)
+
+```powershell
+node --version    # should print v18+ or v20+; if not, install
+winget install OpenJS.NodeJS.LTS
+# Restart PowerShell so PATH picks up node + npm
+```
+
+---
+
+## Step 11 — Deploy the bridge service (15 min)
+
+The bridge is a small Node.js process that polls MedSys for imaging orders and
+forwards Orthanc study notifications back to MedSys. Lives in `bridge/` in the
+MedSys repo.
+
+```powershell
+# Clone the MedSys repo somewhere on D:
+cd D:\
+git clone https://github.com/Ntwumasi/medsys.git
+cd D:\medsys\bridge
+
+# Install deps
+npm install
+
+# Configure
+copy .env.example .env
+notepad .env
+```
+
+Fill in `.env`:
+- `MEDSYS_API_URL` — e.g. `https://medsys.vercel.app`
+- `BRIDGE_API_KEY` — generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`; **paste the same value into Vercel env vars as `BRIDGE_API_KEY`** (and redeploy)
+- `ORTHANC_PASSWORD` — from the password manager
+- `ORTHANC_VIEWER_BASE_URL` (set this one on Vercel, not the bridge) — e.g. `http://med-dc1:8042` if doctors will RDP/Tailscale to view, or `https://med-dc1.<tailnet>.ts.net:8042` for Tailscale Funnel
+
+Start the bridge:
+```powershell
+npm start
+```
+
+You should see:
+```
+[info] medsys-bridge starting
+[info] plugin ingress listening on http://127.0.0.1:9000
+[info] worklist poller starting (every 30000ms → C:\OrthancWorklists)
+```
+
+Leave the window open during the demo. To install as a Windows service later,
+use [NSSM](https://nssm.cc/) or [node-windows](https://github.com/coreybutler/node-windows).
+
+**Done when:** `curl.exe http://localhost:9000/health` returns `{"ok":true,...}`.
+
+---
+
+## Step 12 — Install the Orthanc Python plugin (5 min)
+
+This single Python file makes Orthanc notify the bridge whenever a new study
+lands.
+
+1. Locate the Orthanc Python plugin's script directory (configured as
+   `PythonScript` in `orthanc.json`). If not set:
+   ```json
+   "Python" : {
+     "PythonScript" : "C:\\Program Files\\Orthanc Server\\plugins\\medsys_bridge.py",
+     "PythonVerbose" : false
+   }
+   ```
+2. Copy the plugin:
+   ```powershell
+   copy D:\medsys\bridge\orthanc_plugin.py "C:\Program Files\Orthanc Server\plugins\medsys_bridge.py"
+   ```
+3. Restart Orthanc:
+   ```powershell
+   Restart-Service Orthanc
+   ```
+4. Check Orthanc logs (default `C:\Orthanc\Logs\`) for:
+   ```
+   [medsys-bridge] plugin loaded; will notify http://127.0.0.1:9000/study-stored on STABLE_STUDY
+   ```
+
+**Done when:** acquire a phantom scan on the Redwood, wait ~60s for STABLE_STUDY
+to fire, and watch the bridge log line:
+```
+[info] plugin reported stored study: <orthanc-id>
+[info] study forwarded to MedSys ...
+```
+And confirm in MedSys: the imaging order flips to "completed" and "View
+Images" appears for the doctor.
+
+---
+
+## Step 13 — End-to-end smoke test (10 min)
+
+Test the full loop from cloud MedSys to on-prem Orthanc and back:
+
+1. **In MedSys (any browser):** as a doctor, create an encounter and order an
+   Ultrasound for a test patient.
+2. **Wait ~30s** for the bridge poll. Confirm a `.wl` file appears in
+   `C:\OrthancWorklists`:
+   ```powershell
+   ls C:\OrthancWorklists
+   ```
+3. **On the Redwood:** start a study, query worklist. Test patient should
+   appear.
+4. **Acquire a phantom scan** on the test patient. Modality auto-pushes to
+   `MEDSYS_PACS`.
+5. **Wait ~60s** for Orthanc's STABLE_STUDY event.
+6. **In MedSys (refresh):** order should now show "completed" with "View
+   Images" button. Click it — Stone Web Viewer opens in a new tab.
+
+**Done when:** doctor clicks "View Images" and sees the phantom scan in the
+browser.
+
+---
+
 ## What this runbook does NOT cover (post-go-live)
 
 - **Modality registration** in Orthanc's `DicomModalities` block — not required for C-STORE (modality → Orthanc); needed later for C-MOVE / C-GET (Orthanc routing images).
-- **MedSys → Orthanc worklist push** — writing `.wl` files into `C:\OrthancWorklists` whenever a doctor orders imaging. Needs a small server-side service since Vercel can't reach the on-prem network. See architecture doc.
-- **Orthanc → MedSys result webhook** — Python plugin posts to MedSys API when a study lands. Same caveat.
-- **OHIF viewer embedding** — the plugin is loaded; we still need to wire a `<iframe>` or deep link from MedSys's imaging order detail.
+- **OHIF viewer embedding** — replace the Stone Web Viewer deep-link with an embedded OHIF iframe. Plugin is loaded; just needs frontend work.
 - **Backups** — Orthanc DB + storage backup schedule. Discuss with the architecture doc.
+- **Bridge as Windows service** — for now `npm start` in a console window. Install as a service via NSSM once the system is stable.
+- **Structured Report parsing** — the Redwood emits DICOM SR with ultrasound measurements (LV_EF, BPD, etc). The webhook stores study + series metadata; SR parsing into `imaging_measurements` is a follow-on task.
 
 ---
 
