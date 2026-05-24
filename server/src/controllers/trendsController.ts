@@ -347,14 +347,30 @@ export const getDoctorTrends = async (req: Request, res: Response): Promise<void
 };
 
 // GET /pharmacy/trends?days=30
-// Series: dispensed_count (per day), unique_patients (per day), total_units,
-// avg_turnaround_minutes.
+// Series: orders_created, stat_orders, dispensed_count, unique_patients,
+// total_units, avg_turnaround_minutes.
 export const getPharmacyTrends = async (req: Request, res: Response): Promise<void> => {
   try {
     const days = parseDays(req.query.days);
     const index = buildDayIndex(days);
     const since = index[0];
 
+    const created = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM pharmacy_orders
+        WHERE ordered_date >= $1::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [since],
+    );
+    const stat = await pool.query(
+      `SELECT DATE(ordered_date) AS day, COUNT(*)::int AS value
+         FROM pharmacy_orders
+        WHERE priority = 'stat' AND ordered_date >= $1::date
+        GROUP BY DATE(ordered_date)
+        ORDER BY DATE(ordered_date) ASC`,
+      [since],
+    );
     const dispensed = await pool.query(
       `SELECT DATE(dispensed_date) AS day, COUNT(*)::int AS value
          FROM pharmacy_orders
@@ -394,6 +410,8 @@ export const getPharmacyTrends = async (req: Request, res: Response): Promise<vo
     res.json({
       days,
       series: {
+        orders_created: fillSeries(created.rows, index),
+        stat_orders: fillSeries(stat.rows, index),
         dispensed_count: fillSeries(dispensed.rows, index),
         unique_patients: fillSeries(uniquePatients.rows, index),
         total_units: fillSeries(totalUnits.rows, index),

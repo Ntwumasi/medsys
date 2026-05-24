@@ -11,6 +11,9 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import NumberTicker from '../components/ui/NumberTicker';
+import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
+import Delta from '../components/ui/Delta';
 // TODO: Integrate these components:
 // - ExpiryCalendar: Add to inventory tab for visual batch expiry view
 // - MedicationTimeline: Add to patient details panel in orders
@@ -181,6 +184,48 @@ interface WalkInPatient {
   routed_at: string;
 }
 
+type PharmacyAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
+const PHARMACY_ACCENT: Record<PharmacyAccent, { num: string; ring: string }> = {
+  neutral:   { num: 'text-text-primary',  ring: 'ring-gray-200/60' },
+  primary:   { num: 'text-primary-700',   ring: 'ring-primary-200/60' },
+  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60' },
+  warning:   { num: 'text-warning-700',   ring: 'ring-warning-200/60' },
+  danger:    { num: 'text-danger-700',    ring: 'ring-danger-200/60' },
+  success:   { num: 'text-success-700',   ring: 'ring-success-200/60' },
+};
+
+interface PharmacyStatProps {
+  label: string;
+  value: number | string;
+  accent: PharmacyAccent;
+  active?: boolean;
+  onClick: () => void;
+  series?: SparkPoint[];
+  trendDirection?: 'up-is-good' | 'up-is-bad';
+  trendMode?: 'sum' | 'avg';
+}
+
+const PharmacyStat: React.FC<PharmacyStatProps> = ({ label, value, accent, active, onClick, series, trendDirection = 'up-is-good', trendMode = 'sum' }) => {
+  const a = PHARMACY_ACCENT[accent];
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
+    >
+      <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">{label}</div>
+      <div className={`text-2xl font-bold tabular-nums mt-1 ${a.num}`}>
+        {typeof value === 'number' ? <NumberTicker value={value} /> : value}
+      </div>
+      {series && series.length > 1 && (
+        <div className={`flex items-center gap-1.5 mt-1 ${a.num}`}>
+          <Sparkline data={series} width={60} height={18} />
+          <Delta series={series.map((p) => p.value)} direction={trendDirection} mode={trendMode} />
+        </div>
+      )}
+    </button>
+  );
+};
+
 const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
@@ -274,6 +319,31 @@ const PharmacyDashboard: React.FC = () => {
   const [, setRoutingRequests] = useState<RoutingRequest[]>([]);
   const [pharmacyOrders, setPharmacyOrders] = useState<PharmacyOrder[]>([]);
   const [orderStats, setOrderStats] = useState({ pending: 0, in_progress: 0, dispensed: 0 });
+
+  // 30-day trends for the stat-card sparklines.
+  const [pharmacyTrends, setPharmacyTrends] = useState<{
+    orders_created: SparkPoint[];
+    stat_orders: SparkPoint[];
+    dispensed_count: SparkPoint[];
+    avg_turnaround_minutes: SparkPoint[];
+  } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get('/pharmacy/trends?days=30')
+      .then((res) => {
+        const s = res.data.series;
+        const map = (arr: Array<{ day: string; value: number }>): SparkPoint[] =>
+          arr.map((p) => ({ label: p.day, value: p.value }));
+        setPharmacyTrends({
+          orders_created: map(s.orders_created || []),
+          stat_orders: map(s.stat_orders || []),
+          dispensed_count: map(s.dispensed_count || []),
+          avg_turnaround_minutes: map(s.avg_turnaround_minutes || []),
+        });
+      })
+      .catch((err) => console.error('Failed to load pharmacy trends:', err));
+  }, []);
   const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
@@ -1219,6 +1289,11 @@ const PharmacyDashboard: React.FC = () => {
     )},
   ];
 
+  const statCount = pharmacyOrders.filter(o => o.priority === 'stat' && o.status !== 'dispensed').length;
+  const tatPoints = (pharmacyTrends?.avg_turnaround_minutes || []).filter(p => p.value > 0).map(p => p.value);
+  const avgTat = tatPoints.length > 0 ? tatPoints.reduce((a, b) => a + b, 0) / tatPoints.length : null;
+  const avgTatLabel = avgTat == null ? 'N/A' : avgTat >= 60 ? `${(avgTat / 60).toFixed(1)}h` : `${Math.round(avgTat)}m`;
+
   return (
     <AppLayout>
       <DashboardHeader
@@ -1231,6 +1306,43 @@ const PharmacyDashboard: React.FC = () => {
           </>
         )}
       />
+      {/* Stat cards — number-first style, click to drill in. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
+        <PharmacyStat label="Pending" value={orderStats.pending}
+          accent={orderStats.pending > 0 ? 'warning' : 'neutral'}
+          active={activeTab === 'orders'}
+          series={pharmacyTrends?.orders_created}
+          trendDirection="up-is-bad"
+          onClick={() => setActiveTab('orders')} />
+        <PharmacyStat label="In Progress" value={orderStats.in_progress}
+          accent="primary"
+          active={activeTab === 'orders'}
+          onClick={() => setActiveTab('orders')} />
+        <PharmacyStat label="Dispensed Today" value={orderStats.dispensed}
+          accent="success"
+          series={pharmacyTrends?.dispensed_count}
+          trendDirection="up-is-good"
+          onClick={() => setActiveTab('revenue')} />
+        <PharmacyStat label="STAT" value={statCount}
+          accent={statCount > 0 ? 'danger' : 'neutral'}
+          series={pharmacyTrends?.stat_orders}
+          trendDirection="up-is-bad"
+          onClick={() => setActiveTab('orders')} />
+        <PharmacyStat label="Avg TAT" value={avgTatLabel}
+          accent="secondary"
+          series={pharmacyTrends?.avg_turnaround_minutes}
+          trendDirection="up-is-bad"
+          trendMode="avg"
+          onClick={() => setActiveTab('analytics')} />
+        <PharmacyStat label="Low Stock" value={inventoryStats?.low_stock_count || 0}
+          accent={(inventoryStats?.low_stock_count || 0) > 0 ? 'warning' : 'neutral'}
+          active={activeTab === 'inventory' && inventoryFilter === 'low_stock'}
+          onClick={() => { setActiveTab('inventory'); setInventoryFilter('low_stock'); }} />
+        <PharmacyStat label="Expiring" value={inventoryStats?.expiring_soon_count || 0}
+          accent={(inventoryStats?.expiring_soon_count || 0) > 0 ? 'warning' : 'neutral'}
+          active={activeTab === 'inventory' && inventoryFilter === 'expiring'}
+          onClick={() => { setActiveTab('inventory'); setInventoryFilter('expiring'); }} />
+      </div>
       {/* Navigation Tabs */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-full mx-auto px-6">

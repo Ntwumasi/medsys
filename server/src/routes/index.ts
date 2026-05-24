@@ -419,7 +419,7 @@ import { getAdminTrends, getLabTrends, getAccountantTrends, getPharmacyTrends, g
 router.get('/admin/trends',      authenticateToken, authorizeRoles('admin'),                              getAdminTrends);
 router.get('/lab/trends',        authenticateToken, authorizeRoles('lab', 'admin'),                       getLabTrends);
 router.get('/accountant/trends', authenticateToken, authorizeRoles('accountant', 'admin'),                getAccountantTrends);
-router.get('/pharmacy/trends',   authenticateToken, authorizeRoles('pharmacist', 'admin'),                getPharmacyTrends);
+router.get('/pharmacy/trends',   authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPharmacyTrends);
 router.get('/imaging/trends',    authenticateToken, authorizeRoles('imaging', 'admin'),                   getImagingTrends);
 router.get('/doctor/trends',     authenticateToken, authorizeRoles('doctor', 'admin'),                    getDoctorTrends);
 
