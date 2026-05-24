@@ -113,7 +113,15 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     // Create user account for patient (always - even if no email provided)
     // If no email provided, generate a dummy email to satisfy unique constraint
     const patientEmail = email || `${patient_number}@noemail.medsys.local`;
-    const defaultPassword = 'ChangeMe123!'; // Patient should change this on first login
+    // Cryptographically random one-time password. The patient must change
+    // it on first login (must_change_password flag set below). Surfaced
+    // to the receptionist in the response so they can hand it over at
+    // intake — never written to logs.
+    const cryptoNode = require('crypto');
+    const BASE32 = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = cryptoNode.randomBytes(8);
+    let defaultPassword = 'Pt';
+    for (let i = 0; i < 8; i++) defaultPassword += BASE32[bytes[i] % BASE32.length];
     const bcrypt = require('bcrypt');
     const password_hash = await bcrypt.hash(defaultPassword, 10);
 
@@ -121,8 +129,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     const username = await generatePatientUsername(client, first_name, last_name);
 
     const userResult = await client.query(
-      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone)
-       VALUES ($1, $2, $3, 'patient', $4, $5, $6)
+      `INSERT INTO users (username, email, password_hash, role, first_name, last_name, phone, must_change_password)
+       VALUES ($1, $2, $3, 'patient', $4, $5, $6, true)
        RETURNING id`,
       [username, patientEmail, password_hash, first_name, last_name, phone]
     );
@@ -229,6 +237,13 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       patient: result.rows[0],
       registration_invoice: registrationInvoice,
       open_invoice: registration_payment === 'pay_now',
+      // One-time portal credentials — receptionist reads these to the
+      // patient so they can later log into the patient portal.
+      portal_credentials: {
+        username,
+        temporary_password: defaultPassword,
+        note: 'Patient must change this password on first portal login.',
+      },
     });
   } catch (error: any) {
     await client.query('ROLLBACK');

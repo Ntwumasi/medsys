@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import {
   getFinancialSummary,
   exportInvoicesToExcel,
@@ -14,8 +14,11 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// SECURITY: financial reporting is restricted to finance roles. Without
+// the role gate, any authenticated user (including 'patient') could pull
+// the clinic's entire billing state.
 router.use(authenticateToken);
+router.use(authorizeRoles('admin', 'accountant', 'receptionist'));
 
 // Financial dashboard
 router.get('/summary', getFinancialSummary);

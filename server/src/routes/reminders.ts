@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import {
   getOutstandingInvoices,
   getReminderSettings,
@@ -13,8 +13,10 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// SECURITY: payment reminders touch contact info and can fire real SMS/email
+// at patients — must be restricted to billing roles.
 router.use(authenticateToken);
+router.use(authorizeRoles('admin', 'accountant', 'receptionist'));
 
 // Outstanding invoices eligible for reminders
 router.get('/outstanding', getOutstandingInvoices);

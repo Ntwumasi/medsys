@@ -363,6 +363,15 @@ import labResultsService from '../services/labResultsService';
 
 const router = express.Router();
 
+// Role buckets used to gate routes throughout this file. CLINICAL_STAFF
+// is the union of all in-clinic staff — explicitly excludes 'patient' so
+// patient self-service can't list every other patient's records.
+const CLINICAL_STAFF = ['admin', 'doctor', 'nurse', 'receptionist', 'lab', 'imaging', 'pharmacist', 'pharmacy', 'pharmacy_tech', 'accountant'] as const;
+const BILLING_STAFF = ['admin', 'accountant', 'receptionist'] as const;
+// Roles that can read invoice/billing data (clinical staff need this for
+// printing receipts and reviewing what was charged).
+const BILLING_VIEWERS = ['admin', 'accountant', 'receptionist', 'doctor', 'nurse'] as const;
+
 // Health check endpoint (no auth required)
 router.get('/health', (req, res) => {
   res.json({
@@ -373,7 +382,13 @@ router.get('/health', (req, res) => {
 });
 
 // Auth routes (with input validation)
-router.post('/auth/register', validateBody(registerSchema), register);
+// SECURITY: /auth/register is admin-only. The proper user-creation flows are
+// POST /users (staff) and POST /patients (patient records) — both of which
+// enforce role + payload guards. /auth/register is kept as an admin-only
+// fallback because some scripts may still hit it, but it must never be
+// reachable without authentication: an unauthenticated POST here can mint
+// an admin account against any role in registerSchema's enum.
+router.post('/auth/register', authenticateToken, authorizeRoles('admin'), validateBody(registerSchema), register);
 router.post('/auth/login', validateBody(loginSchema), login);
 router.post('/auth/logout', authenticateToken, logout);
 router.post('/auth/logout-all', authenticateToken, logoutAll);
@@ -446,15 +461,15 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admi
 
 // Patient routes (with input validation)
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
-router.get('/patients', authenticateToken, getPatients);
-router.get('/patients/:id', authenticateToken, getPatientById);
-router.put('/patients/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
-router.get('/patients/:id/summary', authenticateToken, getPatientSummary);
+router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
+router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
+router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
+router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);
 
 // Encounter routes
-router.post('/encounters', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);
-router.get('/encounters', authenticateToken, getEncounters);
-router.get('/encounters/:id', authenticateToken, getEncounterById);
+router.post('/encounters',              authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);
+router.get('/encounters',               authenticateToken, authorizeRoles(...CLINICAL_STAFF), getEncounters);
+router.get('/encounters/:id',           authenticateToken, authorizeRoles(...CLINICAL_STAFF), getEncounterById);
 router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateEncounter);
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
@@ -572,15 +587,15 @@ router.put('/payer-sources/insurance-providers/:id', authenticateToken, authoriz
 router.delete('/payer-sources/insurance-providers/:id', authenticateToken, authorizeRoles('admin'), deleteInsuranceProvider);
 
 // Get patient payer sources
-router.get('/payer-sources/patient/:patient_id', authenticateToken, getPatientPayerSources);
+router.get('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientPayerSources);
 
 // Invoice routes
-router.get('/invoices', authenticateToken, getAllInvoices);
-router.get('/invoices/pending-payments', authenticateToken, getPendingPayments);
-router.post('/invoices/special', authenticateToken, authorizeRoles('receptionist', 'admin'), createSpecialInvoice);
-router.get('/invoices/:id', authenticateToken, getInvoiceById);
-router.get('/invoices/patient/:patient_id', authenticateToken, getInvoicesByPatient);
-router.get('/invoices/encounter/:encounter_id', authenticateToken, getInvoiceByEncounter);
+router.get('/invoices',                         authenticateToken, authorizeRoles(...BILLING_VIEWERS), getAllInvoices);
+router.get('/invoices/pending-payments',        authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPendingPayments);
+router.post('/invoices/special',                authenticateToken, authorizeRoles(...BILLING_STAFF), createSpecialInvoice);
+router.get('/invoices/:id',                     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceById);
+router.get('/invoices/patient/:patient_id',     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoicesByPatient);
+router.get('/invoices/encounter/:encounter_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
@@ -599,7 +614,7 @@ router.get('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles(
 router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), upsertPayerPricesForCharge);
 
 // Invoice Items routes
-router.get('/invoice-items/:invoice_id', authenticateToken, getInvoiceItems);
+router.get('/invoice-items/:invoice_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceItems);
 router.post('/invoice-items', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), addChargeToInvoice);
 router.put('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoiceItem);
 router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), removeInvoiceItem);
@@ -615,9 +630,9 @@ router.get('/pharmacy/walk-ins', authenticateToken, authorizeRoles('pharmacy', '
 router.post('/pharmacy/walk-in-dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseWalkInOrder);
 
 // Search routes
-router.get('/search/patients', authenticateToken, searchPatients);
-router.get('/search/encounters', authenticateToken, searchEncounters);
-router.get('/search/quick', authenticateToken, quickSearch);
+router.get('/search/patients',   authenticateToken, authorizeRoles(...CLINICAL_STAFF), searchPatients);
+router.get('/search/encounters', authenticateToken, authorizeRoles(...CLINICAL_STAFF), searchEncounters);
+router.get('/search/quick',      authenticateToken, authorizeRoles(...CLINICAL_STAFF), quickSearch);
 
 // Nurse Procedures routes
 router.post('/nurse-procedures', authenticateToken, authorizeRoles('doctor', 'nurse'), orderNurseProcedure);
@@ -736,9 +751,9 @@ router.post('/lab/critical-alerts', authenticateToken, authorizeRoles('lab'), cr
 router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor'), acknowledgeCriticalResult);
 
 // Patient Documents routes (with input validation)
-router.get('/documents/patient/:patient_id', authenticateToken, getPatientDocuments);
-router.post('/documents', authenticateToken, validateBody(uploadDocumentSchema), uploadDocument);
-router.get('/documents/:id', authenticateToken, getDocument);
+router.get('/documents/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientDocuments);
+router.post('/documents',                    authenticateToken, authorizeRoles(...CLINICAL_STAFF), validateBody(uploadDocumentSchema), uploadDocument);
+router.get('/documents/:id',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getDocument);
 router.delete('/documents/:id', authenticateToken, authorizeRoles('lab', 'doctor', 'admin'), deleteDocument);
 
 // Lab QC routes

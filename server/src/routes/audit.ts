@@ -1,11 +1,13 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import auditService from '../services/auditService';
 
 const router = Router();
 
-// Get audit logs for an entity (requires admin role)
-router.get('/entity/:type/:id', authenticateToken, async (req: Request, res: Response) => {
+// SECURITY: audit logs contain who-saw-what PHI traces. Restrict viewers
+// to admin only. /my-activity is the only endpoint open to a normal user
+// (scoped to themselves by the controller).
+router.get('/entity/:type/:id', authenticateToken, authorizeRoles('admin'), async (req: Request, res: Response) => {
   try {
     const type = req.params.type as string;
     const id = req.params.id as string;
@@ -33,15 +35,12 @@ router.get('/my-activity', authenticateToken, async (req: Request, res: Response
   }
 });
 
-// Get recent audit logs (admin only) with pagination and filtering
-router.get('/recent', authenticateToken, async (req: Request, res: Response) => {
+// Get recent audit logs (admin only) with pagination and filtering.
+// Uses authorizeRoles which honors is_super_admin — the previous inline
+// role !== 'admin' check incorrectly blocked super-admin sessions whose
+// JWT role is something else (doctor, etc.).
+router.get('/recent', authenticateToken, authorizeRoles('admin'), async (req: Request, res: Response) => {
   try {
-    const user = (req as any).user;
-    if (user?.role !== 'admin') {
-      res.status(403).json({ error: 'Admin access required' });
-      return;
-    }
-
     const { limit, offset, action, entity_type } = req.query;
     const result = await auditService.getRecentLogs(
       parseInt(limit as string) || 25,

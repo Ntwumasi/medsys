@@ -599,8 +599,10 @@ const findTestTemplate = async (
   const lower = testNameOrCode.toLowerCase();
   const sex = patientGender && /^M/i.test(patientGender) ? 'M' : patientGender && /^F/i.test(patientGender) ? 'F' : null;
 
-  // 3. FBC variant routing
-  if (/\b(fbc|full blood count)\b/.test(lower)) {
+  // 3. FBC variant routing. CBC ("Complete Blood Count") is functionally
+  // the same panel as FBC at this clinic, so route it through the same
+  // sex/age-aware FBC variants instead of hitting the empty CBC shell.
+  if (/\b(fbc|cbc|full blood count|complete blood count)\b/.test(lower)) {
     let code = 'FBC_AF';
     if (patientAgeYears != null) {
       if (patientAgeYears < 6) code = 'FBC_CU';
@@ -618,7 +620,8 @@ const findTestTemplate = async (
 
   // 4. Chem panel sex routing
   const chemMap: Array<[RegExp, string, string]> = [
-    [/\b(bue\s*&?\s*cr|urea.*electrolyte|electrolyte.*creatinine)\b/i, 'BUE_M', 'BUE_F'],
+    // Kidney/renal function: BUE&Cr, U&E, Kidney Function Test, KFT, RFT.
+    [/\b(bue|kft|rft|kidney function|renal function|urea.*electrolyte|electrolyte.*creatinine)\b/i, 'BUE_M', 'BUE_F'],
     [/\b(lipid)\b/i, 'LIPID_M', 'LIPID_F'],
     [/\b(lft|liver function)\b/i, 'LFT_M', 'LFT_F'],
   ];

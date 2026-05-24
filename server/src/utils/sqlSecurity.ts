@@ -14,12 +14,23 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'failed_login_attempts', 'locked_until'
   ],
   patients: [
-    'patient_number', 'date_of_birth', 'gender', 'blood_group', 'allergies',
-    'phone', 'email', 'address', 'emergency_contact', 'emergency_phone',
-    'insurance_provider', 'insurance_id', 'notes', 'is_active',
-    'health_conditions', 'current_medications', 'is_vip', 'vip_note',
-    'payer_source', 'corporate_client_id', 'assigned_doctor_id',
-    'pcp_name', 'pcp_phone'
+    // Demographics + identifiers
+    'patient_number', 'date_of_birth', 'gender', 'allergies',
+    'marital_status', 'occupation', 'nationality',
+    // Address — patients schema stores it as discrete columns, not one
+    // 'address' string; older spelling kept here for legacy callers.
+    'address', 'city', 'state', 'region', 'gps_address', 'preferred_clinic',
+    // Emergency contact (column names match the migrations)
+    'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
+    // Insurance / billing
+    'insurance_provider', 'insurance_number',
+    // PCP
+    'pcp_name', 'pcp_phone',
+    // Health status flags added by addPatientHealthFields.ts. The frontend
+    // posts these on update and the silent strip used to throw "No valid
+    // fields to update" — now they actually persist.
+    'vip_status', 'hiv_status', 'hepatitis_b_status', 'hepatitis_c_status',
+    'tb_status', 'sickle_cell_status', 'other_health_conditions',
   ],
   appointments: [
     'patient_id', 'patient_name', 'provider_id', 'appointment_date',

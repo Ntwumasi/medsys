@@ -1,9 +1,29 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import pool from '../database/db';
 
-// Default password for new users
-const DEFAULT_PASSWORD = 'demo123';
+// Generate a one-time temporary password for new accounts / password
+// resets. Returned to the requesting admin/receptionist in the response
+// body so they can read it to the staff member; the user MUST change it
+// on first login (must_change_password = true is set alongside).
+//
+// Why not a fixed string: a hardcoded `demo123` is guessable, gets
+// printed to logs, and survives in screenshots — anyone who learns the
+// convention can log in as any newly-provisioned account until that
+// person happens to log in for the first time.
+//
+// Format: TempXXXXXX — 6 base32 chars, easy to read aloud, ~30 bits of
+// entropy. Crypto.randomBytes for cryptographic randomness.
+const BASE32 = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omits I, O, 0, 1 for legibility
+const generateTempPassword = (): string => {
+  const bytes = crypto.randomBytes(6);
+  let out = 'Temp';
+  for (let i = 0; i < 6; i++) {
+    out += BASE32[bytes[i] % BASE32.length];
+  }
+  return out;
+};
 
 // One-time schema ensure: add users.clinic (specialty / clinic the doctor
 // belongs to). Idempotent; gated by a module-level flag so we only hit
@@ -164,9 +184,10 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       }
     }
 
-    // Hash default password
+    // Generate a one-time temp password — must be changed on first login.
+    const tempPassword = generateTempPassword();
     const saltRounds = 10;
-    const password_hash = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+    const password_hash = await bcrypt.hash(tempPassword, saltRounds);
 
     // Generate a placeholder email if not provided
     const userEmail = email || `${username}@medsys.local`;
@@ -199,7 +220,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       },
       credentials: {
         username: user.username,
-        temporary_password: DEFAULT_PASSWORD,
+        temporary_password: tempPassword,
         note: 'User must change password on first login'
       }
     });
@@ -342,9 +363,10 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
       }
     }
 
-    // Hash default password
+    // Generate a fresh one-time temp password — unique per reset.
+    const tempPassword = generateTempPassword();
     const saltRounds = 10;
-    const password_hash = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+    const password_hash = await bcrypt.hash(tempPassword, saltRounds);
 
     // Reset password and flag for change
     await pool.query(
@@ -370,7 +392,7 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
       },
       credentials: {
         username: user.username,
-        temporary_password: DEFAULT_PASSWORD,
+        temporary_password: tempPassword,
         note: 'User must change password on next login'
       }
     });

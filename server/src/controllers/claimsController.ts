@@ -22,8 +22,8 @@ export const createClaim = async (req: Request, res: Response): Promise<void> =>
       `SELECT i.*,
               p.id as patient_id,
               p.patient_number,
+              p.date_of_birth,
               u.first_name || ' ' || u.last_name as patient_name,
-              u.date_of_birth,
               e.id as encounter_id,
               e.encounter_number
        FROM invoices i
@@ -248,7 +248,7 @@ export const getClaimById = async (req: Request, res: Response): Promise<void> =
               ip.contact_email as provider_email,
               ip.contact_phone as provider_phone,
               u.first_name || ' ' || u.last_name as patient_name,
-              u.date_of_birth as patient_dob,
+              p.date_of_birth as patient_dob,
               u.phone as patient_phone,
               u.email as patient_email,
               p.patient_number,

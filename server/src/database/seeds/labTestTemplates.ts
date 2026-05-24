@@ -437,4 +437,143 @@ export const labTestTemplates: TestTemplateSeed[] = [
       { parameter_name: 'Others', parameter_code: 'URINE_OTHER', value_type: 'text', section_label: 'Urine Microscopy', sort_order: 35 },
     ],
   },
+
+  // ─────────────────────────────────────────────────────────────────
+  // Additional templates — added after go-live audit. Reference ranges
+  // are standard adult values; verify with William before relying on
+  // critical-value alerts in production.
+  // ─────────────────────────────────────────────────────────────────
+
+  // CMP — Comprehensive Metabolic Panel (14 analytes). Doctors commonly
+  // order this generically; results go into a structured table.
+  {
+    test_name: 'Comprehensive Metabolic Panel',
+    test_code: 'CMP',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'Glucose',          parameter_code: 'CMP_GLU',  value_type: 'numeric', unit: 'mg/dL', normal_low: 70,  normal_high: 99,  critical_low: 50,  critical_high: 400, sort_order: 1 },
+      { parameter_name: 'BUN',              parameter_code: 'CMP_BUN',  value_type: 'numeric', unit: 'mg/dL', normal_low: 7,   normal_high: 20,                                       sort_order: 2 },
+      { parameter_name: 'Creatinine',       parameter_code: 'CMP_CR',   value_type: 'numeric', unit: 'mg/dL', normal_low: 0.6, normal_high: 1.3, critical_high: 5,                    sort_order: 3 },
+      { parameter_name: 'eGFR',             parameter_code: 'CMP_EGFR', value_type: 'numeric', unit: 'mL/min/1.73m²', normal_low: 60, normal_high: 120,                              sort_order: 4 },
+      { parameter_name: 'Sodium',           parameter_code: 'CMP_NA',   value_type: 'numeric', unit: 'mmol/L', normal_low: 136, normal_high: 145, critical_low: 120, critical_high: 160, sort_order: 5 },
+      { parameter_name: 'Potassium',        parameter_code: 'CMP_K',    value_type: 'numeric', unit: 'mmol/L', normal_low: 3.5, normal_high: 5.1, critical_low: 2.5, critical_high: 6.5, sort_order: 6 },
+      { parameter_name: 'Chloride',         parameter_code: 'CMP_CL',   value_type: 'numeric', unit: 'mmol/L', normal_low: 98,  normal_high: 107,                                       sort_order: 7 },
+      { parameter_name: 'CO2',              parameter_code: 'CMP_CO2',  value_type: 'numeric', unit: 'mmol/L', normal_low: 22,  normal_high: 29,                                        sort_order: 8 },
+      { parameter_name: 'Calcium',          parameter_code: 'CMP_CA',   value_type: 'numeric', unit: 'mg/dL',  normal_low: 8.5, normal_high: 10.2, critical_low: 6, critical_high: 13,    sort_order: 9 },
+      { parameter_name: 'Total Protein',    parameter_code: 'CMP_TP',   value_type: 'numeric', unit: 'g/dL',   normal_low: 6.0, normal_high: 8.3,                                       sort_order: 10 },
+      { parameter_name: 'Albumin',          parameter_code: 'CMP_ALB',  value_type: 'numeric', unit: 'g/dL',   normal_low: 3.5, normal_high: 5.0,                                       sort_order: 11 },
+      { parameter_name: 'Total Bilirubin',  parameter_code: 'CMP_TBIL', value_type: 'numeric', unit: 'mg/dL',  normal_low: 0.1, normal_high: 1.2,                                       sort_order: 12 },
+      { parameter_name: 'ALP',              parameter_code: 'CMP_ALP',  value_type: 'numeric', unit: 'U/L',    normal_low: 44,  normal_high: 147,                                       sort_order: 13 },
+      { parameter_name: 'AST',              parameter_code: 'CMP_AST',  value_type: 'numeric', unit: 'U/L',    normal_low: 10,  normal_high: 40,                                        sort_order: 14 },
+      { parameter_name: 'ALT',              parameter_code: 'CMP_ALT',  value_type: 'numeric', unit: 'U/L',    normal_low: 7,   normal_high: 56,                                        sort_order: 15 },
+    ],
+  },
+
+  // HbA1c — glycated haemoglobin (single value, % and mmol/mol).
+  {
+    test_name: 'Hemoglobin A1C',
+    test_code: 'HbA1c',
+    category: 'chemistry',
+    specimen_type: 'EDTA whole blood',
+    parameters: [
+      { parameter_name: 'HbA1c',     parameter_code: 'HBA1C',     value_type: 'numeric', unit: '%',         normal_low: 4.0, normal_high: 5.6, reference_range_text: '<5.7% normal · 5.7–6.4% prediabetes · ≥6.5% diabetes', sort_order: 1 },
+      { parameter_name: 'eAG',       parameter_code: 'HBA1C_EAG', value_type: 'numeric', unit: 'mg/dL',     reference_range_text: 'Estimated average glucose', sort_order: 2 },
+    ],
+  },
+
+  // TSH — thyroid function (single value).
+  {
+    test_name: 'Thyroid Stimulating Hormone',
+    test_code: 'TSH',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'TSH', parameter_code: 'TSH', value_type: 'numeric', unit: 'mIU/L', normal_low: 0.4, normal_high: 4.0, critical_low: 0.01, critical_high: 100, sort_order: 1 },
+    ],
+  },
+
+  // HIV antibody screen — qualitative.
+  {
+    test_name: 'HIV Antibody Test',
+    test_code: 'HIV',
+    category: 'serology',
+    specimen_type: 'Serum / whole blood',
+    parameters: [
+      { parameter_name: 'HIV 1/2 Antibody', parameter_code: 'HIV_AB', value_type: 'qualitative', qualitative_options: QUAL_REACTIVE, default_qualitative_value: 'Non-Reactive', reference_range_text: 'Non-Reactive', sort_order: 1 },
+    ],
+  },
+
+  // ESR — Erythrocyte Sedimentation Rate. Different ranges by sex/age;
+  // we use a wider reference and let critical_high catch outliers.
+  {
+    test_name: 'Erythrocyte Sedimentation Rate',
+    test_code: 'ESR',
+    category: 'haematology',
+    specimen_type: 'EDTA whole blood',
+    parameters: [
+      { parameter_name: 'ESR', parameter_code: 'ESR', value_type: 'numeric', unit: 'mm/hr', normal_low: 0, normal_high: 20, critical_high: 100, reference_range_text: 'M ≤15 · F ≤20 (Westergren)', sort_order: 1 },
+    ],
+  },
+
+  // Malaria Parasite — RDT (qualitative) + smear species + parasitaemia.
+  {
+    test_name: 'Malaria Parasite (RDT)',
+    test_code: 'MP',
+    category: 'microbiology',
+    specimen_type: 'Whole blood',
+    parameters: [
+      { parameter_name: 'Malaria Antigen', parameter_code: 'MP_AG', value_type: 'qualitative', qualitative_options: QUAL_POSITIVE, default_qualitative_value: 'Negative', sort_order: 1 },
+      { parameter_name: 'Species',         parameter_code: 'MP_SP', value_type: 'text', reference_range_text: 'P. falciparum / vivax / ovale / malariae if positive', sort_order: 2 },
+      { parameter_name: 'Parasitaemia',    parameter_code: 'MP_PD', value_type: 'text', unit: '/µL', reference_range_text: 'Density if smear performed', sort_order: 3 },
+    ],
+  },
+
+  // PT/INR — coagulation, two related values.
+  {
+    test_name: 'Prothrombin Time/INR',
+    test_code: 'PT-INR',
+    category: 'haematology',
+    specimen_type: 'Citrate plasma',
+    parameters: [
+      { parameter_name: 'PT',  parameter_code: 'PT',  value_type: 'numeric', unit: 'seconds', normal_low: 11, normal_high: 13.5, critical_high: 30, sort_order: 1 },
+      { parameter_name: 'INR', parameter_code: 'INR', value_type: 'numeric', unit: '',        normal_low: 0.8, normal_high: 1.2, critical_high: 5,  reference_range_text: 'Therapeutic 2.0–3.0 on warfarin', sort_order: 2 },
+      { parameter_name: 'Control PT', parameter_code: 'PT_CTRL', value_type: 'numeric', unit: 'seconds', sort_order: 3 },
+    ],
+  },
+
+  // BUN — Blood Urea Nitrogen (single value). Doctors order standalone.
+  {
+    test_name: 'Blood Urea Nitrogen',
+    test_code: 'UREA',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'BUN', parameter_code: 'BUN', value_type: 'numeric', unit: 'mg/dL', normal_low: 7, normal_high: 20, critical_high: 100, sort_order: 1 },
+    ],
+  },
+
+  // Creatinine standalone (also part of CMP/BUE but commonly ordered alone).
+  {
+    test_name: 'Creatinine',
+    test_code: 'CREAT',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'Creatinine', parameter_code: 'CR',   value_type: 'numeric', unit: 'mg/dL',         normal_low: 0.6, normal_high: 1.3, critical_high: 5, reference_range_text: 'M 0.7–1.3 · F 0.6–1.1', sort_order: 1 },
+      { parameter_name: 'eGFR',       parameter_code: 'EGFR', value_type: 'numeric', unit: 'mL/min/1.73m²', normal_low: 60, normal_high: 120, reference_range_text: 'CKD-EPI', sort_order: 2 },
+    ],
+  },
+
+  // C-Reactive Protein — common addition; flagged in audit as a frequent
+  // order with no catalog match.
+  {
+    test_name: 'C-Reactive Protein',
+    test_code: 'CRP',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'CRP', parameter_code: 'CRP', value_type: 'numeric', unit: 'mg/L', normal_low: 0, normal_high: 5, critical_high: 200, reference_range_text: '<5 normal · >10 inflammation', sort_order: 1 },
+    ],
+  },
 ];
