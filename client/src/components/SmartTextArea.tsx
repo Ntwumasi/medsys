@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useMedicalAutocomplete } from '../hooks/useMedicalAutocomplete';
 import { VoiceDictationButton } from './VoiceDictationButton';
+import { SmartVoiceButton } from './SmartVoiceButton';
 
 interface SmartTextAreaProps {
   value: string;
@@ -10,6 +11,10 @@ interface SmartTextAreaProps {
   rows?: number;
   sectionId?: string;
   showVoiceDictation?: boolean;
+  /** When true, replaces the dumb mic with a Whisper + AI-polish mic.
+   *  Requires sectionId and sectionTitle so the polish prompt knows context. */
+  smartMode?: boolean;
+  sectionTitle?: string;
   disabled?: boolean;
   required?: boolean;
   label?: string;
@@ -23,6 +28,8 @@ export const SmartTextArea: React.FC<SmartTextAreaProps> = ({
   rows = 6,
   sectionId,
   showVoiceDictation = true,
+  smartMode = false,
+  sectionTitle,
   disabled = false,
   required = false,
   label,
@@ -152,15 +159,29 @@ export const SmartTextArea: React.FC<SmartTextAreaProps> = ({
           )}
           {showVoiceDictation && (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Voice</span>
-              <VoiceDictationButton
-                onTranscriptChange={onChange}
-                currentValue={value}
-                appendMode={true}
-                size="sm"
-                showStatus={true}
-                disabled={disabled}
-              />
+              <span className="text-xs text-gray-500">{smartMode && sectionId && sectionTitle ? 'Smart Voice' : 'Voice'}</span>
+              {smartMode && sectionId && sectionTitle ? (
+                <SmartVoiceButton
+                  onPolishedText={(polished) => {
+                    const separator = value && !value.endsWith('\n') ? '\n\n' : '';
+                    onChange(value + separator + polished);
+                  }}
+                  sectionId={sectionId}
+                  sectionTitle={sectionTitle}
+                  size="sm"
+                  showStatus={true}
+                  disabled={disabled}
+                />
+              ) : (
+                <VoiceDictationButton
+                  onTranscriptChange={onChange}
+                  currentValue={value}
+                  appendMode={true}
+                  size="sm"
+                  showStatus={true}
+                  disabled={disabled}
+                />
+              )}
             </div>
           )}
         </div>

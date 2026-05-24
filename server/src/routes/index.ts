@@ -195,7 +195,7 @@ import {
   getAddenda,
   addAddendum,
 } from '../controllers/hpController';
-import { parseDictation } from '../controllers/smartDictationController';
+import { parseDictation, transcribeAudio, polishSection } from '../controllers/smartDictationController';
 import {
   explainDrugInteraction,
   verifyDosage,
@@ -668,6 +668,8 @@ router.post('/hp/:encounter_id/sign', authenticateToken, authorizeRoles('doctor'
 router.get('/hp/:encounter_id/addenda', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), getAddenda);
 router.post('/hp/:encounter_id/addenda', authenticateToken, authorizeRoles('doctor', 'admin'), addAddendum);
 router.post('/hp/parse-dictation', authenticateToken, authorizeRoles('nurse', 'doctor'), parseDictation);
+router.post('/hp/transcribe',      authenticateToken, authorizeRoles('nurse', 'doctor'), transcribeAudio);
+router.post('/hp/polish-section',  authenticateToken, authorizeRoles('nurse', 'doctor'), polishSection);
 
 // System Updates / Roadmap routes (public read access)
 router.get('/system-updates', getSystemUpdates);

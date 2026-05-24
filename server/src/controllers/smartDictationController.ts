@@ -1,5 +1,36 @@
 import { Request, Response } from 'express';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
+
+// Per-section formatting guidance for polishSection. ROS subsections fall
+// through to a default "pertinent positives/negatives bullet list" prompt.
+const SECTION_FORMATS: Record<string, string> = {
+  chief_complaint:        'Output ONE short sentence stating the reason for visit. No preamble.',
+  hpi:                    'Output a single narrative paragraph in clinical voice. Preserve onset, duration, severity, quality, location, modifying factors, associated symptoms.',
+  past_medical_history:   'Output a bulleted list (one condition per line, "- "). Expand abbreviations (HTN→Hypertension, DM→Diabetes Mellitus).',
+  past_surgical_history:  'Output a bulleted list (one surgery per line). Include year if mentioned.',
+  health_maintenance:     'Output a bulleted list of screenings/health behaviours noted.',
+  immunization_history:   'Output a bulleted list. Format: "- Vaccine — date or status".',
+  home_medications:       'Output a bulleted list. Format: "- Medication dose frequency route" per line.',
+  allergies:              'Output a bulleted list. Format: "- Allergen — reaction (severity)" per line. If "no known allergies", write exactly: "NKDA".',
+  social_history:         'Output 2-4 short lines covering tobacco, alcohol, drugs, occupation, exercise if mentioned. Use "- Topic: detail" format.',
+  family_history:         'Output a bulleted list grouped by relative. Format: "- Relative: condition(s)".',
+  primary_care_provider:  'Output a single line with PCP name and contact if mentioned.',
+  vital_signs:            'Output any narrative notes about the vitals. If the dictation contains numeric vitals, list them as "- Metric: value unit" per line.',
+  physical_exam:          'Output narrative grouped by system (General, HEENT, Cardiac, Lungs, Abdomen, Extremities, Neuro, Skin). One short paragraph per system actually examined.',
+  lab_results:            'Output a bulleted list of lab values mentioned. Format: "- Test: value unit (flag if abnormal)".',
+  imaging_results:        'Output a short paragraph summarizing imaging findings.',
+  assessment:             'Output a numbered problem list. Each item: "1. Problem — brief clinical reasoning."',
+  plan:                   'Output a numbered plan. Each item: "1. Action (medication/order/follow-up/patient education)."',
+};
+
+const ROS_DEFAULT_FORMAT = 'Output a bulleted list of pertinent positives and negatives for this Review of Systems subsection. Format: "- Symptom: present/denied".';
+const FALLBACK_FORMAT = 'Clean up grammar and punctuation. Expand common medical abbreviations. Preserve the clinical content exactly as dictated. Use bullet lists if the content is enumerable, otherwise a short paragraph.';
+
+const formatFor = (sectionId: string): string => {
+  if (SECTION_FORMATS[sectionId]) return SECTION_FORMATS[sectionId];
+  if (sectionId.startsWith('ros_')) return ROS_DEFAULT_FORMAT;
+  return FALLBACK_FORMAT;
+};
 
 // H&P Section definitions matching HPAccordion
 const HP_SECTIONS = [
@@ -162,6 +193,135 @@ export const parseDictation = async (req: Request, res: Response): Promise<void>
       res.status(402).json({ error: 'AI service quota exceeded. Please check your OpenAI account.' });
     } else {
       res.status(500).json({ error: 'Failed to parse dictation. Please try again.' });
+    }
+  }
+};
+
+/**
+ * POST /api/hp/transcribe
+ * Body: { audio_base64: string, mime_type?: string }
+ * Returns: { text: string }
+ *
+ * Pipes the recorded audio (typically a ~30-60s WebM Opus blob from
+ * MediaRecorder) through Whisper. Whisper handles medical vocabulary far
+ * better than the browser SpeechRecognition API.
+ */
+export const transcribeAudio = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { audio_base64, mime_type } = req.body || {};
+    if (!audio_base64 || typeof audio_base64 !== 'string') {
+      res.status(400).json({ error: 'audio_base64 is required' });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: 'AI service not configured.' });
+      return;
+    }
+
+    const buffer = Buffer.from(audio_base64, 'base64');
+    if (buffer.length === 0) {
+      res.status(400).json({ error: 'Empty audio payload' });
+      return;
+    }
+
+    const ext = (mime_type || '').includes('mp4') ? 'mp4'
+              : (mime_type || '').includes('wav') ? 'wav'
+              : (mime_type || '').includes('mpeg') ? 'mp3'
+              : 'webm';
+
+    const openai = new OpenAI({ apiKey });
+    const file = await toFile(buffer, `dictation.${ext}`);
+
+    const result = await openai.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+      // Light prompt to bias Whisper toward clinical vocabulary
+      prompt: 'Clinical dictation by a physician or nurse. Medical terminology, drug names, dosages.',
+      language: 'en',
+    });
+
+    res.json({ text: (result.text || '').trim() });
+  } catch (error: any) {
+    console.error('Transcribe audio error:', error);
+    if (error.code === 'rate_limit_exceeded') {
+      res.status(429).json({ error: 'AI service rate limit exceeded. Please try again.' });
+    } else if (error.code === 'insufficient_quota') {
+      res.status(402).json({ error: 'AI service quota exceeded.' });
+    } else {
+      res.status(500).json({ error: 'Failed to transcribe audio.' });
+    }
+  }
+};
+
+/**
+ * POST /api/hp/polish-section
+ * Body: { section_id: string, section_title: string, raw_text: string }
+ * Returns: { polished_text: string }
+ *
+ * Takes raw dictation transcript for a single SOAP section and rewrites it
+ * in the format expected for that section (lists for Allergies / PMH,
+ * narrative for HPI, numbered list for Assessment/Plan, etc).
+ */
+export const polishSection = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { section_id, section_title, raw_text } = req.body || {};
+    if (!raw_text || typeof raw_text !== 'string' || !raw_text.trim()) {
+      res.status(400).json({ error: 'raw_text is required' });
+      return;
+    }
+    if (!section_id || !section_title) {
+      res.status(400).json({ error: 'section_id and section_title are required' });
+      return;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      res.status(500).json({ error: 'AI service not configured.' });
+      return;
+    }
+
+    const format = formatFor(section_id);
+
+    const system = `You are a clinical scribe. The clinician is dictating into the "${section_title}" section of a SOAP note.
+
+Your job: rewrite the raw dictation cleanly for THIS section.
+
+Rules:
+- Preserve ALL clinical content. Do not invent or omit facts.
+- Fix grammar, punctuation, capitalization.
+- Expand obvious medical abbreviations (HTN→Hypertension, DM→Diabetes Mellitus, SOB→Shortness of Breath).
+- Remove filler ("um", "uh", "so", "okay let me see").
+- ${format}
+- Output ONLY the polished text for this section. No headings, no preamble, no explanation, no markdown fences.`;
+
+    const openai = new OpenAI({ apiKey });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: `Raw dictation:\n\n${raw_text.trim()}` },
+      ],
+      temperature: 0.2,
+      max_tokens: 1500,
+    });
+
+    const polished = completion.choices[0]?.message?.content?.trim() || '';
+    if (!polished) {
+      res.status(500).json({ error: 'Empty response from AI' });
+      return;
+    }
+
+    res.json({ polished_text: polished });
+  } catch (error: any) {
+    console.error('Polish section error:', error);
+    if (error.code === 'rate_limit_exceeded') {
+      res.status(429).json({ error: 'AI service rate limit exceeded. Please try again.' });
+    } else if (error.code === 'insufficient_quota') {
+      res.status(402).json({ error: 'AI service quota exceeded.' });
+    } else {
+      res.status(500).json({ error: 'Failed to polish dictation.' });
     }
   }
 };

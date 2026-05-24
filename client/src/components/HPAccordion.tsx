@@ -944,9 +944,11 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                   onChange={handleContentChange}
                   placeholder={expandedSection === 'vital_signs'
                     ? 'Add any additional notes about vital signs here (optional)...'
-                    : `Enter ${currentSection.title.toLowerCase()} information here...\n\nStart typing to see medical term suggestions.\n\nVoice commands: "period", "comma", "new line", "new paragraph", "question mark", "stop dictation"`}
+                    : `Enter ${currentSection.title.toLowerCase()} information here...\n\nStart typing to see medical term suggestions.\n\nClick the Smart Voice mic to dictate — AI will polish and format your dictation for this section.`}
                   rows={expandedSection === 'vital_signs' ? 6 : 12}
                   sectionId={expandedSection || undefined}
+                  sectionTitle={currentSection.title}
+                  smartMode={true}
                   showVoiceDictation={true}
                   label={expandedSection === 'vital_signs' ? 'Additional Notes' : 'Notes / Content'}
                   className={expandedSection === 'vital_signs' ? 'h-40' : 'h-80'}
