@@ -15,7 +15,6 @@ export const config = {
   orthancUsername: process.env.ORTHANC_USERNAME || 'medsys',
   orthancPassword: process.env.ORTHANC_PASSWORD || '',
   pollIntervalMs: parseInt(process.env.POLL_INTERVAL_MS || '30000', 10),
-  pluginIngressPort: parseInt(process.env.PLUGIN_INGRESS_PORT || '9000', 10),
   logLevel: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
 };
 

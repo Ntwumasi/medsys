@@ -1,6 +1,6 @@
 import { config, log } from './config';
 import { startWorklistPoller } from './worklistPoller';
-import { startStudyForwarder } from './studyForwarder';
+import { startChangesPoller } from './changesPoller';
 
 async function main(): Promise<void> {
   log.info('medsys-bridge starting');
@@ -8,7 +8,7 @@ async function main(): Promise<void> {
   log.info('Orthanc:   ', config.orthancUrl);
   log.info('Worklist:  ', config.worklistDir);
 
-  startStudyForwarder();
+  startChangesPoller();
   startWorklistPoller();
 
   log.info('bridge running. Ctrl+C to stop.');

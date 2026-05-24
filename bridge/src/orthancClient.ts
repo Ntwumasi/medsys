@@ -28,6 +28,29 @@ export interface OrthancSeries {
   Instances: string[];
 }
 
+export interface OrthancChange {
+  ChangeType: string;
+  Date: string;
+  ID: string;
+  Path: string;
+  ResourceType: string;
+  Seq: number;
+}
+
+export interface OrthancChangesPage {
+  Changes: OrthancChange[];
+  Done: boolean;
+  Last: number;
+}
+
+/**
+ * Fetch changes after the given sequence number. Paginated by `since` + `limit`.
+ * When `Done` is true the caller has reached the tip of the change stream.
+ */
+export async function getChanges(since: number, limit = 100): Promise<OrthancChangesPage> {
+  return orthancGet<OrthancChangesPage>(`/changes?since=${since}&limit=${limit}`);
+}
+
 export async function getStudy(orthancStudyId: string): Promise<OrthancStudy> {
   return orthancGet<OrthancStudy>(`/studies/${orthancStudyId}`);
 }
