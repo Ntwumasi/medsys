@@ -9,7 +9,7 @@
 | **Stack** | React 19 + TypeScript + Node.js/Express + PostgreSQL |
 | **Deployment** | Vercel (serverless) + Neon PostgreSQL |
 | **Auth** | JWT tokens, bcrypt passwords, role-based access |
-| **Default Password** | `demo123` (users must change on first login) |
+| **Default Password** | Admin reset generates a random `TempXXXXXX` per call (returned in the response dialog). Hand the printed value to the user; they're forced to change on first login. |
 | **Username Format** | First initial + last name, lowercase (e.g., `jsmith`) |
 
 ---
