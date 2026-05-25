@@ -205,9 +205,9 @@ const LoginActivityPanel: React.FC = () => {
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Login Activity</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Login Records</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Every successful and failed login — who, when, from which IP and device.
+            Every employee login attempt — who, when, from which IP, device, and location.
           </p>
         </div>
         <button
