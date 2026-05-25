@@ -272,8 +272,8 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose, footer,
                     const unit = def?.unit || '';
                     const ref =
                       def?.reference_range_text ||
-                      (def?.normal_low !== null && def?.normal_high !== null
-                        ? `${def!.normal_low} – ${def!.normal_high}`
+                      (def != null && def.normal_low != null && def.normal_high != null
+                        ? `${def.normal_low} – ${def.normal_high}`
                         : '');
                     const { label: flagLbl, tone } = flagFor(String(raw), def);
                     const flagClass =
