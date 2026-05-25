@@ -46,6 +46,15 @@ interface LinesResponse {
 const fmtGHS = (n: number): string =>
   'GHS ' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Categories that are billed under the doctor's name but represent services
+// performed by other departments (lab tech runs the test, pharmacist dispenses,
+// receptionist registers, etc). On the *physician copy* of the production
+// report — what the doctor themselves keeps for their records — these are
+// stripped out so it reflects only the doctor's personal output.
+const AUXILIARY_CATEGORIES = new Set(['lab', 'imaging', 'pharmacy', 'registration']);
+const isAuxiliary = (category: string): boolean =>
+  AUXILIARY_CATEGORIES.has((category || '').toLowerCase());
+
 const DoctorRevenuePanel: React.FC = () => {
   // Default to current calendar month
   const today = new Date();
@@ -138,19 +147,38 @@ const DoctorRevenuePanel: React.FC = () => {
     openPrintWindow('Doctor Revenue Report', html);
   };
 
-  const printDrill = () => {
+  // Print a Physician Production sheet. When `physicianOnly` is true, strip
+  // auxiliary categories (lab, imaging, pharmacy, registration) — that's the
+  // copy the doctor keeps for their own records, which should reflect only
+  // their personal output.
+  const printDrill = (physicianOnly = false) => {
     if (!drillData) return;
+
+    const lines = physicianOnly
+      ? drillData.lines.filter(l => !isAuxiliary(l.category))
+      : drillData.lines;
+
     // Group lines by category for a Physician-Production style layout
     const byCategory = new Map<string, LineItem[]>();
-    for (const l of drillData.lines) {
+    for (const l of lines) {
       if (!byCategory.has(l.category)) byCategory.set(l.category, []);
       byCategory.get(l.category)!.push(l);
     }
     const sortedCategories = Array.from(byCategory.keys()).sort();
 
+    // Recompute totals from the filtered line set (don't trust drillData.totals
+    // when we've stripped categories out of the line list).
+    const subtotals: Record<string, number> = {};
+    let grandTotal = 0;
+    for (const cat of sortedCategories) {
+      const sub = byCategory.get(cat)!.reduce((s, l) => s + l.total, 0);
+      subtotals[cat] = sub;
+      grandTotal += sub;
+    }
+
     const sections = sortedCategories.map(cat => {
       const items = byCategory.get(cat)!;
-      const sub = drillData.totals.by_category[cat] || 0;
+      const sub = subtotals[cat];
       return `
         <h2 class="section">${cat.charAt(0).toUpperCase() + cat.slice(1)}</h2>
         <table>
@@ -179,23 +207,34 @@ const DoctorRevenuePanel: React.FC = () => {
       `;
     }).join('');
 
+    const title = physicianOnly ? 'Physician Production (Physician Copy)' : 'Physician Production';
+    const subtitle = physicianOnly
+      ? '<p class="meta" style="font-style:italic;color:#666;">Personal services only — excludes lab, imaging, pharmacy, and registration.</p>'
+      : '';
+
+    const emptyNotice = lines.length === 0
+      ? '<p class="meta" style="margin-top:24px;">No personal-service line items for this doctor in the selected period.</p>'
+      : '';
+
     const html = `
-      <h1>Physician Production</h1>
+      <h1>${title}</h1>
       <p class="meta"><strong>${drillData.doctor_name}</strong>${drillData.doctor_clinic ? ' — ' + drillData.doctor_clinic : ''}</p>
       <p class="meta">Period: <strong>${drillData.start_date}</strong> to <strong>${drillData.end_date}</strong></p>
       <p class="meta">Generated: ${new Date().toLocaleString()}</p>
+      ${subtitle}
       ${sections}
+      ${emptyNotice}
       <h2 class="section">Total</h2>
       <table>
         <tbody>
           <tr class="grandtotal">
             <td><strong>Net Service Revenue</strong></td>
-            <td class="r mono bold">${drillData.totals.grand_total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+            <td class="r mono bold">${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           </tr>
         </tbody>
       </table>
     `;
-    openPrintWindow(`Physician Production — ${drillData.doctor_name}`, html);
+    openPrintWindow(`${title} — ${drillData.doctor_name}`, html);
   };
 
   const openPrintWindow = (title: string, bodyHtml: string) => {
@@ -405,14 +444,26 @@ const DoctorRevenuePanel: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={printDrill}
-                  disabled={!drillData || drillData.lines.length === 0}
-                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-xs disabled:opacity-40 inline-flex items-center gap-1"
+                  onClick={() => printDrill(true)}
+                  disabled={!drillData || drillData.lines.filter(l => !isAuxiliary(l.category)).length === 0}
+                  className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs disabled:opacity-40 inline-flex items-center gap-1"
+                  title="Print a copy for the physician — excludes lab, imaging, pharmacy, registration"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  Print / PDF
+                  Physician Copy
+                </button>
+                <button
+                  onClick={() => printDrill(false)}
+                  disabled={!drillData || drillData.lines.length === 0}
+                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-xs disabled:opacity-40 inline-flex items-center gap-1"
+                  title="Print the full breakdown — includes auxiliary services (lab, imaging, pharmacy, registration)"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Full Print / PDF
                 </button>
                 <button
                   onClick={closeDrill}
