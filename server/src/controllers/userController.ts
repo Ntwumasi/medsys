@@ -486,13 +486,16 @@ export const getActiveLabReviewers = async (req: Request, res: Response): Promis
   try {
     const authReq = req as any;
     const currentUserId = authReq.user?.id;
-    // Reviewers must be lab staff — admins were previously included but the
-    // clinic's lead lab tech reminded us only qualified lab techs should
-    // approve results before a doctor sees them.
+    // Reviewers must be lab staff by default, but designated clinical staff
+    // (typically a senior doctor like Dr. Sedo or Dr. Patricia) can be
+    // explicitly opted-in via the users.is_lab_reviewer flag. Useful when
+    // the regular reviewer is out and a lab order can't sit in pending
+    // verification indefinitely.
     const result = await pool.query(
       `SELECT id, username, first_name, last_name, role
          FROM users
-        WHERE role = 'lab' AND is_active = true
+        WHERE (role = 'lab' OR is_lab_reviewer = true)
+          AND is_active = true
           AND ($1::int IS NULL OR id <> $1)
         ORDER BY last_name ASC, first_name ASC`,
       [currentUserId || null]
