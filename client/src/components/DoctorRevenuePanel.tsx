@@ -51,7 +51,10 @@ const fmtGHS = (n: number): string =>
 // receptionist registers, etc). On the *physician copy* of the production
 // report — what the doctor themselves keeps for their records — these are
 // stripped out so it reflects only the doctor's personal output.
-const AUXILIARY_CATEGORIES = new Set(['lab', 'imaging', 'pharmacy', 'registration']);
+// 'medication' is the canonical category for dispensed prescriptions (set by
+// ordersController.completePharmacyOrder + billingService). 'pharmacy' is
+// kept defensively in case a future code path uses it.
+const AUXILIARY_CATEGORIES = new Set(['lab', 'imaging', 'medication', 'pharmacy', 'registration']);
 const isAuxiliary = (category: string): boolean =>
   AUXILIARY_CATEGORIES.has((category || '').toLowerCase());
 
