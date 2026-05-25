@@ -849,17 +849,15 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
-      WHERE e.room_id IS NOT NULL
-        AND DATE(e.encounter_date) = CURRENT_DATE
-        AND (
-          e.status = 'with_doctor'
-          OR e.status = 'ready_for_doctor'
-          OR (e.status = 'with_nurse' AND EXISTS(
-            SELECT 1 FROM alerts a
-            WHERE a.encounter_id = e.id
-            AND a.alert_type = 'patient_ready'
-          ))
-        )
+      -- Doctor sees every patient under their care for the day, regardless of
+      -- where the patient is currently sitting (with doctor, with nurse, with
+      -- lab/pharmacy/imaging for ancillary work, etc). Previously this query
+      -- filtered to room-bound 'with_doctor'/'ready_for_doctor' only, which
+      -- meant patients vanished from the doctor's dashboard the moment they
+      -- were sent to lab. Now they stay until the encounter is actually
+      -- completed / discharged / cancelled.
+      WHERE DATE(e.encounter_date) = CURRENT_DATE
+        AND e.status NOT IN ('completed','discharged','cancelled','checked_in')
       ORDER BY
         CASE
           WHEN p.vip_status = 'platinum' THEN 1
