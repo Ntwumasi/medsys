@@ -2030,7 +2030,7 @@ const DoctorDashboard: React.FC = () => {
                                           <div className="text-xs font-semibold text-gray-900 mb-1">
                                             {o.test_name}
                                           </div>
-                                          <LabResultsInline result={o.results} compact />
+                                          <LabResultsInline result={o.results} orderId={o.id} compact />
                                         </li>
                                       ))}
                                     </ul>
@@ -2945,8 +2945,8 @@ const DoctorDashboard: React.FC = () => {
                                   </div>
                                   {order.status === 'completed' && order.results && (
                                     <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
-                                      <div className="text-sm font-semibold text-success-800 mb-1">Results:</div>
-                                      <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                                      <div className="text-sm font-semibold text-success-800 mb-2">Results</div>
+                                      <LabResultsInline result={order.results} orderId={order.id} />
                                       {order.completed_at && (
                                         <div className="text-xs text-gray-500 mt-2">
                                           Resulted: {new Date(order.completed_at).toLocaleString()}
