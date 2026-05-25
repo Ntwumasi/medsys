@@ -35,19 +35,19 @@ async function addNurseProcedures() {
     console.log('💰 Adding nurse procedure charges...');
 
     const procedures = [
-      { code: 'NURSE-SUTURE-SIMPLE', name: 'Simple Suture (1-5 stitches)', category: 'Nursing Procedures', price: 50.00 },
-      { code: 'NURSE-SUTURE-INTER', name: 'Intermediate Suture (6-12 stitches)', category: 'Nursing Procedures', price: 100.00 },
-      { code: 'NURSE-SUTURE-COMPLEX', name: 'Complex Suture (13+ stitches)', category: 'Nursing Procedures', price: 150.00 },
-      { code: 'NURSE-WOUND-SIMPLE', name: 'Simple Wound Dressing', category: 'Nursing Procedures', price: 25.00 },
-      { code: 'NURSE-WOUND-COMPLEX', name: 'Complex Wound Care', category: 'Nursing Procedures', price: 75.00 },
-      { code: 'NURSE-IV-INSERT', name: 'IV Line Insertion', category: 'Nursing Procedures', price: 40.00 },
-      { code: 'NURSE-CATHETER', name: 'Urinary Catheter Insertion', category: 'Nursing Procedures', price: 60.00 },
-      { code: 'NURSE-NG-TUBE', name: 'Nasogastric Tube Insertion', category: 'Nursing Procedures', price: 55.00 },
-      { code: 'NURSE-INJECTION-IM', name: 'Intramuscular Injection', category: 'Nursing Procedures', price: 20.00 },
-      { code: 'NURSE-INJECTION-SC', name: 'Subcutaneous Injection', category: 'Nursing Procedures', price: 15.00 },
-      { code: 'NURSE-BLOOD-DRAW', name: 'Blood Draw/Venipuncture', category: 'Nursing Procedures', price: 30.00 },
-      { code: 'NURSE-ECG', name: 'ECG/EKG Recording', category: 'Nursing Procedures', price: 45.00 },
-      { code: 'NURSE-NEBULIZER', name: 'Nebulizer Treatment', category: 'Nursing Procedures', price: 35.00 },
+      { code: 'NURSE-SUTURE-SIMPLE', name: 'Simple Suture (1-5 stitches)', category: 'procedure', price: 50.00 },
+      { code: 'NURSE-SUTURE-INTER', name: 'Intermediate Suture (6-12 stitches)', category: 'procedure', price: 100.00 },
+      { code: 'NURSE-SUTURE-COMPLEX', name: 'Complex Suture (13+ stitches)', category: 'procedure', price: 150.00 },
+      { code: 'NURSE-WOUND-SIMPLE', name: 'Simple Wound Dressing', category: 'procedure', price: 25.00 },
+      { code: 'NURSE-WOUND-COMPLEX', name: 'Complex Wound Care', category: 'procedure', price: 75.00 },
+      { code: 'NURSE-IV-INSERT', name: 'IV Line Insertion', category: 'procedure', price: 40.00 },
+      { code: 'NURSE-CATHETER', name: 'Urinary Catheter Insertion', category: 'procedure', price: 60.00 },
+      { code: 'NURSE-NG-TUBE', name: 'Nasogastric Tube Insertion', category: 'procedure', price: 55.00 },
+      { code: 'NURSE-INJECTION-IM', name: 'Intramuscular Injection', category: 'procedure', price: 20.00 },
+      { code: 'NURSE-INJECTION-SC', name: 'Subcutaneous Injection', category: 'procedure', price: 15.00 },
+      { code: 'NURSE-BLOOD-DRAW', name: 'Blood Draw/Venipuncture', category: 'procedure', price: 30.00 },
+      { code: 'NURSE-ECG', name: 'ECG/EKG Recording', category: 'procedure', price: 45.00 },
+      { code: 'NURSE-NEBULIZER', name: 'Nebulizer Treatment', category: 'procedure', price: 35.00 },
     ];
 
     for (const proc of procedures) {
