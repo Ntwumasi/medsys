@@ -588,11 +588,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           <div className="border-b-2 border-primary-600 pb-6 mb-6">
             <div className="flex justify-between items-start">
               <div>
-                <h1 className="text-3xl font-bold text-primary-600">MedSys EMR</h1>
-                <p className="text-gray-600 mt-2">Electronic Medical Records System</p>
-                <p className="text-sm text-gray-500 mt-1">123 Healthcare Avenue</p>
-                <p className="text-sm text-gray-500">Accra, Ghana</p>
-                <p className="text-sm text-gray-500">Tel: +233 XX XXX XXXX</p>
+                <h1 className="text-3xl font-bold text-primary-600">Medics Clinic</h1>
+                <p className="text-sm text-gray-500 mt-2">Adjacent The Avenue</p>
+                <p className="text-sm text-gray-500">Mahama Road, Accra</p>
+                <p className="text-sm text-gray-500">Tel: +233 (0) 55 341 1221</p>
+                <p className="text-sm text-gray-500">info@medicsgroupgh.com</p>
               </div>
               <div className="text-right">
                 <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
@@ -841,8 +841,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
           {/* Footer */}
           <div className="border-t-2 border-gray-300 pt-6 text-center text-sm text-gray-600">
-            <p className="font-semibold mb-2">Thank you for choosing MedSys EMR!</p>
-            <p>For billing inquiries, please contact our billing department at billing@medsys.com</p>
+            <p className="font-semibold mb-2">Thank you for choosing Medics Clinic.</p>
+            <p>For billing inquiries, please contact us at info@medicsgroupgh.com</p>
             <p className="mt-2 text-xs">This is a computer-generated invoice and does not require a signature.</p>
           </div>
         </div>
