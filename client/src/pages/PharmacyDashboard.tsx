@@ -126,9 +126,25 @@ interface RevenueTotals {
   unique_patients: number;
 }
 
+interface RevenueOrder {
+  id: number;
+  medication_name: string;
+  dosage: string;
+  quantity: string;
+  status: string;
+  dispensed_date: string | null;
+  ordered_date: string;
+  patient_number: string;
+  patient_name: string;
+  dispensed_by_name: string | null;
+  selling_price: number | null;
+  line_total: number | null;
+}
+
 interface RevenueData {
   totals: RevenueTotals;
   top_medications: TopMedication[];
+  orders?: RevenueOrder[];
 }
 
 interface Diagnosis {
@@ -460,6 +476,7 @@ const PharmacyDashboard: React.FC = () => {
 
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
+  const [revenueSearch, setRevenueSearch] = useState('');
 
   // Medication pricing state
   const [pricingSearch, setPricingSearch] = useState('');
@@ -1108,16 +1125,26 @@ const PharmacyDashboard: React.FC = () => {
 
   const fetchRevenueSummary = async () => {
     try {
-      let url = '/pharmacy/revenue';
-      if (startDate) url += `?start_date=${startDate}`;
-      if (endDate) url += `${url.includes('?') ? '&' : '?'}end_date=${endDate}`;
-
-      const response = await apiClient.get(url);
+      const params = new URLSearchParams();
+      if (startDate) params.set('start_date', startDate);
+      if (endDate) params.set('end_date', endDate);
+      if (revenueSearch.trim()) params.set('search', revenueSearch.trim());
+      const qs = params.toString();
+      const response = await apiClient.get('/pharmacy/revenue' + (qs ? `?${qs}` : ''));
       setRevenueData(response.data);
     } catch (error) {
       console.error('Error fetching revenue:', error);
     }
   };
+
+  // Debounced auto-search: re-fetch 300ms after the user stops typing,
+  // but only when the revenue tab is open and we already have data loaded.
+  useEffect(() => {
+    if (activeTab !== 'revenue' || !revenueData) return;
+    const t = setTimeout(() => { fetchRevenueSummary(); }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revenueSearch]);
 
   const updateMedicationPrice = async (itemId: number, newPrice: number) => {
     if (isNaN(newPrice) || newPrice < 0) {
@@ -2439,6 +2466,16 @@ const PharmacyDashboard: React.FC = () => {
               >
                 Generate Report
               </button>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input
+                  type="text"
+                  value={revenueSearch}
+                  onChange={(e) => setRevenueSearch(e.target.value)}
+                  placeholder="Patient name, patient #, or medication…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                />
+              </div>
             </div>
 
             {revenueData ? (
@@ -2524,6 +2561,80 @@ const PharmacyDashboard: React.FC = () => {
                       </div>
                     ) : (
                       <p className="text-center text-gray-500">No data available</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Orders list — paginated server-side at 200, filtered by search */}
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                  <div className="px-6 py-4 border-b flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">
+                      Orders
+                      {revenueData.orders && (
+                        <span className="ml-2 text-sm font-normal text-gray-500">
+                          ({revenueData.orders.length}{revenueData.orders.length === 200 ? '+' : ''})
+                        </span>
+                      )}
+                    </h2>
+                    {revenueSearch && (
+                      <span className="text-xs text-gray-500">
+                        Filtered by: <span className="font-medium">{revenueSearch}</span>
+                      </span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    {revenueData.orders && revenueData.orders.length > 0 ? (
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                          <tr>
+                            <th className="text-left px-4 py-2">Patient</th>
+                            <th className="text-left px-4 py-2">Medication</th>
+                            <th className="text-right px-4 py-2">Qty</th>
+                            <th className="text-left px-4 py-2">Status</th>
+                            <th className="text-left px-4 py-2">Dispensed</th>
+                            <th className="text-left px-4 py-2">Dispensed by</th>
+                            <th className="text-right px-4 py-2">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {revenueData.orders.map((o) => (
+                            <tr key={o.id} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-4 py-2">
+                                <div className="font-medium text-gray-900">{o.patient_name || '—'}</div>
+                                <div className="text-xs text-gray-500 font-mono">{o.patient_number}</div>
+                              </td>
+                              <td className="px-4 py-2">
+                                <div className="text-gray-900">{o.medication_name}</div>
+                                {o.dosage && <div className="text-xs text-gray-500">{o.dosage}</div>}
+                              </td>
+                              <td className="px-4 py-2 text-right text-gray-900 font-mono">{o.quantity}</td>
+                              <td className="px-4 py-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                                  o.status === 'dispensed' ? 'bg-success-100 text-success-800' :
+                                  o.status === 'in_progress' ? 'bg-warning-100 text-warning-800' :
+                                  o.status === 'cancelled' ? 'bg-gray-200 text-gray-600' :
+                                  'bg-primary-100 text-primary-800'
+                                }`}>
+                                  {o.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-gray-700">
+                                {o.dispensed_date ? format(new Date(o.dispensed_date), 'MMM dd, yyyy HH:mm') : '—'}
+                              </td>
+                              <td className="px-4 py-2 text-gray-700">{o.dispensed_by_name || '—'}</td>
+                              <td className="px-4 py-2 text-right font-mono text-gray-900">
+                                {o.line_total != null
+                                  ? `GH${'₵'} ${Number(o.line_total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                  : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="text-center text-gray-500 py-12">
+                        {revenueSearch ? `No orders match "${revenueSearch}" in this date range.` : 'No orders in this date range.'}
+                      </p>
                     )}
                   </div>
                 </div>

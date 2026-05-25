@@ -560,25 +560,36 @@ export const calculatePrice = async (req: Request, res: Response): Promise<void>
 // Get pharmacy revenue summary
 export const getRevenueSummary = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, search } = req.query;
 
+    // dispensed_date is a TIMESTAMP. Comparing against bare date strings
+    // (`>= '2026-05-25' AND <= '2026-05-25'`) implicitly casts both bounds
+    // to midnight, so any non-midnight same-day row got excluded — which
+    // made Order History show zeros for a same-day filter. Cast explicitly
+    // and use a half-open upper bound (< next-day) so the whole end day
+    // is included.
     let dateFilter = '';
     let transactionDateFilter = '';
     const params: any[] = [];
 
     if (start_date && end_date) {
-      dateFilter = `AND po.dispensed_date >= $1 AND po.dispensed_date <= $2`;
-      transactionDateFilter = `AND it.created_at >= $1 AND it.created_at <= $2`;
+      dateFilter = `AND po.dispensed_date >= $1::date AND po.dispensed_date < ($2::date + interval '1 day')`;
+      transactionDateFilter = `AND it.created_at >= $1::date AND it.created_at < ($2::date + interval '1 day')`;
       params.push(start_date, end_date);
     } else if (start_date) {
-      dateFilter = `AND po.dispensed_date >= $1`;
-      transactionDateFilter = `AND it.created_at >= $1`;
+      dateFilter = `AND po.dispensed_date >= $1::date`;
+      transactionDateFilter = `AND it.created_at >= $1::date`;
       params.push(start_date);
     } else if (end_date) {
-      dateFilter = `AND po.dispensed_date <= $1`;
-      transactionDateFilter = `AND it.created_at <= $1`;
+      dateFilter = `AND po.dispensed_date < ($1::date + interval '1 day')`;
+      transactionDateFilter = `AND it.created_at < ($1::date + interval '1 day')`;
       params.push(end_date);
     }
+
+    // Optional search across patient name / patient number / medication name.
+    // Only applied to the orders LIST query — summary stats stay unfiltered
+    // (Gmail-style: search narrows what you see, totals reflect the full set).
+    const searchTerm = (search as string || '').trim();
 
     // Revenue by day. inventory_transactions has no unit_cost column — the
     // price lives on pharmacy_inventory.selling_price. Join to get it.
@@ -634,13 +645,49 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
       params
     );
 
+    // Orders list — the actual rows the pharmacist scrolls through.
+    // Date filter scoped via dateFilter (po.* prefix). Search applies on top.
+    const ordersParams: any[] = [...params];
+    let ordersSearchClause = '';
+    if (searchTerm) {
+      const idx = ordersParams.length + 1;
+      ordersSearchClause = `AND (
+        pu.first_name ILIKE $${idx} OR pu.last_name ILIKE $${idx}
+        OR (pu.first_name || ' ' || pu.last_name) ILIKE $${idx}
+        OR p.patient_number ILIKE $${idx}
+        OR po.medication_name ILIKE $${idx}
+      )`;
+      ordersParams.push(`%${searchTerm}%`);
+    }
+    const orders = await pool.query(
+      `SELECT po.id, po.medication_name, po.dosage, po.quantity, po.status,
+              po.dispensed_date, po.ordered_date,
+              p.patient_number,
+              pu.first_name || ' ' || pu.last_name AS patient_name,
+              du.first_name || ' ' || du.last_name AS dispensed_by_name,
+              pi.selling_price,
+              (CASE WHEN pi.selling_price IS NOT NULL
+                    THEN pi.selling_price * COALESCE(NULLIF(po.quantity,'')::numeric, 0)
+                    ELSE NULL END) AS line_total
+         FROM pharmacy_orders po
+         LEFT JOIN patients p ON po.patient_id = p.id
+         LEFT JOIN users pu ON p.user_id = pu.id
+         LEFT JOIN users du ON po.dispensed_by = du.id
+         LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
+        WHERE 1=1 ${dateFilter} ${ordersSearchClause}
+        ORDER BY COALESCE(po.dispensed_date, po.ordered_date) DESC
+        LIMIT 200`,
+      ordersParams
+    );
+
     res.json({
       daily_revenue: dailyRevenue.rows,
       totals: {
         ...totals.rows[0],
         total_revenue: revenueTotal.rows[0]?.total_revenue || 0
       },
-      top_medications: topMedications.rows
+      top_medications: topMedications.rows,
+      orders: orders.rows,
     });
   } catch (error) {
     console.error('Get revenue summary error:', error);
