@@ -1273,21 +1273,11 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Mark all open routing entries for this department + encounter as done
-    await pool.query(
-      `UPDATE department_routing
-         SET status = 'completed',
-             completed_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
-       WHERE encounter_id = $1
-         AND department = $2
-         AND status IN ('pending', 'in-progress')`,
-      [encounter_id, from_department]
-    );
-
-    // Pull patient context for the notification
+    // Pull patient context first — we need patient_id for the possible INSERT
+    // below, and we want to fail fast if the encounter doesn't exist before
+    // doing any writes.
     const ctx = await pool.query(
-      `SELECT p.patient_number,
+      `SELECT p.id AS patient_id, p.patient_number,
               u.first_name || ' ' || u.last_name AS patient_name
          FROM encounters e
          JOIN patients p ON e.patient_id = p.id
@@ -1299,7 +1289,42 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ error: 'Encounter not found' });
       return;
     }
-    const { patient_name, patient_number } = ctx.rows[0];
+    const { patient_id, patient_name, patient_number } = ctx.rows[0];
+
+    // Mark all open routing entries for this department + encounter as done.
+    const updateResult = await pool.query(
+      `UPDATE department_routing
+         SET status = 'completed',
+             completed_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+       WHERE encounter_id = $1
+         AND department = $2
+         AND status IN ('pending', 'in-progress')`,
+      [encounter_id, from_department]
+    );
+
+    // If no pending/in-progress routing row existed (e.g. the encounter was
+    // a direct walk-in or doctor-initiated order that skipped the routing
+    // layer entirely), insert a synthetic 'completed' row so downstream
+    // queries (the dispensed list's `routed_back_to_nurse` flag, the doctor
+    // dashboard's auto-routing alert) can tell this encounter has been
+    // handed back to nurse.
+    if (updateResult.rowCount === 0) {
+      const existing = await pool.query(
+        `SELECT 1 FROM department_routing
+          WHERE encounter_id = $1 AND department = $2 AND status = 'completed'
+          LIMIT 1`,
+        [encounter_id, from_department]
+      );
+      if (existing.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO department_routing
+             (encounter_id, patient_id, department, status, completed_at)
+           VALUES ($1, $2, $3, 'completed', CURRENT_TIMESTAMP)`,
+          [encounter_id, patient_id, from_department]
+        );
+      }
+    }
 
     const deptLabel: Record<string, string> = {
       lab: 'lab',
