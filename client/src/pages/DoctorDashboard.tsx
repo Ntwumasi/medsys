@@ -9,7 +9,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { SmartTextArea } from '../components/SmartTextArea';
-import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
+import { parseMedicationName, calculateQuantity, FREQUENCY_OPTIONS } from '../utils/medicationParser';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
@@ -146,14 +146,14 @@ const DoctorDashboard: React.FC = () => {
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
 
   // Multi-order state - arrays to hold pending orders
-  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string}>>([]);
-  const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string}>>([]);
+  const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
 
   // Current order being added
-  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine'});
-  const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine'});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine'});
+  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: ''});
+  const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
 
   // Medication search state
   const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
@@ -587,7 +587,7 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
     setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
-    setCurrentLabOrder({test_name: '', priority: 'routine'});
+    setCurrentLabOrder({test_name: '', priority: 'routine', notes: ''});
   };
 
   // Apply a saved test set: append any tests that aren't already staged
@@ -609,7 +609,7 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
     setPendingImagingOrders([...pendingImagingOrders, currentImagingOrder]);
-    setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine'});
+    setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
   };
 
   // Search pharmacy inventory for medication autocomplete
@@ -729,7 +729,7 @@ const DoctorDashboard: React.FC = () => {
 
   const addMedicationToList = () => {
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine'});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -746,7 +746,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditLabOrder = (index: number) => {
     const order = pendingLabOrders[index];
-    setCurrentLabOrder({ ...order });
+    setCurrentLabOrder({ ...order, notes: order.notes ?? '' });
     setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
   };
 
@@ -756,7 +756,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditImagingOrder = (index: number) => {
     const order = pendingImagingOrders[index];
-    setCurrentImagingOrder({ ...order });
+    setCurrentImagingOrder({ ...order, notes: order.notes ?? '' });
     setPendingImagingOrders(pendingImagingOrders.filter((_, i) => i !== index));
   };
 
@@ -766,7 +766,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditPharmacyOrder = (index: number) => {
     const order = pendingPharmacyOrders[index];
-    setCurrentPharmacyOrder({ ...order });
+    setCurrentPharmacyOrder({ ...order, notes: order.notes ?? '' });
     setPendingPharmacyOrders(pendingPharmacyOrders.filter((_, i) => i !== index));
   };
 
@@ -2443,6 +2443,13 @@ const DoctorDashboard: React.FC = () => {
                           <option value="urgent">Urgent</option>
                           <option value="stat">STAT</option>
                         </select>
+                        <textarea
+                          value={currentLabOrder.notes}
+                          onChange={(e) => setCurrentLabOrder({...currentLabOrder, notes: e.target.value})}
+                          placeholder="Notes for lab (optional) — e.g. fasting sample, specific tube, special handling"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white text-sm resize-none"
+                        />
                         <button
                           onClick={handleAddLabOrder}
                           className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2"
@@ -2525,6 +2532,13 @@ const DoctorDashboard: React.FC = () => {
                           <option value="urgent">Urgent</option>
                           <option value="stat">STAT</option>
                         </select>
+                        <textarea
+                          value={currentImagingOrder.notes}
+                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, notes: e.target.value})}
+                          placeholder="Notes for imaging (optional) — e.g. with contrast, prior surgery, motion-restricted patient"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white text-sm resize-none"
+                        />
                         <button
                           onClick={handleAddImagingOrder}
                           className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center justify-center gap-2"
@@ -2641,13 +2655,17 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
                             placeholder="Dosage"
                           />
-                          <AutocompleteInput
+                          <select
                             value={currentPharmacyOrder.frequency}
-                            onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: value})}
-                            sectionId="pharmacy_frequencies"
+                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: e.target.value})}
                             className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
-                            placeholder="Frequency"
-                          />
+                            title="Frequency — drives the qty auto-calculator"
+                          >
+                            <option value="">Frequency…</option>
+                            {FREQUENCY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
                           <input
                             type="number"
                             min="1"
@@ -2689,6 +2707,13 @@ const DoctorDashboard: React.FC = () => {
                           <option value="urgent">Urgent</option>
                           <option value="stat">STAT</option>
                         </select>
+                        <textarea
+                          value={currentPharmacyOrder.notes}
+                          onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, notes: e.target.value})}
+                          placeholder="Notes for pharmacy (optional) — e.g. take with food, may cause drowsiness, check renal function"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm resize-none"
+                        />
                         <button
                           onClick={handleAddPharmacyOrder}
                           disabled={checkingInteractions}
