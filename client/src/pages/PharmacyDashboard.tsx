@@ -229,6 +229,22 @@ const PharmacyStat: React.FC<PharmacyStatProps> = ({ label, value, accent, activ
   );
 };
 
+// Tiny editable row used inside the prescription label modal. Looks like
+// flush text in normal state, reveals an edit affordance (yellow tint + ring)
+// on focus, and prints clean (no background, no ring).
+const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) => void }> = ({ label, value, onChange }) => (
+  <div className="flex justify-between items-center">
+    <span className="font-medium">{label}</span>
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="text-right border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+      style={{ width: '60%' }}
+    />
+  </div>
+);
+
 const PharmacyDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
@@ -259,6 +275,19 @@ const PharmacyDashboard: React.FC = () => {
   // Print label modal
   const [showLabelModal, setShowLabelModal] = useState(false);
   const [labelOrder, setLabelOrder] = useState<PharmacyOrder | null>(null);
+  // Pharmacist-editable label fields. Seeded from the order when the modal
+  // opens; the pharmacist can rewrite directions for patient-friendly text
+  // ("OD" -> "Take 1 tablet by mouth every morning") before printing.
+  const [labelEdit, setLabelEdit] = useState({
+    medication_name: '',
+    dosage: '',
+    take: '',
+    route: '',
+    quantity: '',
+    refills: '',
+    prescribing_doctor: '',
+    notes: '',
+  });
 
   // Drug return modal
   const [showReturnModal, setShowReturnModal] = useState(false);
@@ -860,6 +889,19 @@ const PharmacyDashboard: React.FC = () => {
 
   const printLabel = (order: PharmacyOrder) => {
     setLabelOrder(order);
+    // Seed editable label fields from the order. Pharmacist tweaks before print.
+    const doctorName = order.provider_name
+      || [order.provider_first_name, order.provider_last_name].filter(Boolean).join(' ').trim();
+    setLabelEdit({
+      medication_name: order.medication_name || '',
+      dosage: order.dosage || '',
+      take: order.frequency || '',
+      route: order.route || '',
+      quantity: order.quantity || '',
+      refills: String(order.refills ?? 0),
+      prescribing_doctor: doctorName ? `Dr. ${doctorName}` : '',
+      notes: '',
+    });
     setShowLabelModal(true);
   };
 
@@ -3573,9 +3615,17 @@ const PharmacyDashboard: React.FC = () => {
       >
         {labelOrder && (
           <div>
+            {/* Editable label preview. Inputs render flush like plain text but
+                reveal a yellow tint + ring on focus, so the pharmacist sees
+                what's editable without the form feeling cluttered. The same
+                DOM gets printed via window.print() — inputs print their
+                current values. */}
+            <p className="text-xs text-gray-500 mb-2 print:hidden">
+              Click any field to edit before printing.
+            </p>
             <div className="border-2 border-dashed border-gray-300 p-6 mb-4 print:border-solid" id="prescription-label">
               <div className="text-center mb-4">
-                <h3 className="text-lg font-bold">MEDSYS PHARMACY</h3>
+                <h3 className="text-lg font-bold">MEDICS PHARMACY</h3>
                 <p className="text-sm text-gray-500">Patient Prescription Label</p>
               </div>
               <div className="space-y-2 text-sm">
@@ -3589,25 +3639,54 @@ const PharmacyDashboard: React.FC = () => {
                 </div>
                 <hr className="my-2" />
                 <div className="text-center">
-                  <p className="text-lg font-bold">{labelOrder.medication_name}</p>
-                  <p className="text-base">{labelOrder.dosage}</p>
+                  <input
+                    type="text"
+                    value={labelEdit.medication_name}
+                    onChange={(e) => setLabelEdit({ ...labelEdit, medication_name: e.target.value })}
+                    className="text-lg font-bold w-full text-center border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                  />
+                  <input
+                    type="text"
+                    value={labelEdit.dosage}
+                    onChange={(e) => setLabelEdit({ ...labelEdit, dosage: e.target.value })}
+                    className="text-base w-full text-center border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                  />
                 </div>
                 <hr className="my-2" />
-                <div className="flex justify-between">
-                  <span className="font-medium">Take:</span>
-                  <span>{labelOrder.frequency}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Route:</span>
-                  <span>{labelOrder.route}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Quantity:</span>
-                  <span>{labelOrder.quantity}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Refills:</span>
-                  <span>{labelOrder.refills || 0}</span>
+                <LabelRow
+                  label="Take:"
+                  value={labelEdit.take}
+                  onChange={(v) => setLabelEdit({ ...labelEdit, take: v })}
+                />
+                <LabelRow
+                  label="Route:"
+                  value={labelEdit.route}
+                  onChange={(v) => setLabelEdit({ ...labelEdit, route: v })}
+                />
+                <LabelRow
+                  label="Quantity:"
+                  value={labelEdit.quantity}
+                  onChange={(v) => setLabelEdit({ ...labelEdit, quantity: v })}
+                />
+                <LabelRow
+                  label="Refills:"
+                  value={labelEdit.refills}
+                  onChange={(v) => setLabelEdit({ ...labelEdit, refills: v })}
+                />
+                <LabelRow
+                  label="Prescribing Dr:"
+                  value={labelEdit.prescribing_doctor}
+                  onChange={(v) => setLabelEdit({ ...labelEdit, prescribing_doctor: v })}
+                />
+                <div>
+                  <span className="font-medium text-sm">Notes:</span>
+                  <textarea
+                    value={labelEdit.notes}
+                    onChange={(e) => setLabelEdit({ ...labelEdit, notes: e.target.value })}
+                    placeholder="e.g. Take with food. May cause drowsiness."
+                    rows={2}
+                    className="mt-1 w-full text-sm border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 resize-none print:bg-transparent print:ring-0 print:placeholder-transparent"
+                  />
                 </div>
                 <hr className="my-2" />
                 <div className="flex justify-between text-xs text-gray-500">
