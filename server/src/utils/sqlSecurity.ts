@@ -45,7 +45,8 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'patient_id', 'provider_id', 'encounter_type', 'encounter_date',
     'chief_complaint', 'history_of_present_illness', 'review_of_systems',
     'physical_exam', 'assessment', 'plan', 'status', 'notes', 'clinic',
-    'checked_in_at', 'completed_at', 'signed_at', 'signed_by'
+    'checked_in_at', 'completed_at', 'signed_at', 'signed_by',
+    'self_pay_tier'
   ],
   lab_orders: [
     'patient_id', 'encounter_id', 'ordering_provider', 'entered_by',

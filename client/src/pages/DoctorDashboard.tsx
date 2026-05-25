@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { imagingAPI } from '../api/imaging';
 import HPAccordion from '../components/HPAccordion';
+import LabResultsInline from '../components/LabResultsInline';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
@@ -168,6 +169,18 @@ const DoctorDashboard: React.FC = () => {
 
   // Clinical Notes Tab state
   const [clinicalNotesTab, setClinicalNotesTab] = useState<'soap' | 'doctor' | 'nurse' | 'instructions' | 'procedural'>('soap');
+  // Clinical Notes "focus mode" — full-viewport overlay so doctors can chart
+  // without the surrounding dashboard distracting. Toggled by a button in the
+  // card header.
+  const [clinicalNotesFullscreen, setClinicalNotesFullscreen] = useState(false);
+
+  // Esc closes fullscreen
+  useEffect(() => {
+    if (!clinicalNotesFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setClinicalNotesFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clinicalNotesFullscreen]);
 
   // Lab, Imaging and Pharmacy results state
   const [encounterLabOrders, setEncounterLabOrders] = useState<LabOrder[]>([]);
@@ -1843,9 +1856,37 @@ const DoctorDashboard: React.FC = () => {
                 </div>
 
                 {/* Clinical Notes */}
-                <div className="card">
+                <div
+                  className={
+                    clinicalNotesFullscreen
+                      ? 'fixed inset-0 z-50 bg-white p-6 overflow-y-auto'
+                      : 'card'
+                  }
+                >
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
+                    <button
+                      type="button"
+                      onClick={() => setClinicalNotesFullscreen((v) => !v)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      title={clinicalNotesFullscreen ? 'Exit full screen (Esc)' : 'Open full screen for focus charting'}
+                    >
+                      {clinicalNotesFullscreen ? (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                          </svg>
+                          Exit Full Screen
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15" />
+                          </svg>
+                          Full Screen
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* Modern Tabs */}
@@ -1974,12 +2015,10 @@ const DoctorDashboard: React.FC = () => {
                                           key={o.id}
                                           className="bg-white rounded border border-primary-100 px-2.5 py-2"
                                         >
-                                          <div className="text-xs font-semibold text-gray-900">
+                                          <div className="text-xs font-semibold text-gray-900 mb-1">
                                             {o.test_name}
                                           </div>
-                                          <div className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">
-                                            {o.results}
-                                          </div>
+                                          <LabResultsInline result={o.results} compact />
                                         </li>
                                       ))}
                                     </ul>

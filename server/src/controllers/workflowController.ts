@@ -819,10 +819,17 @@ export const doctorStartEncounter = async (req: Request, res: Response): Promise
 // Get encounters by room for doctor view
 export const getEncountersByRoom = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Only show patients that have been explicitly sent to the doctor:
-    // - status 'with_doctor' (doctor is seeing them)
-    // - status 'ready_for_doctor' (nurse has alerted doctor, patient is waiting)
-    // - status 'with_nurse' but there's an active alert for the doctor (legacy support)
+    const authReq = req as any;
+    const userId: number | undefined = authReq.user?.id;
+    const isSuperAdmin: boolean = authReq.user?.is_super_admin === true;
+
+    // Per-doctor scoping: regular doctors see only the encounters where
+    // they are the listed provider. Super admins see every encounter for
+    // the day so they can fill in for anyone. NULL provider encounters
+    // (very rare — receptionist-created walk-ins that haven't been claimed)
+    // are also visible to super admins.
+    const providerFilter = isSuperAdmin ? '' : 'AND e.provider_id = $1';
+    const queryParams = isSuperAdmin ? [] : [userId];
     const result = await pool.query(
       `SELECT e.*,
         r.room_number,
@@ -849,15 +856,16 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
-      -- Doctor sees every patient under their care for the day, regardless of
-      -- where the patient is currently sitting (with doctor, with nurse, with
-      -- lab/pharmacy/imaging for ancillary work, etc). Previously this query
-      -- filtered to room-bound 'with_doctor'/'ready_for_doctor' only, which
-      -- meant patients vanished from the doctor's dashboard the moment they
-      -- were sent to lab. Now they stay until the encounter is actually
-      -- completed / discharged / cancelled.
+      -- Doctor sees every patient under their care for the entire day,
+      -- regardless of where the patient currently is in the workflow OR
+      -- whether they've been checked out. Only filter out 'cancelled'
+      -- (no-shows / true cancellations) — completed/discharged stay
+      -- visible until midnight so the doctor can reopen for addenda or
+      -- last-look review. checked_in is included too — patient is in the
+      -- building, doctor should see them coming.
       WHERE DATE(e.encounter_date) = CURRENT_DATE
-        AND e.status NOT IN ('completed','discharged','cancelled','checked_in')
+        AND e.status != 'cancelled'
+        ${providerFilter}
       ORDER BY
         CASE
           WHEN p.vip_status = 'platinum' THEN 1
@@ -865,7 +873,8 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
           WHEN p.vip_status = 'silver' THEN 3
           ELSE 4
         END,
-        r.room_number`
+        r.room_number`,
+      queryParams
     );
 
     // Fetch latest vital signs for each encounter from vital_signs_history

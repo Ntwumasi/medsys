@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { SmartTextArea } from './SmartTextArea';
 import SmartDictationModal from './SmartDictationModal';
+import LabResultsInline from './LabResultsInline';
 
 interface HPSection {
   id: string;
@@ -886,7 +887,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                           )}
                         </div>
                         {lab.results && lab.results.trim() && (
-                          <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">{lab.results}</pre>
+                          <LabResultsInline result={lab.results} />
                         )}
                         {lab.result_document_id && (
                           <div className="text-xs text-blue-700 mt-1">
