@@ -35,6 +35,11 @@ interface HPAccordionProps {
   onSave?: () => void;
   vitalSigns?: VitalSignsData;
   onSign?: () => void;
+  // Self-pay billing tier (1-5 = 100/200/300/400/500 GHS). When set, the
+  // tier price replaces any consult line on the patient's invoice. Doctor
+  // picks via a button next to Sign Note; null = not set.
+  selfPayTier?: number | null;
+  onTierChange?: (newTier: number | null) => void;
   isSigned?: boolean;
   signedAt?: string;
   signedBy?: string;
@@ -50,7 +55,29 @@ interface Addendum {
   created_at: string;
 }
 
-const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns, onSign, isSigned, signedAt, signedBy }) => {
+const SELF_PAY_TIER_PRICES: Record<number, number> = { 1: 100, 2: 200, 3: 300, 4: 400, 5: 500 };
+
+const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userRole, vitalSigns, onSign, isSigned, signedAt, signedBy, selfPayTier, onTierChange }) => {
+  const [showTierPicker, setShowTierPicker] = useState(false);
+  const [tierSaving, setTierSaving] = useState(false);
+
+  const handleSetTier = async (tier: number | null) => {
+    setTierSaving(true);
+    try {
+      await apiClient.post(`/encounters/${encounterId}/self-pay-tier`, { tier });
+      onTierChange?.(tier);
+      setShowTierPicker(false);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || 'Failed to set self-pay tier';
+      // Reuse the notification system
+      // (showToast is already in context above; fall back to alert if not)
+      // eslint-disable-next-line no-alert
+      alert(msg);
+    } finally {
+      setTierSaving(false);
+    }
+  };
+
   const { showToast } = useNotification();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
@@ -1064,6 +1091,58 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               </svg>
               Print
             </button>
+            {/* Self-pay tier picker - Only for doctors */}
+            {userRole === 'doctor' && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowTierPicker((v) => !v)}
+                  disabled={tierSaving}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 border ${
+                    selfPayTier
+                      ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  } ${tierSaving ? 'opacity-60 cursor-wait' : ''}`}
+                  title="Set self-pay billing tier — replaces the consult line on the invoice"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {selfPayTier ? `Tier ${selfPayTier} — GHS ${SELF_PAY_TIER_PRICES[selfPayTier]}` : 'Self-Pay Tier'}
+                </button>
+                {showTierPicker && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setShowTierPicker(false)} />
+                    <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-40 overflow-hidden">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                        Self-Pay Levels of Billing
+                      </div>
+                      {[1, 2, 3, 4, 5].map((lvl) => (
+                        <button
+                          key={lvl}
+                          onClick={() => handleSetTier(lvl)}
+                          disabled={tierSaving}
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-amber-50 flex items-center justify-between ${
+                            selfPayTier === lvl ? 'bg-amber-100 font-semibold' : ''
+                          }`}
+                        >
+                          <span>Level {lvl}</span>
+                          <span className="font-mono text-gray-700">GHS {SELF_PAY_TIER_PRICES[lvl]}</span>
+                        </button>
+                      ))}
+                      {selfPayTier && (
+                        <button
+                          onClick={() => handleSetTier(null)}
+                          disabled={tierSaving}
+                          className="w-full px-3 py-2 text-left text-sm text-danger-600 hover:bg-danger-50 border-t border-gray-100"
+                        >
+                          Clear tier
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {/* Sign Button - Only for doctors */}
             {userRole === 'doctor' && onSign && (
               <button

@@ -43,6 +43,7 @@ interface RoomEncounter {
   soap_signed?: boolean;
   soap_signed_at?: string;
   soap_signed_by?: number;
+  self_pay_tier?: number | null;
 }
 
 interface ClinicalNote {
@@ -2065,6 +2066,14 @@ const DoctorDashboard: React.FC = () => {
                           isSigned={soapSigned}
                           signedAt={soapSignedAt || undefined}
                           signedBy={soapSignedBy || undefined}
+                          selfPayTier={selectedEncounter.self_pay_tier ?? null}
+                          onTierChange={(newTier) => {
+                            // Optimistic update so the button label reflects
+                            // the new tier without waiting for a refetch.
+                            setSelectedEncounter((prev) =>
+                              prev ? { ...prev, self_pay_tier: newTier } : prev
+                            );
+                          }}
                         />
                       </div>
                     )}

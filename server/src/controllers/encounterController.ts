@@ -186,6 +186,124 @@ export const addDiagnosis = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Self-pay tier prices. Hardcoded for the Medics Clinic go-live; long-term
+// this should live in a `clinic_settings.self_pay_tiers` JSON column so each
+// clinic can have its own ladder. Indices 1-5; index 0 is unused.
+const SELF_PAY_TIER_PRICES: Record<number, number> = {
+  1: 100, 2: 200, 3: 300, 4: 400, 5: 500,
+};
+const SELF_PAY_LINE_PREFIX = 'Self-Pay Consult — Level';
+
+/**
+ * POST /encounters/:id/self-pay-tier
+ * Body: { tier: 1|2|3|4|5|null }
+ *
+ * Sets the encounter's self-pay tier AND replaces the matching invoice
+ * line item in one atomic transaction. Pass `null` to clear the tier and
+ * remove the line.
+ *
+ * Idempotent: re-running with the same tier is a no-op (description match
+ * deletes old → insert new).
+ */
+export const setSelfPayTier = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (Number.isNaN(id)) {
+      res.status(400).json({ error: 'Invalid encounter id' });
+      return;
+    }
+    const { tier } = req.body || {};
+    if (tier !== null && tier !== undefined && ![1, 2, 3, 4, 5].includes(tier)) {
+      res.status(400).json({ error: 'tier must be 1-5 or null' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    // Update the encounter
+    const encResult = await client.query(
+      `UPDATE encounters
+          SET self_pay_tier = $2,
+              updated_at    = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id, self_pay_tier`,
+      [id, tier ?? null]
+    );
+    if (encResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    // Find the invoice for this encounter (may not exist yet)
+    const invoiceRow = await client.query(
+      `SELECT id, subtotal, total_amount FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      [id]
+    );
+    let invoiceId: number | null = null;
+    let oldLineDelta = 0;
+
+    if (invoiceRow.rows.length > 0) {
+      invoiceId = invoiceRow.rows[0].id;
+
+      // Remove any prior Self-Pay Consult line(s) — there should only ever
+      // be one, but delete all to be safe in case of historical dupes.
+      const removed = await client.query(
+        `DELETE FROM invoice_items
+          WHERE invoice_id = $1
+            AND description LIKE $2
+          RETURNING total_price`,
+        [invoiceId, `${SELF_PAY_LINE_PREFIX}%`]
+      );
+      for (const row of removed.rows) {
+        oldLineDelta -= parseFloat(row.total_price || '0');
+      }
+    }
+
+    // Insert the new tier line + adjust invoice total
+    let newPrice = 0;
+    if (tier && invoiceId !== null) {
+      newPrice = SELF_PAY_TIER_PRICES[tier as 1 | 2 | 3 | 4 | 5];
+      const description = `${SELF_PAY_LINE_PREFIX} ${tier}`;
+      await client.query(
+        `INSERT INTO invoice_items
+           (invoice_id, description, quantity, unit_price, total_price, category)
+         VALUES ($1, $2, 1, $3, $3, 'consultation')`,
+        [invoiceId, description, newPrice]
+      );
+    }
+
+    if (invoiceId !== null) {
+      const delta = oldLineDelta + newPrice;
+      if (delta !== 0) {
+        await client.query(
+          `UPDATE invoices
+              SET subtotal     = subtotal + $2,
+                  total_amount = total_amount + $2,
+                  updated_at   = CURRENT_TIMESTAMP
+            WHERE id = $1`,
+          [invoiceId, delta]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    res.json({
+      message: tier ? `Self-pay tier set to Level ${tier}` : 'Self-pay tier cleared',
+      encounter: encResult.rows[0],
+      invoice_id: invoiceId,
+      line_price: newPrice,
+    });
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch {}
+    console.error('Set self-pay tier error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
 // Update chief complaint (Today's Visit) - used by nurses
 export const updateChiefComplaint = async (req: Request, res: Response): Promise<void> => {
   try {
