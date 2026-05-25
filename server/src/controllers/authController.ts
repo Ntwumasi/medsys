@@ -4,6 +4,41 @@ import jwt from 'jsonwebtoken';
 import pool from '../database/db';
 import { validatePassword, generateResetToken, hashResetToken, getPasswordRequirementsMessage } from '../utils/passwordValidation';
 import { revokeToken, revokeAllUserTokens } from '../services/tokenService';
+import { CLINIC_LATITUDE, CLINIC_LONGITUDE, haversineDistanceM } from '../config/clinicLocation';
+
+// Browser-supplied geolocation for a login attempt. All fields optional —
+// users may deny the permission prompt; in that case we record the login
+// without geo data and the panel just shows "—" for distance.
+interface LoginGeo {
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number; // metres
+  source?: 'browser' | 'ip' | 'denied' | 'unavailable' | 'timeout';
+}
+
+const parseLoginGeo = (raw: unknown): LoginGeo | null => {
+  if (!raw || typeof raw !== 'object') return null;
+  const g = raw as Record<string, unknown>;
+  const lat = typeof g.latitude === 'number' ? g.latitude : null;
+  const lon = typeof g.longitude === 'number' ? g.longitude : null;
+  const acc = typeof g.accuracy === 'number' ? Math.round(g.accuracy) : null;
+  const src = typeof g.source === 'string' ? g.source : null;
+
+  // Reject coords outside legal ranges to avoid garbage rows.
+  const validLat = lat !== null && lat >= -90 && lat <= 90;
+  const validLon = lon !== null && lon >= -180 && lon <= 180;
+
+  if (!validLat || !validLon) {
+    // Still capture source (e.g. 'denied') even if no coords.
+    return src ? { source: src as LoginGeo['source'] } : null;
+  }
+  return {
+    latitude: lat!,
+    longitude: lon!,
+    accuracy: acc ?? undefined,
+    source: (src as LoginGeo['source']) || 'browser',
+  };
+};
 
 // Security constants
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -32,13 +67,33 @@ const logLoginAttempt = async (
   userId: number | null,
   success: boolean,
   failureReason: string | null,
-  req: Request
+  req: Request,
+  geo: LoginGeo | null = null,
 ): Promise<void> => {
   try {
+    // Distance only meaningful if we got real coords.
+    let distance: number | null = null;
+    if (geo && geo.latitude !== undefined && geo.longitude !== undefined) {
+      distance = haversineDistanceM(geo.latitude, geo.longitude, CLINIC_LATITUDE, CLINIC_LONGITUDE);
+    }
     await pool.query(
-      `INSERT INTO login_attempts (email, user_id, ip_address, user_agent, success, failure_reason)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [email, userId, getClientIP(req), req.headers['user-agent'] || null, success, failureReason]
+      `INSERT INTO login_attempts
+         (email, user_id, ip_address, user_agent, success, failure_reason,
+          latitude, longitude, geo_accuracy_m, geo_source, distance_from_clinic_m)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        email,
+        userId,
+        getClientIP(req),
+        req.headers['user-agent'] || null,
+        success,
+        failureReason,
+        geo?.latitude ?? null,
+        geo?.longitude ?? null,
+        geo?.accuracy ?? null,
+        geo?.source ?? null,
+        distance,
+      ],
     );
   } catch (error) {
     console.error('Failed to log login attempt:', error);
@@ -168,7 +223,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { username: rawUsername, password } = req.body;
+  const { username: rawUsername, password, geo: rawGeo } = req.body;
+  const geo = parseLoginGeo(rawGeo);
 
   try {
     // Validate required fields
@@ -190,7 +246,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     );
 
     if (result.rows.length === 0) {
-      await logLoginAttempt(username, null, false, 'user_not_found', req);
+      await logLoginAttempt(username, null, false, 'user_not_found', req, geo);
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
@@ -200,7 +256,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check if account is locked
     if (user.locked_until) {
       if (new Date(user.locked_until) > new Date()) {
-        await logLoginAttempt(username, user.id, false, 'account_locked', req);
+        await logLoginAttempt(username, user.id, false, 'account_locked', req, geo);
         // SECURITY: Don't reveal exact lock time to prevent timing attacks
         res.status(403).json({
           error: 'Account is temporarily locked due to multiple failed login attempts. Please try again later or contact an administrator.',
@@ -220,7 +276,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // Check if user is active
     if (!user.is_active) {
-      await logLoginAttempt(username, user.id, false, 'account_disabled', req);
+      await logLoginAttempt(username, user.id, false, 'account_disabled', req, geo);
       res.status(403).json({ error: 'Account is disabled. Please contact an administrator.' });
       return;
     }
@@ -239,7 +295,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           `UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3`,
           [newAttempts, lockUntil, user.id]
         );
-        await logLoginAttempt(username, user.id, false, 'max_attempts_reached', req);
+        await logLoginAttempt(username, user.id, false, 'max_attempts_reached', req, geo);
         res.status(403).json({
           error: `Account locked due to too many failed attempts. Try again in ${LOCKOUT_DURATION_MINUTES} minutes.`,
           locked: true
@@ -249,7 +305,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           `UPDATE users SET failed_login_attempts = $1 WHERE id = $2`,
           [newAttempts, user.id]
         );
-        await logLoginAttempt(username, user.id, false, 'invalid_password', req);
+        await logLoginAttempt(username, user.id, false, 'invalid_password', req, geo);
         // SECURITY: Don't reveal attempt count to prevent enumeration attacks
         res.status(401).json({
           error: 'Invalid credentials'
@@ -264,7 +320,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       [user.id]
     );
 
-    await logLoginAttempt(username, user.id, true, null, req);
+    await logLoginAttempt(username, user.id, true, null, req, geo);
 
     // Log breakglass access if applicable
     if (user.is_breakglass) {

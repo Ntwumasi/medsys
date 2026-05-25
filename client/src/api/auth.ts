@@ -1,8 +1,16 @@
 import apiClient from './client';
 
+export interface LoginGeo {
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+  source: 'browser' | 'denied' | 'unavailable' | 'timeout';
+}
+
 export interface LoginCredentials {
   username: string;
   password: string;
+  geo?: LoginGeo;
 }
 
 export interface RegisterData {

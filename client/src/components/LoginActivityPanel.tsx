@@ -24,7 +24,30 @@ interface LoginAttempt {
   success: boolean;
   failure_reason: string | null;
   created_at: string;
+  latitude: number | string | null;
+  longitude: number | string | null;
+  geo_accuracy_m: number | null;
+  geo_source: string | null;
+  distance_from_clinic_m: number | null;
 }
+
+// Logins inside the clinic radius are "on-site"; anything farther is flagged.
+// Mirrors CLINIC_RADIUS_M on the server (default 500m).
+const ONSITE_RADIUS_M = 500;
+
+const formatDistance = (m: number | null): string => {
+  if (m === null || m === undefined) return '—';
+  if (m < 1000) return `${m}m`;
+  return `${(m / 1000).toFixed(m < 10000 ? 1 : 0)}km`;
+};
+
+const GEO_SOURCE_LABELS: Record<string, string> = {
+  browser: 'GPS',
+  denied: 'denied',
+  unavailable: 'no GPS',
+  timeout: 'no signal',
+  ip: 'IP-based',
+};
 
 // Very lightweight UA parser — enough to show "Chrome on macOS" without
 // pulling in a dep. Falls back to the raw UA if we don't recognise it.
@@ -128,20 +151,27 @@ const LoginActivityPanel: React.FC = () => {
     let s = 0;
     let f = 0;
     let off = 0;
+    let offsite = 0;
     const uniqUsers = new Set<number>();
     const uniqIps = new Set<string>();
     for (const a of filtered) {
       if (a.success) s++;
       else f++;
       if (isOffHours(a.created_at)) off++;
+      if (a.distance_from_clinic_m !== null && a.distance_from_clinic_m > ONSITE_RADIUS_M) {
+        offsite++;
+      }
       if (a.user_id) uniqUsers.add(a.user_id);
       if (a.ip_address) uniqIps.add(a.ip_address);
     }
-    return { s, f, off, uniqUsers: uniqUsers.size, uniqIps: uniqIps.size };
+    return { s, f, off, offsite, uniqUsers: uniqUsers.size, uniqIps: uniqIps.size };
   }, [filtered]);
 
   const exportCsv = () => {
-    const header = ['Timestamp (UTC)', 'User', 'Role', 'Email', 'IP', 'Device', 'Result', 'Reason'];
+    const header = [
+      'Timestamp (UTC)', 'User', 'Role', 'Email', 'IP', 'Device', 'Result', 'Reason',
+      'Latitude', 'Longitude', 'Accuracy (m)', 'Geo source', 'Distance from clinic (m)',
+    ];
     const rows = filtered.map((a) => [
       a.created_at,
       `${a.first_name || ''} ${a.last_name || ''}`.trim() || '—',
@@ -151,6 +181,11 @@ const LoginActivityPanel: React.FC = () => {
       summarizeUserAgent(a.user_agent),
       a.success ? 'success' : 'failed',
       a.success ? '' : FAILURE_LABELS[a.failure_reason || ''] || a.failure_reason || '',
+      a.latitude ?? '',
+      a.longitude ?? '',
+      a.geo_accuracy_m ?? '',
+      a.geo_source ?? '',
+      a.distance_from_clinic_m ?? '',
     ]);
     const csv = [header, ...rows]
       .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
@@ -250,10 +285,11 @@ const LoginActivityPanel: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
         <StatCard label="Successful" value={stats.s} tone="success" />
         <StatCard label="Failed" value={stats.f} tone={stats.f > 0 ? 'danger' : 'neutral'} />
         <StatCard label="Off-hours" value={stats.off} tone={stats.off > 0 ? 'warning' : 'neutral'} note="Before 6am or after 9pm Ghana time" />
+        <StatCard label="Off-site" value={stats.offsite} tone={stats.offsite > 0 ? 'warning' : 'neutral'} note={`> ${ONSITE_RADIUS_M}m from clinic`} />
         <StatCard label="Unique users" value={stats.uniqUsers} tone="neutral" />
         <StatCard label="Unique IPs" value={stats.uniqIps} tone={stats.uniqIps > 5 ? 'warning' : 'neutral'} />
       </div>
@@ -271,6 +307,7 @@ const LoginActivityPanel: React.FC = () => {
                 <th className="text-left px-3 py-2 font-semibold text-gray-700">User</th>
                 <th className="text-left px-3 py-2 font-semibold text-gray-700">Role</th>
                 <th className="text-left px-3 py-2 font-semibold text-gray-700">IP</th>
+                <th className="text-left px-3 py-2 font-semibold text-gray-700">Location</th>
                 <th className="text-left px-3 py-2 font-semibold text-gray-700">Device</th>
                 <th className="text-left px-3 py-2 font-semibold text-gray-700">Result</th>
               </tr>
@@ -301,6 +338,30 @@ const LoginActivityPanel: React.FC = () => {
                     <td className="px-3 py-2 text-gray-900 font-medium">{name}</td>
                     <td className="px-3 py-2 text-gray-700 text-xs capitalize">{a.role || '—'}</td>
                     <td className="px-3 py-2 text-gray-700 font-mono text-xs">{a.ip_address || '—'}</td>
+                    <td className="px-3 py-2 text-xs">
+                      {a.distance_from_clinic_m !== null && a.distance_from_clinic_m !== undefined ? (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
+                            a.distance_from_clinic_m > ONSITE_RADIUS_M
+                              ? 'bg-warning-100 text-warning-700'
+                              : 'bg-success-100 text-success-700'
+                          }`}
+                          title={
+                            a.latitude && a.longitude
+                              ? `Lat ${a.latitude}, Lon ${a.longitude}` +
+                                (a.geo_accuracy_m ? ` (±${a.geo_accuracy_m}m)` : '')
+                              : ''
+                          }
+                        >
+                          {a.distance_from_clinic_m > ONSITE_RADIUS_M ? 'OFF-SITE' : 'ON-SITE'}
+                          <span className="opacity-70">{formatDistance(a.distance_from_clinic_m)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-gray-400" title={a.geo_source || ''}>
+                          {a.geo_source ? GEO_SOURCE_LABELS[a.geo_source] || a.geo_source : '—'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-gray-700 text-xs" title={a.user_agent || ''}>
                       {summarizeUserAgent(a.user_agent)}
                     </td>

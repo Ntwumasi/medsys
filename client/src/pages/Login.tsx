@@ -3,8 +3,45 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import type { ApiError } from '../types';
+import type { LoginGeo } from '../api/auth';
 
 const isProduction = import.meta.env.PROD;
+
+// Capture the user's location for the login-audit trail. Resolves quickly
+// no matter what — we never block login waiting on a slow GPS fix.
+// If permission was previously denied, skip prompting and return 'denied'.
+const captureLoginGeo = (): Promise<LoginGeo> => {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve({ source: 'unavailable' });
+      return;
+    }
+    let settled = false;
+    const finish = (g: LoginGeo) => {
+      if (settled) return;
+      settled = true;
+      resolve(g);
+    };
+    // Hard cap: 4s. GPS cold-fix on mobile can take 10s+ — not worth the wait.
+    const timer = setTimeout(() => finish({ source: 'timeout' }), 4000);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        clearTimeout(timer);
+        finish({
+          source: 'browser',
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      (err) => {
+        clearTimeout(timer);
+        finish({ source: err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable' });
+      },
+      { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 },
+    );
+  });
+};
 
 const Login: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -77,7 +114,10 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const response = await login({ username, password });
+      // Capture geolocation in parallel with form submission. Never blocks
+      // login beyond 4s; if denied/unavailable, we still record the source.
+      const geo = await captureLoginGeo();
+      const response = await login({ username, password, geo });
 
       // Check if user must change password
       if (response.must_change_password) {
