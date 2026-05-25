@@ -1324,6 +1324,69 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       }
     }
 
+    // Lab-specific failsafe: when the lab tech sends the patient back to
+    // nurse, sweep every non-cancelled lab_order for this encounter and make
+    // sure each has a billed invoice_item. Covers the edge cases where a
+    // lab order ended up in a half-done state (entered but not finalised,
+    // verified but stuck in-progress, etc.) and never auto-billed via
+    // runLabCompletionSideEffects. Idempotent — the existence check on
+    // invoice_items.description prevents double-billing on repeat clicks.
+    let labsBilled = 0;
+    if (from_department === 'lab') {
+      const invoiceRow = await pool.query(
+        `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+        [encounter_id]
+      );
+      if (invoiceRow.rows.length > 0) {
+        const invoiceId = invoiceRow.rows[0].id;
+
+        const labs = await pool.query(
+          `SELECT id, test_code, test_name, status
+             FROM lab_orders
+            WHERE encounter_id = $1
+              AND status != 'cancelled'`,
+          [encounter_id]
+        );
+
+        for (const lo of labs.rows) {
+          const chargeResult = await pool.query(
+            `SELECT id, service_name, price FROM charge_master
+              WHERE (service_code = $1 OR service_name ILIKE $2)
+                AND category = 'lab' AND is_active = true
+              LIMIT 1`,
+            [lo.test_code, `%${lo.test_name}%`]
+          );
+          const charge = chargeResult.rows[0];
+          const labPrice = charge ? parseFloat(charge.price) : 75.0;
+          const chargeDescription = charge ? charge.service_name : lo.test_name;
+          const chargeMasterId = charge ? charge.id : null;
+          const description = `Lab: ${chargeDescription}`;
+
+          const existing = await pool.query(
+            `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
+            [invoiceId, description]
+          );
+          if (existing.rows.length > 0) continue;
+
+          await pool.query(
+            `INSERT INTO invoice_items
+               (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+             VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
+            [invoiceId, chargeMasterId, description, labPrice]
+          );
+          await pool.query(
+            `UPDATE invoices
+                SET subtotal     = subtotal + $2,
+                    total_amount = total_amount + $2,
+                    updated_at   = CURRENT_TIMESTAMP
+              WHERE id = $1`,
+            [invoiceId, labPrice]
+          );
+          labsBilled++;
+        }
+      }
+    }
+
     const deptLabel: Record<string, string> = {
       lab: 'lab',
       pharmacy: 'pharmacy',
@@ -1342,6 +1405,7 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       message: `Patient sent back to nurse from ${from_department}`,
       patient_name,
       patient_number,
+      labs_billed: labsBilled,
     });
   } catch (error) {
     console.error('Release to nurse error:', error);
