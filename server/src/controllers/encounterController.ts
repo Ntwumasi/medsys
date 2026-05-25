@@ -304,6 +304,86 @@ export const setSelfPayTier = async (req: Request, res: Response): Promise<void>
   }
 };
 
+/**
+ * POST /encounters/:id/billing-payer
+ * Body: { payer_source_id: number }
+ *
+ * Doctor's Bill flow for insurance/corporate patients: assigns one of the
+ * patient's existing payer_sources (insurance provider OR corporate client)
+ * to this encounter's invoice. Validates that the payer_source belongs to
+ * the same patient as the encounter (no cross-patient billing leaks).
+ *
+ * For self-pay tiers, use POST /encounters/:id/self-pay-tier instead.
+ */
+export const setBillingPayer = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const payerSourceId = parseInt(req.body?.payer_source_id, 10);
+    if (Number.isNaN(id) || Number.isNaN(payerSourceId)) {
+      res.status(400).json({ error: 'encounter id and payer_source_id are required' });
+      return;
+    }
+
+    const enc = await pool.query(
+      `SELECT id, patient_id FROM encounters WHERE id = $1`,
+      [id]
+    );
+    if (enc.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+    const patientId = enc.rows[0].patient_id;
+
+    // Make sure the payer source belongs to this patient
+    const ps = await pool.query(
+      `SELECT id, payer_type, patient_id FROM patient_payer_sources WHERE id = $1`,
+      [payerSourceId]
+    );
+    if (ps.rows.length === 0) {
+      res.status(404).json({ error: 'Payer source not found' });
+      return;
+    }
+    if (ps.rows[0].patient_id !== patientId) {
+      res.status(403).json({ error: 'Payer source does not belong to this patient' });
+      return;
+    }
+
+    // Find or skip invoice
+    const invoiceRow = await pool.query(
+      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      [id]
+    );
+    if (invoiceRow.rows.length === 0) {
+      // No invoice yet — nothing to update server-side. Could be created later.
+      res.json({
+        message: 'No invoice yet for this encounter — payer assignment will apply when one is created',
+        invoice_id: null,
+        payer_source_id: payerSourceId,
+      });
+      return;
+    }
+    const invoiceId = invoiceRow.rows[0].id;
+
+    await pool.query(
+      `UPDATE invoices
+          SET payer_source_id = $2,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1`,
+      [invoiceId, payerSourceId]
+    );
+
+    res.json({
+      message: 'Invoice payer updated',
+      invoice_id: invoiceId,
+      payer_source_id: payerSourceId,
+      payer_type: ps.rows[0].payer_type,
+    });
+  } catch (error) {
+    console.error('Set billing payer error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Update chief complaint (Today's Visit) - used by nurses
 export const updateChiefComplaint = async (req: Request, res: Response): Promise<void> => {
   try {

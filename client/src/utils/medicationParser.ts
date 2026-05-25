@@ -50,22 +50,67 @@ export function parseMedicationName(name: string): ParsedMedication {
   return result;
 }
 
-// Maps common frequency abbreviations to doses per day
-const FREQUENCY_MAP: Record<string, number> = {
-  'daily': 1, 'once daily': 1, 'od': 1, 'od (once daily)': 1, 'qd': 1, 'once': 1,
-  'bid': 2, 'bd': 2, 'bd (twice daily)': 2, 'b.i.d': 2, 'twice daily': 2, 'b.d.': 2, '2x daily': 2,
-  'tid': 3, 'tds': 3, 'tds (three times daily)': 3, 't.i.d': 3, 'three times daily': 3, 't.d.s.': 3, '3x daily': 3,
-  'qid': 4, 'qds': 4, 'qds (four times daily)': 4, 'q.i.d': 4, 'four times daily': 4, 'q.d.s.': 4, '4x daily': 4,
-  'q4h': 6, 'every 4 hours': 6,
-  'q6h': 4, 'every 6 hours': 4,
-  'q8h': 3, 'every 8 hours': 3,
-  'q12h': 2, 'every 12 hours': 2,
-  'weekly': 0.143, // 1/7 per day
-  'at bedtime': 1,
-  'with meals': 3,
-  'before meals': 3,
-  'after meals': 3,
-};
+// Canonical frequency option list — single source of truth for both the
+// doctor's dropdown and the qty auto-calc. Each option has a stable `value`
+// stored in the DB, a `label` shown in the dropdown, and `dosesPerDay`
+// (null = can't auto-calc, e.g. PRN/STAT).
+export interface FrequencyOption {
+  value: string;
+  label: string;
+  dosesPerDay: number | null;
+}
+
+export const FREQUENCY_OPTIONS: FrequencyOption[] = [
+  // Daily
+  { value: 'OD',         label: 'OD — Once daily',                       dosesPerDay: 1 },
+  { value: 'BID',        label: 'BID — Twice daily',                     dosesPerDay: 2 },
+  { value: 'TID',        label: 'TID — Three times daily',               dosesPerDay: 3 },
+  { value: 'QID',        label: 'QID — Four times daily',                dosesPerDay: 4 },
+  // Time-of-day
+  { value: 'qAM',        label: 'qAM — Every morning',                   dosesPerDay: 1 },
+  { value: 'qPM',        label: 'qPM — Every evening',                   dosesPerDay: 1 },
+  { value: 'qHS',        label: 'qHS — At bedtime',                      dosesPerDay: 1 },
+  // Hourly
+  { value: 'q2h',        label: 'q2h — Every 2 hours',                   dosesPerDay: 12 },
+  { value: 'q3h',        label: 'q3h — Every 3 hours',                   dosesPerDay: 8 },
+  { value: 'q4h',        label: 'q4h — Every 4 hours',                   dosesPerDay: 6 },
+  { value: 'q6h',        label: 'q6h — Every 6 hours',                   dosesPerDay: 4 },
+  { value: 'q8h',        label: 'q8h — Every 8 hours',                   dosesPerDay: 3 },
+  { value: 'q12h',       label: 'q12h — Every 12 hours',                 dosesPerDay: 2 },
+  // Multi-day / weekly / monthly
+  { value: 'qOD',        label: 'qOD — Every other day',                 dosesPerDay: 0.5 },
+  { value: 'q week',     label: 'Once a week',                           dosesPerDay: 1 / 7 },
+  { value: 'q 2 weeks',  label: 'Every 2 weeks',                         dosesPerDay: 1 / 14 },
+  { value: 'q 3 weeks',  label: 'Every 3 weeks',                         dosesPerDay: 1 / 21 },
+  { value: 'q month',    label: 'Once a month',                          dosesPerDay: 1 / 30 },
+  { value: 'q 3 months', label: 'Every 3 months',                        dosesPerDay: 1 / 90 },
+  // Meal-related
+  { value: 'AC',         label: 'AC — Before meals',                     dosesPerDay: 3 },
+  { value: 'PC',         label: 'PC — After meals',                      dosesPerDay: 3 },
+  { value: 'with meals', label: 'With meals',                            dosesPerDay: 3 },
+  // No auto-calc
+  { value: 'PRN',        label: 'PRN — As needed',                       dosesPerDay: null },
+  { value: 'STAT',       label: 'STAT — Single dose now',                dosesPerDay: null },
+  { value: 'one-time',   label: 'One-time dose',                         dosesPerDay: null },
+];
+
+// Lookup map for the qty calculator — keys are lowercased values + the
+// legacy abbreviations we used to accept so old DB rows still resolve.
+const FREQUENCY_MAP: Record<string, number | null> = Object.fromEntries(
+  FREQUENCY_OPTIONS.map(o => [o.value.toLowerCase(), o.dosesPerDay])
+);
+// Legacy aliases — older orders typed these in by hand
+Object.assign(FREQUENCY_MAP, {
+  'daily': 1, 'once daily': 1, 'qd': 1, 'once': 1, 'od (once daily)': 1,
+  'bd': 2, 'b.i.d': 2, 'twice daily': 2, 'b.d.': 2, '2x daily': 2, 'bd (twice daily)': 2,
+  'tds': 3, 't.i.d': 3, 'three times daily': 3, 't.d.s.': 3, '3x daily': 3, 'tds (three times daily)': 3,
+  'qds': 4, 'q.i.d': 4, 'four times daily': 4, 'q.d.s.': 4, '4x daily': 4, 'qds (four times daily)': 4,
+  'every 2 hours': 12, 'every 3 hours': 8, 'every 4 hours': 6,
+  'every 6 hours': 4, 'every 8 hours': 3, 'every 12 hours': 2,
+  'every other day': 0.5, 'eod': 0.5,
+  'weekly': 1 / 7, 'once a week': 1 / 7,
+  'at bedtime': 1, 'before meals': 3, 'after meals': 3,
+});
 
 export function calculateQuantity(frequency: string, daysSupply: number): number | null {
   if (!frequency || daysSupply <= 0) return null;
@@ -73,7 +118,7 @@ export function calculateQuantity(frequency: string, daysSupply: number): number
   const key = frequency.toLowerCase().trim();
   const dosesPerDay = FREQUENCY_MAP[key];
 
-  if (dosesPerDay === undefined) return null;
+  if (dosesPerDay === undefined || dosesPerDay === null) return null;
 
   return Math.ceil(dosesPerDay * daysSupply);
 }

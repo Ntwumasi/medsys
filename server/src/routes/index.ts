@@ -42,6 +42,7 @@ import {
   addDiagnosis,
   updateChiefComplaint,
   setSelfPayTier,
+  setBillingPayer,
 } from '../controllers/encounterController';
 import {
   createAppointment,
@@ -482,6 +483,7 @@ router.get('/encounters/:id',           authenticateToken, authorizeRoles(...CLI
 router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateEncounter);
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/:id/self-pay-tier', authenticateToken, authorizeRoles('doctor', 'admin'), setSelfPayTier);
+router.post('/encounters/:id/billing-payer',  authenticateToken, authorizeRoles('doctor', 'admin'), setBillingPayer);
 router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
 
 // Appointment routes (with input validation)
