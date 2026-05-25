@@ -2372,32 +2372,34 @@ const DoctorDashboard: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 xl:gap-6">
-                    {/* Alert Nurse Action */}
-                    <div className="border-2 border-success-200 rounded-xl p-4 bg-gradient-to-br from-success-50 to-success-50">
-                      <h3 className="font-bold text-success-900 mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                        </svg>
+                    {/* Quick Actions */}
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <span className="w-7 h-7 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                          </svg>
+                        </span>
                         Quick Actions
                       </h3>
                       <div className="space-y-3">
                         <button
                           onClick={handleCompleteEncounter}
-                          className="w-full px-4 py-4 bg-gradient-to-r from-success-600 to-success-600 text-white rounded-xl hover:from-success-700 hover:to-success-700 transition-all font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                          className="w-full px-4 py-2.5 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
                         >
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Alert Nurse
                         </button>
-                        <p className="text-xs text-success-700 text-center">
+                        <p className="text-xs text-gray-500 text-center">
                           Notify nurse when patient is ready for follow-up care
                         </p>
                         <button
                           onClick={handleCancelEncounter}
-                          className="w-full px-4 py-3 bg-white text-danger-600 border-2 border-danger-200 rounded-xl hover:bg-danger-50 transition-all font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2.5 bg-white text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
                         >
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                           Cancel Encounter
@@ -2408,14 +2410,16 @@ const DoctorDashboard: React.FC = () => {
                       </div>
                     </div>
                     {/* Lab Orders */}
-                    <div className="border-2 border-primary-200 rounded-xl p-4 bg-primary-50">
-                      <h3 className="font-bold text-primary-900 mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                        </svg>
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <span className="w-7 h-7 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                        </span>
                         Lab Tests
                         {pendingLabOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-primary-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-bold">
                             {pendingLabOrders.length}
                           </span>
                         )}
@@ -2431,13 +2435,13 @@ const DoctorDashboard: React.FC = () => {
                           value={currentLabOrder.test_name}
                           onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
                           sectionId="lab_tests"
-                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
-                          placeholder=""
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm"
+                          placeholder="Test name"
                         />
                         <select
                           value={currentLabOrder.priority}
                           onChange={(e) => setCurrentLabOrder({...currentLabOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -2448,11 +2452,11 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentLabOrder({...currentLabOrder, notes: e.target.value})}
                           placeholder="Notes for lab (optional) — e.g. fasting sample, specific tube, special handling"
                           rows={2}
-                          className="w-full px-3 py-2 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm resize-none"
                         />
                         <button
                           onClick={handleAddLabOrder}
-                          className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2464,14 +2468,14 @@ const DoctorDashboard: React.FC = () => {
                         {pendingLabOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingLabOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-primary-200 flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="font-semibold text-gray-900">{order.test_name}</div>
-                                  <div className="text-xs text-primary-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm truncate">{order.test_name}</div>
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-primary-600 mt-0.5">{order.priority}</div>
                                 </div>
                                 <button
                                   onClick={() => handleEditLabOrder(index)}
-                                  className="text-primary-600 hover:text-primary-800 ml-2"
+                                  className="text-gray-400 hover:text-primary-600 ml-2 transition-colors"
                                   title="Edit"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2480,10 +2484,10 @@ const DoctorDashboard: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleRemoveLabOrder(index)}
-                                  className="text-danger-600 hover:text-danger-800 ml-1"
+                                  className="text-gray-400 hover:text-danger-600 ml-1 transition-colors"
                                   title="Remove"
                                 >
-                                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                   </svg>
                                 </button>
@@ -2495,14 +2499,16 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Imaging Orders */}
-                    <div className="border-2 border-gray-200 rounded-xl p-4 bg-gray-50">
-                      <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                        </svg>
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <span className="w-7 h-7 rounded-lg bg-secondary-50 text-secondary-600 flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                          </svg>
+                        </span>
                         Imaging
                         {pendingImagingOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-gray-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-secondary-100 text-secondary-700 rounded-full text-xs font-bold">
                             {pendingImagingOrders.length}
                           </span>
                         )}
@@ -2513,20 +2519,20 @@ const DoctorDashboard: React.FC = () => {
                           value={currentImagingOrder.imaging_type}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: value})}
                           sectionId="imaging_types"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
-                          placeholder=""
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
+                          placeholder="Imaging type"
                         />
                         <AutocompleteInput
                           value={currentImagingOrder.body_part}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, body_part: value})}
                           sectionId="imaging_body_parts"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
                           placeholder="Body part (optional)"
                         />
                         <select
                           value={currentImagingOrder.priority}
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -2537,11 +2543,11 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, notes: e.target.value})}
                           placeholder="Notes for imaging (optional) — e.g. with contrast, prior surgery, motion-restricted patient"
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm resize-none"
                         />
                         <button
                           onClick={handleAddImagingOrder}
-                          className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                          className="w-full px-4 py-2.5 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2553,15 +2559,15 @@ const DoctorDashboard: React.FC = () => {
                         {pendingImagingOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingImagingOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-gray-200 flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="font-semibold text-gray-900">{order.imaging_type}</div>
-                                  {order.body_part && <div className="text-sm text-gray-600">{order.body_part}</div>}
-                                  <div className="text-xs text-gray-600 font-medium mt-1">{order.priority.toUpperCase()}</div>
+                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm truncate">{order.imaging_type}</div>
+                                  {order.body_part && <div className="text-xs text-gray-600 mt-0.5">{order.body_part}</div>}
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-secondary-600 mt-0.5">{order.priority}</div>
                                 </div>
                                 <button
                                   onClick={() => handleEditImagingOrder(index)}
-                                  className="text-primary-600 hover:text-primary-800 ml-2"
+                                  className="text-gray-400 hover:text-secondary-600 ml-2 transition-colors"
                                   title="Edit"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2570,7 +2576,7 @@ const DoctorDashboard: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleRemoveImagingOrder(index)}
-                                  className="text-danger-600 hover:text-danger-800 ml-1"
+                                  className="text-gray-400 hover:text-danger-600 ml-1 transition-colors"
                                   title="Remove"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2585,14 +2591,16 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Pharmacy Orders */}
-                    <div className="border-2 border-success-200 rounded-xl p-4 bg-success-50">
-                      <h3 className="font-bold text-success-900 mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <span className="w-7 h-7 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                        </span>
                         Pharmacy
                         {pendingPharmacyOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-success-600 text-white rounded-full text-xs">
+                          <span className="ml-auto px-2 py-0.5 bg-success-100 text-success-700 rounded-full text-xs font-bold">
                             {pendingPharmacyOrders.length}
                           </span>
                         )}
@@ -2605,7 +2613,7 @@ const DoctorDashboard: React.FC = () => {
                             type="text"
                             value={currentPharmacyOrder.medication_name}
                             onChange={(e) => searchMedications(e.target.value)}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Search medication from inventory..."
                             autoComplete="off"
                           />
@@ -2652,13 +2660,13 @@ const DoctorDashboard: React.FC = () => {
                             type="text"
                             value={currentPharmacyOrder.dosage}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, dosage: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Dosage"
                           />
                           <select
                             value={currentPharmacyOrder.frequency}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             title="Frequency — drives the qty auto-calculator"
                           >
                             <option value="">Frequency…</option>
@@ -2671,14 +2679,14 @@ const DoctorDashboard: React.FC = () => {
                             min="1"
                             value={currentPharmacyOrder.days_supply}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, days_supply: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Days Supply"
                           />
                           <input
                             type="text"
                             value={currentPharmacyOrder.quantity}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Qty (auto-calculated)"
                             title="Auto-calculated from frequency × days. You can override."
                           />
@@ -2686,7 +2694,7 @@ const DoctorDashboard: React.FC = () => {
                             value={currentPharmacyOrder.route}
                             onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: value})}
                             sectionId="pharmacy_routes"
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Route"
                           />
                           <input
@@ -2694,14 +2702,14 @@ const DoctorDashboard: React.FC = () => {
                             min="0"
                             value={currentPharmacyOrder.refills}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, refills: e.target.value})}
-                            className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Refill"
                           />
                         </div>
                         <select
                           value={currentPharmacyOrder.priority}
                           onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                         >
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
@@ -2712,12 +2720,12 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, notes: e.target.value})}
                           placeholder="Notes for pharmacy (optional) — e.g. take with food, may cause drowsiness, check renal function"
                           rows={2}
-                          className="w-full px-3 py-2 border border-success-300 rounded-lg focus:ring-2 focus:ring-success-500 bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm resize-none"
                         />
                         <button
                           onClick={handleAddPharmacyOrder}
                           disabled={checkingInteractions}
-                          className="w-full px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-4 py-2.5 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
                           {checkingInteractions ? (
                             <>
@@ -2741,19 +2749,19 @@ const DoctorDashboard: React.FC = () => {
                         {pendingPharmacyOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingPharmacyOrders.map((order, index) => (
-                              <div key={index} className="bg-white p-3 rounded-lg border border-success-200 flex justify-between items-start">
-                                <div className="flex-1">
-                                  <div className="font-semibold text-gray-900">{order.medication_name}</div>
-                                  <div className="text-sm text-gray-600">
+                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm truncate">{order.medication_name}</div>
+                                  <div className="text-xs text-gray-600 mt-0.5">
                                     {order.dosage} {order.frequency && `• ${order.frequency}`}
                                   </div>
-                                  {order.route && <div className="text-sm text-gray-600">{order.route} • Qty: {order.quantity}</div>}
-                                  <div className="text-sm text-gray-600">
+                                  {order.route && <div className="text-xs text-gray-600">{order.route} • Qty: {order.quantity}</div>}
+                                  <div className="text-xs text-gray-600">
                                     {parseInt(order.refills) > 0 && <span className="text-primary-600">{order.refills} refill(s)</span>}
                                     {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
                                   </div>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-xs text-success-600 font-medium">{order.priority.toUpperCase()}</span>
+                                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className="text-[10px] font-bold uppercase tracking-wide text-success-600">{order.priority}</span>
                                     {order.selling_price && (
                                       <span className="text-xs text-gray-500">GHS {Number(order.selling_price).toFixed(2)}/unit</span>
                                     )}
@@ -2765,7 +2773,7 @@ const DoctorDashboard: React.FC = () => {
                                 <div className="flex flex-col gap-1 ml-2">
                                   <button
                                     onClick={() => handleEditPharmacyOrder(index)}
-                                    className="text-primary-600 hover:text-primary-800"
+                                    className="text-gray-400 hover:text-success-600 transition-colors"
                                     title="Edit"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2774,7 +2782,7 @@ const DoctorDashboard: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={() => handleRemovePharmacyOrder(index)}
-                                    className="text-danger-600 hover:text-danger-800"
+                                    className="text-gray-400 hover:text-danger-600 transition-colors"
                                     title="Remove"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2793,12 +2801,12 @@ const DoctorDashboard: React.FC = () => {
 
                   {/* Submit All Orders Button */}
                   {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
-                    <div className="mt-6 pt-6 border-t-2 border-gray-200">
+                    <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={handleSubmitAllOrders}
-                        className="w-full px-6 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white rounded-xl hover:from-primary-700 hover:to-secondary-700 transition-all shadow-lg hover:shadow-xl font-bold text-lg flex items-center justify-center gap-3"
+                        className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base flex items-center justify-center gap-2"
                       >
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         Submit All {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Order(s)
