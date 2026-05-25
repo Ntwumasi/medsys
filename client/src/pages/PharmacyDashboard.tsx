@@ -2536,37 +2536,8 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Top Medications */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
-                  <div className="px-6 py-4 border-b">
-                    <h2 className="text-lg font-semibold">Top 10 Medications</h2>
-                  </div>
-                  <div className="p-6">
-                    {revenueData.top_medications?.length > 0 ? (
-                      <div className="space-y-3">
-                        {revenueData.top_medications.map((med, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <span className="w-8 h-8 rounded-full bg-success-100 text-success-700 flex items-center justify-center font-bold">
-                                {index + 1}
-                              </span>
-                              <span className="font-medium">{med.medication_name}</span>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-bold text-gray-900">{med.order_count} orders</div>
-                              <div className="text-sm text-gray-500">{med.total_quantity} units</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-center text-gray-500">No data available</p>
-                    )}
-                  </div>
-                </div>
-
                 {/* Orders list — paginated server-side at 200, filtered by search */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
                   <div className="px-6 py-4 border-b flex items-center justify-between">
                     <h2 className="text-lg font-semibold">
                       Orders
@@ -2635,6 +2606,35 @@ const PharmacyDashboard: React.FC = () => {
                       <p className="text-center text-gray-500 py-12">
                         {revenueSearch ? `No orders match "${revenueSearch}" in this date range.` : 'No orders in this date range.'}
                       </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Top Medications */}
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                  <div className="px-6 py-4 border-b">
+                    <h2 className="text-lg font-semibold">Top 10 Medications</h2>
+                  </div>
+                  <div className="p-6">
+                    {revenueData.top_medications?.length > 0 ? (
+                      <div className="space-y-3">
+                        {revenueData.top_medications.map((med, index) => (
+                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <span className="w-8 h-8 rounded-full bg-success-100 text-success-700 flex items-center justify-center font-bold">
+                                {index + 1}
+                              </span>
+                              <span className="font-medium">{med.medication_name}</span>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-gray-900">{med.order_count} orders</div>
+                              <div className="text-sm text-gray-500">{med.total_quantity} units</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500">No data available</p>
                     )}
                   </div>
                 </div>
