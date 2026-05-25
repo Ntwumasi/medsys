@@ -258,11 +258,19 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
 };
 
 // Get all available nurse procedures from charge master
+//
+// We match both 'Nursing Procedures' (the legacy category used by the
+// addNurseProcedures.ts seed) and 'procedure' (the value the admin
+// Service-Charges form actually writes — its category select uses
+// lowercase singulars: consultation, lab, imaging, pharmacy, procedure,
+// registration, other). Without the second variant, anything an admin
+// adds via the UI is invisible to the nurse dropdown.
 export const getAvailableNurseProcedures = async (req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(
       `SELECT * FROM charge_master
-       WHERE category = 'Nursing Procedures' AND is_active = true
+       WHERE LOWER(category) IN ('nursing procedures', 'procedure', 'procedures')
+         AND is_active = true
        ORDER BY service_name`
     );
 
