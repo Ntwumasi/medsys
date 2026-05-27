@@ -19,6 +19,7 @@ import cookieParser from 'cookie-parser';
 import routes from './routes';
 import pool from './database/db';
 import { cleanupExpiredTokens } from './services/tokenService';
+import logger from './utils/logger';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -95,11 +96,11 @@ const corsOptions = {
     }
 
     if (process.env.NODE_ENV === 'production') {
-      console.warn(`CORS rejected origin: ${origin} (allowed: ${allowedOrigins.join(', ')})`);
+      logger.warn({ origin, allowed: allowedOrigins }, 'CORS rejected origin');
       return callback(new Error('CORS not allowed'), false);
     }
 
-    console.warn(`CORS warning: Origin ${origin} not in allowed list`);
+    logger.warn({ origin }, 'CORS origin not in allowed list');
     return callback(null, true);
   },
   credentials: true,
@@ -120,9 +121,8 @@ app.use(cookieParser()); // Parse cookies for HttpOnly auth tokens
 
 // Request logging middleware (exclude sensitive data)
 app.use((req: Request, res: Response, next) => {
-  // Don't log auth endpoints to avoid logging credentials
   if (!req.path.includes('/auth/')) {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    logger.info({ method: req.method, path: req.path }, 'request');
   }
   next();
 });
@@ -176,7 +176,7 @@ Sentry.setupExpressErrorHandler(app);
 // Error handling middleware
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   const eventId = Sentry.captureException(err);
-  console.error('Error:', err);
+  logger.error({ err }, 'Unhandled error');
   const message = err instanceof Error ? err.message : undefined;
   res.status(500).json({
     error: 'Internal server error',
@@ -188,34 +188,34 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
 // Only start server if not in Vercel serverless environment
 if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
   const server = app.listen(PORT, () => {
-    console.log(`🏥 MedSys Server running on port ${PORT}`);
-    console.log(`📍 Health check: http://localhost:${PORT}/health`);
-    console.log(`📍 API base URL: http://localhost:${PORT}/api`);
+    logger.info({ port: PORT }, 'MedSys Server running');
+    logger.info({ url: `http://localhost:${PORT}/health` }, 'Health check endpoint');
+    logger.info({ url: `http://localhost:${PORT}/api` }, 'API base URL');
 
     // Clean up expired blacklist tokens every hour
     setInterval(() => {
-      cleanupExpiredTokens().catch(console.error);
+      cleanupExpiredTokens().catch(err => logger.error({ err }, 'Token cleanup failed'));
     }, 60 * 60 * 1000);
 
     // Initial cleanup on startup
-    cleanupExpiredTokens().catch(console.error);
+    cleanupExpiredTokens().catch(err => logger.error({ err }, 'Token cleanup failed'));
   });
 
   // Handle server errors
   server.on('error', (error: any) => {
     if (error.code === 'EADDRINUSE') {
-      console.error(`Port ${PORT} is already in use`);
+      logger.error({ port: PORT }, 'Port already in use');
     } else {
-      console.error('Server error:', error);
+      logger.error({ err: error }, 'Server error');
     }
     process.exit(1);
   });
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
-    console.log('SIGTERM received, closing server...');
+    logger.info('SIGTERM received, closing server');
     server.close(() => {
-      console.log('Server closed');
+      logger.info('Server closed');
       process.exit(0);
     });
   });
