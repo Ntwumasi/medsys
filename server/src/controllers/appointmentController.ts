@@ -126,13 +126,13 @@ export const getAppointments = async (req: Request, res: Response): Promise<void
     }
 
     if (from_date) {
-      query += ` AND a.appointment_date >= $${paramCount}`;
+      query += ` AND DATE(a.appointment_date) >= $${paramCount}::date`;
       params.push(from_date);
       paramCount++;
     }
 
     if (to_date) {
-      query += ` AND a.appointment_date <= $${paramCount}`;
+      query += ` AND DATE(a.appointment_date) <= $${paramCount}::date`;
       params.push(to_date);
       paramCount++;
     }

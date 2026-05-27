@@ -630,12 +630,16 @@ const ReceptionistDashboard: React.FC = () => {
         toDate.setHours(23, 59, 59, 999);
       }
 
+      // Use date-only strings to avoid timezone mismatch between client and server
+      const fromDateStr = format(fromDate, 'yyyy-MM-dd');
+      const toDateStr = format(toDate, 'yyyy-MM-dd');
+
       // Fetch appointments and refills in parallel
       const [appointmentsResponse, refillsResponse] = await Promise.all([
         apiClient.get('/appointments', {
           params: {
-            from_date: fromDate.toISOString(),
-            to_date: toDate.toISOString(),
+            from_date: fromDateStr,
+            to_date: toDateStr,
             limit: 500,
           },
         }),
