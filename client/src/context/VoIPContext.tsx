@@ -115,8 +115,9 @@ export const VoIPProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await voipAPI.heartbeat(status);
       const { data } = await voipAPI.getPresence();
       setOnlineUsers(data.users);
-    } catch {
-      // Ignore — will retry on next poll
+      console.log('[VoIP] Heartbeat sent, online users:', data.users.length, data.users.map((u: OnlineUser) => `${u.first_name} ${u.last_name}`));
+    } catch (err) {
+      console.warn('[VoIP] Heartbeat failed:', err);
     }
   }, [isLoggedIn]);
 
@@ -225,13 +226,23 @@ export const VoIPProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (callStateRef.current !== 'idle') return;
 
     try {
-      // Get microphone
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = stream;
-
-      // Find user info from online users
+      // Find user info from online users first (before mic prompt)
       const user = onlineUsers.find(u => u.id === userId);
-      if (!user) throw new Error('User not online');
+      if (!user) {
+        console.warn('[VoIP] User not in onlineUsers list:', userId);
+        return;
+      }
+
+      // Get microphone
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (micErr) {
+        console.error('[VoIP] Microphone access denied:', micErr);
+        alert('Microphone access is required for voice calls. Please allow microphone access and try again.');
+        return;
+      }
+      localStreamRef.current = stream;
 
       setRemoteUser({ id: user.id, name: `${user.first_name} ${user.last_name}`, role: user.role });
       setCallState('ringing_out');
@@ -292,8 +303,13 @@ export const VoIPProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }, 2000);
 
-    } catch (err) {
-      console.error('Failed to start call:', err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const apiMsg = (err && typeof err === 'object' && 'response' in err)
+        ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
+        : undefined;
+      console.error('[VoIP] Failed to start call:', apiMsg || msg, err);
+      alert(`Call failed: ${apiMsg || msg}`);
       cleanup();
     }
   }, [onlineUsers, cleanup, startSignalPolling]);

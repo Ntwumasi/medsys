@@ -341,6 +341,7 @@ function CallPanelButton() {
                 <button
                   key={u.id}
                   onClick={() => {
+                    console.log('[VoIP] Call button clicked, user:', u.id, u.first_name, u.last_name, 'callState:', callState);
                     if (callState === 'idle') {
                       callUser(u.id);
                       setOpen(false);
