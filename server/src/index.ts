@@ -1,13 +1,24 @@
-import express, { Request, Response } from 'express';
+import dotenv from 'dotenv';
+dotenv.config();
+
+import * as Sentry from '@sentry/node';
+
+// Initialize Sentry before any other imports so it can instrument them
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'development',
+  enabled: !!process.env.SENTRY_DSN,
+  tracesSampleRate: 0.1,
+});
+
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import routes from './routes';
+import pool from './database/db';
 import { cleanupExpiredTokens } from './services/tokenService';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -116,9 +127,39 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+// Liveness probe — lightweight, no DB hit (for load balancer / uptime pings)
+app.get('/health/live', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Deep health check — verifies database connectivity
+app.get('/health', async (_req: Request, res: Response) => {
+  const checks: Record<string, { status: string; latency_ms?: number; error?: string }> = {};
+
+  // Database connectivity
+  const dbStart = Date.now();
+  try {
+    await pool.query('SELECT 1 AS ok');
+    checks.database = { status: 'ok', latency_ms: Date.now() - dbStart };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown database error';
+    checks.database = { status: 'error', latency_ms: Date.now() - dbStart, error: message };
+  }
+
+  // Memory usage
+  const mem = process.memoryUsage();
+  checks.memory = {
+    status: mem.heapUsed / mem.heapTotal < 0.9 ? 'ok' : 'warning',
+  };
+
+  const overallStatus = Object.values(checks).every(c => c.status === 'ok') ? 'ok' : 'degraded';
+
+  res.status(overallStatus === 'ok' ? 200 : 503).json({
+    status: overallStatus,
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version || '1.0.0',
+    checks,
+  });
 });
 
 // API routes
@@ -129,12 +170,18 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
+// Sentry error handler — captures unhandled errors before our handler
+Sentry.setupExpressErrorHandler(app);
+
 // Error handling middleware
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const eventId = Sentry.captureException(err);
   console.error('Error:', err);
+  const message = err instanceof Error ? err.message : undefined;
   res.status(500).json({
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    eventId,
+    message: process.env.NODE_ENV === 'development' ? message : undefined,
   });
 });
 

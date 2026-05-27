@@ -382,14 +382,7 @@ const BILLING_STAFF = ['admin', 'accountant', 'receptionist'] as const;
 // printing receipts and reviewing what was charged).
 const BILLING_VIEWERS = ['admin', 'accountant', 'receptionist', 'doctor', 'nurse'] as const;
 
-// Health check endpoint (no auth required)
-router.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
-  });
-});
+// Health check lives in index.ts (outside /api prefix) — see /health and /health/live
 
 // Auth routes (with input validation)
 // SECURITY: /auth/register is admin-only. The proper user-creation flows are
