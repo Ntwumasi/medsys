@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
@@ -6,34 +6,45 @@ import { GuideProvider } from './context/GuideContext';
 import { CommandPaletteProvider } from './context/CommandPaletteContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import ReceptionistDashboard from './pages/ReceptionistDashboard';
-import NurseDashboard from './pages/NurseDashboard';
-import DoctorDashboard from './pages/DoctorDashboard';
-import LabDashboard from './pages/LabDashboard';
-import PharmacyDashboard from './pages/PharmacyDashboard';
-import RefillsCalendar from './pages/RefillsCalendar';
-import ImagingDashboard from './pages/ImagingDashboard';
-import AccountantDashboard from './pages/AccountantDashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import PatientList from './pages/PatientList';
-import PatientRegistration from './pages/PatientRegistration';
-import PatientDetails from './pages/PatientDetails';
-import AppointmentsCalendar from './pages/AppointmentsCalendar';
-import PatientRegistrationPage from './pages/PatientRegistrationPage';
-import PatientPortal from './pages/PatientPortal';
-import PublicUpdates from './pages/PublicUpdates';
-import InvoicesPage from './pages/InvoicesPage';
-import ReceiptsPage from './pages/ReceiptsPage';
-import PendingPaymentsPage from './pages/PendingPaymentsPage';
-import DepartmentFinancesPage from './pages/DepartmentFinancesPage';
-import QuickBooksSettings from './pages/QuickBooksSettings';
-import QuickBooksData from './pages/QuickBooksData';
-import MessagesPage from './pages/MessagesPage';
-import NurseFollowUpCalls from './pages/NurseFollowUpCalls';
-import NurseProcurement from './pages/NurseProcurement';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
 import { useSessionTimeout } from './hooks/useSessionTimeout';
+
+// Lazy-loaded dashboard pages
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ReceptionistDashboard = lazy(() => import('./pages/ReceptionistDashboard'));
+const NurseDashboard = lazy(() => import('./pages/NurseDashboard'));
+const DoctorDashboard = lazy(() => import('./pages/DoctorDashboard'));
+const LabDashboard = lazy(() => import('./pages/LabDashboard'));
+const PharmacyDashboard = lazy(() => import('./pages/PharmacyDashboard'));
+const RefillsCalendar = lazy(() => import('./pages/RefillsCalendar'));
+const ImagingDashboard = lazy(() => import('./pages/ImagingDashboard'));
+const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const PatientList = lazy(() => import('./pages/PatientList'));
+const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
+const PatientDetails = lazy(() => import('./pages/PatientDetails'));
+const AppointmentsCalendar = lazy(() => import('./pages/AppointmentsCalendar'));
+const PatientRegistrationPage = lazy(() => import('./pages/PatientRegistrationPage'));
+const PatientPortal = lazy(() => import('./pages/PatientPortal'));
+const PublicUpdates = lazy(() => import('./pages/PublicUpdates'));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
+const PendingPaymentsPage = lazy(() => import('./pages/PendingPaymentsPage'));
+const DepartmentFinancesPage = lazy(() => import('./pages/DepartmentFinancesPage'));
+const QuickBooksSettings = lazy(() => import('./pages/QuickBooksSettings'));
+const QuickBooksData = lazy(() => import('./pages/QuickBooksData'));
+const MessagesPage = lazy(() => import('./pages/MessagesPage'));
+const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
+const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
+
+// Loading spinner shown while lazy chunks are fetched
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+  );
+}
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -134,6 +145,7 @@ const SessionTimeoutWrapper: React.FC<{ children: React.ReactNode }> = ({ childr
 const AppContent: React.FC = () => {
   return (
     <SessionTimeoutWrapper>
+      <Suspense fallback={<LoadingFallback />}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/updates" element={<PublicUpdates />} />
@@ -164,6 +176,7 @@ const AppContent: React.FC = () => {
 
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
+      </Suspense>
     </SessionTimeoutWrapper>
   );
 };

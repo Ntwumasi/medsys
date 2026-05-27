@@ -612,7 +612,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           </button>
 
           {/* Navigation */}
-          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <nav aria-label="Main navigation" className="flex-1 p-3 space-y-1 overflow-y-auto">
             {filteredNavItems.map((item) => {
               const key = item.path || item.actionId || item.label;
               const isActive = !!item.path && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
@@ -630,8 +630,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                     onClick={handler}
                     className={cls}
                     title={sidebarCollapsed ? item.label : undefined}
+                    aria-label={sidebarCollapsed ? item.label : undefined}
                   >
-                    {item.icon}
+                    <span aria-hidden="true">{item.icon}</span>
                     {!sidebarCollapsed && <span>{item.label}</span>}
                   </button>
                 );
@@ -642,8 +643,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                   to={item.path!}
                   className={cls}
                   title={sidebarCollapsed ? item.label : undefined}
+                  aria-label={sidebarCollapsed ? item.label : undefined}
+                  aria-current={isActive ? 'page' : undefined}
                 >
-                  {item.icon}
+                  <span aria-hidden="true">{item.icon}</span>
                   {!sidebarCollapsed && <span>{item.label}</span>}
                 </Link>
               );
