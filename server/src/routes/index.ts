@@ -448,6 +448,27 @@ router.get('/messages/thread/:otherUserId', authenticateToken, getThread);
 router.put('/messages/:messageId/read', authenticateToken, markAsRead);
 router.delete('/messages/:messageId', authenticateToken, deleteMessage);
 
+// VoIP routes (internal voice calls between staff)
+import {
+  heartbeat, getPresence, createCall, getIncoming,
+  answerCall, declineCall, cancelCall, endCall,
+  getCallStatus, sendSignal, getSignals,
+  getCallHistory as getVoipCallHistory,
+} from '../controllers/voipController';
+
+router.post('/voip/heartbeat',              authenticateToken, heartbeat);
+router.get('/voip/presence',                authenticateToken, getPresence);
+router.post('/voip/calls',                  authenticateToken, createCall);
+router.get('/voip/incoming',                authenticateToken, getIncoming);
+router.get('/voip/history',                 authenticateToken, getVoipCallHistory);
+router.post('/voip/calls/:callId/answer',   authenticateToken, answerCall);
+router.post('/voip/calls/:callId/decline',  authenticateToken, declineCall);
+router.post('/voip/calls/:callId/cancel',   authenticateToken, cancelCall);
+router.post('/voip/calls/:callId/end',      authenticateToken, endCall);
+router.get('/voip/calls/:callId/status',    authenticateToken, getCallStatus);
+router.post('/voip/calls/:callId/signal',   authenticateToken, sendSignal);
+router.get('/voip/calls/:callId/signals',   authenticateToken, getSignals);
+
 // Get active doctors (for nurses to select when ordering labs)
 router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin', 'receptionist'), getActiveDoctors);
 router.get('/users/lab-reviewers', authenticateToken, authorizeRoles('lab', 'admin'), getActiveLabReviewers);

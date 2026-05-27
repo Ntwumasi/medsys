@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
@@ -6,7 +6,9 @@ import NotificationCenter from './NotificationCenter';
 import SuperAdminRoleSwitcher from './SuperAdminRoleSwitcher';
 import MessageBadge from './MessageBadge';
 import { useGuide } from '../context/GuideContext';
-import { useNotification } from '../context/NotificationContext';
+import { useVoIP } from '../context/VoIPContext';
+import IncomingCallModal from './IncomingCallModal';
+import ActiveCallBar from './ActiveCallBar';
 import apiClient from '../api/client';
 
 interface NavItem {
@@ -290,10 +292,91 @@ interface SearchResult {
   path: string;
 }
 
+// ── Call Panel Button (topbar VoIP dropdown) ──
+function CallPanelButton() {
+  const { onlineUsers, callUser, callState } = useVoIP();
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const otherUsers = onlineUsers.filter(u => u.id !== user?.id);
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-500 transition-colors relative"
+        aria-label="Voice calls"
+      >
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+        </svg>
+        {otherUsers.length > 0 && (
+          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white" />
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-900">Staff Online</h3>
+            <p className="text-xs text-gray-500">{otherUsers.length} available</p>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {otherUsers.length === 0 ? (
+              <p className="px-4 py-6 text-sm text-gray-500 text-center">No staff online</p>
+            ) : (
+              otherUsers.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    if (callState === 'idle') {
+                      callUser(u.id);
+                      setOpen(false);
+                    }
+                  }}
+                  disabled={callState !== 'idle'}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left disabled:opacity-50"
+                >
+                  <div className="relative">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-xs">
+                      {u.first_name?.[0]}{u.last_name?.[0]}
+                    </div>
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                      u.status === 'in_call' ? 'bg-amber-400' : 'bg-emerald-500'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{u.first_name} {u.last_name}</p>
+                    <p className="text-xs text-gray-500 capitalize">{u.role}{u.status === 'in_call' ? ' · On a call' : ''}</p>
+                  </div>
+                  <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
   const { user, logout, activeRole, impersonation } = useAuth();
   const { open: openGuide, hasGuide } = useGuide();
-  const { showToast } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
@@ -511,25 +594,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           {/* Messages */}
           <MessageBadge />
 
-          {/* Voice calls (VoIP) — placeholder until the feature ships. Keeps
-              the icon visible in the topbar so staff can see where it'll
-              live; clicking shows a "coming soon" toast. */}
-          <button
-            type="button"
-            onClick={() => showToast('Voice calls coming soon', 'info')}
-            className="p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-500 transition-colors"
-            title="Voice calls (coming soon)"
-            aria-label="Voice calls (coming soon)"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-              />
-            </svg>
-          </button>
+          {/* Voice calls (VoIP) */}
+          <CallPanelButton />
 
           {/* Notifications */}
           <NotificationCenter />
@@ -820,6 +886,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         </div>
       </nav>
       </div>
+
+      {/* VoIP overlays */}
+      <IncomingCallModal />
+      <ActiveCallBar />
     </div>
   );
 };

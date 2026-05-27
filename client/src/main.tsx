@@ -7,6 +7,7 @@ import './index.css'
 import App from './App.tsx'
 import { NotificationProvider } from './context/NotificationContext'
 import { DialogProvider } from './context/DialogContext'
+import { VoIPProvider } from './context/VoIPContext'
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -28,7 +29,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <NotificationProvider>
       <DialogProvider>
-        <App />
+        <VoIPProvider>
+          <App />
+        </VoIPProvider>
         <Analytics />
         <SpeedInsights />
       </DialogProvider>
