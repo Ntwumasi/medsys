@@ -172,6 +172,10 @@ const PatientDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [editPayerType, setEditPayerType] = useState<string>('self_pay');
+  const [editPayerId, setEditPayerId] = useState<number | null>(null);
+  const [corporateClients, setCorporateClients] = useState<Array<{id: number; name: string}>>([]);
+  const [insuranceProviders, setInsuranceProviders] = useState<Array<{id: number; name: string}>>([]);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
   const { showToast } = useNotification();
@@ -269,7 +273,7 @@ const PatientDetails: React.FC = () => {
     return colors[severity || ''] || 'bg-gray-100 text-gray-800';
   };
 
-  const openEditModal = () => {
+  const openEditModal = async () => {
     if (!summary) return;
     const p = summary.patient;
     setEditData({
@@ -288,6 +292,32 @@ const PatientDetails: React.FC = () => {
       pcp_name: p.pcp_name || '',
       pcp_phone: p.pcp_phone || '',
     });
+
+    // Load current payer source
+    const primaryPayer = summary.payer_sources?.find((ps) => ps.is_primary) || summary.payer_sources?.[0];
+    if (primaryPayer) {
+      setEditPayerType(primaryPayer.payer_type);
+      setEditPayerId(
+        primaryPayer.payer_type === 'corporate' ? primaryPayer.corporate_client_id ?? null :
+        primaryPayer.payer_type === 'insurance' ? primaryPayer.insurance_provider_id ?? null : null
+      );
+    } else {
+      setEditPayerType('self_pay');
+      setEditPayerId(null);
+    }
+
+    // Fetch corporate clients and insurance providers
+    try {
+      const [ccRes, ipRes] = await Promise.all([
+        apiClient.get('/payer-sources/corporate-clients'),
+        apiClient.get('/payer-sources/insurance-providers'),
+      ]);
+      setCorporateClients(ccRes.data.corporate_clients || []);
+      setInsuranceProviders(ipRes.data.insurance_providers || []);
+    } catch (e) {
+      console.error('Error loading payer options:', e);
+    }
+
     setShowEditModal(true);
   };
 
@@ -295,7 +325,20 @@ const PatientDetails: React.FC = () => {
     if (!summary) return;
     setSaving(true);
     try {
+      // Update patient demographics
       await apiClient.put(`/patients/${summary.patient.id}`, editData);
+
+      // Update payer sources
+      const payerSource: Record<string, unknown> = { payer_type: editPayerType, is_primary: true };
+      if (editPayerType === 'corporate' && editPayerId) {
+        payerSource.corporate_client_id = editPayerId;
+      } else if (editPayerType === 'insurance' && editPayerId) {
+        payerSource.insurance_provider_id = editPayerId;
+      }
+      await apiClient.put(`/payer-sources/patient/${summary.patient.id}`, {
+        payer_sources: [payerSource],
+      });
+
       showToast('Patient information updated', 'success');
       setShowEditModal(false);
       loadPatientSummary(summary.patient.id);
@@ -1399,6 +1442,51 @@ const PatientDetails: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">PCP Phone</label>
                   <input type="text" value={editData.pcp_phone || ''} onChange={(e) => setEditData({ ...editData, pcp_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
                 </div>
+              </div>
+              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Insurance & Billing</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payer Type</label>
+                  <select
+                    value={editPayerType}
+                    onChange={(e) => { setEditPayerType(e.target.value); setEditPayerId(null); }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="self_pay">Self Pay</option>
+                    <option value="corporate">Corporate / Employer</option>
+                    <option value="insurance">Health Insurance</option>
+                  </select>
+                </div>
+                {editPayerType === 'corporate' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Corporate Client</label>
+                    <select
+                      value={editPayerId ?? ''}
+                      onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Select corporate client</option>
+                      {corporateClients.map((cc) => (
+                        <option key={cc.id} value={cc.id}>{cc.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {editPayerType === 'insurance' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Provider</label>
+                    <select
+                      value={editPayerId ?? ''}
+                      onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Select insurance provider</option>
+                      {insuranceProviders.map((ip) => (
+                        <option key={ip.id} value={ip.id}>{ip.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end sticky bottom-0">

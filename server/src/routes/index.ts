@@ -117,6 +117,7 @@ import {
   processReturn,
   getAllEncounterOrders,
   getDoctorAlerts,
+  doctorReviewLabResult,
   getDoctorDelinquent,
   getCriticalResultAlerts,
   acknowledgeCriticalResult,
@@ -139,6 +140,7 @@ import {
   updateInsuranceProvider,
   deleteInsuranceProvider,
   getPatientPayerSources,
+  updatePatientPayerSources,
 } from '../controllers/payerSourcesController';
 import {
   getAllInvoices,
@@ -604,6 +606,7 @@ router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounter
 
 // Get doctor alerts - recently completed results
 router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'), getDoctorAlerts);
+router.post('/orders/lab/:id/doctor-review', authenticateToken, authorizeRoles('doctor'), doctorReviewLabResult);
 router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor'), getDoctorDelinquent);
 
 // Lab test sets - reusable bundles of labs (BIGPAY Screening, Olams Pre-Employment, etc.)
@@ -629,6 +632,7 @@ router.delete('/payer-sources/insurance-providers/:id', authenticateToken, autho
 
 // Get patient payer sources
 router.get('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientPayerSources);
+router.put('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), updatePatientPayerSources);
 
 // Invoice routes
 router.get('/invoices',                         authenticateToken, authorizeRoles(...BILLING_VIEWERS), getAllInvoices);

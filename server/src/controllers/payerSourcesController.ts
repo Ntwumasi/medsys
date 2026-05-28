@@ -251,3 +251,62 @@ export const getPatientPayerSources = async (req: Request, res: Response): Promi
     res.status(500).json({ error: 'Failed to fetch patient payer sources' });
   }
 };
+
+// Update patient payer sources (replace all with new set)
+export const updatePatientPayerSources = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+    const { payer_sources } = req.body;
+
+    if (!Array.isArray(payer_sources)) {
+      res.status(400).json({ error: 'payer_sources must be an array' });
+      return;
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Delete existing payer sources for this patient
+      await client.query('DELETE FROM patient_payer_sources WHERE patient_id = $1', [patient_id]);
+
+      // Insert new payer sources
+      for (const ps of payer_sources) {
+        await client.query(
+          `INSERT INTO patient_payer_sources (patient_id, payer_type, corporate_client_id, insurance_provider_id, is_primary)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            patient_id,
+            ps.payer_type,
+            ps.payer_type === 'corporate' ? ps.corporate_client_id : null,
+            ps.payer_type === 'insurance' ? ps.insurance_provider_id : null,
+            ps.is_primary ?? true,
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Return updated payer sources
+      const result = await pool.query(
+        `SELECT pps.*, cc.name as corporate_client_name, ip.name as insurance_provider_name
+         FROM patient_payer_sources pps
+         LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+         LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+         WHERE pps.patient_id = $1
+         ORDER BY pps.is_primary DESC`,
+        [patient_id]
+      );
+
+      res.json({ payer_sources: result.rows });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Update patient payer sources error:', error);
+    res.status(500).json({ error: 'Failed to update patient payer sources' });
+  }
+};

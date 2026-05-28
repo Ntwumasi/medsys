@@ -142,7 +142,9 @@ export interface PatientSummary {
   payer_sources?: Array<{
     id: number;
     payer_type: string;
+    corporate_client_id?: number;
     corporate_client_name?: string;
+    insurance_provider_id?: number;
     insurance_provider_name?: string;
     is_primary: boolean;
   }>;

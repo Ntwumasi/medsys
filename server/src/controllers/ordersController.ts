@@ -2111,6 +2111,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
           AND lo.status = 'completed'
           AND lo.verification_status IN ('verified', 'not_required')
           AND lo.result_date >= NOW() - INTERVAL '7 days'
+          AND lo.doctor_reviewed_at IS NULL
         ORDER BY lo.result_date DESC
         LIMIT 20`,
       [doctorId]
@@ -2165,6 +2166,41 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
     });
   } catch (error) {
     console.error('Get doctor alerts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Doctor reviews/signs off a lab result so it disappears from alerts
+export const doctorReviewLabResult = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const doctorId = authReq.user?.id;
+    const labOrderId = parseInt(req.params.id as string, 10);
+
+    if (isNaN(labOrderId)) {
+      res.status(400).json({ error: 'Invalid lab order ID' });
+      return;
+    }
+
+    const result = await pool.query(
+      `UPDATE lab_orders
+         SET doctor_reviewed_by = $1,
+             doctor_reviewed_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+         AND ordering_provider = $1
+         AND status = 'completed'
+       RETURNING id`,
+      [doctorId, labOrderId]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Lab order not found or not yours to review' });
+      return;
+    }
+
+    res.json({ message: 'Lab result reviewed successfully', id: result.rows[0].id });
+  } catch (error) {
+    console.error('Doctor review lab result error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

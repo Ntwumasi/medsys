@@ -515,8 +515,9 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
         temperature, temperature_unit,
         blood_pressure_systolic, blood_pressure_diastolic,
         heart_rate, respiratory_rate, oxygen_saturation,
-        weight, weight_unit, height, height_unit
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        weight, weight_unit, height, height_unit,
+        pain_level
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         encounter_id,
         result.rows[0].patient_id,
@@ -532,6 +533,7 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
         vital_signs.weight_unit || 'lbs',
         vital_signs.height || null,
         vital_signs.height_unit || 'in',
+        vital_signs.pain_level != null ? vital_signs.pain_level : null,
       ]
     );
 
@@ -891,8 +893,26 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
           [encounter.id]
         );
 
-        // Use vital_signs_history if available, otherwise use the JSON column from encounters
-        const vitalSigns = vitalsResult.rows[0] || encounter.vital_signs || null;
+        const historyRow = vitalsResult.rows[0];
+        // Check if history row has at least one actual vital value
+        const historyHasData = historyRow && (
+          historyRow.temperature != null ||
+          historyRow.heart_rate != null ||
+          historyRow.blood_pressure_systolic != null ||
+          historyRow.respiratory_rate != null ||
+          historyRow.oxygen_saturation != null ||
+          historyRow.weight != null ||
+          historyRow.height != null
+        );
+
+        // Parse encounter.vital_signs if it's somehow a string
+        let encounterVitals = encounter.vital_signs;
+        if (typeof encounterVitals === 'string') {
+          try { encounterVitals = JSON.parse(encounterVitals); } catch { encounterVitals = null; }
+        }
+
+        // Prefer history row with actual data, then JSONB column, then null
+        const vitalSigns = historyHasData ? historyRow : encounterVitals || null;
 
         return {
           ...encounter,
@@ -1133,8 +1153,38 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
       [nurse_id]
     );
 
+    // Fetch latest vital signs from vital_signs_history for each encounter
+    // (same logic as getEncountersByRoom so nurse and doctor see the same data)
+    const patientsWithVitals = await Promise.all(
+      result.rows.map(async (encounter) => {
+        const vitalsResult = await pool.query(
+          `SELECT * FROM vital_signs_history
+           WHERE encounter_id = $1
+           ORDER BY recorded_at DESC
+           LIMIT 1`,
+          [encounter.id]
+        );
+        const historyRow = vitalsResult.rows[0];
+        const historyHasData = historyRow && (
+          historyRow.temperature != null ||
+          historyRow.heart_rate != null ||
+          historyRow.blood_pressure_systolic != null ||
+          historyRow.respiratory_rate != null ||
+          historyRow.oxygen_saturation != null ||
+          historyRow.weight != null ||
+          historyRow.height != null
+        );
+        let encounterVitals = encounter.vital_signs;
+        if (typeof encounterVitals === 'string') {
+          try { encounterVitals = JSON.parse(encounterVitals); } catch { encounterVitals = null; }
+        }
+        const vitalSigns = historyHasData ? historyRow : encounterVitals || null;
+        return { ...encounter, vital_signs: vitalSigns };
+      })
+    );
+
     res.json({
-      patients: result.rows,
+      patients: patientsWithVitals,
     });
   } catch (error) {
     console.error('Get nurse assigned patients error:', error);
