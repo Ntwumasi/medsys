@@ -21,10 +21,21 @@ interface PayerSource {
   is_primary: boolean;
 }
 
+interface CorporateClient {
+  id: number;
+  name: string;
+}
+
+interface InsuranceProvider {
+  id: number;
+  name: string;
+}
+
 interface Invoice {
   id: number;
   invoice_number: string;
   invoice_date: string;
+  patient_id?: number;
   patient_number: string;
   patient_name: string;
   patient_email?: string;
@@ -73,6 +84,22 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
   const isEditable = !!encounterId;
   const items = editableItems;
+
+  // Payer editing state
+  const [editingPayer, setEditingPayer] = useState(false);
+  const [editPayerType, setEditPayerType] = useState(() => {
+    const primary = payerSources.find(p => p.is_primary) || payerSources[0];
+    return primary?.payer_type || 'self_pay';
+  });
+  const [editPayerId, setEditPayerId] = useState<number | null>(() => {
+    const primary = payerSources.find(p => p.is_primary) || payerSources[0];
+    if (!primary) return null;
+    return (primary as any).corporate_client_id || (primary as any).insurance_provider_id || null;
+  });
+  const [currentPayerSources, setCurrentPayerSources] = useState(payerSources);
+  const [ccOptions, setCcOptions] = useState<CorporateClient[]>([]);
+  const [ipOptions, setIpOptions] = useState<InsuranceProvider[]>([]);
+  const [savingPayer, setSavingPayer] = useState(false);
 
   // Calculate balance due
   const balanceDue = Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0);
@@ -421,6 +448,51 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     return payer.payer_type;
   };
 
+  const startEditPayer = async () => {
+    try {
+      const [ccRes, ipRes] = await Promise.all([
+        apiClient.get('/payer-sources/corporate-clients'),
+        apiClient.get('/payer-sources/insurance-providers'),
+      ]);
+      setCcOptions(ccRes.data.corporate_clients || []);
+      setIpOptions(ipRes.data.insurance_providers || []);
+    } catch {
+      // Options may fail but we can still show the dropdown
+    }
+    setEditingPayer(true);
+  };
+
+  const handleSavePayer = async () => {
+    setSavingPayer(true);
+    try {
+      const payerSource: Record<string, unknown> = { payer_type: editPayerType, is_primary: true };
+      if (editPayerType === 'corporate' && editPayerId) {
+        payerSource.corporate_client_id = editPayerId;
+      } else if (editPayerType === 'insurance' && editPayerId) {
+        payerSource.insurance_provider_id = editPayerId;
+      }
+      const res = await apiClient.put(`/payer-sources/patient/${invoice.patient_id}`, {
+        payer_sources: [payerSource],
+      });
+      setCurrentPayerSources(res.data.payer_sources || []);
+      setEditingPayer(false);
+      showToast('Payment method updated', 'success');
+
+      // Re-resolve prices for invoice items based on new payer
+      if (encounterId) {
+        try {
+          const invoiceRes = await apiClient.get(`/invoices/encounter/${encounterId}`);
+          setEditableItems(invoiceRes.data.items || []);
+          setInvoice(invoiceRes.data.invoice);
+        } catch { /* keep existing data */ }
+      }
+    } catch {
+      showToast('Failed to update payment method', 'error');
+    } finally {
+      setSavingPayer(false);
+    }
+  };
+
   const balance = (Number(invoice.total_amount || 0) - Number(invoice.amount_paid || 0)).toFixed(2);
 
   return (
@@ -641,23 +713,100 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Payment Method:</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase">Payment Method:</h3>
+                {isEditable && invoice.patient_id && !editingPayer && (
+                  <button
+                    onClick={startEditPayer}
+                    className="text-xs text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Edit
+                  </button>
+                )}
+              </div>
               <div className="bg-gray-50 p-4 rounded">
-                {payerSources.length > 0 ? (
-                  <ul className="space-y-1">
-                    {payerSources.map((payer) => (
-                      <li key={payer.id} className="text-sm text-gray-700">
-                        <span className="font-medium">{formatPayerSource(payer)}</span>
-                        {payer.is_primary && (
-                          <span className="ml-2 text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
-                            Primary
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                {editingPayer ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Payer Type</label>
+                      <select
+                        value={editPayerType}
+                        onChange={(e) => { setEditPayerType(e.target.value); setEditPayerId(null); }}
+                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="self_pay">Self Pay</option>
+                        <option value="corporate">Corporate / Employer</option>
+                        <option value="insurance">Health Insurance</option>
+                      </select>
+                    </div>
+                    {editPayerType === 'corporate' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Corporate Client</label>
+                        <select
+                          value={editPayerId ?? ''}
+                          onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        >
+                          <option value="">Select corporate client</option>
+                          {ccOptions.map((cc) => (
+                            <option key={cc.id} value={cc.id}>{cc.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {editPayerType === 'insurance' && (
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Provider</label>
+                        <select
+                          value={editPayerId ?? ''}
+                          onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
+                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        >
+                          <option value="">Select insurance provider</option>
+                          {ipOptions.map((ip) => (
+                            <option key={ip.id} value={ip.id}>{ip.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={handleSavePayer}
+                        disabled={savingPayer || ((editPayerType === 'corporate' || editPayerType === 'insurance') && !editPayerId)}
+                        className="px-3 py-1 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                      >
+                        {savingPayer ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setEditingPayer(false)}
+                        className="px-3 py-1 text-xs text-gray-600 hover:bg-gray-200 rounded-lg"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-600">Self Pay</p>
+                  <>
+                    {currentPayerSources.length > 0 ? (
+                      <ul className="space-y-1">
+                        {currentPayerSources.map((payer) => (
+                          <li key={payer.id} className="text-sm text-gray-700">
+                            <span className="font-medium">{formatPayerSource(payer)}</span>
+                            {payer.is_primary && (
+                              <span className="ml-2 text-xs bg-primary-100 text-primary-800 px-2 py-0.5 rounded">
+                                Primary
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-600">Self Pay</p>
+                    )}
+                  </>
                 )}
                 {invoice.chief_complaint && (
                   <div className="mt-3 pt-3 border-t border-gray-200">

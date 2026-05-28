@@ -404,6 +404,8 @@ const ReceptionistDashboard: React.FC = () => {
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
+  const [checkinPayerType, setCheckinPayerType] = useState('self_pay');
+  const [checkinPayerId, setCheckinPayerId] = useState<number | null>(null);
 
   // Queue filter state
   const [queueClinicFilter, setQueueClinicFilter] = useState('');
@@ -939,6 +941,17 @@ const ReceptionistDashboard: React.FC = () => {
 
     try {
       setCheckingIn(true);
+      // Update patient payer source before check-in (so invoice uses correct pricing)
+      const payerSource: Record<string, unknown> = { payer_type: checkinPayerType, is_primary: true };
+      if (checkinPayerType === 'corporate' && checkinPayerId) {
+        payerSource.corporate_client_id = checkinPayerId;
+      } else if (checkinPayerType === 'insurance' && checkinPayerId) {
+        payerSource.insurance_provider_id = checkinPayerId;
+      }
+      await apiClient.put(`/payer-sources/patient/${selectedPatient.id}`, {
+        payer_sources: [payerSource],
+      });
+
       await apiClient.post('/workflow/check-in', {
         patient_id: selectedPatient.id,
         chief_complaint: chiefComplaint.trim() || '',
@@ -960,6 +973,8 @@ const ReceptionistDashboard: React.FC = () => {
       setEncounterType('walk-in');
       setSelectedClinic('');
       setSelectedDoctorId('');
+      setCheckinPayerType('self_pay');
+      setCheckinPayerId(null);
 
       // Reload data first to get the updated queue
       await loadData();
@@ -1449,6 +1464,26 @@ const ReceptionistDashboard: React.FC = () => {
         setSelectedDoctorId(String(match.id));
       }
     }
+    // Load patient payer source
+    try {
+      const payerRes = await apiClient.get(`/payer-sources/patient/${patient.id}`);
+      const sources = payerRes.data.payer_sources || [];
+      const primary = sources.find((s: any) => s.is_primary) || sources[0];
+      if (primary) {
+        setCheckinPayerType(primary.payer_type);
+        setCheckinPayerId(
+          primary.payer_type === 'corporate' ? primary.corporate_client_id ?? null :
+          primary.payer_type === 'insurance' ? primary.insurance_provider_id ?? null : null
+        );
+      } else {
+        setCheckinPayerType('self_pay');
+        setCheckinPayerId(null);
+      }
+    } catch {
+      setCheckinPayerType('self_pay');
+      setCheckinPayerId(null);
+    }
+
     await Promise.all([
       loadPatientHistory(patient.id),
       loadOutstandingBalance(patient.id),
@@ -2367,6 +2402,57 @@ const ReceptionistDashboard: React.FC = () => {
                     <option value="scheduled">Scheduled</option>
                     <option value="emergency">Emergency</option>
                   </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Payer Type
+                    </label>
+                    <select
+                      value={checkinPayerType}
+                      onChange={(e) => { setCheckinPayerType(e.target.value); setCheckinPayerId(null); }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <option value="self_pay">Self Pay</option>
+                      <option value="corporate">Corporate / Employer</option>
+                      <option value="insurance">Health Insurance</option>
+                    </select>
+                  </div>
+                  {checkinPayerType === 'corporate' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Corporate Client
+                      </label>
+                      <select
+                        value={checkinPayerId ?? ''}
+                        onChange={(e) => setCheckinPayerId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">Select corporate client</option>
+                        {corporateClients.map((cc) => (
+                          <option key={cc.id} value={cc.id}>{cc.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {checkinPayerType === 'insurance' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Insurance Provider
+                      </label>
+                      <select
+                        value={checkinPayerId ?? ''}
+                        onChange={(e) => setCheckinPayerId(e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      >
+                        <option value="">Select insurance provider</option>
+                        {insuranceProviders.map((ip) => (
+                          <option key={ip.id} value={ip.id}>{ip.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div>
