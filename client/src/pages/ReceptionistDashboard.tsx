@@ -439,13 +439,16 @@ const ReceptionistDashboard: React.FC = () => {
     'Western North', 'Oti', 'North East', 'Savannah',
   ];
 
-  // Clinic options
-  const clinics = [
-    'General Practice', 'ENT (Ear, Nose & Throat)', 'Urology', 'Cardiology',
-    'Dermatology', 'Gastroenterology', 'Neurology', 'Obstetrics & Gynecology',
-    'Ophthalmology', 'Orthopedics', 'Pediatrics', 'Psychiatry', 'Pulmonology',
-    'Rheumatology', 'Endocrinology', 'Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)',
-  ];
+  // Clinic options (loaded from database)
+  const [clinics, setClinics] = useState<string[]>([]);
+  useEffect(() => {
+    apiClient.get('/clinics').then((res) => {
+      setClinics(res.data.clinics.map((c: { name: string }) => c.name));
+    }).catch(() => {
+      // Fallback if API fails
+      setClinics(['General Practice']);
+    });
+  }, []);
 
   // New patient form state
   const [newPatient, setNewPatient] = useState({
@@ -1802,6 +1805,7 @@ const ReceptionistDashboard: React.FC = () => {
               {filteredQueue.map((item) => {
                 const waitTime = calculateWaitTime(item.check_in_time, item.doctor_started_at);
                 const isCompleted = item.status === 'completed' || item.status === 'discharged' || item.workflow_status === 'discharged';
+                const isCheckedOut = item.status === 'discharged' || item.workflow_status === 'discharged';
                 const isPaid = item.invoice_status === 'paid';
 
                 // Status badge configuration based on workflow_status
@@ -1959,7 +1963,7 @@ const ReceptionistDashboard: React.FC = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                               Dr. {item.doctor_name}
-                              {!isCompleted && (
+                              {!isCheckedOut && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -2045,7 +2049,7 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
                       )}
 
-                      {!isCompleted && !item.doctor_name && (
+                      {!isCheckedOut && !item.doctor_name && (
                         <select
                           onChange={(e) => handleAssignDoctor(item.id, Number(e.target.value))}
                           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
@@ -2060,7 +2064,7 @@ const ReceptionistDashboard: React.FC = () => {
                         </select>
                       )}
 
-                      {!isCompleted && editingDoctorForEncounter === item.id && (
+                      {!isCheckedOut && editingDoctorForEncounter === item.id && (
                         <div className="flex items-center gap-2">
                           {assigningDoctor === item.id ? (
                             <div className="flex items-center gap-2 px-4 py-2 text-gray-600">

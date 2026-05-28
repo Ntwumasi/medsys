@@ -20,13 +20,33 @@ export async function addClinicsTable() {
 
     console.log('Created clinics table');
 
-    // Seed initial clinics
+    // Seed initial clinics (includes previously hardcoded + newly requested)
     const clinics = [
+      'General Practice',
+      'ENT (Ear, Nose & Throat)',
+      'Urology',
+      'Cardiology',
+      'Dermatology',
+      'Gastroenterology',
+      'Neurology',
+      'Obstetrics & Gynecology',
+      'Ophthalmology',
+      'Orthopedics',
+      'Pediatrics',
+      'Psychiatry',
+      'Pulmonology',
+      'Rheumatology',
+      'Endocrinology',
+      'Pharmacy (OTC/Walk-in)',
+      'Lab (Walk-in)',
+      'Imaging (Walk-in)',
+      // Newly requested specialist clinics
       'Family Medicine',
       'Internal Medicine',
       'Infectious Disease',
       'Hematology',
       'Nephrology',
+      'Dietician',
     ];
 
     for (const name of clinics) {

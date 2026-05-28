@@ -2,37 +2,6 @@ import { useEffect, useState, useMemo } from 'react';
 import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
-import {
-  Button,
-  TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Typography,
-  Chip,
-  Tabs,
-  Tab,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  InputAdornment,
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Edit as EditIcon,
-  Search as SearchIcon,
-  Clear as ClearIcon,
-} from '@mui/icons-material';
 
 interface Charge {
   id: number;
@@ -55,7 +24,7 @@ interface PayerPrice {
   is_excluded: boolean;
 }
 
-const CATEGORIES = ['consultation', 'lab', 'imaging', 'pharmacy', 'procedure', 'registration'];
+const CATEGORIES = ['consultation', 'lab', 'imaging', 'pharmacy', 'procedure', 'registration', 'service'];
 
 export default function PriceListManagement() {
   const { showToast } = useNotification();
@@ -64,8 +33,8 @@ export default function PriceListManagement() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
-  // Add/Edit dialog
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Add/Edit modal
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingCharge, setEditingCharge] = useState<Charge | null>(null);
   const [form, setForm] = useState({
     service_name: '',
@@ -76,8 +45,8 @@ export default function PriceListManagement() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Payer pricing dialog
-  const [payerDialogOpen, setPayerDialogOpen] = useState(false);
+  // Payer pricing modal
+  const [payerModalOpen, setPayerModalOpen] = useState(false);
   const [payerCharge, setPayerCharge] = useState<Charge | null>(null);
   const [payerPrices, setPayerPrices] = useState<PayerPrice[]>([]);
   const [savingPayer, setSavingPayer] = useState(false);
@@ -118,7 +87,7 @@ export default function PriceListManagement() {
   const openAdd = () => {
     setEditingCharge(null);
     setForm({ service_name: '', service_code: '', category: 'consultation', price: '', description: '' });
-    setDialogOpen(true);
+    setModalOpen(true);
   };
 
   const openEdit = (charge: Charge) => {
@@ -130,7 +99,7 @@ export default function PriceListManagement() {
       price: parseFloat(charge.price).toFixed(2),
       description: charge.description || '',
     });
-    setDialogOpen(true);
+    setModalOpen(true);
   };
 
   const handleSave = async () => {
@@ -153,7 +122,7 @@ export default function PriceListManagement() {
         });
         showToast('Service created successfully', 'success');
       }
-      setDialogOpen(false);
+      setModalOpen(false);
       loadCharges();
     } catch (err: any) {
       showToast(err.response?.data?.error || 'Failed to save service', 'error');
@@ -168,7 +137,7 @@ export default function PriceListManagement() {
     try {
       const pricesRes = await apiClient.get(`/charge-master/${charge.id}/payer-prices`);
       setPayerPrices(pricesRes.data.payer_prices);
-      setPayerDialogOpen(true);
+      setPayerModalOpen(true);
     } catch {
       showToast('Failed to load payer pricing', 'error');
     }
@@ -196,7 +165,7 @@ export default function PriceListManagement() {
         })),
       });
       showToast('Payer prices saved', 'success');
-      setPayerDialogOpen(false);
+      setPayerModalOpen(false);
     } catch {
       showToast('Failed to save payer prices', 'error');
     } finally {
@@ -211,251 +180,346 @@ export default function PriceListManagement() {
 
   return (
     <AppLayout title="Price List Management">
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <Typography variant="h5" fontWeight={700}>Price List</Typography>
-            <Typography variant="body2" color="text.secondary">
-              View and manage service prices for cash-paying and insured patients
-            </Typography>
+            <h1 className="text-2xl font-bold text-gray-900">Price List</h1>
+            <p className="text-sm text-gray-500 mt-1">View and manage service prices for cash-paying and insured patients</p>
           </div>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openAdd}>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
             Add Service
-          </Button>
+          </button>
         </div>
 
         {/* Filters */}
-        <div className="flex gap-3 mb-4 flex-wrap">
-          <TextField
-            size="small"
-            placeholder="Search by name or code..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{ minWidth: 260 }}
-            InputProps={{
-              startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-              endAdornment: search ? (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearch('')}><ClearIcon fontSize="small" /></IconButton>
-                </InputAdornment>
-              ) : null,
-            }}
-          />
-          <Tabs
-            value={categoryFilter}
-            onChange={(_, v) => setCategoryFilter(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, py: 0, textTransform: 'capitalize' } }}
-          >
-            <Tab label="All" value="all" />
-            {categories.map((cat) => (
-              <Tab key={cat} label={cat} value={cat} />
-            ))}
-          </Tabs>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            {/* Category Filters */}
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setCategoryFilter('all')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  categoryFilter === 'all'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All
+              </button>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat)}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors capitalize ${
+                    categoryFilter === cat
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Search */}
+            <div className="relative min-w-[260px]">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search by name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        <p className="text-sm text-gray-500">
           {filteredCharges.length} service{filteredCharges.length !== 1 ? 's' : ''}
-        </Typography>
+        </p>
 
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 600 }}>Service Code</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Service Name</TableCell>
-                <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="right">Cash Price</TableCell>
-                <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>Loading...</TableCell>
-                </TableRow>
-              ) : filteredCharges.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                    No services found.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredCharges.map((charge) => (
-                  <TableRow key={charge.id} hover>
-                    <TableCell>
-                      <Typography variant="body2" fontFamily="monospace" fontSize={13}>
-                        {charge.service_code}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography fontWeight={500} fontSize={14}>{charge.service_name}</Typography>
-                      {charge.description && (
-                        <Typography variant="caption" color="text.secondary">{charge.description}</Typography>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Chip label={charge.category} size="small" variant="outlined" sx={{ textTransform: 'capitalize' }} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography fontWeight={600} fontSize={14}>
-                        {formatPrice(charge.price)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <IconButton size="small" onClick={() => openEdit(charge)} title="Edit price">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <Button size="small" onClick={() => openPayerPricing(charge)} sx={{ ml: 0.5, fontSize: 12 }}>
-                        Payer Prices
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* Add/Edit Service Dialog */}
-        <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>{editingCharge ? 'Edit Service' : 'Add New Service'}</DialogTitle>
-          <DialogContent>
-            <TextField
-              label="Service Name"
-              value={form.service_name}
-              onChange={(e) => setForm({ ...form, service_name: e.target.value })}
-              fullWidth
-              required
-              sx={{ mt: 1, mb: 2 }}
-              autoFocus
-            />
-            <TextField
-              label="Service Code"
-              value={form.service_code}
-              onChange={(e) => setForm({ ...form, service_code: e.target.value.toUpperCase() })}
-              fullWidth
-              required
-              sx={{ mb: 2 }}
-              placeholder="e.g. CONS-001"
-            />
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={form.category}
-                label="Category"
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-              >
-                {CATEGORIES.map((cat) => (
-                  <MenuItem key={cat} value={cat} sx={{ textTransform: 'capitalize' }}>{cat}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <TextField
-              label="Price (GHS)"
-              value={form.price}
-              onChange={(e) => setForm({ ...form, price: e.target.value })}
-              fullWidth
-              required
-              type="number"
-              sx={{ mb: 2 }}
-              InputProps={{
-                startAdornment: <InputAdornment position="start">GHS</InputAdornment>,
-              }}
-            />
-            <TextField
-              label="Description (optional)"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              fullWidth
-              multiline
-              rows={2}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button variant="contained" onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving...' : editingCharge ? 'Update' : 'Create'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Payer Pricing Dialog */}
-        <Dialog open={payerDialogOpen} onClose={() => setPayerDialogOpen(false)} maxWidth="md" fullWidth>
-          <DialogTitle>
-            Payer Prices: {payerCharge?.service_name}
-            <Typography variant="body2" color="text.secondary">
-              Cash price: {payerCharge ? formatPrice(payerCharge.price) : '—'}
-            </Typography>
-          </DialogTitle>
-          <DialogContent>
-            {payerPrices.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                No payer-specific prices set. All payers will use the cash price.
-              </Typography>
-            ) : (
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>Payer</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="right">Price (GHS)</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }} align="center">Excluded</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {payerPrices.map((pp, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell>
-                        {pp.insurance_provider_name || pp.corporate_client_name || '—'}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={pp.payer_type}
-                          size="small"
-                          color={pp.payer_type === 'insurance' ? 'primary' : 'secondary'}
-                          variant="outlined"
-                          sx={{ textTransform: 'capitalize' }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <TextField
-                          size="small"
-                          type="number"
-                          value={pp.is_excluded ? '' : (pp.price || '')}
-                          disabled={pp.is_excluded}
-                          onChange={(e) => updatePayerPrice(idx, 'price', e.target.value)}
-                          sx={{ width: 120 }}
-                          InputProps={{
-                            startAdornment: <InputAdornment position="start">GHS</InputAdornment>,
-                          }}
-                        />
-                      </TableCell>
-                      <TableCell align="center">
-                        <input
-                          type="checkbox"
-                          checked={pp.is_excluded}
-                          onChange={(e) => updatePayerPrice(idx, 'is_excluded', e.target.checked)}
-                          className="w-4 h-4"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setPayerDialogOpen(false)}>Cancel</Button>
-            {payerPrices.length > 0 && (
-              <Button variant="contained" onClick={savePayerPrices} disabled={savingPayer}>
-                {savingPayer ? 'Saving...' : 'Save Payer Prices'}
-              </Button>
-            )}
-          </DialogActions>
-        </Dialog>
+        {/* Table */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Code</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Price</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  Array.from({ length: 8 }).map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={5} className="px-6 py-4">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${60 + Math.random() * 30}%` }}></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredCharges.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      No services found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredCharges.map((charge) => (
+                    <tr key={charge.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-3">
+                        <span className="font-mono text-sm text-gray-600">{charge.service_code}</span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <div className="font-medium text-gray-900 text-sm">{charge.service_name}</div>
+                        {charge.description && (
+                          <div className="text-xs text-gray-500 mt-0.5">{charge.description}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                          {charge.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        <span className="font-semibold text-gray-900">{formatPrice(charge.price)}</span>
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openEdit(charge)}
+                            className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                            title="Edit service"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => openPayerPricing(charge)}
+                            className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                          >
+                            Payer Prices
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+
+      {/* Add/Edit Service Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setModalOpen(false)} />
+            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 z-10">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingCharge ? 'Edit Service' : 'Add New Service'}
+              </h3>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Name *</label>
+                  <input
+                    type="text"
+                    value={form.service_name}
+                    onChange={(e) => setForm({ ...form, service_name: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Code *</label>
+                  <input
+                    type="text"
+                    value={form.service_code}
+                    onChange={(e) => setForm({ ...form, service_code: e.target.value.toUpperCase() })}
+                    placeholder="e.g. CONS-001"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm({ ...form, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 capitalize"
+                  >
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat} className="capitalize">{cat}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (GHS) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">GHS</span>
+                    <input
+                      type="number"
+                      value={form.price}
+                      onChange={(e) => setForm({ ...form, price: e.target.value })}
+                      className="w-full pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      step="0.01"
+                      min="0"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+                  <textarea
+                    value={form.description}
+                    onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    rows={2}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : editingCharge ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payer Pricing Modal */}
+      {payerModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4">
+            <div className="fixed inset-0 bg-black/50 transition-opacity" onClick={() => setPayerModalOpen(false)} />
+            <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 z-10">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Payer Prices: {payerCharge?.service_name}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Cash price: {payerCharge ? formatPrice(payerCharge.price) : '—'}
+              </p>
+
+              <div className="mt-4">
+                {payerPrices.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4">
+                    No payer-specific prices set. All payers will use the cash price.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Price (GHS)</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Excluded</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {payerPrices.map((pp, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm text-gray-900">
+                              {pp.insurance_provider_name || pp.corporate_client_name || '—'}
+                            </td>
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                                pp.payer_type === 'insurance'
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {pp.payer_type}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-right">
+                              <div className="relative inline-block">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">GHS</span>
+                                <input
+                                  type="number"
+                                  value={pp.is_excluded ? '' : (pp.price || '')}
+                                  disabled={pp.is_excluded}
+                                  onChange={(e) => updatePayerPrice(idx, 'price', e.target.value)}
+                                  className="w-28 pl-10 pr-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 disabled:text-gray-400"
+                                  step="0.01"
+                                />
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-center">
+                              <input
+                                type="checkbox"
+                                checked={pp.is_excluded}
+                                onChange={(e) => updatePayerPrice(idx, 'is_excluded', e.target.checked)}
+                                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setPayerModalOpen(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                {payerPrices.length > 0 && (
+                  <button
+                    onClick={savePayerPrices}
+                    disabled={savingPayer}
+                    className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50"
+                  >
+                    {savingPayer ? 'Saving...' : 'Save Payer Prices'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }
