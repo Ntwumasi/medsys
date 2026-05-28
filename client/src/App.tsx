@@ -36,6 +36,7 @@ const QuickBooksData = lazy(() => import('./pages/QuickBooksData'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
 const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 // Loading spinner shown while lazy chunks are fetched
 function LoadingFallback() {
@@ -162,6 +163,7 @@ const AppContent: React.FC = () => {
         <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
 
         {/* Pages below already wrap themselves in <AppLayout>; they used
             to be nested under a legacy <Layout /> which double-stacked the
