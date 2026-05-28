@@ -645,6 +645,13 @@ router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('re
 router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getAllReceipts);
 router.get('/receipts/:id', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getReceiptById);
 
+// Clinic routes
+import { getAllClinics, createClinic, updateClinic, deactivateClinic } from '../controllers/clinicController';
+router.get('/clinics', authenticateToken, getAllClinics);
+router.post('/clinics', authenticateToken, authorizeRoles('admin', 'receptionist'), createClinic);
+router.put('/clinics/:id', authenticateToken, authorizeRoles('admin', 'receptionist'), updateClinic);
+router.delete('/clinics/:id', authenticateToken, authorizeRoles('admin'), deactivateClinic);
+
 // Charge Master routes
 router.get('/charge-master', authenticateToken, getAllCharges);
 router.get('/charge-master/payers', authenticateToken, getAllPayers);
