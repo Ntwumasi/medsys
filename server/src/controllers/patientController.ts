@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
+import OpenAI from 'openai';
+import crypto from 'crypto';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const openaiClient = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
 
 // Database migration needed for PCP fields:
 // ALTER TABLE patients ADD COLUMN pcp_name VARCHAR(255);
@@ -600,5 +605,300 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     console.error('Get patient summary error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Check for potential duplicate patients during registration.
+ * Supports exact name match, fuzzy match (pg_trgm if available, LIKE fallback),
+ * DOB match, and phone match. Returns matches with confidence levels.
+ */
+export const checkDuplicates = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { first_name, last_name, date_of_birth, phone } = req.query;
+
+    if (!first_name || !last_name) {
+      res.status(400).json({ error: 'first_name and last_name are required' });
+      return;
+    }
+
+    const firstName = String(first_name);
+    const lastName = String(last_name);
+    const dob = date_of_birth ? String(date_of_birth) : null;
+    const phoneStr = phone ? String(phone) : null;
+
+    // Check if pg_trgm extension is available for fuzzy matching
+    let hasTrgm = false;
+    try {
+      const trgmCheck = await pool.query(
+        `SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'`
+      );
+      hasTrgm = trgmCheck.rows.length > 0;
+    } catch {
+      // Extension check failed, proceed without fuzzy
+    }
+
+    // Build the query to find potential duplicates
+    // We gather all candidates that match on name (exact or fuzzy), DOB, or phone,
+    // then assign confidence in application code.
+    let query: string;
+    const params: any[] = [firstName, lastName];
+
+    if (hasTrgm) {
+      // Use pg_trgm similarity for fuzzy name matching
+      query = `
+        SELECT DISTINCT p.id, p.patient_number, u.first_name, u.last_name,
+               p.date_of_birth, u.phone,
+               (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2)) AS exact_name,
+               (similarity(UPPER(u.first_name), UPPER($1)) > 0.4 AND similarity(UPPER(u.last_name), UPPER($2)) > 0.4) AS fuzzy_name,
+               ${dob ? `(p.date_of_birth = $3)` : 'FALSE'} AS dob_match,
+               ${phoneStr ? `(u.phone = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
+        FROM patients p
+        JOIN users u ON p.user_id = u.id
+        WHERE (
+          (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2))
+          OR (similarity(UPPER(u.first_name), UPPER($1)) > 0.4 AND similarity(UPPER(u.last_name), UPPER($2)) > 0.4)
+          ${dob ? `OR p.date_of_birth = $3` : ''}
+          ${phoneStr ? `OR u.phone = $${dob ? 4 : 3}` : ''}
+        )
+        ORDER BY exact_name DESC, fuzzy_name DESC
+        LIMIT 20
+      `;
+    } else {
+      // Fallback: exact match + LIKE-based partial matching
+      query = `
+        SELECT DISTINCT p.id, p.patient_number, u.first_name, u.last_name,
+               p.date_of_birth, u.phone,
+               (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2)) AS exact_name,
+               (UPPER(u.first_name) LIKE UPPER($1) || '%' AND UPPER(u.last_name) LIKE UPPER($2) || '%') AS fuzzy_name,
+               ${dob ? `(p.date_of_birth = $3)` : 'FALSE'} AS dob_match,
+               ${phoneStr ? `(u.phone = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
+        FROM patients p
+        JOIN users u ON p.user_id = u.id
+        WHERE (
+          (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2))
+          OR (UPPER(u.first_name) LIKE UPPER($1) || '%' AND UPPER(u.last_name) LIKE UPPER($2) || '%')
+          ${dob ? `OR p.date_of_birth = $3` : ''}
+          ${phoneStr ? `OR u.phone = $${dob ? 4 : 3}` : ''}
+        )
+        ORDER BY exact_name DESC, fuzzy_name DESC
+        LIMIT 20
+      `;
+    }
+
+    if (dob) params.push(dob);
+    if (phoneStr) params.push(phoneStr);
+
+    const result = await pool.query(query, params);
+
+    // Assign confidence levels
+    const duplicates = result.rows.map((row: any) => {
+      let confidence: 'exact' | 'likely' | 'possible';
+
+      if ((row.exact_name || row.fuzzy_name) && row.dob_match) {
+        confidence = 'exact';
+      } else if (row.fuzzy_name && (row.dob_match || row.phone_match)) {
+        confidence = 'likely';
+      } else {
+        confidence = 'possible';
+      }
+
+      return {
+        id: row.id,
+        patient_number: row.patient_number,
+        first_name: row.first_name,
+        last_name: row.last_name,
+        date_of_birth: row.date_of_birth,
+        phone: row.phone,
+        confidence,
+      };
+    });
+
+    res.json({ duplicates });
+  } catch (error) {
+    console.error('Check duplicates error:', error);
+    res.status(500).json({ error: 'Failed to check for duplicate patients' });
+  }
+};
+
+/**
+ * Generate a brief AI-powered patient summary for receptionist check-in.
+ * Uses GPT-4o to summarize the last 3 encounters, active medications,
+ * allergies, and abnormal lab results. Caches in ai_interactions table.
+ */
+export const getAISummary = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Verify patient exists
+    const patientResult = await pool.query(
+      `SELECT p.id FROM patients p WHERE p.id = $1`,
+      [id]
+    );
+
+    if (patientResult.rows.length === 0) {
+      res.status(404).json({ error: 'Patient not found' });
+      return;
+    }
+
+    // Fetch last 3 encounters
+    const encountersResult = await pool.query(
+      `SELECT e.id, e.encounter_date, e.chief_complaint, e.status
+       FROM encounters e
+       WHERE e.patient_id = $1
+       ORDER BY e.encounter_date DESC
+       LIMIT 3`,
+      [id]
+    );
+
+    if (encountersResult.rows.length === 0) {
+      res.json({ summary: 'New patient — no visit history.', generated_at: new Date().toISOString() });
+      return;
+    }
+
+    const encounterIds = encountersResult.rows.map((e: any) => e.id);
+
+    // Fetch diagnoses, active medications, allergies, and abnormal lab results in parallel
+    const [diagnosesResult, medicationsResult, allergiesResult, labResultsResult] = await Promise.all([
+      pool.query(
+        `SELECT d.description, d.icd_code, d.type
+         FROM diagnoses d
+         WHERE d.encounter_id = ANY($1)
+         ORDER BY d.created_at DESC`,
+        [encounterIds]
+      ),
+      pool.query(
+        `SELECT m.medication_name, m.dosage, m.frequency
+         FROM medications m
+         WHERE m.patient_id = $1 AND m.status = 'active'
+         ORDER BY m.created_at DESC`,
+        [id]
+      ),
+      pool.query(
+        `SELECT a.allergen, a.reaction, a.severity
+         FROM allergies a
+         WHERE a.patient_id = $1
+         ORDER BY a.severity DESC`,
+        [id]
+      ),
+      pool.query(
+        `SELECT lo.test_name, lo.results
+         FROM lab_orders lo
+         WHERE lo.encounter_id = ANY($1)
+           AND lo.status = 'completed'
+           AND lo.is_abnormal = true
+         ORDER BY lo.created_at DESC
+         LIMIT 10`,
+        [encounterIds]
+      ),
+    ]);
+
+    // Build the encounter data payload for the AI
+    const encounterData = {
+      recent_visits: encountersResult.rows.map((e: any) => ({
+        date: e.encounter_date,
+        chief_complaint: e.chief_complaint,
+        status: e.status,
+      })),
+      diagnoses: diagnosesResult.rows.map((d: any) => ({
+        description: d.description,
+        icd_code: d.icd_code,
+        type: d.type,
+      })),
+      active_medications: medicationsResult.rows.map((m: any) => ({
+        name: m.medication_name,
+        dosage: m.dosage,
+        frequency: m.frequency,
+      })),
+      allergies: allergiesResult.rows.map((a: any) => ({
+        allergen: a.allergen,
+        reaction: a.reaction,
+        severity: a.severity,
+      })),
+      abnormal_labs: labResultsResult.rows.map((l: any) => ({
+        test: l.test_name,
+        results: l.results,
+      })),
+    };
+
+    // Check cache first
+    const requestHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ type: 'patient_summary', patient_id: id, data: encounterData }))
+      .digest('hex')
+      .substring(0, 64);
+
+    const cachedResult = await pool.query(
+      `SELECT response_data FROM ai_interactions
+       WHERE interaction_type = 'patient_summary' AND request_hash = $1
+       AND created_at > NOW() - INTERVAL '24 hours'
+       ORDER BY created_at DESC LIMIT 1`,
+      [requestHash]
+    );
+
+    if (cachedResult.rows.length > 0) {
+      const cached = cachedResult.rows[0].response_data;
+      res.json({ summary: cached.summary, generated_at: cached.generated_at, cached: true });
+      return;
+    }
+
+    // If no OpenAI key, return a basic summary
+    if (!openaiClient) {
+      const basicSummary = `${encountersResult.rows.length} recent visit(s). ${
+        diagnosesResult.rows.length > 0
+          ? `Diagnoses: ${diagnosesResult.rows.slice(0, 3).map((d: any) => d.description).join(', ')}.`
+          : 'No diagnoses on file.'
+      } ${
+        allergiesResult.rows.length > 0
+          ? `Allergies: ${allergiesResult.rows.map((a: any) => a.allergen).join(', ')}.`
+          : ''
+      }`;
+      res.json({ summary: basicSummary, generated_at: new Date().toISOString() });
+      return;
+    }
+
+    // Call GPT-4o
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a medical records assistant. Summarize this patient\'s recent visit history in 1-2 sentences for a receptionist. Focus on: key conditions, allergies, important medications, and any follow-up requirements. Do not include patient names. Keep it under 50 words.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify(encounterData),
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 150,
+    });
+
+    const summary = completion.choices[0]?.message?.content || 'Unable to generate summary.';
+    const generatedAt = new Date().toISOString();
+
+    // Cache the result
+    const userId = (req as any).user?.id || null;
+    try {
+      await pool.query(
+        `INSERT INTO ai_interactions (interaction_type, request_hash, request_data, response_data, user_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          'patient_summary',
+          requestHash,
+          JSON.stringify({ patient_id: id, data: encounterData }),
+          JSON.stringify({ summary, generated_at: generatedAt }),
+          userId,
+        ]
+      );
+    } catch (cacheError) {
+      console.error('Failed to cache AI summary:', cacheError);
+    }
+
+    res.json({ summary, generated_at: generatedAt });
+  } catch (error) {
+    console.error('Get AI summary error:', error);
+    res.status(500).json({ error: 'Failed to generate patient summary' });
   }
 };

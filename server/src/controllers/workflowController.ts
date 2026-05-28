@@ -4,6 +4,7 @@ import { validateAllVitals } from '../utils/vitalSignsValidation';
 import billingService from '../services/billingService';
 import auditService from '../services/auditService';
 import notificationService from '../services/notificationService';
+import { getNextMonOrThu } from './nurseFollowUpTaskController';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -1889,7 +1890,6 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
         [encounter_id]
       );
       if (existingReview.rows.length === 0) {
-        const { getNextMonOrThu } = require('./nurseFollowUpTaskController');
         const scheduledDate = getNextMonOrThu();
         await client.query(
           `INSERT INTO nurse_follow_up_tasks (encounter_id, patient_id, type, scheduled_date)

@@ -33,6 +33,8 @@ import {
   getPatientById,
   updatePatient,
   getPatientSummary,
+  checkDuplicates,
+  getAISummary,
 } from '../controllers/patientController';
 import {
   createEncounter,
@@ -484,11 +486,15 @@ router.post('/users/:id/activate', authenticateToken, authorizeRoles('admin'), a
 router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admin', 'receptionist'), resetUserPassword);
 
 // Patient routes (with input validation)
+// Static /patients/* paths MUST come before /patients/:id so Express
+// doesn't swallow "check-duplicates" as an id parameter.
+router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse'), checkDuplicates);
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
 router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
 router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
 router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
 router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);
+router.get('/patients/:id/ai-summary',  authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), getAISummary);
 
 // Encounter routes
 router.post('/encounters',              authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);

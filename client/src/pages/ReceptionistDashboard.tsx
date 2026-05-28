@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
@@ -470,6 +470,14 @@ const ReceptionistDashboard: React.FC = () => {
     nationality: '',
   });
 
+  // Duplicate detection state
+  const [duplicateMatches, setDuplicateMatches] = useState<Array<{ id: number; patient_number: string; first_name: string; last_name: string; date_of_birth: string; phone: string; confidence: string }>>([]);
+  const [duplicateCheckDone, setDuplicateCheckDone] = useState(false);
+
+  // AI patient summary state (for returning patient check-in)
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [loadingAiSummary, setLoadingAiSummary] = useState(false);
+
   // Payer source state
   const [selectedPayerTypes, setSelectedPayerTypes] = useState<string[]>([]);
   const [selectedCorporateClient, setSelectedCorporateClient] = useState<number | null>(null);
@@ -773,27 +781,30 @@ const ReceptionistDashboard: React.FC = () => {
 
       const newAppointmentId = response.data.appointment?.id;
 
-      // If this is a follow-up appointment from checkout, link it to the encounter
+      // If this is a follow-up appointment from checkout, link it and then checkout
       if (schedulingFollowUp && followUpCheckoutItem && newAppointmentId) {
+        // Step 1: Link follow-up (non-blocking — checkout should proceed even if linking fails)
         try {
-          // Link the appointment to the encounter
           await apiClient.post('/follow-up/schedule', {
             encounter_id: followUpCheckoutItem.id,
             appointment_id: newAppointmentId,
           });
-
-          // Now checkout the patient
-          await apiClient.post('/workflow/checkout', { encounter_id: followUpCheckoutItem.id });
-
-          showToast(`Follow-up scheduled and ${followUpCheckoutItem.patient_name} checked out successfully`, 'success');
-
-          // Reset follow-up state
-          setSchedulingFollowUp(false);
-          setFollowUpCheckoutItem(null);
-        } catch (followUpError) {
-          console.error('Error linking follow-up or checking out:', followUpError);
-          showToast('Appointment booked, but there was an issue completing checkout', 'warning');
+        } catch (linkError) {
+          console.warn('Follow-up link failed (non-critical):', linkError);
         }
+
+        // Step 2: Checkout (critical — must succeed)
+        try {
+          await apiClient.post('/workflow/checkout', { encounter_id: followUpCheckoutItem.id });
+          showToast(`Follow-up scheduled and ${followUpCheckoutItem.patient_name} checked out successfully`, 'success');
+        } catch (checkoutError) {
+          console.error('Checkout failed after booking appointment:', checkoutError);
+          showToast(`Appointment booked but checkout failed for ${followUpCheckoutItem.patient_name}. Please checkout manually from the queue.`, 'error');
+        }
+
+        // Reset follow-up state
+        setSchedulingFollowUp(false);
+        setFollowUpCheckoutItem(null);
       } else {
         showToast('Appointment booked successfully', 'success');
       }
@@ -968,8 +979,52 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
+  // Check for duplicate patients before registration
+  const checkForDuplicates = async (): Promise<boolean> => {
+    if (!newPatient.first_name || !newPatient.last_name) return true; // no data to check
+    try {
+      const params = new URLSearchParams({
+        first_name: newPatient.first_name,
+        last_name: newPatient.last_name,
+      });
+      if (newPatient.date_of_birth) params.set('date_of_birth', newPatient.date_of_birth);
+      if (newPatient.phone) params.set('phone', newPatient.phone);
+
+      const { data } = await apiClient.get(`/patients/check-duplicates?${params}`);
+      if (data.duplicates && data.duplicates.length > 0) {
+        setDuplicateMatches(data.duplicates);
+        setDuplicateCheckDone(true);
+        return false; // duplicates found
+      }
+    } catch {
+      // Non-blocking — proceed with registration if check fails
+    }
+    setDuplicateCheckDone(true);
+    return true; // no duplicates
+  };
+
+  // Load AI summary for a patient
+  const loadAiSummary = async (patientId: number) => {
+    setAiSummary(null);
+    setLoadingAiSummary(true);
+    try {
+      const { data } = await apiClient.get(`/patients/${patientId}/ai-summary`);
+      setAiSummary(data.summary || null);
+    } catch {
+      // Non-blocking — summary is optional
+    } finally {
+      setLoadingAiSummary(false);
+    }
+  };
+
   const handleNewPatientSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Run duplicate check if not already done
+    if (!duplicateCheckDone) {
+      const noDuplicates = await checkForDuplicates();
+      if (!noDuplicates) return; // Show duplicates UI, user must confirm
+    }
 
     try {
       // Build payer sources array
@@ -1330,7 +1385,7 @@ const ReceptionistDashboard: React.FC = () => {
     }
   };
 
-  const filteredQueue = queue.filter((item) => {
+  const filteredQueue = useMemo(() => queue.filter((item) => {
     // Search filter
     if (queueSearchTerm) {
       const searchLower = queueSearchTerm.toLowerCase();
@@ -1372,7 +1427,7 @@ const ReceptionistDashboard: React.FC = () => {
       default:
         return 0;
     }
-  });
+  }), [queue, queueSearchTerm, queueClinicFilter, queueStatusFilter, queueSortBy]);
 
   const handlePatientSelect = async (patient: Patient) => {
     setSelectedPatient(patient);
@@ -1393,7 +1448,8 @@ const ReceptionistDashboard: React.FC = () => {
     }
     await Promise.all([
       loadPatientHistory(patient.id),
-      loadOutstandingBalance(patient.id)
+      loadOutstandingBalance(patient.id),
+      loadAiSummary(patient.id),
     ]);
   };
 
@@ -2322,6 +2378,28 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                 </div>
 
+                {/* AI Patient Summary */}
+                {(aiSummary || loadingAiSummary) && (
+                  <div className="bg-primary-50 p-4 rounded-lg border border-primary-200">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-primary-700 mb-1">AI Patient Summary</p>
+                        {loadingAiSummary ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin h-3 w-3 border-2 border-primary-400 border-t-transparent rounded-full" />
+                            <span className="text-xs text-primary-600">Generating summary...</span>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-primary-800">{aiSummary}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {outstandingBalance > 0 && (
                   <div className="bg-warning-50 p-4 rounded-lg border border-warning-200">
                     <p className="text-sm text-warning-800">
@@ -2408,6 +2486,55 @@ const ReceptionistDashboard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
             <h2 className="text-2xl font-bold text-gray-900">New Patient</h2>
             <p className="text-sm text-gray-500 mb-6">Register & Check-In</p>
+            {/* Duplicate patient warning */}
+            {duplicateMatches.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800">Possible duplicate patient{duplicateMatches.length > 1 ? 's' : ''} found</p>
+                    <div className="mt-2 space-y-2">
+                      {duplicateMatches.map(dup => (
+                        <div key={dup.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{dup.first_name} {dup.last_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {dup.patient_number} {dup.date_of_birth ? `| DOB: ${dup.date_of_birth}` : ''} {dup.phone ? `| ${dup.phone}` : ''}
+                            </p>
+                          </div>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                            dup.confidence === 'exact' ? 'bg-red-100 text-red-700' :
+                            dup.confidence === 'likely' ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {dup.confidence}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setDuplicateMatches([]); setDuplicateCheckDone(true); }}
+                        className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                      >
+                        Not a duplicate — continue registration
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDuplicateMatches([]); setDuplicateCheckDone(false); setActiveView('checkin'); }}
+                        className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-white border border-amber-300 rounded-lg hover:bg-amber-50"
+                      >
+                        Go to check-in instead
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleNewPatientSubmit} className="space-y-6">
               <div className="bg-primary-50 p-4 rounded-lg border border-primary-200 mb-6">
                 <p className="text-sm text-primary-800">
@@ -3773,7 +3900,7 @@ const ReceptionistDashboard: React.FC = () => {
                                   setSpecialInvoiceItems(updated);
                                 }}
                                 placeholder="Service or item description"
-                                className="w-full px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-warning-500 text-sm"
+                                className={`w-full px-2 py-1 border rounded focus:ring-1 focus:ring-warning-500 text-sm ${!item.description.trim() && item.unit_price > 0 ? 'border-danger-300 bg-danger-50' : 'border-gray-200'}`}
                               />
                             </td>
                             <td className="px-4 py-2">
@@ -3801,7 +3928,7 @@ const ReceptionistDashboard: React.FC = () => {
                                   setSpecialInvoiceItems(updated);
                                 }}
                                 placeholder="0.00"
-                                className="w-full px-2 py-1 border border-gray-200 rounded focus:ring-1 focus:ring-warning-500 text-sm text-right"
+                                className={`w-full px-2 py-1 border rounded focus:ring-1 focus:ring-warning-500 text-sm text-right ${item.description.trim() && !item.unit_price ? 'border-danger-300 bg-danger-50' : 'border-gray-200'}`}
                               />
                             </td>
                             <td className="px-4 py-2 text-right text-sm font-medium text-gray-700">
