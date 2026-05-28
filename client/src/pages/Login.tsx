@@ -340,7 +340,7 @@ const Login: React.FC = () => {
                   Example: John Smith → <code className="bg-background px-2 py-1 rounded font-mono">jsmith</code>
                 </p>
                 <p className="text-center mt-3 text-xs text-text-secondary">
-                  Default password: <code className="bg-background px-2 py-1 rounded font-mono">demo123</code>
+                  Use the temporary password provided by your administrator
                 </p>
               </div>
             </div>

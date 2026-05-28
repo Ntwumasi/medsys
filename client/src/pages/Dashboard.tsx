@@ -752,7 +752,7 @@ const Dashboard: React.FC = () => {
   const handleResetPassword = async (member: StaffMember) => {
     if (!(await confirmDialog({
       title: 'Reset password?',
-      message: `Reset password for ${member.first_name} ${member.last_name}? Their password will be set to "demo123" and they will be required to change it on next login.`,
+      message: `Reset password for ${member.first_name} ${member.last_name}? A temporary password will be generated and they will be required to change it on next login.`,
       variant: 'warning',
       confirmLabel: 'Reset password',
     }))) {
@@ -760,8 +760,9 @@ const Dashboard: React.FC = () => {
     }
 
     try {
-      await apiClient.post(`/users/${member.id}/reset-password`);
-      showToast(`Password reset for ${member.first_name} ${member.last_name}. New password: demo123`, 'success');
+      const response = await apiClient.post(`/users/${member.id}/reset-password`);
+      const tempPwd = response.data?.credentials?.temporary_password || '(check with admin)';
+      showToast(`Password reset for ${member.first_name} ${member.last_name}. Temporary password: ${tempPwd}`, 'success');
     } catch (err) {
       const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to reset password';
@@ -869,7 +870,7 @@ const Dashboard: React.FC = () => {
     if (selectedStaff.size === 0) return;
 
     const count = selectedStaff.size;
-    if (!(await confirmDialog({ title: 'Reset passwords?', message: `Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? All passwords will be set to "demo123".`, variant: 'warning', confirmLabel: 'Reset' }))) {
+    if (!(await confirmDialog({ title: 'Reset passwords?', message: `Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? Each will get a unique temporary password. You will need to reset them individually to see each password.`, variant: 'warning', confirmLabel: 'Reset' }))) {
       return;
     }
 
@@ -877,7 +878,14 @@ const Dashboard: React.FC = () => {
       const promises = Array.from(selectedStaff).map(id =>
         apiClient.post(`/users/${id}/reset-password`)
       );
-      await Promise.all(promises);
+      const results = await Promise.all(promises);
+      const passwords = results.map(r => {
+        const creds = r.data?.credentials;
+        return creds ? `${creds.username}: ${creds.temporary_password}` : null;
+      }).filter(Boolean);
+      if (passwords.length > 0) {
+        alert(`Temporary passwords:\n\n${passwords.join('\n')}\n\nAll users must change their password on next login.`);
+      }
       showToast(`Passwords reset for ${count} staff member${count > 1 ? 's' : ''}`, 'success');
       setSelectedStaff(new Set());
     } catch (err) {
