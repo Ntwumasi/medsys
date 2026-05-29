@@ -1665,8 +1665,8 @@ const ReceptionistDashboard: React.FC = () => {
                       </svg>
                     </div>
                     <div className="text-left">
-                      <h3 className="text-lg font-bold text-success-800">Ready for Billing</h3>
-                      <p className="text-sm text-success-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} ready for checkout</p>
+                      <h3 className="text-lg font-bold text-success-800">Pending Checkout</h3>
+                      <p className="text-sm text-success-600">{billingAlerts.length} patient{billingAlerts.length !== 1 ? 's' : ''} awaiting payment & checkout today</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-success-700">

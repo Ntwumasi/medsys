@@ -429,6 +429,7 @@ const LabDashboard: React.FC = () => {
   const { user: currentUser } = useAuth();
   const [labReviewers, setLabReviewers] = useState<LabReviewer[]>([]);
   const [assignedReviewerId, setAssignedReviewerId] = useState<number | ''>('');
+  const [skipVerification, setSkipVerification] = useState(false);
   const [pendingVerification, setPendingVerification] = useState<LabOrder[]>([]);
   const [rejectingOrder, setRejectingOrder] = useState<LabOrder | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -930,14 +931,14 @@ const LabDashboard: React.FC = () => {
     // enforces this too, but we want to give a clear inline error instead of
     // bouncing off a 400 response.
     const alreadyVerified = selectedOrderForResult.verification_status === 'verified';
-    if (!alreadyVerified) {
+    if (!alreadyVerified && !skipVerification) {
       if (!assignedReviewerId) {
-        showToast('Pick a reviewer before submitting the result.', 'error');
+        showToast('Pick a reviewer or check "Skip Verification" before submitting.', 'error');
         return;
       }
       if (labReviewers.length === 0) {
         showToast(
-          'No other lab user is available to verify this result. Ask an admin to add another lab tech.',
+          'No other lab user is available to verify this result. Use "Skip Verification" to submit directly.',
           'error',
         );
         return;
@@ -998,7 +999,7 @@ const LabDashboard: React.FC = () => {
         status: 'completed',
         results: resultText,
         specimen_id: structuredResult.specimen_id,
-        ...(alreadyVerified ? {} : { assigned_reviewer_id: assignedReviewerId }),
+        ...(skipVerification ? { skip_verification: true } : alreadyVerified ? {} : { assigned_reviewer_id: assignedReviewerId }),
         ...(reason ? { reason } : {}),
       });
 
@@ -1032,6 +1033,8 @@ const LabDashboard: React.FC = () => {
         showToast(
           alreadyVerified
             ? 'Result updated.'
+            : skipVerification
+            ? 'Result submitted and completed (verification skipped).'
             : 'Result submitted for verification. A reviewer will be notified.',
           'success',
         );
@@ -1043,6 +1046,7 @@ const LabDashboard: React.FC = () => {
       setTestReferenceRanges(null);
       setSelectedFile(null);
       setAssignedReviewerId('');
+      setSkipVerification(false);
       setTemplateParams([]);
       setTemplateValues({});
       setTemplateNotes('');
@@ -3890,30 +3894,57 @@ const LabDashboard: React.FC = () => {
                   where the server skips the verification flow. */}
               {selectedOrderForResult.verification_status !== 'verified' && (
                 <div className="mb-4 border-t border-gray-200 pt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Assign reviewer <span className="text-danger-600">*</span>
-                  </label>
-                  <p className="text-xs text-gray-500 mb-2">
-                    This result will only go to the doctor after another lab tech reviews and approves it.
-                  </p>
-                  <select
-                    value={assignedReviewerId}
-                    onChange={(e) =>
-                      setAssignedReviewerId(e.target.value ? parseInt(e.target.value, 10) : '')
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">— Pick a reviewer —</option>
-                    {labReviewers.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.first_name} {r.last_name} ({r.role})
-                      </option>
-                    ))}
-                  </select>
-                  {labReviewers.length === 0 && (
-                    <p className="text-xs text-danger-600 mt-1">
-                      No other lab user is set up. Ask an admin to add a second lab tech before submitting results.
-                    </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Peer Review
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        Result goes to the doctor after another lab tech reviews and approves it.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={skipVerification}
+                        onChange={(e) => {
+                          setSkipVerification(e.target.checked);
+                          if (e.target.checked) setAssignedReviewerId('');
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-warning-600 focus:ring-warning-500"
+                      />
+                      <span className="text-sm font-medium text-warning-700">Skip Verification</span>
+                    </label>
+                  </div>
+                  {skipVerification ? (
+                    <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-sm text-warning-800">
+                      <strong>Verification skipped.</strong> Result will go directly to the doctor without peer review.
+                    </div>
+                  ) : (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Assign reviewer <span className="text-danger-600">*</span>
+                      </label>
+                      <select
+                        value={assignedReviewerId}
+                        onChange={(e) =>
+                          setAssignedReviewerId(e.target.value ? parseInt(e.target.value, 10) : '')
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="">— Pick a reviewer —</option>
+                        {labReviewers.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.first_name} {r.last_name} ({r.role})
+                          </option>
+                        ))}
+                      </select>
+                      {labReviewers.length === 0 && (
+                        <p className="text-xs text-danger-600 mt-1">
+                          No other lab user is set up. Check &quot;Skip Verification&quot; to submit directly.
+                        </p>
+                      )}
+                    </>
                   )}
                   {selectedOrderForResult.verification_status === 'rejected' &&
                     selectedOrderForResult.rejection_reason && (
@@ -3976,6 +4007,7 @@ const LabDashboard: React.FC = () => {
                   setStructuredResult({ value: '', unit: '', notes: '', specimen_id: '' });
                   setSelectedFile(null);
                   setAssignedReviewerId('');
+                  setSkipVerification(false);
                 }}
                 className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
