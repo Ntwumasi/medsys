@@ -502,20 +502,24 @@ const DoctorDashboard: React.FC = () => {
 
   // Handle selecting an encounter - also starts the doctor encounter if not already started
   const handleSelectEncounter = async (encounter: RoomEncounter) => {
+    // Skip if already selected
+    if (selectedEncounter?.id === encounter.id) return;
+
     setSelectedEncounter(encounter);
     loadSOAPSignStatus(encounter.id);
 
     // Call doctor start endpoint to update workflow_status to 'with_doctor'
-    // This sets doctor_started_at in the database
-    try {
-      await apiClient.post('/workflow/doctor/start', {
-        encounter_id: encounter.id,
-      });
-      // Reload encounters to get updated status
-      loadRoomEncounters();
-    } catch (error) {
-      // Don't show error - this might fail if already started, which is fine
-      console.error('Error starting doctor encounter:', error);
+    // Only for encounters not already started by this doctor
+    if (encounter.status !== 'with_doctor') {
+      try {
+        await apiClient.post('/workflow/doctor/start', {
+          encounter_id: encounter.id,
+        });
+        loadRoomEncounters();
+      } catch (error) {
+        // Don't show error - this might fail if already started, which is fine
+        console.error('Error starting doctor encounter:', error);
+      }
     }
   };
 
@@ -1581,27 +1585,39 @@ const DoctorDashboard: React.FC = () => {
       <div id="selected-encounter-panel">
         {/* Folder Tabs */}
         {roomEncounters.length > 0 && (
-          <div className="flex items-end gap-0.5 overflow-x-auto pb-0 -mb-px">
-            {roomEncounters.filter(e => e.status !== 'cancelled').map((enc) => (
+          <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
+            {roomEncounters.filter(e => e.status !== 'cancelled').map((enc) => {
+              const isSelected = selectedEncounter?.id === enc.id;
+              const hasRoom = !!enc.room_number;
+              const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
+              // Color scheme based on status
+              const tabColor = isSelected
+                ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
+                : isCompleted
+                ? 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-50'
+                : !hasRoom
+                ? 'bg-gray-50 text-gray-400 border-gray-200 border-dashed'
+                : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100';
+              return (
               <button
                 key={enc.id}
                 onClick={() => handleSelectEncounter(enc)}
-                className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-colors whitespace-nowrap flex items-center gap-2 ${
-                  selectedEncounter?.id === enc.id
-                    ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
-                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
-                }`}
+                className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
               >
-                <span className={`w-2 h-2 rounded-full ${
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   enc.status === 'with_doctor' ? 'bg-primary-500' :
                   enc.status === 'ready_for_doctor' ? 'bg-warning-400 animate-pulse' :
-                  enc.status === 'discharged' || enc.status === 'completed' ? 'bg-gray-300' :
+                  isCompleted ? 'bg-gray-300' :
+                  !hasRoom ? 'bg-gray-300' :
                   'bg-success-400'
                 }`} />
-                {enc.patient_name}
-                {enc.room_number && <span className="text-xs text-gray-400">Rm {enc.room_number}</span>}
+                <span className={!hasRoom && !isSelected ? 'opacity-60' : ''}>{enc.patient_name}</span>
+                {hasRoom && <span className={`text-[10px] px-1.5 py-0.5 rounded ${isSelected ? 'bg-primary-100 text-primary-600' : 'bg-white/60 text-inherit'}`}>Rm {enc.room_number}</span>}
+                {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
+                {isCompleted && <span className="text-[10px] text-gray-400">Done</span>}
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 
