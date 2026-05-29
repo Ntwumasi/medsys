@@ -401,8 +401,6 @@ const ReceptionistDashboard: React.FC = () => {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [newPatientEncounterType, setNewPatientEncounterType] = useState('walk-in');
   const [newPatientChiefComplaint, setNewPatientChiefComplaint] = useState('');
-  const [newPatientClinic, setNewPatientClinic] = useState('');
-  const [newPatientDoctorId, setNewPatientDoctorId] = useState('');
   const [patientHistory, setPatientHistory] = useState<Encounter[]>([]);
   const [outstandingBalance, setOutstandingBalance] = useState<number>(0);
   const [checkingIn, setCheckingIn] = useState(false);
@@ -1075,13 +1073,15 @@ const ReceptionistDashboard: React.FC = () => {
       });
       const newPatientData = patientResponse.data.patient;
 
-      // Immediately check in the new patient
+      // Immediately check in the new patient — use Preferred Clinic and PCP from the form above
+      const pcpNorm = newPatient.pcp_name?.replace(/^Dr\.?\s*/i, '').toLowerCase().trim();
+      const matchedDoctor = pcpNorm ? doctors.find(d => `${d.first_name} ${d.last_name}`.toLowerCase() === pcpNorm) : null;
       await apiClient.post('/workflow/check-in', {
         patient_id: newPatientData.id,
         encounter_type: newPatientEncounterType,
         chief_complaint: newPatientChiefComplaint,
-        clinic: newPatientClinic || null,
-        provider_id: newPatientDoctorId ? Number(newPatientDoctorId) : null,
+        clinic: newPatient.preferred_clinic || null,
+        provider_id: matchedDoctor ? matchedDoctor.id : null,
       });
 
       // Reset form
@@ -1111,8 +1111,6 @@ const ReceptionistDashboard: React.FC = () => {
       setSelectedInsuranceProvider(null);
       setNewPatientEncounterType('walk-in');
       setNewPatientChiefComplaint('');
-      setNewPatientClinic('');
-      setNewPatientDoctorId('');
 
       // Reload data and go to queue
       await loadData();
@@ -3126,34 +3124,6 @@ const ReceptionistDashboard: React.FC = () => {
                   </svg>
                   Visit Details
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Clinic *</label>
-                    <select
-                      value={newPatientClinic}
-                      onChange={(e) => setNewPatientClinic(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="">Select Clinic</option>
-                      {clinics.map((clinic) => (
-                        <option key={clinic} value={clinic}>{clinic}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assign Doctor</label>
-                    <select
-                      value={newPatientDoctorId}
-                      onChange={(e) => setNewPatientDoctorId(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="">Assign later</option>
-                      {doctors.map((doc) => (
-                        <option key={doc.id} value={doc.id}>Dr. {doc.first_name} {doc.last_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Encounter Type</label>
