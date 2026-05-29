@@ -148,12 +148,12 @@ const DoctorDashboard: React.FC = () => {
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
 
   // Multi-order state - arrays to hold pending orders
-  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string}>>([]);
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string}>>([]);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
   const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
 
   // Current order being added
-  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: ''});
+  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: ''});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
 
@@ -609,8 +609,10 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
     const nameLC = currentLabOrder.test_name.trim().toLowerCase();
-    const inPending = pendingLabOrders.some(o => o.test_name.trim().toLowerCase() === nameLC);
-    const inSubmitted = encounterLabOrders.some(o => o.test_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
+    // Scheduled orders always allow duplicates (repeated tests at different times)
+    const isScheduled = currentLabOrder.priority === 'scheduled';
+    const inPending = !isScheduled && pendingLabOrders.some(o => o.test_name.trim().toLowerCase() === nameLC);
+    const inSubmitted = !isScheduled && encounterLabOrders.some(o => o.test_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
     if (inPending || inSubmitted) {
       const proceed = await confirmDialog({
         title: 'Duplicate order',
@@ -622,7 +624,7 @@ const DoctorDashboard: React.FC = () => {
       if (!proceed) return;
     }
     setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
-    setCurrentLabOrder({test_name: '', priority: 'routine', notes: ''});
+    setCurrentLabOrder({test_name: '', priority: 'routine', notes: '', scheduled_time: ''});
   };
 
   // Apply a saved test set: append any tests that aren't already staged
@@ -646,8 +648,9 @@ const DoctorDashboard: React.FC = () => {
     const typeLC = currentImagingOrder.imaging_type.trim().toLowerCase();
     const partLC = (currentImagingOrder.body_part || '').trim().toLowerCase();
     const label = `${currentImagingOrder.imaging_type}${currentImagingOrder.body_part ? ' (' + currentImagingOrder.body_part + ')' : ''}`;
-    const inPending = pendingImagingOrders.some(o => o.imaging_type.trim().toLowerCase() === typeLC && (o.body_part || '').trim().toLowerCase() === partLC);
-    const inSubmitted = encounterImagingOrders.some(o => (o as any).imaging_type?.toLowerCase() === typeLC && ((o as any).body_part || '').toLowerCase() === partLC && o.status !== 'cancelled');
+    const isScheduled = currentImagingOrder.priority === 'scheduled';
+    const inPending = !isScheduled && pendingImagingOrders.some(o => o.imaging_type.trim().toLowerCase() === typeLC && (o.body_part || '').trim().toLowerCase() === partLC);
+    const inSubmitted = !isScheduled && encounterImagingOrders.some(o => (o as any).imaging_type?.toLowerCase() === typeLC && ((o as any).body_part || '').toLowerCase() === partLC && o.status !== 'cancelled');
     if (inPending || inSubmitted) {
       const proceed = await confirmDialog({
         title: 'Duplicate order',
@@ -809,7 +812,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditLabOrder = (index: number) => {
     const order = pendingLabOrders[index];
-    setCurrentLabOrder({ ...order, notes: order.notes ?? '' });
+    setCurrentLabOrder({ ...order, notes: order.notes ?? '', scheduled_time: order.scheduled_time ?? '' });
     setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
   };
 
@@ -2537,7 +2540,19 @@ const DoctorDashboard: React.FC = () => {
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
                           <option value="stat">STAT</option>
+                          <option value="scheduled">Scheduled</option>
                         </select>
+                        {currentLabOrder.priority === 'scheduled' && (
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-gray-600">Schedule times (duplicates allowed for scheduled orders)</label>
+                            <input
+                              type="datetime-local"
+                              value={currentLabOrder.scheduled_time || ''}
+                              onChange={(e) => setCurrentLabOrder({...currentLabOrder, scheduled_time: e.target.value})}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                            />
+                          </div>
+                        )}
                         <textarea
                           value={currentLabOrder.notes}
                           onChange={(e) => setCurrentLabOrder({...currentLabOrder, notes: e.target.value})}
@@ -2628,7 +2643,19 @@ const DoctorDashboard: React.FC = () => {
                           <option value="routine">Routine</option>
                           <option value="urgent">Urgent</option>
                           <option value="stat">STAT</option>
+                          <option value="scheduled">Scheduled</option>
                         </select>
+                        {currentImagingOrder.priority === 'scheduled' && (
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-gray-600">Schedule time (duplicates allowed for scheduled orders)</label>
+                            <input
+                              type="datetime-local"
+                              value={(currentImagingOrder as any).scheduled_time || ''}
+                              onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, scheduled_time: e.target.value} as any)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 text-sm"
+                            />
+                          </div>
+                        )}
                         <textarea
                           value={currentImagingOrder.notes}
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, notes: e.target.value})}

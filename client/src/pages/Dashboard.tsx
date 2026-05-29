@@ -145,6 +145,7 @@ interface StaffFormData {
   first_name: string;
   last_name: string;
   phone: string;
+  clinic?: string;
 }
 
 interface PastPatientEncounter {
@@ -726,6 +727,10 @@ const Dashboard: React.FC = () => {
       clinic: (staffMember as any).clinic || '',
     });
     setShowStaffForm(true);
+    // Scroll to form so the user sees it
+    setTimeout(() => {
+      document.querySelector('form[class*="mb-6"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleToggleStaffStatus = async (id: number, currentStatus: boolean) => {

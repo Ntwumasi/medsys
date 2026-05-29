@@ -65,18 +65,22 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       enteredBy = currentUserId;
     }
 
-    // Prevent duplicate: same test for the same encounter that isn't cancelled
-    const dupCheck = await pool.query(
-      `SELECT id FROM lab_orders
-       WHERE encounter_id = $1
-         AND (test_code = $2 OR (test_code IS NULL AND test_name = $3))
-         AND status != 'cancelled'
-       LIMIT 1`,
-      [encounter_id, test_code, test_name]
-    );
-    if (dupCheck.rows.length > 0) {
-      res.status(409).json({ error: `${test_name || test_code} has already been ordered for this encounter.` });
-      return;
+    // Prevent duplicate: same test for the same encounter that isn't cancelled.
+    // Scheduled orders are exempt — they represent repeated tests at different times.
+    if (priority !== 'scheduled') {
+      const dupCheck = await pool.query(
+        `SELECT id FROM lab_orders
+         WHERE encounter_id = $1
+           AND (LOWER(test_name) = LOWER($2)
+                OR ($3 IS NOT NULL AND test_code IS NOT NULL AND LOWER(test_code) = LOWER($3)))
+           AND status != 'cancelled'
+         LIMIT 1`,
+        [encounter_id, test_name, test_code]
+      );
+      if (dupCheck.rows.length > 0) {
+        res.status(409).json({ error: `${test_name || test_code} has already been ordered for this encounter.` });
+        return;
+      }
     }
 
     // Allocate the lab's accession number (Path No). Best-effort — if the
@@ -1118,19 +1122,22 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
     // Support both imaging_type (doctor) and study_type (nurse form)
     const studyType = imaging_type || study_type;
 
-    // Prevent duplicate: same imaging type + body part for the same encounter
-    const dupCheck = await pool.query(
-      `SELECT id FROM imaging_orders
-       WHERE encounter_id = $1
-         AND LOWER(imaging_type) = LOWER($2)
-         AND COALESCE(LOWER(body_part), '') = COALESCE(LOWER($3), '')
-         AND status != 'cancelled'
-       LIMIT 1`,
-      [encounter_id, studyType, body_part]
-    );
-    if (dupCheck.rows.length > 0) {
-      res.status(409).json({ error: `${studyType}${body_part ? ' (' + body_part + ')' : ''} has already been ordered for this encounter.` });
-      return;
+    // Prevent duplicate: same imaging type + body part for the same encounter.
+    // Scheduled orders are exempt.
+    if (priority !== 'scheduled') {
+      const dupCheck = await pool.query(
+        `SELECT id FROM imaging_orders
+         WHERE encounter_id = $1
+           AND LOWER(imaging_type) = LOWER($2)
+           AND COALESCE(LOWER(body_part), '') = COALESCE(LOWER($3), '')
+           AND status != 'cancelled'
+         LIMIT 1`,
+        [encounter_id, studyType, body_part]
+      );
+      if (dupCheck.rows.length > 0) {
+        res.status(409).json({ error: `${studyType}${body_part ? ' (' + body_part + ')' : ''} has already been ordered for this encounter.` });
+        return;
+      }
     }
 
     const result = await pool.query(
