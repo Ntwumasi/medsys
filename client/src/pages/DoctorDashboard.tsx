@@ -205,6 +205,7 @@ const DoctorDashboard: React.FC = () => {
   const [encounterImagingOrders, setEncounterImagingOrders] = useState<ImagingOrder[]>([]);
   const [encounterPharmacyOrders, setEncounterPharmacyOrders] = useState<PharmacyOrder[]>([]);
   const [resultsTab, setResultsTab] = useState<'lab' | 'imaging' | 'pharmacy'>('lab');
+  const [ordersTab, setOrdersTab] = useState<'actions' | 'lab' | 'imaging' | 'pharmacy'>('lab');
 
   // Doctor Alerts state
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
@@ -314,12 +315,19 @@ const DoctorDashboard: React.FC = () => {
       setRoomEncounters(encounters);
 
       // Keep selectedEncounter in sync with latest data (e.g., nurse adds vitals)
-      // Use the ref to always get the CURRENT selected encounter, not the stale closure value
       const currentSelected = selectedEncounterRef.current;
       if (currentSelected) {
         const updated = encounters.find((e: RoomEncounter) => e.id === currentSelected.id);
         if (updated) {
           setSelectedEncounter(updated);
+        }
+      } else if (encounters.length > 0) {
+        // Auto-select the first patient with a room (or first patient if none have rooms)
+        const withRoom = encounters.filter((e: RoomEncounter) => e.room_number && e.status !== 'cancelled');
+        const firstPatient = withRoom.length > 0 ? withRoom[0] : encounters.filter((e: RoomEncounter) => e.status !== 'cancelled')[0];
+        if (firstPatient) {
+          setSelectedEncounter(firstPatient);
+          loadSOAPSignStatus(firstPatient.id);
         }
       }
     } catch (error) {
@@ -1599,7 +1607,7 @@ const DoctorDashboard: React.FC = () => {
             )}
 
       {/* Row 2: Patient Workspace with folder tabs */}
-      <div id="selected-encounter-panel">
+      <div id="selected-encounter-panel" className="mt-2">
         {/* Folder Tabs */}
         {roomEncounters.length > 0 && (
           <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
@@ -2419,39 +2427,59 @@ const DoctorDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
-                    {/* Quick Actions */}
-                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
-                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">
-                        Quick Actions
-                      </h3>
-                      <div className="flex-1 space-y-2">
-                        <button
-                          onClick={handleCompleteEncounter}
-                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          Alert Nurse
-                        </button>
-                        <button
-                          onClick={handleCancelEncounter}
-                          className="w-full px-3 py-2 text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Cancel Encounter
-                        </button>
-                      </div>
-                      <p className="text-xs text-gray-400 text-center mt-3">
-                          No-show or patient left before being seen
-                        </p>
-                      </div>
+                  {/* Order Type Tabs */}
+                  <div className="flex border-b border-gray-200 mb-4 gap-1">
+                    {([
+                      { id: 'lab' as const, label: 'Lab Tests', count: pendingLabOrders.length },
+                      { id: 'imaging' as const, label: 'Imaging', count: pendingImagingOrders.length },
+                      { id: 'pharmacy' as const, label: 'Pharmacy', count: pendingPharmacyOrders.length },
+                      { id: 'actions' as const, label: 'Actions', count: 0 },
+                    ]).map(tab => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setOrdersTab(tab.id)}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                          ordersTab === tab.id
+                            ? 'border-primary-600 text-primary-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                        }`}
+                      >
+                        {tab.label}
+                        {tab.count > 0 && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary-100 text-primary-700">{tab.count}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Actions Tab */}
+                  {ordersTab === 'actions' && (
+                    <div className="max-w-md space-y-3">
+                      <button
+                        onClick={handleCompleteEncounter}
+                        className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Alert Nurse
+                      </button>
+                      <button
+                        onClick={handleCancelEncounter}
+                        className="w-full px-3 py-2 text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Cancel Encounter
+                      </button>
+                      <p className="text-xs text-gray-400 text-center">No-show or patient left before being seen</p>
                     </div>
-                    {/* Lab Orders */}
-                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                  )}
+
+                  {/* Lab Orders Tab */}
+                  {ordersTab === 'lab' && (
+                    <>
                       <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
                         <span className="w-6 h-6 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2565,10 +2593,12 @@ const DoctorDashboard: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </>
+                  )}
 
-                    {/* Imaging Orders */}
-                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                  {/* Imaging Orders Tab */}
+                  {ordersTab === 'imaging' && (
+                    <>
                       <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
                         <span className="w-6 h-6 rounded-lg bg-secondary-50 text-secondary-600 flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2652,10 +2682,12 @@ const DoctorDashboard: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </>
+                  )}
 
-                    {/* Pharmacy Orders */}
-                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                  {/* Pharmacy Orders Tab */}
+                  {ordersTab === 'pharmacy' && (
+                    <>
                       <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
                         <span className="w-6 h-6 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2859,9 +2891,8 @@ const DoctorDashboard: React.FC = () => {
                           </div>
                         )}
                       </div>
-                    </div>
-
-                  </div>
+                    </>
+                  )}
 
                   {/* Submit All Orders Button */}
                   {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
@@ -2877,6 +2908,7 @@ const DoctorDashboard: React.FC = () => {
                       </button>
                     </div>
                   )}
+                </div>
 
                 {/* Lab & Imaging Results Section */}
                 <div className="border-t border-gray-100 pt-6 mt-4">
