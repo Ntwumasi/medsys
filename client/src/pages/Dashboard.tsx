@@ -378,7 +378,7 @@ const Dashboard: React.FC = () => {
   };
 
   const deleteTask = async (taskId: number) => {
-    if (!confirm('Delete this task? Cannot be undone.')) return;
+    if (!(await confirmDialog({ title: 'Delete task?', message: 'This cannot be undone.', variant: 'warning', confirmLabel: 'Delete', cancelLabel: 'Cancel' }))) return;
     try {
       await apiClient.delete(`/admin/tasks/${taskId}`);
       loadAdminTasks();
