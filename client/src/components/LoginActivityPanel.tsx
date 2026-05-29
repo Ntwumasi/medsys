@@ -89,7 +89,7 @@ const isOffHours = (createdAt: string): boolean => {
 };
 
 const FAILURE_LABELS: Record<string, string> = {
-  user_not_found: 'Unknown user',
+  user_not_found: 'No such user',
   invalid_password: 'Wrong password',
   account_locked: 'Account locked',
   account_disabled: 'Account disabled',
@@ -321,7 +321,8 @@ const LoginActivityPanel: React.FC = () => {
                   'MMM d, h:mm a',
                 );
                 const offHours = isOffHours(a.created_at);
-                const name = `${a.first_name || ''} ${a.last_name || ''}`.trim() || a.email || 'Unknown';
+                const fullName = `${a.first_name || ''} ${a.last_name || ''}`.trim();
+                const name = fullName || (a.email ? `"${a.email}" (not found)` : 'Unknown');
                 return (
                   <tr key={a.id} className={`border-t border-gray-100 hover:bg-gray-50 ${offHours ? 'bg-warning-50/50' : ''}`}>
                     <td className="px-3 py-2 text-gray-800 whitespace-nowrap">
