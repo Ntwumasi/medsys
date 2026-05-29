@@ -57,6 +57,9 @@ const ImagingDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'walkins' | 'orders'>('walkins');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'completed'>('pending');
 
+  // Upcoming scheduled imaging appointments
+  const [scheduledAppointments, setScheduledAppointments] = useState<Array<{id: number; patient_name: string; appointment_date: string; reason: string; status: string}>>([]);
+
   // Patient Details panel state
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<ImagingOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
@@ -111,9 +114,19 @@ const ImagingDashboard: React.FC = () => {
     }
   };
 
+  const fetchScheduledAppointments = async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await apiClient.get('/appointments', { params: { from_date: today, to_date: today, limit: 50 } });
+      const all = res.data.appointments || res.data || [];
+      setScheduledAppointments(all.filter((a: any) => a.appointment_type === 'walk-in imaging' && a.status !== 'cancelled'));
+    } catch { /* ignore */ }
+  };
+
   useSmartPolling(() => {
     fetchWalkIns();
     fetchImagingOrders();
+    fetchScheduledAppointments();
   }, 30_000, true);
 
   // 30-day trends for the imaging stat cards' sparklines.
@@ -314,6 +327,35 @@ const ImagingDashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Upcoming Scheduled Imaging */}
+      {scheduledAppointments.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Upcoming Scheduled Imaging</h2>
+            </div>
+            <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-secondary-50 text-secondary-700">{scheduledAppointments.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+            {scheduledAppointments.map((apt) => (
+              <div key={apt.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                <div className="flex items-center gap-3">
+                  <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-secondary-100 text-secondary-700 border border-secondary-200">SCHEDULED</span>
+                  <span className="font-medium text-gray-900">{apt.patient_name}</span>
+                  <span className="text-gray-500">{apt.reason}</span>
+                </div>
+                <span className="text-xs text-gray-500 tabular-nums">
+                  {new Date(apt.appointment_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">

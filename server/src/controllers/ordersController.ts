@@ -51,7 +51,7 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     const currentUserId = authReq.user?.id;
     const currentUserRole = authReq.user?.role;
 
-    const { patient_id, encounter_id, test_name, test_code, priority, notes, ordering_provider_id } = req.body;
+    const { patient_id, encounter_id, test_name, test_code, priority, notes, ordering_provider_id, scheduled_time } = req.body;
 
     // Determine the ordering provider:
     // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
@@ -96,18 +96,38 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       console.error('Failed to allocate Path No, continuing without:', pathErr);
     }
 
+    const scheduledFor = (priority === 'scheduled' && scheduled_time) ? new Date(scheduled_time) : null;
+
     const result = await pool.query(
       `INSERT INTO lab_orders (
-        patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes, path_no
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes, path_no, scheduled_for
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
-      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes, pathNo]
+      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes, pathNo, scheduledFor]
     );
 
     // Billing deferred to completion — lab orders are only added to the invoice
     // when the lab tech completes the test (see updateLabOrder)
 
     const order = result.rows[0];
+
+    // Create a walk-in lab appointment for scheduled orders so it shows on the calendar
+    if (priority === 'scheduled') {
+      const appointmentDate = scheduledFor || new Date();
+      // Get patient name for the appointment
+      const ptResult = await pool.query(
+        `SELECT u.first_name || ' ' || u.last_name as patient_name
+         FROM patients p JOIN users u ON p.user_id = u.id WHERE p.id = $1`,
+        [patient_id]
+      );
+      const patientName = ptResult.rows[0]?.patient_name || 'Unknown';
+      await pool.query(
+        `INSERT INTO appointments (patient_id, patient_name, appointment_date, duration_minutes,
+          appointment_type, status, reason, created_by)
+         VALUES ($1, $2, $3, 15, 'walk-in lab', 'scheduled', $4, $5)`,
+        [patient_id, patientName, appointmentDate, `Lab: ${test_name}`, currentUserId]
+      );
+    }
 
     // Audit log
     await auditService.log({
@@ -1109,7 +1129,7 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
     const currentUserId = authReq.user?.id;
     const currentUserRole = authReq.user?.role;
 
-    const { patient_id, encounter_id, imaging_type, study_type, body_part, priority, clinical_indication, notes, ordering_provider_id } = req.body;
+    const { patient_id, encounter_id, imaging_type, study_type, body_part, priority, clinical_indication, notes, ordering_provider_id, scheduled_time } = req.body;
 
     // Determine the ordering provider:
     // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
@@ -1140,18 +1160,38 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
       }
     }
 
+    const scheduledFor = (priority === 'scheduled' && scheduled_time) ? new Date(scheduled_time) : null;
+
     const result = await pool.query(
       `INSERT INTO imaging_orders (
-        patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority, clinical_indication, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority, clinical_indication, notes, scheduled_for
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
-      [patient_id, encounter_id, orderingProvider, studyType, body_part, priority || 'routine', clinical_indication, notes]
+      [patient_id, encounter_id, orderingProvider, studyType, body_part, priority || 'routine', clinical_indication, notes, scheduledFor]
     );
 
     // Billing deferred to completion — imaging orders are only added to the invoice
     // when the imaging tech completes the study (see updateImagingOrder)
 
     const order = result.rows[0];
+
+    // Create a walk-in imaging appointment for scheduled orders
+    if (priority === 'scheduled') {
+      const appointmentDate = scheduledFor || new Date();
+      const ptResult = await pool.query(
+        `SELECT u.first_name || ' ' || u.last_name as patient_name
+         FROM patients p JOIN users u ON p.user_id = u.id WHERE p.id = $1`,
+        [patient_id]
+      );
+      const patientName = ptResult.rows[0]?.patient_name || 'Unknown';
+      const label = `${studyType}${body_part ? ' (' + body_part + ')' : ''}`;
+      await pool.query(
+        `INSERT INTO appointments (patient_id, patient_name, appointment_date, duration_minutes,
+          appointment_type, status, reason, created_by)
+         VALUES ($1, $2, $3, 30, 'walk-in imaging', 'scheduled', $4, $5)`,
+        [patient_id, patientName, appointmentDate, `Imaging: ${label}`, currentUserId]
+      );
+    }
 
     // Audit log
     await auditService.log({
