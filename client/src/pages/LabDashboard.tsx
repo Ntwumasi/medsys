@@ -2345,9 +2345,9 @@ const LabDashboard: React.FC = () => {
                         <div className="space-y-2">
                           {patientDiagnoses.map((dx: any, idx: number) => (
                             <div key={idx} className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">
-                              <span className="font-medium text-purple-700">{dx.diagnosis_name || dx.name || dx}</span>
-                              {dx.icd_code && (
-                                <span className="text-purple-600 ml-2 text-xs">({dx.icd_code})</span>
+                              <span className="font-medium text-purple-700">{dx.diagnosis_description || dx.diagnosis_name || dx.name || String(dx)}</span>
+                              {(dx.diagnosis_code || dx.icd_code) && (
+                                <span className="text-purple-600 ml-2 text-xs">({dx.diagnosis_code || dx.icd_code})</span>
                               )}
                             </div>
                           ))}
