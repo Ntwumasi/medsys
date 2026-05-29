@@ -1141,10 +1141,10 @@ const DoctorDashboard: React.FC = () => {
       })()}
 
       {/* Row 1: Three info cards side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
           {/* Messages */}
-          <div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
+          <div className="flex">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1187,8 +1187,8 @@ const DoctorDashboard: React.FC = () => {
 
           </div>
           {/* Results Alerts */}
-          <div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
+          <div className="flex">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1329,9 +1329,9 @@ const DoctorDashboard: React.FC = () => {
 
           </div>
           {/* Action Items */}
-          <div>
+          <div className="flex">
             {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1507,7 +1507,7 @@ const DoctorDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
