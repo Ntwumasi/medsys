@@ -65,6 +65,20 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       enteredBy = currentUserId;
     }
 
+    // Prevent duplicate: same test for the same encounter that isn't cancelled
+    const dupCheck = await pool.query(
+      `SELECT id FROM lab_orders
+       WHERE encounter_id = $1
+         AND (test_code = $2 OR (test_code IS NULL AND test_name = $3))
+         AND status != 'cancelled'
+       LIMIT 1`,
+      [encounter_id, test_code, test_name]
+    );
+    if (dupCheck.rows.length > 0) {
+      res.status(409).json({ error: `${test_name || test_code} has already been ordered for this encounter.` });
+      return;
+    }
+
     // Allocate the lab's accession number (Path No). Best-effort — if the
     // counter fails we still create the order; an admin can patch path_no
     // later. (Falling back to NULL keeps go-live moving.)
@@ -1104,6 +1118,21 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
     // Support both imaging_type (doctor) and study_type (nurse form)
     const studyType = imaging_type || study_type;
 
+    // Prevent duplicate: same imaging type + body part for the same encounter
+    const dupCheck = await pool.query(
+      `SELECT id FROM imaging_orders
+       WHERE encounter_id = $1
+         AND LOWER(imaging_type) = LOWER($2)
+         AND COALESCE(LOWER(body_part), '') = COALESCE(LOWER($3), '')
+         AND status != 'cancelled'
+       LIMIT 1`,
+      [encounter_id, studyType, body_part]
+    );
+    if (dupCheck.rows.length > 0) {
+      res.status(409).json({ error: `${studyType}${body_part ? ' (' + body_part + ')' : ''} has already been ordered for this encounter.` });
+      return;
+    }
+
     const result = await pool.query(
       `INSERT INTO imaging_orders (
         patient_id, encounter_id, ordering_provider, imaging_type, body_part, priority, clinical_indication, notes
@@ -1341,6 +1370,20 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       notes,
       inventory_id,
     } = req.body;
+
+    // Prevent duplicate: same medication for the same encounter
+    const dupCheck = await pool.query(
+      `SELECT id FROM pharmacy_orders
+       WHERE encounter_id = $1
+         AND LOWER(medication_name) = LOWER($2)
+         AND status != 'cancelled'
+       LIMIT 1`,
+      [encounter_id, medication_name]
+    );
+    if (dupCheck.rows.length > 0) {
+      res.status(409).json({ error: `${medication_name} has already been ordered for this encounter.` });
+      return;
+    }
 
     const result = await pool.query(
       `INSERT INTO pharmacy_orders (
