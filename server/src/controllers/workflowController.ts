@@ -251,9 +251,10 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // Use the assigned provider for the appointment (receptionist chose or corporate default)
     const appointmentProviderId = assigned_provider_id;
 
-    // Create appointment if a provider was assigned
+    // Always create a walk-in appointment so the calendar shows the patient.
+    // If a provider is assigned, check for scheduling conflicts first.
+    let skipAppointment = false;
     if (appointmentProviderId) {
-      // Double-check for conflicts with assigned provider
       const conflictCheck = await client.query(
         `SELECT id FROM appointments
          WHERE provider_id = $1
@@ -265,26 +266,27 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
            )`,
         [appointmentProviderId, appointmentTime, appointmentEnd]
       );
-
-      // Only create appointment if no conflict
-      if (conflictCheck.rows.length === 0) {
-        await client.query(
-          `INSERT INTO appointments (
-            patient_id, patient_name, provider_id, appointment_date, duration_minutes,
-            appointment_type, status, reason, created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'checked-in', $7, $8)`,
-          [
-            patient_id,
-            patientInfo.patient_name || null,
-            appointmentProviderId,
-            appointmentTime,
-            appointmentDuration,
-            encounter_type || 'walk-in',
-            chief_complaint || 'Walk-in visit',
-            receptionist_id,
-          ]
-        );
+      if (conflictCheck.rows.length > 0) {
+        skipAppointment = true; // conflict — still check in, just skip the appointment
       }
+    }
+    if (!skipAppointment) {
+      await client.query(
+        `INSERT INTO appointments (
+          patient_id, patient_name, provider_id, appointment_date, duration_minutes,
+          appointment_type, status, reason, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'checked-in', $7, $8)`,
+        [
+          patient_id,
+          patientInfo.patient_name || null,
+          appointmentProviderId || null,
+          appointmentTime,
+          appointmentDuration,
+          encounter_type || 'walk-in',
+          chief_complaint || 'Walk-in visit',
+          receptionist_id,
+        ]
+      );
     }
 
     await client.query('COMMIT');
