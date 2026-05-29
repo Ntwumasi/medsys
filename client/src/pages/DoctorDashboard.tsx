@@ -1130,10 +1130,11 @@ const DoctorDashboard: React.FC = () => {
         return null;
       })()}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
-          {/* Active Patients List */}
-          <div className="xl:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      {/* Row 1: Three info cards side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          {/* Active Patients */}
+          <div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
               {/* Header */}
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
@@ -1246,8 +1247,10 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Results Alerts Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          </div>
+          {/* Results Alerts */}
+          <div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1386,9 +1389,11 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Items — unsigned notes + pending orders (delinquent) */}
-            {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          </div>
+          {/* Action Items */}
+          <div>
+            {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1563,7 +1568,21 @@ const DoctorDashboard: React.FC = () => {
                   )}
                 </div>
               </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
+                  </div>
+                </div>
+                <div className="p-4 text-center text-sm text-gray-400">No action items</div>
+              </div>
             )}
+          </div>
+      </div>
 
             {/* Claims Review Section */}
             {pendingClaims.length > 0 && (
@@ -1688,14 +1707,39 @@ const DoctorDashboard: React.FC = () => {
                 </div>
               </div>
             )}
+      {/* Row 2: Patient Workspace with folder tabs */}
+      <div id="selected-encounter-panel">
+        {/* Folder Tabs */}
+        {roomEncounters.length > 0 && (
+          <div className="flex items-end gap-0.5 overflow-x-auto pb-0 -mb-px">
+            {roomEncounters.filter(e => e.status !== 'cancelled').map((enc) => (
+              <button
+                key={enc.id}
+                onClick={() => setSelectedEncounter(enc)}
+                className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                  selectedEncounter?.id === enc.id
+                    ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
+                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  enc.status === 'with_doctor' ? 'bg-primary-500' :
+                  enc.status === 'ready_for_doctor' ? 'bg-warning-400 animate-pulse' :
+                  enc.status === 'discharged' || enc.status === 'completed' ? 'bg-gray-300' :
+                  'bg-success-400'
+                }`} />
+                {enc.patient_name}
+                {enc.room_number && <span className="text-xs text-gray-400">Rm {enc.room_number}</span>}
+              </button>
+            ))}
           </div>
+        )}
 
-          {/* Patient Details & Actions */}
-          <div className="xl:col-span-2" id="selected-encounter-panel">
-            {selectedEncounter ? (
-              <div className="space-y-4">
+        {/* Patient Content */}
+        {selectedEncounter ? (
+          <div className="bg-white rounded-b-xl rounded-tr-xl shadow-sm border border-gray-200 p-6 space-y-4">
                 {/* Patient Info */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="pb-4 border-b border-gray-100">
                   <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
                     <div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedEncounter.patient_name}</h2>
@@ -2448,29 +2492,15 @@ const DoctorDashboard: React.FC = () => {
 
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
-                <div className="text-center text-gray-400">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-20"></div>
-                    <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <p className="text-2xl font-semibold text-gray-600 mb-2">Select a patient to begin</p>
-                  <p className="text-gray-400">Choose a patient from the active rooms to view their details and medical records</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Full-width Orders & Actions */}
-          {selectedEncounter && (
-            <div className="xl:col-span-3 space-y-4">
-              <div className="card">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Orders & Actions</h2>
+              {/* Orders & Actions — integrated into patient tab */}
+              <div className="border-t border-gray-200 pt-4 mt-2">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      Orders & Actions
+                    </h3>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
                       <span className="px-4 py-2 bg-primary-100 text-primary-800 font-bold rounded-lg">
                         {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
@@ -2982,14 +3012,14 @@ const DoctorDashboard: React.FC = () => {
                 </div>
 
                 {/* Lab & Imaging Results Section */}
-                <div className="card">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                      <svg className="w-6 h-6 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="border-t border-gray-200 pt-4 mt-2">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       Lab, Imaging & Pharmacy
-                    </h2>
+                    </h3>
                     <button
                       onClick={() => selectedEncounter && loadEncounterOrders(selectedEncounter.id)}
                       className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1"
@@ -3367,9 +3397,19 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 mt-4">
+            <div className="text-center text-gray-400">
+              <svg className="w-20 h-20 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <p className="text-xl font-semibold text-gray-500 mb-1">Select a patient to begin</p>
+              <p className="text-sm text-gray-400">Choose from the active patients above or wait for a nurse alert</p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
 
       {/* Patient Quick View Side Panel */}
       {quickViewPatientId && (
