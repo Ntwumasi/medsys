@@ -609,68 +609,33 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
         <div
           onClick={() => handleSectionClick(section.id)}
           className={`
-            group relative flex items-center gap-3 py-4 px-4 cursor-pointer
-            border-l-4 transition-all duration-200 ease-in-out
-            ${
-              section.completed
-                ? 'border-success-500 bg-success-50 hover:bg-success-100 shadow-sm'
-                : 'border-gray-200 bg-white hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-50 hover:border-gray-300'
-            }
-            ${isExpanded ? 'bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-500 shadow-md ring-2 ring-primary-100' : ''}
+            group flex items-center gap-3 py-2.5 px-4 cursor-pointer transition-colors
+            ${isExpanded ? 'bg-primary-50 border-l-2 border-primary-500' : 'border-l-2 border-transparent hover:bg-gray-50'}
           `}
         >
           {/* Completion Indicator */}
           <div className="flex-shrink-0">
             {section.completed ? (
-              <div className="relative">
-                <div className="absolute inset-0 bg-emerald-400 rounded-full blur-sm opacity-40"></div>
-                <svg className="w-6 h-6 text-success-600 relative" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-              </div>
-            ) : (
-              <svg className="w-6 h-6 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" strokeWidth="2" />
+              <svg className="w-4 h-4 text-success-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
+            ) : (
+              <div className={`w-4 h-4 rounded-full border-2 ${isExpanded ? 'border-primary-400' : 'border-gray-300'}`} />
             )}
           </div>
 
           {/* Section Title */}
-          <div className="flex-1">
-            <h3 className={`font-semibold transition-colors ${level === 0 ? 'text-base' : 'text-sm'} ${
-              section.completed ? 'text-emerald-900' : 'text-gray-800 group-hover:text-gray-900'
-            }`}>
-              {section.title}
-            </h3>
-            {section.completed && (
-              <div className="flex items-center gap-1 mt-1">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800">
-                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Completed
-                </span>
-              </div>
-            )}
-          </div>
+          <span className={`flex-1 text-sm transition-colors ${
+            isExpanded ? 'font-semibold text-primary-800' :
+            section.completed ? 'text-gray-600' : 'text-gray-700 group-hover:text-gray-900'
+          }`}>
+            {section.title}
+          </span>
 
-          {/* Expand/Collapse Icon */}
-          <div className="flex-shrink-0">
-            {isExpanded ? (
-              <svg className="w-5 h-5 text-primary-600 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5 text-gray-500 group-hover:text-gray-700 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            )}
-          </div>
-
-          {/* Completion shine effect */}
-          {section.completed && (
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 transition-opacity duration-500"></div>
-          )}
+          {/* Chevron */}
+          <svg className={`w-4 h-4 flex-shrink-0 transition-colors ${isExpanded ? 'text-primary-500' : 'text-gray-300 group-hover:text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isExpanded ? 'M19 9l-7 7-7-7' : 'M9 5l7 7-7 7'} />
+          </svg>
         </div>
 
         {/* Subsections - only show when parent is expanded */}
@@ -689,23 +654,28 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     <div className="flex flex-col gap-6 px-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Side - Accordion Sections */}
-      <div className="lg:col-span-1 bg-white rounded-xl shadow-lg border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-gradient-to-r from-primary-600 to-secondary-600 text-white p-4 z-10 shadow-md">
-          {/* Title Row */}
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold">SOAP</h2>
-            <span className="text-primary-100 text-sm">
-              {effectiveSections.filter(s => s.completed).length} of {effectiveSections.length} completed
+      <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 z-10">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">SOAP Note</h2>
+            <span className="text-xs text-gray-400 tabular-nums">
+              {effectiveSections.filter(s => s.completed).length}/{effectiveSections.length}
             </span>
           </div>
-          {/* Smart Dictate Button */}
+          {/* Progress bar */}
+          <div className="w-full h-1 bg-gray-100 rounded-full mb-2">
+            <div
+              className="h-1 bg-primary-500 rounded-full transition-all duration-300"
+              style={{ width: `${(effectiveSections.filter(s => s.completed).length / effectiveSections.length) * 100}%` }}
+            />
+          </div>
           <button
             onClick={() => setShowSmartDictation(true)}
-            className="w-full px-3 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+            className="w-full px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs font-medium text-gray-600"
             title="Smart Dictation (AI-powered)"
             disabled={isSigned}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3.5 h-3.5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
             Smart Dictate
@@ -717,40 +687,35 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       </div>
 
       {/* Right Side - Content Editor */}
-      <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden flex flex-col">
+      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
         {expandedSection && currentSection ? (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="bg-gradient-to-r from-gray-50 to-gray-50 border-b border-gray-200 p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSection.title}</h3>
-                  <div className="flex items-center gap-2">
-                    {currentSection.completed ? (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-success-100 text-success-800 shadow-sm">
-                        <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        Section completed
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-warning-100 text-warning-800 shadow-sm">
-                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        Section incomplete
-                      </span>
-                    )}
-                  </div>
+            <div className="border-b border-gray-100 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-semibold text-gray-900">{currentSection.title}</h3>
+                  {currentSection.completed ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Complete
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                      Incomplete
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => {
                     setExpandedSection(null);
                     setEditingContent('');
                   }}
-                  className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-lg p-2 transition-all"
+                  className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
