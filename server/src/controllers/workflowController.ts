@@ -1666,7 +1666,19 @@ export const getReceptionistAlerts = async (req: Request, res: Response): Promis
     const authReq = req as any;
     const receptionist_id = authReq.user?.id;
 
-    // Get unread alerts for this receptionist that are billing-related (patient_ready from nurses)
+    // Auto-dismiss billing alerts for encounters whose invoice is fully paid
+    await pool.query(
+      `UPDATE alerts SET is_read = true
+       WHERE is_read = false
+         AND alert_type = 'patient_ready'
+         AND encounter_id IN (
+           SELECT i.encounter_id FROM invoices i
+           WHERE i.status = 'paid'
+             OR (i.total_amount - COALESCE(i.amount_paid, 0)) <= 0
+         )`
+    );
+
+    // Get unread alerts for this receptionist that are billing-related
     const result = await pool.query(
       `SELECT a.*,
               e.encounter_number,
@@ -1681,9 +1693,11 @@ export const getReceptionistAlerts = async (req: Request, res: Response): Promis
        LEFT JOIN users u_patient ON p.user_id = u_patient.id
        LEFT JOIN users from_user ON a.from_user_id = from_user.id
        LEFT JOIN rooms r ON e.room_id = r.id
+       LEFT JOIN invoices i ON i.encounter_id = e.id
        WHERE a.to_user_id = $1
          AND a.is_read = false
-         AND e.status = 'completed'
+         AND e.status IN ('completed', 'discharged')
+         AND (i.id IS NULL OR i.status != 'paid')
        ORDER BY a.created_at DESC
        LIMIT 50`,
       [receptionist_id]

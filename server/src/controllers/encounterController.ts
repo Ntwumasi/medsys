@@ -186,6 +186,24 @@ export const addDiagnosis = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+export const deleteDiagnosis = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'DELETE FROM diagnoses WHERE id = $1 RETURNING id',
+      [id]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Diagnosis not found' });
+      return;
+    }
+    res.json({ message: 'Diagnosis deleted successfully' });
+  } catch (error) {
+    console.error('Delete diagnosis error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Self-pay tier prices. Hardcoded for the Medics Clinic go-live; long-term
 // this should live in a `clinic_settings.self_pay_tiers` JSON column so each
 // clinic can have its own ladder. Indices 1-5; index 0 is unused.

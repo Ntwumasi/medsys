@@ -569,6 +569,14 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     const triggersVerificationFlow = enteringResult && !alreadyVerified;
 
     if (triggersVerificationFlow) {
+      // If skip_verification is explicitly set, bypass peer review and auto-complete
+      if (updateData.skip_verification === true) {
+        delete updateData.skip_verification;
+        updateData.status = 'completed';
+        updateData.verification_status = 'not_required';
+        updateData.result_date = new Date().toISOString();
+        updateData.entered_by = userId;
+      } else {
       // Reviewer must be supplied, must be a real lab user, and cannot be the
       // person entering the result (self-review is blocked).
       const reviewerId = parseInt(assignedReviewerIdRaw, 10);
@@ -621,6 +629,7 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
       }
       // Don't write a result_date until the result is actually verified.
       delete updateData.result_date;
+      } // end else (peer-review path)
     }
 
     // If completing, set result_date to now. Reachable only when the order

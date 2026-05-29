@@ -42,6 +42,7 @@ import {
   getEncounterById,
   updateEncounter,
   addDiagnosis,
+  deleteDiagnosis,
   updateChiefComplaint,
   setSelfPayTier,
   setBillingPayer,
@@ -507,6 +508,7 @@ router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRole
 router.post('/encounters/:id/self-pay-tier', authenticateToken, authorizeRoles('doctor', 'admin'), setSelfPayTier);
 router.post('/encounters/:id/billing-payer',  authenticateToken, authorizeRoles('doctor', 'admin'), setBillingPayer);
 router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
+router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('doctor'), deleteDiagnosis);
 
 // Appointment routes (with input validation)
 router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);

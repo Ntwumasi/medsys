@@ -1847,6 +1847,22 @@ const DoctorDashboard: React.FC = () => {
                           </span>
                           <span className="font-medium text-gray-900 flex-1">{dx.diagnosis_description}</span>
                           {dx.diagnosis_code && <span className="text-gray-400 text-xs">({dx.diagnosis_code})</span>}
+                          <button
+                            onClick={async () => {
+                              if (!(await confirmDialog({ title: 'Delete diagnosis?', message: `Remove "${dx.diagnosis_description}"?`, variant: 'warning', confirmLabel: 'Delete', cancelLabel: 'Keep' }))) return;
+                              try {
+                                await apiClient.delete(`/encounters/diagnoses/${dx.id}`);
+                                showToast('Diagnosis removed', 'success');
+                                if (selectedEncounter) loadEncounterDiagnoses(selectedEncounter.id);
+                              } catch { showToast('Failed to delete diagnosis', 'error'); }
+                            }}
+                            className="p-1 text-gray-400 hover:text-danger-600 rounded transition-colors"
+                            title="Delete diagnosis"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
                       ))}
                     </div>
