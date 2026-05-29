@@ -936,9 +936,10 @@ const DoctorDashboard: React.FC = () => {
       if (selectedEncounter) {
         loadEncounterOrders(selectedEncounter.id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error submitting orders:', error);
-      showToast('Failed to submit some orders. Please try again.', 'error');
+      const msg = error?.response?.data?.error || error?.message || 'Unknown error';
+      showToast(`Failed to submit orders: ${msg}`, 'error');
     }
   };
 
