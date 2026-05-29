@@ -47,6 +47,11 @@ const NurseProcurement: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'category' | 'quantity' | 'status'>('name');
   const [showLowOnly, setShowLowOnly] = useState(false);
 
+  // Add New Item modal
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({ item_name: '', category: 'Supplies', unit: 'pcs', reorder_level: '10', unit_cost: '', location: '' });
+  const [addingItem, setAddingItem] = useState(false);
+
   // Quick +Stock modal — light alternative to Record Purchase for fast top-ups
   const [quickAddItem, setQuickAddItem] = useState<InventoryItem | null>(null);
   const [quickAddQty, setQuickAddQty] = useState('');
@@ -342,6 +347,33 @@ const NurseProcurement: React.FC = () => {
   const categories = [...new Set(items.map(i => i.category))];
 
   // Open the quick +Stock modal for a row
+  const handleAddNewItem = async () => {
+    if (!newItem.item_name.trim() || !newItem.unit_cost) {
+      showToast('Item name and unit cost are required', 'error');
+      return;
+    }
+    setAddingItem(true);
+    try {
+      await apiClient.post('/nurse/inventory', {
+        item_name: newItem.item_name.trim(),
+        category: newItem.category,
+        unit: newItem.unit,
+        quantity_on_hand: 0,
+        reorder_level: parseInt(newItem.reorder_level) || 10,
+        unit_cost: parseFloat(newItem.unit_cost),
+        location: newItem.location || null,
+      });
+      showToast(`${newItem.item_name} added to inventory`, 'success');
+      setShowAddItem(false);
+      setNewItem({ item_name: '', category: 'Supplies', unit: 'pcs', reorder_level: '10', unit_cost: '', location: '' });
+      loadInventory();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to add item', 'error');
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
   const openQuickAdd = (item: InventoryItem) => {
     setQuickAddItem(item);
     setQuickAddQty('');
@@ -472,6 +504,16 @@ const NurseProcurement: React.FC = () => {
                 }`}
               >
                 Low Stock Only ({lowStockCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddItem(true)}
+                className="px-3 py-2 rounded-lg text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Item
               </button>
             </div>
 
@@ -911,6 +953,68 @@ const NurseProcurement: React.FC = () => {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Add New Item modal */}
+        {showAddItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !addingItem && setShowAddItem(false)}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+                <h3 className="text-lg font-bold text-gray-900">Add New Inventory Item</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <input type="text" value={newItem.item_name} onChange={(e) => setNewItem({ ...newItem, item_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" placeholder="e.g., Syringe 10ml" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                      <option>Supplies</option>
+                      <option>Equipment</option>
+                      <option>Consumables</option>
+                      <option>Medications</option>
+                      <option>PPE</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                    <select value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                      <option value="pcs">Pieces</option>
+                      <option value="box">Box</option>
+                      <option value="pack">Pack</option>
+                      <option value="bottle">Bottle</option>
+                      <option value="roll">Roll</option>
+                      <option value="pair">Pair</option>
+                      <option value="set">Set</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GHS) *</label>
+                    <input type="number" step="0.01" value={newItem.unit_cost} onChange={(e) => setNewItem({ ...newItem, unit_cost: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                    <input type="number" value={newItem.reorder_level} onChange={(e) => setNewItem({ ...newItem, reorder_level: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                    <input type="text" value={newItem.location} onChange={(e) => setNewItem({ ...newItem, location: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" placeholder="e.g., Nurse Station" />
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+                <button onClick={() => setShowAddItem(false)} className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg">Cancel</button>
+                <button onClick={handleAddNewItem} disabled={addingItem} className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  {addingItem ? 'Adding...' : 'Add Item'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

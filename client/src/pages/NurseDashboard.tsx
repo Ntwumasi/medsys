@@ -13,6 +13,7 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
+import { playNotificationSound } from '../utils/notificationSound';
 import LabTestSetChips from '../components/LabTestSetChips';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { ApiError } from '../types';
@@ -200,6 +201,7 @@ const NurseDashboard: React.FC = () => {
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const selectedPatientRef = useRef<AssignedPatient | null>(null);
+  const prevPatientCountRef = useRef<number>(0);
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
   const [availableProcedures, setAvailableProcedures] = useState<AvailableProcedure[]>([]);
@@ -375,6 +377,7 @@ const NurseDashboard: React.FC = () => {
   useSmartPolling(() => {
     loadAssignedPatients();
     loadNurseProcedures();
+    loadAvailableProcedures();
     loadRooms();
     loadShortStayBeds();
     loadDoctorNotifications();
@@ -419,6 +422,13 @@ const NurseDashboard: React.FC = () => {
       const uniquePatients = patients.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
         index === self.findIndex((p) => p.id === patient.id)
       );
+      // Play notification sound when a new patient is assigned
+      const activeCount = uniquePatients.filter((p: AssignedPatient) => !p.is_checked_out).length;
+      if (prevPatientCountRef.current > 0 && activeCount > prevPatientCountRef.current) {
+        playNotificationSound();
+      }
+      prevPatientCountRef.current = activeCount;
+
       setAssignedPatients(uniquePatients);
 
       // Update selectedPatient with fresh data if currently selected

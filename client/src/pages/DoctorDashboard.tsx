@@ -14,6 +14,7 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
+import { playNotificationSound } from '../utils/notificationSound';
 import LabTestSetChips from '../components/LabTestSetChips';
 import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
@@ -131,6 +132,7 @@ const DoctorDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
+  const prevEncounterCountRef = useRef<number>(0);
   const [selectedEncounter, setSelectedEncounter] = useState<RoomEncounter | null>(null);
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,6 +289,13 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get('/workflow/doctor/rooms');
       // Sort by newest first (highest ID = most recent)
       const encounters = (res.data.encounters || []).sort((a: RoomEncounter, b: RoomEncounter) => b.id - a.id);
+
+      // Play notification sound when a new patient appears
+      if (prevEncounterCountRef.current > 0 && encounters.length > prevEncounterCountRef.current) {
+        playNotificationSound();
+      }
+      prevEncounterCountRef.current = encounters.length;
+
       setRoomEncounters(encounters);
 
       // Keep selectedEncounter in sync with latest data (e.g., nurse adds vitals)
@@ -955,6 +964,18 @@ const DoctorDashboard: React.FC = () => {
       if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
     } catch (error) {
       showToast('Failed to cancel imaging order', 'error');
+    }
+  };
+
+  // Cancel a pharmacy/medication order
+  const handleCancelPharmacyOrder = async (orderId: number) => {
+    if (!(await confirmDialog({ title: 'Cancel medication order?', message: 'Cancel this medication order?', variant: 'warning', confirmLabel: 'Cancel order', cancelLabel: 'Keep' }))) return;
+    try {
+      await apiClient.put(`/orders/pharmacy/${orderId}`, { status: 'cancelled' });
+      showToast('Medication order cancelled', 'success');
+      if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
+    } catch (error) {
+      showToast('Failed to cancel medication order', 'error');
     }
   };
 
@@ -3166,6 +3187,18 @@ const DoctorDashboard: React.FC = () => {
                                         )}
                                       </div>
                                     </div>
+                                  )}
+                                  {/* Cancel button for ordered/processing medications */}
+                                  {(order.status === 'ordered' || order.status === 'approved') && (
+                                    <button
+                                      onClick={() => handleCancelPharmacyOrder(order.id)}
+                                      className="mt-3 px-4 py-2 text-danger-600 bg-danger-50 border border-danger-200 text-sm rounded-lg hover:bg-danger-100 transition-colors flex items-center gap-2"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                      Cancel Order
+                                    </button>
                                   )}
                                   {/* Refill button for dispensed orders with remaining refills */}
                                   {order.status === 'dispensed' && order.refills > 0 && (
