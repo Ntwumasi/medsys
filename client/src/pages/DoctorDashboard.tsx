@@ -16,6 +16,7 @@ import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
 import PrioritySelect from '../components/PrioritySelect';
+import FrequencySelect from '../components/FrequencySelect';
 import LabTestSetChips from '../components/LabTestSetChips';
 import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
@@ -2438,25 +2439,10 @@ const DoctorDashboard: React.FC = () => {
                             onChange={(val) => setCurrentLabOrder({...currentLabOrder, priority: val})}
                             showScheduled={false}
                           />
-                          <div className="relative">
-                            <select
-                              value={currentLabOrder.frequency}
-                              onChange={(e) => setCurrentLabOrder({...currentLabOrder, frequency: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
-                            >
-                              <option value="once">Once</option>
-                              <option value="4h">Every 4 hours (Q4H)</option>
-                              <option value="6h">Every 6 hours (Q6H)</option>
-                              <option value="8h">Every 8 hours (Q8H)</option>
-                              <option value="12h">Every 12 hours (Q12H)</option>
-                              <option value="daily">Daily</option>
-                              <option value="weekly">Weekly</option>
-                              <option value="custom">Custom...</option>
-                            </select>
-                            <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </div>
+                          <FrequencySelect
+                            value={currentLabOrder.frequency}
+                            onChange={(val) => setCurrentLabOrder({...currentLabOrder, frequency: val})}
+                          />
                         </div>
                         {currentLabOrder.frequency === 'custom' && (
                           <input
