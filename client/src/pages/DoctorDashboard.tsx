@@ -1601,7 +1601,15 @@ const DoctorDashboard: React.FC = () => {
         {/* Folder Tabs */}
         {roomEncounters.length > 0 && (
           <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
-            {roomEncounters.filter(e => e.status !== 'cancelled').map((enc) => {
+            {roomEncounters
+              .filter(e => e.status !== 'cancelled')
+              .sort((a, b) => {
+                // Patients with rooms first, then without
+                if (a.room_number && !b.room_number) return -1;
+                if (!a.room_number && b.room_number) return 1;
+                return 0;
+              })
+              .map((enc) => {
               const isSelected = selectedEncounter?.id === enc.id;
               const hasRoom = !!enc.room_number;
               const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
