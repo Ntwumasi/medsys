@@ -135,7 +135,20 @@ const DoctorDashboard: React.FC = () => {
   const { confirm: confirmDialog } = useDialog();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
   const prevEncounterCountRef = useRef<number>(0);
-  const [selectedEncounter, setSelectedEncounter] = useState<RoomEncounter | null>(null);
+  const [selectedEncounter, _setSelectedEncounter] = useState<RoomEncounter | null>(null);
+  const selectedEncounterRef = useRef<RoomEncounter | null>(null);
+  const setSelectedEncounter = (enc: RoomEncounter | null | ((prev: RoomEncounter | null) => RoomEncounter | null)) => {
+    if (typeof enc === 'function') {
+      _setSelectedEncounter(prev => {
+        const next = enc(prev);
+        selectedEncounterRef.current = next;
+        return next;
+      });
+    } else {
+      selectedEncounterRef.current = enc;
+      _setSelectedEncounter(enc);
+    }
+  };
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -301,8 +314,10 @@ const DoctorDashboard: React.FC = () => {
       setRoomEncounters(encounters);
 
       // Keep selectedEncounter in sync with latest data (e.g., nurse adds vitals)
-      if (selectedEncounter) {
-        const updated = encounters.find((e: RoomEncounter) => e.id === selectedEncounter.id);
+      // Use the ref to always get the CURRENT selected encounter, not the stale closure value
+      const currentSelected = selectedEncounterRef.current;
+      if (currentSelected) {
+        const updated = encounters.find((e: RoomEncounter) => e.id === currentSelected.id);
         if (updated) {
           setSelectedEncounter(updated);
         }
