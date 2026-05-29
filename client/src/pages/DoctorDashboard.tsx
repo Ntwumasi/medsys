@@ -1131,7 +1131,7 @@ const DoctorDashboard: React.FC = () => {
       })()}
 
       {/* Row 1: Three info cards side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
           {/* Active Patients */}
           <div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
@@ -2493,67 +2493,55 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
               {/* Orders & Actions — integrated into patient tab */}
-              <div className="border-t border-gray-200 pt-4 mt-2">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="border-t border-gray-100 pt-6 mt-4">
+                  <div className="flex justify-between items-center mb-5">
+                    <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-2">
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                       Orders & Actions
                     </h3>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
-                      <span className="px-4 py-2 bg-primary-100 text-primary-800 font-bold rounded-lg">
+                      <span className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-bold rounded-full">
                         {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
                       </span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-4 gap-4 xl:gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4">
                     {/* Quick Actions */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                        <span className="w-7 h-7 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                          </svg>
-                        </span>
+                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">
                         Quick Actions
                       </h3>
-                      <div className="space-y-3">
+                      <div className="flex-1 space-y-2">
                         <button
                           onClick={handleCompleteEncounter}
-                          className="w-full px-4 py-2.5 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
+                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Alert Nurse
                         </button>
-                        <p className="text-xs text-gray-500 text-center">
-                          Notify nurse when patient is ready for follow-up care
-                        </p>
                         <button
                           onClick={handleCancelEncounter}
-                          className="w-full px-4 py-2.5 bg-white text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
+                          className="w-full px-3 py-2 text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                           Cancel Encounter
                         </button>
-                        <p className="text-xs text-gray-500 text-center">
+                      </div>
+                      <p className="text-xs text-gray-400 text-center mt-3">
                           No-show or patient left before being seen
                         </p>
                       </div>
                     </div>
                     {/* Lab Orders */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                        <span className="w-7 h-7 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                          </svg>
-                        </span>
+                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
                         Lab Tests
                         {pendingLabOrders.length > 0 && (
                           <span className="ml-auto px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-bold">
@@ -2657,7 +2645,7 @@ const DoctorDashboard: React.FC = () => {
                         />
                         <button
                           onClick={handleAddLabOrder}
-                          className="w-full px-4 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
+                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2700,9 +2688,9 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Imaging Orders */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                        <span className="w-7 h-7 rounded-lg bg-secondary-50 text-secondary-600 flex items-center justify-center">
+                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-6 h-6 rounded-lg bg-secondary-50 text-secondary-600 flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                           </svg>
@@ -2743,7 +2731,7 @@ const DoctorDashboard: React.FC = () => {
                         />
                         <button
                           onClick={handleAddImagingOrder}
-                          className="w-full px-4 py-2.5 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 transition-colors font-semibold flex items-center justify-center gap-2 text-sm"
+                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2787,9 +2775,9 @@ const DoctorDashboard: React.FC = () => {
                     </div>
 
                     {/* Pharmacy Orders */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-                      <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
-                        <span className="w-7 h-7 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
+                    <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-6 h-6 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                           </svg>
@@ -2921,7 +2909,7 @@ const DoctorDashboard: React.FC = () => {
                         <button
                           onClick={handleAddPharmacyOrder}
                           disabled={checkingInteractions}
-                          className="w-full px-4 py-2.5 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-auto"
                         >
                           {checkingInteractions ? (
                             <>
@@ -3009,10 +2997,9 @@ const DoctorDashboard: React.FC = () => {
                       </button>
                     </div>
                   )}
-                </div>
 
                 {/* Lab & Imaging Results Section */}
-                <div className="border-t border-gray-200 pt-4 mt-2">
+                <div className="border-t border-gray-100 pt-6 mt-4">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                       <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
