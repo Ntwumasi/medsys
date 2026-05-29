@@ -72,10 +72,10 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
         `SELECT id FROM lab_orders
          WHERE encounter_id = $1
            AND (LOWER(test_name) = LOWER($2)
-                OR ($3 IS NOT NULL AND test_code IS NOT NULL AND LOWER(test_code) = LOWER($3)))
+                OR ($3::text IS NOT NULL AND test_code IS NOT NULL AND LOWER(test_code) = LOWER($3::text)))
            AND status != 'cancelled'
          LIMIT 1`,
-        [encounter_id, test_name, test_code]
+        [encounter_id, test_name, test_code || null]
       );
       if (dupCheck.rows.length > 0) {
         res.status(409).json({ error: `${test_name || test_code} has already been ordered for this encounter.` });
