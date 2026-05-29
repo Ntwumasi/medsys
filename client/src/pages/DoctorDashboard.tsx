@@ -129,7 +129,7 @@ interface DoctorAlert {
 
 const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const _navigate = useNavigate(); void _navigate;
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
@@ -1132,116 +1132,44 @@ const DoctorDashboard: React.FC = () => {
 
       {/* Row 1: Three info cards side by side */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-          {/* Active Patients */}
+          {/* Messages */}
           <div>
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72">
-              {/* Header */}
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
-                      Active Patients
-                    </h2>
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Messages</h2>
                   </div>
-                  <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
-                    roomEncounters.length > 0
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    {roomEncounters.length}
-                  </span>
+                  {notes.length > 0 && (
+                    <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-bold rounded-full tabular-nums">
+                      {notes.length}
+                    </span>
+                  )}
                 </div>
               </div>
-
-              {/* Column Headers */}
-              <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                <div className="col-span-3">Room</div>
-                <div className="col-span-5">Patient</div>
-                <div className="col-span-4 text-right">ID</div>
-              </div>
-
-              {/* Patient List */}
-              <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
-                {roomEncounters.map((encounter) => {
-                  const isWithNurse = encounter.status === 'with_nurse';
-                  return (
-                  <div
-                    key={encounter.id}
-                    onClick={() => handleSelectEncounter(encounter)}
-                    className={`px-4 py-3 grid grid-cols-12 gap-2 items-center transition-all duration-150 group cursor-pointer hover:bg-primary-50 ${
-                      selectedEncounter?.id === encounter.id
-                        ? 'bg-primary-100 border-l-4 border-primary-600'
-                        : 'border-l-4 border-transparent hover:border-l-4 hover:border-primary-300'
-                    }`}
-                  >
-                    {/* Room Number */}
-                    <div className="col-span-3">
-                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-bold rounded bg-primary-600">
-                        Rm {encounter.room_number}
-                      </span>
-                    </div>
-
-                    {/* Patient Name */}
-                    <div className="col-span-5">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/patients/${encounter.patient_id}`);
-                          }}
-                          className={`font-semibold text-sm text-left truncate transition-colors ${
-                            selectedEncounter?.id === encounter.id
-                              ? 'text-primary-800'
-                              : 'text-gray-800 group-hover:text-primary-600'
-                          }`}
-                          title={encounter.patient_name}
-                        >
-                          {encounter.patient_name}
-                        </button>
-                        {encounter.vip_status && (
-                          <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded whitespace-nowrap ${
-                            encounter.vip_status === 'platinum'
-                              ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800'
-                              : encounter.vip_status === 'gold'
-                                ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900'
-                                : 'bg-gradient-to-r from-gray-200 to-slate-300 text-gray-700'
-                          }`}>
-                            {encounter.vip_status === 'platinum' ? '★ VIP' : encounter.vip_status === 'gold' ? '★ VIP' : '★ VIP'}
-                          </span>
-                        )}
-                        {isWithNurse && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded whitespace-nowrap">
-                            With Nurse
-                          </span>
-                        )}
-                      </div>
-                      {encounter.nurse_name && (
-                        <div className="text-xs truncate text-gray-500">
-                          Nurse: {encounter.nurse_name}
+              <div className="max-h-56 overflow-y-auto">
+                {notes.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {notes.slice(0, 10).map((note) => (
+                      <div key={note.id} className="px-4 py-2.5">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
+                            note.note_type === 'nurse_to_doctor' ? 'bg-secondary-100 text-secondary-700' :
+                            note.note_type === 'nurse_general' ? 'bg-success-100 text-success-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{note.note_type?.replace(/_/g, ' ')}</span>
                         </div>
-                      )}
-                    </div>
-
-                    {/* Patient Number */}
-                    <div className="col-span-4 text-right">
-                      <span className="text-xs font-mono text-gray-500">
-                        {encounter.patient_number}
-                      </span>
-                    </div>
+                        <p className="text-sm text-gray-800 line-clamp-1">{note.content}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{note.created_by_name} • {new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+                      </div>
+                    ))}
                   </div>
-                  );
-                })}
-
-                {roomEncounters.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <p className="text-sm font-medium">No active patients</p>
-                    <p className="text-xs mt-1">Patients will appear when nurses alert you</p>
+                ) : (
+                  <div className="p-6 text-center text-gray-400">
+                    <p className="text-sm">No messages yet</p>
                   </div>
                 )}
               </div>
@@ -1638,75 +1566,6 @@ const DoctorDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Messages Section */}
-            {selectedEncounter && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Messages</h2>
-                    </div>
-                    {notes.length > 0 && (
-                      <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-bold rounded-full tabular-nums">
-                        {notes.length}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="max-h-64 overflow-y-auto">
-                  {notes.length > 0 ? (
-                    <div className="divide-y divide-gray-100">
-                      {notes.slice(0, 10).map((note) => (
-                        <div key={note.id} className="px-4 py-3 hover:bg-secondary-50 transition-colors">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  note.note_type === 'doctor_general' ? 'bg-primary-100 text-primary-700' :
-                                  note.note_type === 'nurse_general' ? 'bg-success-100 text-success-700' :
-                                  note.note_type === 'doctor_to_nurse' ? 'bg-secondary-100 text-secondary-700' :
-                                  note.note_type === 'doctor_procedural' ? 'bg-gray-100 text-gray-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {note.note_type === 'doctor_general' ? 'Doctor' :
-                                   note.note_type === 'nurse_general' ? 'Nurse' :
-                                   note.note_type === 'doctor_to_nurse' ? 'Instructions' :
-                                   note.note_type === 'doctor_procedural' ? 'Procedural' :
-                                   note.note_type}
-                                </span>
-                                {note.is_signed && (
-                                  <span className="text-xs text-success-600 flex items-center gap-0.5">
-                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                    </svg>
-                                    Signed
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-800 line-clamp-2">{note.content}</p>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {note.created_by_name} • {new Date(note.created_at).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-6 text-center text-gray-400 min-h-[200px] flex flex-col items-center justify-center">
-                      <svg className="w-10 h-10 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      <p className="text-sm font-medium">No messages yet</p>
-                      <p className="text-xs mt-1">Messages between staff will appear here</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
       {/* Row 2: Patient Workspace with folder tabs */}
       <div id="selected-encounter-panel">
         {/* Folder Tabs */}
@@ -1715,7 +1574,7 @@ const DoctorDashboard: React.FC = () => {
             {roomEncounters.filter(e => e.status !== 'cancelled').map((enc) => (
               <button
                 key={enc.id}
-                onClick={() => setSelectedEncounter(enc)}
+                onClick={() => handleSelectEncounter(enc)}
                 className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-colors whitespace-nowrap flex items-center gap-2 ${
                   selectedEncounter?.id === enc.id
                     ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
