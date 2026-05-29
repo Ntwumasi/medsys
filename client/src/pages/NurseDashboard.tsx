@@ -2355,7 +2355,9 @@ const NurseDashboard: React.FC = () => {
                           if (selectedPatient) {
                             try {
                               const res = await apiClient.get(`/invoices/encounter/${selectedPatient.id}`);
-                              setEncounterInvoice(res.data.invoice || res.data);
+                              const inv = res.data.invoice || res.data;
+                              inv.items = res.data.items || [];
+                              setEncounterInvoice(inv);
                             } catch {
                               setEncounterInvoice(null);
                             }
