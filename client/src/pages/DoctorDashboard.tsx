@@ -603,21 +603,23 @@ const DoctorDashboard: React.FC = () => {
   };
 
   // Add orders to pending arrays
-  const handleAddLabOrder = () => {
+  const handleAddLabOrder = async () => {
     if (!currentLabOrder.test_name) {
       showToast('Please enter a test name', 'warning');
       return;
     }
     const nameLC = currentLabOrder.test_name.trim().toLowerCase();
-    // Check against pending list
-    if (pendingLabOrders.some(o => o.test_name.trim().toLowerCase() === nameLC)) {
-      showToast(`${currentLabOrder.test_name} is already in the pending list`, 'warning');
-      return;
-    }
-    // Check against already-submitted orders for this encounter
-    if (encounterLabOrders.some(o => o.test_name?.toLowerCase() === nameLC && o.status !== 'cancelled')) {
-      showToast(`${currentLabOrder.test_name} has already been ordered for this encounter`, 'warning');
-      return;
+    const inPending = pendingLabOrders.some(o => o.test_name.trim().toLowerCase() === nameLC);
+    const inSubmitted = encounterLabOrders.some(o => o.test_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
+    if (inPending || inSubmitted) {
+      const proceed = await confirmDialog({
+        title: 'Duplicate order',
+        message: `"${currentLabOrder.test_name}" has already been ${inPending ? 'added to the pending list' : 'ordered for this encounter'}. Do you want to add it again?`,
+        variant: 'warning',
+        confirmLabel: 'Yes, add anyway',
+        cancelLabel: 'No, skip',
+      });
+      if (!proceed) return;
     }
     setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
     setCurrentLabOrder({test_name: '', priority: 'routine', notes: ''});
@@ -636,20 +638,25 @@ const DoctorDashboard: React.FC = () => {
     });
   };
 
-  const handleAddImagingOrder = () => {
+  const handleAddImagingOrder = async () => {
     if (!currentImagingOrder.imaging_type) {
       showToast('Please enter imaging type', 'warning');
       return;
     }
     const typeLC = currentImagingOrder.imaging_type.trim().toLowerCase();
     const partLC = (currentImagingOrder.body_part || '').trim().toLowerCase();
-    if (pendingImagingOrders.some(o => o.imaging_type.trim().toLowerCase() === typeLC && (o.body_part || '').trim().toLowerCase() === partLC)) {
-      showToast(`${currentImagingOrder.imaging_type}${currentImagingOrder.body_part ? ' (' + currentImagingOrder.body_part + ')' : ''} is already in the pending list`, 'warning');
-      return;
-    }
-    if (encounterImagingOrders.some(o => (o as any).imaging_type?.toLowerCase() === typeLC && ((o as any).body_part || '').toLowerCase() === partLC && o.status !== 'cancelled')) {
-      showToast(`${currentImagingOrder.imaging_type} has already been ordered for this encounter`, 'warning');
-      return;
+    const label = `${currentImagingOrder.imaging_type}${currentImagingOrder.body_part ? ' (' + currentImagingOrder.body_part + ')' : ''}`;
+    const inPending = pendingImagingOrders.some(o => o.imaging_type.trim().toLowerCase() === typeLC && (o.body_part || '').trim().toLowerCase() === partLC);
+    const inSubmitted = encounterImagingOrders.some(o => (o as any).imaging_type?.toLowerCase() === typeLC && ((o as any).body_part || '').toLowerCase() === partLC && o.status !== 'cancelled');
+    if (inPending || inSubmitted) {
+      const proceed = await confirmDialog({
+        title: 'Duplicate order',
+        message: `"${label}" has already been ${inPending ? 'added to the pending list' : 'ordered for this encounter'}. Do you want to add it again?`,
+        variant: 'warning',
+        confirmLabel: 'Yes, add anyway',
+        cancelLabel: 'No, skip',
+      });
+      if (!proceed) return;
     }
     setPendingImagingOrders([...pendingImagingOrders, currentImagingOrder]);
     setCurrentImagingOrder({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
@@ -770,15 +777,19 @@ const DoctorDashboard: React.FC = () => {
     addMedicationToList();
   };
 
-  const addMedicationToList = () => {
+  const addMedicationToList = async () => {
     const nameLC = currentPharmacyOrder.medication_name.trim().toLowerCase();
-    if (pendingPharmacyOrders.some(o => o.medication_name.trim().toLowerCase() === nameLC)) {
-      showToast(`${currentPharmacyOrder.medication_name} is already in the pending list`, 'warning');
-      return;
-    }
-    if (encounterPharmacyOrders.some(o => (o as any).medication_name?.toLowerCase() === nameLC && o.status !== 'cancelled')) {
-      showToast(`${currentPharmacyOrder.medication_name} has already been ordered for this encounter`, 'warning');
-      return;
+    const inPending = pendingPharmacyOrders.some(o => o.medication_name.trim().toLowerCase() === nameLC);
+    const inSubmitted = encounterPharmacyOrders.some(o => (o as any).medication_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
+    if (inPending || inSubmitted) {
+      const proceed = await confirmDialog({
+        title: 'Duplicate order',
+        message: `"${currentPharmacyOrder.medication_name}" has already been ${inPending ? 'added to the pending list' : 'ordered for this encounter'}. Do you want to add it again?`,
+        variant: 'warning',
+        confirmLabel: 'Yes, add anyway',
+        cancelLabel: 'No, skip',
+      });
+      if (!proceed) return;
     }
     setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
     setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
