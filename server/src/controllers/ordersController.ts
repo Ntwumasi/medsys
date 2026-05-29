@@ -96,7 +96,8 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       console.error('Failed to allocate Path No, continuing without:', pathErr);
     }
 
-    const scheduledFor = (priority === 'scheduled' && scheduled_time) ? new Date(scheduled_time) : null;
+    const parsedTime = scheduled_time ? new Date(scheduled_time) : null;
+    const scheduledFor = (priority === 'scheduled' && parsedTime && !isNaN(parsedTime.getTime())) ? parsedTime : null;
 
     const result = await pool.query(
       `INSERT INTO lab_orders (
@@ -1160,7 +1161,8 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
       }
     }
 
-    const scheduledFor = (priority === 'scheduled' && scheduled_time) ? new Date(scheduled_time) : null;
+    const parsedTime = scheduled_time ? new Date(scheduled_time) : null;
+    const scheduledFor = (priority === 'scheduled' && parsedTime && !isNaN(parsedTime.getTime())) ? parsedTime : null;
 
     const result = await pool.query(
       `INSERT INTO imaging_orders (

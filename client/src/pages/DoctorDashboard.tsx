@@ -910,8 +910,8 @@ const DoctorDashboard: React.FC = () => {
 
       // Submit all lab orders (strip frontend-only fields)
       for (const order of pendingLabOrders) {
-        const { frequency: _f, occurrences: _o, customFrequency: _c, ...labFields } = order as any;
-        void _f; void _o; void _c;
+        const { frequency: _f, occurrences: _o, customFrequency: _c, scheduled_time: _st, ...labFields } = order as any;
+        void _f; void _o; void _c; void _st;
         await apiClient.post('/orders/lab', { ...baseData, ...labFields });
       }
 
