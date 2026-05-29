@@ -1495,11 +1495,12 @@ const NurseDashboard: React.FC = () => {
 
         {/* Patients View */}
         {mainView === 'patients' && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
-          {/* Left Column */}
-          <div className="xl:col-span-1">
-            {/* Follow-Up & Review Notifications */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
+        <>
+        {/* Row 1: Three info cards side by side */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
+          {/* Notifications */}
+          <div className="flex">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full flex flex-col max-h-64">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1557,8 +1558,10 @@ const NurseDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Doctor Notifications */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          </div>
+          {/* Doctor Notifications */}
+          <div className="flex">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full flex flex-col max-h-64">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1615,8 +1618,10 @@ const NurseDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Assigned Patients List */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          </div>
+          {/* Assigned Patients */}
+          <div className="flex">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden w-full flex flex-col max-h-64">
               {/* Header */}
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
@@ -1764,8 +1769,38 @@ const NurseDashboard: React.FC = () => {
               )}
             </div>
 
-            {/* Short Stay Unit */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4">
+          </div>
+        </div>
+
+        {/* Folder Tabs for Patients */}
+        {assignedPatients.length > 0 && (
+          <div className="flex items-end gap-0.5 overflow-x-auto pb-0 -mb-px">
+            {assignedPatients.map((patient) => (
+              <button
+                key={patient.id}
+                onClick={() => handleSelectPatient(patient)}
+                className={`px-5 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-colors whitespace-nowrap flex items-center gap-2 ${
+                  selectedPatient?.id === patient.id
+                    ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
+                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-700'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  patient.current_priority === 'red' ? 'bg-danger-500 animate-pulse' :
+                  patient.current_priority === 'yellow' ? 'bg-warning-400' :
+                  patient.is_checked_out ? 'bg-gray-300' :
+                  'bg-success-400'
+                }`} />
+                {patient.patient_name}
+                {patient.room_number && <span className="text-xs text-gray-400">Rm {patient.room_number}</span>}
+                {patient.is_checked_out && <span className="text-[10px] text-gray-400">Out</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+            {/* Short Stay Unit — collapsed below tabs */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-4 mb-4">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1864,14 +1899,11 @@ const NurseDashboard: React.FC = () => {
               </div>
             </div>
 
-          </div>
-
-          {/* Patient Details & Actions */}
-          <div className="xl:col-span-2">
-            {selectedPatient ? (
-              <div className="space-y-4">
+        {/* Patient Content */}
+        {selectedPatient ? (
+          <div className="bg-white rounded-b-xl rounded-tr-xl shadow-sm border border-gray-200 p-6 space-y-4">
                 {/* Patient Info Header */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="pb-4 border-b border-gray-100">
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedPatient.patient_name}</h2>
@@ -3848,22 +3880,18 @@ const NurseDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-12">
-                <div className="text-center text-gray-400">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-primary-200 rounded-full blur-3xl opacity-20"></div>
-                    <svg className="w-32 h-32 mx-auto relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-2xl font-semibold text-gray-600 mb-2">Select a patient to begin</p>
-                  <p className="text-gray-400">Choose a patient from your assigned list to view their details and medical records</p>
-                </div>
-              </div>
-            )}
+        ) : (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 mt-4">
+            <div className="text-center text-gray-400">
+              <svg className="w-20 h-20 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <p className="text-xl font-semibold text-gray-500 mb-1">Select a patient to begin</p>
+              <p className="text-sm text-gray-400">Choose from the patient tabs above</p>
+            </div>
           </div>
-        </div>
+        )}
+        </>
         )}
 
         {/* Inventory View */}
