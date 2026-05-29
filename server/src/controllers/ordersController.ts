@@ -122,14 +122,14 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
   try {
     await ensureLabVerificationSchema();
 
-    // Auto-cancel stale orders older than 7 days that are still pending/in-progress
+    // Auto-cancel stale orders older than 3 days that are still pending/in-progress
     await pool.query(
       `UPDATE lab_orders
          SET status = 'cancelled',
              notes = COALESCE(notes || ' | ', '') || 'Auto-cancelled: stale order',
              updated_at = CURRENT_TIMESTAMP
        WHERE status IN ('ordered', 'in-progress')
-         AND ordered_date < NOW() - INTERVAL '7 days'`
+         AND ordered_date < NOW() - INTERVAL '3 days'`
     );
 
     const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
