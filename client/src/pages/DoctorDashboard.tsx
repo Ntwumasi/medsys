@@ -15,6 +15,7 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
+import PrioritySelect from '../components/PrioritySelect';
 import LabTestSetChips from '../components/LabTestSetChips';
 import LabResultModal from '../components/LabResultModal';
 import type { LabResultAlert } from '../components/LabResultModal';
@@ -148,12 +149,12 @@ const DoctorDashboard: React.FC = () => {
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
 
   // Multi-order state - arrays to hold pending orders
-  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string}>>([]);
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number}>>([]);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
   const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
 
   // Current order being added
-  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: ''});
+  const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
   const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
 
@@ -623,8 +624,20 @@ const DoctorDashboard: React.FC = () => {
       });
       if (!proceed) return;
     }
-    setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
-    setCurrentLabOrder({test_name: '', priority: 'routine', notes: '', scheduled_time: ''});
+    // For scheduled orders with frequency, add multiple entries
+    if (currentLabOrder.priority === 'scheduled' && currentLabOrder.frequency !== 'once' && currentLabOrder.occurrences > 1) {
+      const freqLabel = currentLabOrder.frequency === 'daily' ? 'Daily' :
+                         currentLabOrder.frequency === 'weekly' ? 'Weekly' :
+                         `Q${currentLabOrder.frequency.toUpperCase()}`;
+      const orders = Array.from({ length: currentLabOrder.occurrences }, (_, i) => ({
+        ...currentLabOrder,
+        notes: `${currentLabOrder.notes ? currentLabOrder.notes + ' | ' : ''}${freqLabel} #${i + 1} of ${currentLabOrder.occurrences}`,
+      }));
+      setPendingLabOrders([...pendingLabOrders, ...orders]);
+    } else {
+      setPendingLabOrders([...pendingLabOrders, currentLabOrder]);
+    }
+    setCurrentLabOrder({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1});
   };
 
   // Apply a saved test set: append any tests that aren't already staged
@@ -812,7 +825,7 @@ const DoctorDashboard: React.FC = () => {
 
   const handleEditLabOrder = (index: number) => {
     const order = pendingLabOrders[index];
-    setCurrentLabOrder({ ...order, notes: order.notes ?? '', scheduled_time: order.scheduled_time ?? '' });
+    setCurrentLabOrder({ ...order, notes: order.notes ?? '', scheduled_time: order.scheduled_time ?? '', frequency: order.frequency ?? 'once', occurrences: order.occurrences ?? 1 });
     setPendingLabOrders(pendingLabOrders.filter((_, i) => i !== index));
   };
 
@@ -2532,25 +2545,77 @@ const DoctorDashboard: React.FC = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm"
                           placeholder="Test name"
                         />
-                        <select
+                        <PrioritySelect
                           value={currentLabOrder.priority}
-                          onChange={(e) => setCurrentLabOrder({...currentLabOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm"
-                        >
-                          <option value="routine">Routine</option>
-                          <option value="urgent">Urgent</option>
-                          <option value="stat">STAT</option>
-                          <option value="scheduled">Scheduled</option>
-                        </select>
+                          onChange={(val) => setCurrentLabOrder({...currentLabOrder, priority: val})}
+                        />
                         {currentLabOrder.priority === 'scheduled' && (
-                          <div className="space-y-2">
-                            <label className="block text-xs font-medium text-gray-600">Schedule times (duplicates allowed for scheduled orders)</label>
-                            <input
-                              type="datetime-local"
-                              value={currentLabOrder.scheduled_time || ''}
-                              onChange={(e) => setCurrentLabOrder({...currentLabOrder, scheduled_time: e.target.value})}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-                            />
+                          <div className="bg-secondary-50 border border-secondary-200 rounded-lg p-3 space-y-3">
+                            <div className="flex items-center gap-2 text-xs font-semibold text-secondary-700 uppercase">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Schedule Settings
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    { value: 'once', label: 'Once' },
+                                    { value: '4h', label: 'Q4H' },
+                                    { value: '6h', label: 'Q6H' },
+                                    { value: '8h', label: 'Q8H' },
+                                    { value: '12h', label: 'Q12H' },
+                                    { value: 'daily', label: 'Daily' },
+                                    { value: 'weekly', label: 'Weekly' },
+                                  ].map((f) => (
+                                    <button
+                                      key={f.value}
+                                      type="button"
+                                      onClick={() => setCurrentLabOrder({...currentLabOrder, frequency: f.value})}
+                                      className={`px-2 py-1 text-xs font-semibold rounded-md border transition-colors ${
+                                        currentLabOrder.frequency === f.value
+                                          ? 'bg-secondary-600 text-white border-secondary-600'
+                                          : 'bg-white text-gray-600 border-gray-300 hover:border-secondary-400'
+                                      }`}
+                                    >
+                                      {f.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">
+                                  {currentLabOrder.frequency === 'once' ? 'Scheduled for' : 'Number of times'}
+                                </label>
+                                {currentLabOrder.frequency === 'once' ? (
+                                  <input
+                                    type="datetime-local"
+                                    value={currentLabOrder.scheduled_time || ''}
+                                    onChange={(e) => setCurrentLabOrder({...currentLabOrder, scheduled_time: e.target.value})}
+                                    className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-secondary-500"
+                                  />
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={2}
+                                    max={30}
+                                    value={currentLabOrder.occurrences}
+                                    onChange={(e) => setCurrentLabOrder({...currentLabOrder, occurrences: parseInt(e.target.value) || 2})}
+                                    className="w-full px-2 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-secondary-500"
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            {currentLabOrder.frequency !== 'once' && (
+                              <p className="text-xs text-secondary-600">
+                                {currentLabOrder.test_name || 'Test'} will be ordered {currentLabOrder.occurrences} times,{' '}
+                                {currentLabOrder.frequency === 'daily' ? 'once daily' :
+                                 currentLabOrder.frequency === 'weekly' ? 'once weekly' :
+                                 `every ${currentLabOrder.frequency.replace('h', ' hours')}`}
+                              </p>
+                            )}
                           </div>
                         )}
                         <textarea
@@ -2635,27 +2700,10 @@ const DoctorDashboard: React.FC = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
                           placeholder="Body part (optional)"
                         />
-                        <select
+                        <PrioritySelect
                           value={currentImagingOrder.priority}
-                          onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
-                        >
-                          <option value="routine">Routine</option>
-                          <option value="urgent">Urgent</option>
-                          <option value="stat">STAT</option>
-                          <option value="scheduled">Scheduled</option>
-                        </select>
-                        {currentImagingOrder.priority === 'scheduled' && (
-                          <div className="space-y-2">
-                            <label className="block text-xs font-medium text-gray-600">Schedule time (duplicates allowed for scheduled orders)</label>
-                            <input
-                              type="datetime-local"
-                              value={(currentImagingOrder as any).scheduled_time || ''}
-                              onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, scheduled_time: e.target.value} as any)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 text-sm"
-                            />
-                          </div>
-                        )}
+                          onChange={(val) => setCurrentImagingOrder({...currentImagingOrder, priority: val})}
+                        />
                         <textarea
                           value={currentImagingOrder.notes}
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, notes: e.target.value})}
