@@ -571,7 +571,7 @@ router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('docto
 router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, getSignedNotes);
 
 // Orders routes - Lab
-router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse'), createLabOrder);
+router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab'), createLabOrder);
 router.get('/orders/lab', authenticateToken, getLabOrders);
 // Pending-verification queue MUST be registered before the :id routes below,
 // otherwise Express interprets "pending-verification" as an :id parameter.
@@ -583,7 +583,7 @@ router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('
 router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 
 // Orders routes - Imaging (nurses can create for verbal orders)
-router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse'), createImagingOrder);
+router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse', 'imaging'), createImagingOrder);
 router.get('/orders/imaging', authenticateToken, getImagingOrders);
 router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
 

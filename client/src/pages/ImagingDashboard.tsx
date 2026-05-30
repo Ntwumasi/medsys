@@ -60,6 +60,14 @@ const ImagingDashboard: React.FC = () => {
   // Upcoming scheduled imaging appointments
   const [scheduledAppointments, setScheduledAppointments] = useState<Array<{id: number; patient_name: string; appointment_date: string; reason: string; status: string}>>([]);
 
+  // Walk-in add study modal
+  const [addStudyWalkin, setAddStudyWalkin] = useState<any | null>(null);
+  const [walkinImagingType, setWalkinImagingType] = useState('');
+  const [walkinBodyPart, setWalkinBodyPart] = useState('');
+  const [walkinPriority, setWalkinPriority] = useState('routine');
+  const [walkinStudies, setWalkinStudies] = useState<Array<{imaging_type: string; body_part: string; priority: string}>>([]);
+  const [submittingWalkinStudies, setSubmittingWalkinStudies] = useState(false);
+
   // Patient Details panel state
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<ImagingOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
@@ -121,6 +129,31 @@ const ImagingDashboard: React.FC = () => {
       const all = res.data.appointments || res.data || [];
       setScheduledAppointments(all.filter((a: any) => a.appointment_type === 'walk-in imaging' && a.status !== 'cancelled'));
     } catch { /* ignore */ }
+  };
+
+  const handleSubmitWalkinStudies = async () => {
+    if (!addStudyWalkin || walkinStudies.length === 0) return;
+    setSubmittingWalkinStudies(true);
+    try {
+      for (const study of walkinStudies) {
+        await apiClient.post('/orders/imaging', {
+          patient_id: addStudyWalkin.patient_id,
+          encounter_id: addStudyWalkin.encounter_id,
+          imaging_type: study.imaging_type,
+          body_part: study.body_part || null,
+          priority: study.priority,
+        });
+      }
+      showToast(`${walkinStudies.length} imaging order(s) created for ${addStudyWalkin.patient_name}`, 'success');
+      setAddStudyWalkin(null);
+      setWalkinStudies([]);
+      fetchImagingOrders();
+      fetchWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to create imaging orders', 'error');
+    } finally {
+      setSubmittingWalkinStudies(false);
+    }
   };
 
   useSmartPolling(() => {
@@ -462,6 +495,17 @@ const ImagingDashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="ml-4 flex gap-2">
+                      <button
+                        onClick={() => {
+                          setAddStudyWalkin(walkin);
+                          setWalkinStudies([]);
+                          setWalkinImagingType('');
+                          setWalkinBodyPart('');
+                        }}
+                        className="px-2 py-1 bg-primary-600 text-white rounded text-xs font-semibold hover:bg-primary-700"
+                      >
+                        + Add Study
+                      </button>
                       {walkin.status === 'pending' && (
                         <Button
                           variant="primary"
@@ -996,6 +1040,53 @@ const ImagingDashboard: React.FC = () => {
       )}
 
       {/* Patient Quick View Modal */}
+      {/* Add Study Modal for Walk-in Patients */}
+      {addStudyWalkin && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setAddStudyWalkin(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-secondary-50 to-secondary-100 rounded-t-xl">
+              <h3 className="text-lg font-bold text-gray-900">Add Imaging Studies</h3>
+              <p className="text-sm text-gray-600 mt-0.5">{addStudyWalkin.patient_name} — {addStudyWalkin.encounter_number}</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="space-y-3">
+                <input type="text" value={walkinImagingType} onChange={(e) => setWalkinImagingType(e.target.value)} placeholder="Imaging type (e.g., X-Ray, CT Scan, Ultrasound)" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-secondary-500" />
+                <input type="text" value={walkinBodyPart} onChange={(e) => setWalkinBodyPart(e.target.value)} placeholder="Body part (optional)" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-secondary-500" />
+                <div className="grid grid-cols-2 gap-3">
+                  <select value={walkinPriority} onChange={(e) => setWalkinPriority(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <option value="routine">Routine</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="stat">STAT</option>
+                  </select>
+                  <button onClick={() => { if (!walkinImagingType.trim()) return; setWalkinStudies([...walkinStudies, { imaging_type: walkinImagingType.trim(), body_part: walkinBodyPart.trim(), priority: walkinPriority }]); setWalkinImagingType(''); setWalkinBodyPart(''); }} className="px-3 py-2 bg-secondary-600 text-white rounded-lg text-sm font-medium hover:bg-secondary-700">+ Add to List</button>
+                </div>
+              </div>
+              {walkinStudies.length > 0 && (
+                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                  {walkinStudies.map((s, idx) => (
+                    <div key={idx} className="px-4 py-2.5 flex justify-between items-center">
+                      <div>
+                        <span className="font-medium text-gray-900 text-sm">{s.imaging_type}</span>
+                        {s.body_part && <span className="text-gray-500 text-sm ml-1">({s.body_part})</span>}
+                        <span className={`ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded ${s.priority === 'stat' ? 'bg-danger-100 text-danger-700' : s.priority === 'urgent' ? 'bg-warning-100 text-warning-700' : 'bg-gray-100 text-gray-600'}`}>{s.priority.toUpperCase()}</span>
+                      </div>
+                      <button onClick={() => setWalkinStudies(walkinStudies.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-danger-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-between items-center">
+              <span className="text-sm text-gray-500">{walkinStudies.length} study(ies) staged</span>
+              <div className="flex gap-2">
+                <button onClick={() => setAddStudyWalkin(null)} className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg text-sm">Cancel</button>
+                <button onClick={handleSubmitWalkinStudies} disabled={walkinStudies.length === 0 || submittingWalkinStudies} className="px-4 py-2 bg-secondary-600 text-white font-medium rounded-lg hover:bg-secondary-700 text-sm disabled:opacity-50">{submittingWalkinStudies ? 'Creating...' : `Create ${walkinStudies.length} Order(s)`}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPatientQuickView && selectedPatientId && (
         <PatientQuickView
           patientId={selectedPatientId}
