@@ -71,6 +71,7 @@ interface GroupedPatientLabOrders {
   ordering_provider_name: string;
   highest_priority: 'stat' | 'urgent' | 'routine';
   ordered_at: string;
+  encounter_clinic?: string | null;
   orders: LabOrder[];
 }
 
@@ -1554,6 +1555,7 @@ const LabDashboard: React.FC = () => {
           ordering_provider_name: order.ordering_provider_name,
           highest_priority: order.priority,
           ordered_at: order.ordered_at,
+          encounter_clinic: (order as any).encounter_clinic || null,
           orders: [],
         };
       }
@@ -2233,7 +2235,7 @@ const LabDashboard: React.FC = () => {
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                                     </svg>
                                   )}
-                                  {done ? 'Sent to nurse' : inFlight ? 'Sending…' : 'Send to Nurse'}
+                                  {done ? 'Sent' : inFlight ? 'Sending…' : group.encounter_clinic === 'Lab (Walk-in)' ? 'Ready for Checkout' : 'Send to Nurse'}
                                 </button>
                               );
                             })()}

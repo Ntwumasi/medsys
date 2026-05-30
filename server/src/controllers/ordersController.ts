@@ -261,7 +261,8 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         p.date_of_birth as patient_dob,
         p.gender as patient_gender,
         p.allergies as patient_allergies,
-        u_patient.first_name || ' ' || u_patient.last_name as patient_name
+        u_patient.first_name || ' ' || u_patient.last_name as patient_name,
+        e.clinic as encounter_clinic
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
       LEFT JOIN users u_entered ON lo.entered_by = u_entered.id

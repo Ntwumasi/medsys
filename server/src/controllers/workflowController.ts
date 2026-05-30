@@ -1338,7 +1338,8 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
     // doing any writes.
     const ctx = await pool.query(
       `SELECT p.id AS patient_id, p.patient_number,
-              u.first_name || ' ' || u.last_name AS patient_name
+              u.first_name || ' ' || u.last_name AS patient_name,
+              e.clinic
          FROM encounters e
          JOIN patients p ON e.patient_id = p.id
          JOIN users u ON p.user_id = u.id
@@ -1349,7 +1350,8 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       res.status(404).json({ error: 'Encounter not found' });
       return;
     }
-    const { patient_id, patient_name, patient_number } = ctx.rows[0];
+    const { patient_id, patient_name, patient_number, clinic: encounterClinic } = ctx.rows[0];
+    const isWalkIn = ['Lab (Walk-in)', 'Imaging (Walk-in)', 'Pharmacy (OTC/Walk-in)'].includes(encounterClinic);
 
     // Mark all open routing entries for this department + encounter as done.
     const updateResult = await pool.query(
@@ -1455,19 +1457,35 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       imaging: 'imaging',
     };
 
-    await notificationService.sendToRole('nurse', {
-      type: 'patient_alert',
-      title: `Back from ${deptLabel[from_department]}`,
-      message: `${patient_name} (${patient_number}) is back from ${deptLabel[from_department]} and needs follow-up.`,
-      entityType: 'encounter',
-      entityId: encounter_id,
-    });
+    if (isWalkIn) {
+      // Walk-in patients go straight to receptionist for checkout
+      await pool.query(
+        `UPDATE encounters SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [encounter_id]
+      );
+      await notificationService.sendToRole('receptionist', {
+        type: 'patient_alert',
+        title: `Walk-in ready for checkout`,
+        message: `${patient_name} (${patient_number}) has completed ${deptLabel[from_department]} walk-in and is ready for checkout.`,
+        entityType: 'encounter',
+        entityId: encounter_id,
+      });
+    } else {
+      await notificationService.sendToRole('nurse', {
+        type: 'patient_alert',
+        title: `Back from ${deptLabel[from_department]}`,
+        message: `${patient_name} (${patient_number}) is back from ${deptLabel[from_department]} and needs follow-up.`,
+        entityType: 'encounter',
+        entityId: encounter_id,
+      });
+    }
 
     res.json({
-      message: `Patient sent back to nurse from ${from_department}`,
+      message: isWalkIn ? `Walk-in patient sent to receptionist for checkout` : `Patient sent back to nurse from ${from_department}`,
       patient_name,
       patient_number,
       labs_billed: labsBilled,
+      is_walk_in: isWalkIn,
     });
   } catch (error) {
     console.error('Release to nurse error:', error);
