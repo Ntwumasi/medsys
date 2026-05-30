@@ -12,6 +12,9 @@ import InsightCard from '../components/ui/InsightCard';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
 import LabResultModal, { type LabResultAlert } from '../components/LabResultModal';
+import { AutocompleteInput } from '../components/AutocompleteInput';
+import PrioritySelect from '../components/PrioritySelect';
+import FrequencySelect from '../components/FrequencySelect';
 
 // Interfaces
 interface LabOrder {
@@ -247,12 +250,15 @@ const LabDashboard: React.FC = () => {
   const [walkinTestName, setWalkinTestName] = useState('');
   const [walkinPriority, setWalkinPriority] = useState('routine');
   const [walkinNotes, setWalkinNotes] = useState('');
-  const [walkinTests, setWalkinTests] = useState<Array<{test_name: string; priority: string; notes: string}>>([]);
+  const [walkinFrequency, setWalkinFrequency] = useState('once');
+  const [walkinTests, setWalkinTests] = useState<Array<{test_name: string; priority: string; notes: string; frequency?: string}>>([]);
   const [submittingWalkinTests, setSubmittingWalkinTests] = useState(false);
   const [showNewWalkin, setShowNewWalkin] = useState(false);
   const [walkinSearch, setWalkinSearch] = useState('');
   const [walkinSearchResults, setWalkinSearchResults] = useState<any[]>([]);
   const [creatingWalkin, setCreatingWalkin] = useState(false);
+  const [showQuickRegister, setShowQuickRegister] = useState(false);
+  const [quickRegForm, setQuickRegForm] = useState({ first_name: '', last_name: '', phone: '', gender: '' });
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -832,6 +838,41 @@ const LabDashboard: React.FC = () => {
       showToast(err?.response?.data?.error || 'Failed to create lab orders', 'error');
     } finally {
       setSubmittingWalkinTests(false);
+    }
+  };
+
+  // Quick register + check in a new patient for lab walk-in
+  const handleQuickRegister = async () => {
+    if (!quickRegForm.first_name || !quickRegForm.last_name || !quickRegForm.phone) {
+      showToast('First name, last name, and phone are required', 'warning');
+      return;
+    }
+    setCreatingWalkin(true);
+    try {
+      // Create the patient first
+      const patientRes = await apiClient.post('/patients', {
+        first_name: quickRegForm.first_name,
+        last_name: quickRegForm.last_name,
+        phone: quickRegForm.phone,
+        gender: quickRegForm.gender || undefined,
+      });
+      const newPatient = patientRes.data.patient;
+      // Then check them in as lab walk-in
+      await apiClient.post('/workflow/check-in', {
+        patient_id: newPatient.id,
+        encounter_type: 'walk-in',
+        chief_complaint: 'Lab walk-in',
+        clinic: 'Lab (Walk-in)',
+      });
+      showToast(`${quickRegForm.first_name} ${quickRegForm.last_name} registered and checked in`, 'success');
+      setShowNewWalkin(false);
+      setShowQuickRegister(false);
+      setQuickRegForm({ first_name: '', last_name: '', phone: '', gender: '' });
+      fetchWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || err?.response?.data?.message || 'Failed to register patient', 'error');
+    } finally {
+      setCreatingWalkin(false);
     }
   };
 
@@ -1928,6 +1969,44 @@ const LabDashboard: React.FC = () => {
                         <span className="text-xs text-primary-600 font-medium">Check in →</span>
                       </button>
                     ))}
+                  </div>
+                )}
+                {walkinSearch.length >= 2 && walkinSearchResults.length === 0 && !showQuickRegister && (
+                  <div className="mt-2 text-center py-3">
+                    <p className="text-sm text-gray-500 mb-2">No patients found</p>
+                    <button
+                      onClick={() => {
+                        const parts = walkinSearch.trim().split(/\s+/);
+                        setQuickRegForm({ first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '', phone: '', gender: '' });
+                        setShowQuickRegister(true);
+                      }}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                    >
+                      + Register New Patient
+                    </button>
+                  </div>
+                )}
+                {showQuickRegister && (
+                  <div className="mt-3 bg-white border border-primary-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-900">Quick Registration</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="text" value={quickRegForm.first_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, first_name: e.target.value })} placeholder="First Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={quickRegForm.last_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, last_name: e.target.value })} placeholder="Last Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="text" value={quickRegForm.phone} onChange={(e) => setQuickRegForm({ ...quickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <select value={quickRegForm.gender} onChange={(e) => setQuickRegForm({ ...quickRegForm, gender: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="">Gender</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowQuickRegister(false)} className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleQuickRegister} disabled={creatingWalkin} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 flex-1">
+                        {creatingWalkin ? 'Registering...' : 'Register & Check In'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -3375,34 +3454,23 @@ const LabDashboard: React.FC = () => {
             <div className="p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Add test form */}
               <div className="space-y-3">
-                <input
-                  type="text"
+                <AutocompleteInput
                   value={walkinTestName}
-                  onChange={(e) => setWalkinTestName(e.target.value)}
+                  onChange={(value) => setWalkinTestName(value)}
+                  sectionId="lab_tests"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
                   placeholder="Test name (e.g., CBC, FBS, Urinalysis)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
                 />
                 <div className="grid grid-cols-2 gap-3">
-                  <select
+                  <PrioritySelect
                     value={walkinPriority}
-                    onChange={(e) => setWalkinPriority(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="routine">Routine</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="stat">STAT</option>
-                  </select>
-                  <button
-                    onClick={() => {
-                      if (!walkinTestName.trim()) return;
-                      setWalkinTests([...walkinTests, { test_name: walkinTestName.trim(), priority: walkinPriority, notes: walkinNotes }]);
-                      setWalkinTestName('');
-                      setWalkinNotes('');
-                    }}
-                    className="px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
-                  >
-                    + Add to List
-                  </button>
+                    onChange={(val) => setWalkinPriority(val)}
+                    showScheduled={false}
+                  />
+                  <FrequencySelect
+                    value={walkinFrequency}
+                    onChange={(val) => setWalkinFrequency(val)}
+                  />
                 </div>
                 <input
                   type="text"
@@ -3411,6 +3479,26 @@ const LabDashboard: React.FC = () => {
                   placeholder="Notes (optional)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
                 />
+                <button
+                  onClick={() => {
+                    if (!walkinTestName.trim()) return;
+                    const freq = walkinFrequency;
+                    const freqLabel = freq === 'once' ? '' : freq === 'daily' ? 'Daily' : freq === 'weekly' ? 'Weekly' : freq === 'custom' ? 'Custom' : `Q${freq.toUpperCase()}`;
+                    setWalkinTests([...walkinTests, {
+                      test_name: walkinTestName.trim(),
+                      priority: walkinPriority,
+                      notes: walkinNotes + (freqLabel ? ` | Frequency: ${freqLabel}` : ''),
+                      frequency: freq,
+                    }]);
+                    setWalkinTestName('');
+                    setWalkinNotes('');
+                    setWalkinFrequency('once');
+                  }}
+                  className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  Add to List
+                </button>
               </div>
 
               {/* Staged tests */}
@@ -3420,6 +3508,11 @@ const LabDashboard: React.FC = () => {
                     <div key={idx} className="px-4 py-2.5 flex justify-between items-center">
                       <div>
                         <span className="font-medium text-gray-900 text-sm">{test.test_name}</span>
+                        {test.frequency && test.frequency !== 'once' && (
+                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-secondary-100 text-secondary-700">
+                            {test.frequency === 'daily' ? 'Daily' : test.frequency === 'weekly' ? 'Weekly' : `Q${test.frequency.toUpperCase()}`}
+                          </span>
+                        )}
                         <span className={`ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded ${
                           test.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
                           test.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
