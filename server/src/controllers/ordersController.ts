@@ -107,10 +107,40 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
       [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes, pathNo, scheduledFor]
     );
 
-    // Billing deferred to completion — lab orders are only added to the invoice
-    // when the lab tech completes the test (see updateLabOrder)
-
     const order = result.rows[0];
+
+    // For walk-in/OTC patients (ordered by lab tech), bill immediately at order
+    // creation so the patient can pay and leave without waiting for results.
+    // For doctor/nurse-ordered tests, billing still happens on completion.
+    if (currentUserRole === 'lab') {
+      try {
+        // Find or create invoice for this encounter
+        let invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
+        if (invoiceRow.rows.length > 0) {
+          const invoiceId = invoiceRow.rows[0].id;
+          // Look up the charge_master price for this test
+          const chargeResult = await pool.query(
+            "SELECT id, price FROM charge_master WHERE LOWER(service_name) = LOWER($1) AND category = 'lab' AND is_active = true LIMIT 1",
+            [test_name]
+          );
+          if (chargeResult.rows.length > 0) {
+            const charge = chargeResult.rows[0];
+            const { resolvePrice } = require('../services/priceResolutionService');
+            const resolved = await resolvePrice(charge.id, invoiceId);
+            const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
+            await pool.query(
+              'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, $2, $3, 1, $4, $4, $5)',
+              [invoiceId, charge.id, test_name, billingPrice, 'lab']
+            );
+            // Update invoice total
+            const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
+            await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
+          }
+        }
+      } catch (billingErr) {
+        console.error('Walk-in billing on order creation failed (non-fatal):', billingErr);
+      }
+    }
 
     // Create a walk-in lab appointment for scheduled orders so it shows on the calendar
     if (priority === 'scheduled') {
@@ -1172,10 +1202,36 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
       [patient_id, encounter_id, orderingProvider, studyType, body_part, priority || 'routine', clinical_indication, notes, scheduledFor]
     );
 
-    // Billing deferred to completion — imaging orders are only added to the invoice
-    // when the imaging tech completes the study (see updateImagingOrder)
-
     const order = result.rows[0];
+
+    // For walk-in/OTC patients (ordered by imaging tech), bill immediately
+    if (currentUserRole === 'imaging') {
+      try {
+        let invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
+        if (invoiceRow.rows.length > 0) {
+          const invoiceId = invoiceRow.rows[0].id;
+          const chargeResult = await pool.query(
+            "SELECT id, price FROM charge_master WHERE LOWER(service_name) = LOWER($1) AND category = 'imaging' AND is_active = true LIMIT 1",
+            [studyType]
+          );
+          if (chargeResult.rows.length > 0) {
+            const charge = chargeResult.rows[0];
+            const { resolvePrice } = require('../services/priceResolutionService');
+            const resolved = await resolvePrice(charge.id, invoiceId);
+            const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
+            const label = `${studyType}${body_part ? ' (' + body_part + ')' : ''}`;
+            await pool.query(
+              'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, $2, $3, 1, $4, $4, $5)',
+              [invoiceId, charge.id, label, billingPrice, 'imaging']
+            );
+            const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
+            await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
+          }
+        }
+      } catch (billingErr) {
+        console.error('Walk-in imaging billing on order creation failed (non-fatal):', billingErr);
+      }
+    }
 
     // Create a walk-in imaging appointment for scheduled orders
     if (priority === 'scheduled') {

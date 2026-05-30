@@ -107,8 +107,9 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // Build all check-in charges upfront (registration + consultation together)
     const checkInCharges: Array<{ chargeMasterId: number | null; description: string; price: number }> = [];
 
-    // 1. Registration fee for new patients only (REG-001 = GHS 100 cash rate)
-    if (isNewPatient) {
+    // 1. Registration fee for new patients only — skip for department walk-ins
+    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)'];
+    if (isNewPatient && !departmentClinics.includes(clinic)) {
       const chargeResult = await client.query(
         'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true',
         ['REG-001']
@@ -129,7 +130,6 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [consultCode]
     );
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
-    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)'];
     if (!departmentClinics.includes(clinic)) {
       checkInCharges.push({
         chargeMasterId: consultResult.rows.length > 0 ? consultResult.rows[0].id : null,

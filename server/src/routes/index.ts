@@ -526,7 +526,7 @@ router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('d
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
 
 // Workflow routes - Receptionist
-router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), checkInPatient);
+router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging'), checkInPatient);
 router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('receptionist'), assignDoctor);

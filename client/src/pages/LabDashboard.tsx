@@ -248,6 +248,10 @@ const LabDashboard: React.FC = () => {
   const [walkinNotes, setWalkinNotes] = useState('');
   const [walkinTests, setWalkinTests] = useState<Array<{test_name: string; priority: string; notes: string}>>([]);
   const [submittingWalkinTests, setSubmittingWalkinTests] = useState(false);
+  const [showNewWalkin, setShowNewWalkin] = useState(false);
+  const [walkinSearch, setWalkinSearch] = useState('');
+  const [walkinSearchResults, setWalkinSearchResults] = useState<any[]>([]);
+  const [creatingWalkin, setCreatingWalkin] = useState(false);
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -827,6 +831,38 @@ const LabDashboard: React.FC = () => {
       showToast(err?.response?.data?.error || 'Failed to create lab orders', 'error');
     } finally {
       setSubmittingWalkinTests(false);
+    }
+  };
+
+  // Search patients for new walk-in
+  const searchWalkinPatients = async (query: string) => {
+    setWalkinSearch(query);
+    if (query.length < 2) { setWalkinSearchResults([]); return; }
+    try {
+      const res = await apiClient.get(`/patients?search=${encodeURIComponent(query)}&limit=5`);
+      setWalkinSearchResults(res.data.patients || []);
+    } catch { setWalkinSearchResults([]); }
+  };
+
+  // Check in a walk-in patient directly from the lab
+  const handleNewWalkin = async (patient: any) => {
+    setCreatingWalkin(true);
+    try {
+      await apiClient.post('/workflow/check-in', {
+        patient_id: patient.id,
+        encounter_type: 'walk-in',
+        chief_complaint: 'Lab walk-in',
+        clinic: 'Lab (Walk-in)',
+      });
+      showToast(`${patient.first_name} ${patient.last_name} checked in for lab`, 'success');
+      setShowNewWalkin(false);
+      setWalkinSearch('');
+      setWalkinSearchResults([]);
+      fetchWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.response?.data?.error || 'Failed to check in patient', 'error');
+    } finally {
+      setCreatingWalkin(false);
     }
   };
 
@@ -1839,16 +1875,61 @@ const LabDashboard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
               <h2 className="text-lg font-semibold">Walk-in Patients</h2>
-              <button
-                onClick={fetchWalkIns}
-                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowNewWalkin(true)}
+                  className="px-3 py-1.5 text-sm bg-primary-600 text-white hover:bg-primary-700 rounded-lg flex items-center gap-1 font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Walk-in
+                </button>
+                <button
+                  onClick={fetchWalkIns}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
+            {/* New Walk-in Search */}
+            {showNewWalkin && (
+              <div className="p-4 bg-primary-50 border-b border-primary-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-sm font-semibold text-primary-800">Check in a walk-in patient for lab</h3>
+                  <button onClick={() => { setShowNewWalkin(false); setWalkinSearch(''); setWalkinSearchResults([]); }} className="text-gray-400 hover:text-gray-600 ml-auto">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={walkinSearch}
+                  onChange={(e) => searchWalkinPatients(e.target.value)}
+                  placeholder="Search patient by name or number..."
+                  className="w-full px-3 py-2 border border-primary-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
+                  autoFocus
+                />
+                {walkinSearchResults.length > 0 && (
+                  <div className="mt-2 bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {walkinSearchResults.map((p: any) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleNewWalkin(p)}
+                        disabled={creatingWalkin}
+                        className="w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-primary-50 transition-colors disabled:opacity-50"
+                      >
+                        <div>
+                          <span className="font-medium text-gray-900 text-sm">{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-gray-500 ml-2">{p.patient_number}</span>
+                        </div>
+                        <span className="text-xs text-primary-600 font-medium">Check in →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {walkIns.length === 0 ? (
               <div className="p-12 text-center text-gray-500">
                 <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
