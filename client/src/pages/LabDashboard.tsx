@@ -925,7 +925,7 @@ const LabDashboard: React.FC = () => {
     const ok = await confirmDialog({
       title: isWalkIn ? 'Ready for checkout?' : 'Send back to nurse?',
       message: isWalkIn
-        ? `Send ${patientName} to the receptionist for checkout? ${pendingCount} test(s) will keep processing in the background.`
+        ? `Send ${patientName} to the receptionist for checkout? Tests will continue processing and the patient will be notified when results are ready.`
         : `Send ${patientName} back to the nurse? ${pendingCount} test(s) will keep processing in the background. The nurse will be notified to take over follow-up.`,
       variant: 'warning',
       confirmLabel: isWalkIn ? 'Ready for checkout' : 'Send to nurse',
@@ -2281,7 +2281,7 @@ const LabDashboard: React.FC = () => {
                                 Start All Processing
                               </button>
                             )}
-                            {ordersSubTab === 'pending' && group.orders.some(o => o.status === 'in_progress' || o.status === 'pending') && (() => {
+                            {(group.encounter_clinic === 'Lab (Walk-in)' || (ordersSubTab === 'pending' && group.orders.some(o => o.status === 'in_progress' || o.status === 'pending'))) && (() => {
                               const inFlight = releasing.has(group.encounter_id);
                               const done = released.has(group.encounter_id);
                               const disabled = inFlight || done;
