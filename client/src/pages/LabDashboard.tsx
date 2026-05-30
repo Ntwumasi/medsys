@@ -917,16 +917,18 @@ const LabDashboard: React.FC = () => {
   const releasePatient = async (
     encounterId: number,
     patientName: string,
-    pendingCount: number
+    pendingCount: number,
+    encounterClinic?: string | null
   ) => {
     if (releasing.has(encounterId) || released.has(encounterId)) return;
+    const isWalkIn = encounterClinic === 'Lab (Walk-in)';
     const ok = await confirmDialog({
-      title: 'Send back to nurse?',
-      message:
-        `Send ${patientName} back to the nurse? ${pendingCount} test(s) will keep processing in the background. ` +
-        `The nurse will be notified to take over follow-up.`,
+      title: isWalkIn ? 'Ready for checkout?' : 'Send back to nurse?',
+      message: isWalkIn
+        ? `Send ${patientName} to the receptionist for checkout? ${pendingCount} test(s) will keep processing in the background.`
+        : `Send ${patientName} back to the nurse? ${pendingCount} test(s) will keep processing in the background. The nurse will be notified to take over follow-up.`,
       variant: 'warning',
-      confirmLabel: 'Send to nurse',
+      confirmLabel: isWalkIn ? 'Ready for checkout' : 'Send to nurse',
     });
     if (!ok) return;
     setReleasing(prev => new Set(prev).add(encounterId));
@@ -936,7 +938,7 @@ const LabDashboard: React.FC = () => {
         from_department: 'lab',
       });
       setReleased(prev => new Set(prev).add(encounterId));
-      showToast(`${patientName} sent back to nurse. Tests continue processing.`, 'success');
+      showToast(isWalkIn ? `${patientName} sent to receptionist for checkout.` : `${patientName} sent back to nurse. Tests continue processing.`, 'success');
       fetchLabOrders();
       fetchWalkIns();
     } catch (err: any) {
@@ -2289,7 +2291,7 @@ const LabDashboard: React.FC = () => {
                                     e.stopPropagation();
                                     if (disabled) return;
                                     const pending = group.orders.filter(o => o.status === 'pending' || o.status === 'in_progress').length;
-                                    releasePatient(group.encounter_id, group.patient_name, pending);
+                                    releasePatient(group.encounter_id, group.patient_name, pending, group.encounter_clinic);
                                   }}
                                   disabled={disabled}
                                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors ${
@@ -2302,7 +2304,7 @@ const LabDashboard: React.FC = () => {
                                   title={
                                     done
                                       ? 'Already released to nurse'
-                                      : 'Send patient back to nurse — tests keep processing'
+                                      : group.encounter_clinic === 'Lab (Walk-in)' ? 'Send to receptionist for checkout' : 'Send patient back to nurse — tests keep processing'
                                   }
                                 >
                                   {done ? (
