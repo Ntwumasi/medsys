@@ -443,9 +443,12 @@ const NurseDashboard: React.FC = () => {
     try {
       const res = await apiClient.get('/workflow/nurse/patients');
       const patients = res.data.patients || [];
-      // Deduplicate patients by encounter ID (id field)
-      const uniquePatients = patients.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
+      // Deduplicate: first by encounter ID, then by patient_id (keep latest encounter per patient)
+      const byEncounter = patients.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
         index === self.findIndex((p) => p.id === patient.id)
+      );
+      const uniquePatients = byEncounter.filter((patient: AssignedPatient, index: number, self: AssignedPatient[]) =>
+        index === self.findIndex((p) => p.patient_id === patient.patient_id)
       );
       // Play notification sound when a new patient is assigned
       const activeCount = uniquePatients.filter((p: AssignedPatient) => !p.is_checked_out).length;
@@ -1340,9 +1343,10 @@ const NurseDashboard: React.FC = () => {
       // Mark this patient as having doctor alerted
       setDoctorAlertedPatients(prev => new Set([...prev, selectedPatient.id]));
       showToast('Doctor has been alerted', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error alerting doctor:', error);
-      showToast('Failed to alert doctor', 'error');
+      const msg = error.response?.data?.error || 'Failed to alert doctor';
+      showToast(msg, 'error');
     }
   };
 

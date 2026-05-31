@@ -331,7 +331,7 @@ export const assignRoom = async (req: Request, res: Response): Promise<void> => 
        JOIN users u ON p.user_id = u.id
        WHERE e.room_id = $1
          AND e.id != $2
-         AND e.status NOT IN ('completed', 'discharged')
+         AND e.status NOT IN ('completed', 'discharged', 'cancelled')
          AND DATE(e.encounter_date) = CURRENT_DATE
        LIMIT 1`,
       [room_id, encounter_id]
@@ -1135,18 +1135,12 @@ export const getNurseAssignedPatients = async (req: Request, res: Response): Pro
       LEFT JOIN rooms r ON e.room_id = r.id
       LEFT JOIN patients p ON e.patient_id = p.id
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
-      -- Active encounters always show. Checked-out encounters show through
-      -- end of day (today's date in the server timezone) so the nurse can
-      -- still edit a patient that the receptionist closed. They drop off
-      -- naturally at midnight.
+      -- Only show today's patients. Active encounters from yesterday should
+      -- not appear — they need to be completed/discharged first.
+      -- Deduplicate by patient_id so the same patient never appears twice.
       WHERE e.nurse_id = $1
-        AND (
-          e.status IN ('in-progress', 'with_nurse', 'ready_for_doctor', 'with_doctor')
-          OR (
-            e.status IN ('completed', 'discharged')
-            AND COALESCE(e.completed_at, e.encounter_date)::date = CURRENT_DATE
-          )
-        )
+        AND e.encounter_date::date = CURRENT_DATE
+        AND e.status NOT IN ('cancelled')
       ORDER BY
         CASE WHEN e.status IN ('completed', 'discharged') THEN 2 ELSE 0 END,
         CASE WHEN e.status = 'with_nurse' THEN 0 ELSE 1 END,
