@@ -41,3 +41,15 @@ coverage/
 *.temp
 .vercel
 api/index.ts
+
+# Claude Code
+.claude/worktrees/
+
+# Working documents (not source code)
+synquery-prep/
+*.xlsx
+*.docx
+
+# Docs that aren't part of the codebase
+docs/MedSys-Deployment-Guide.md
+docs/MedSys-Website-Prompt.md
