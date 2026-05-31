@@ -1097,7 +1097,7 @@ const DoctorDashboard: React.FC = () => {
           <>
             <StatPill label="active" value={roomEncounters.length} tone={roomEncounters.length > 0 ? 'primary' : 'neutral'} title="Active patients in rooms" />
             <StatPill label="results" value={labAlerts.length + imagingAlerts.length} tone={(labAlerts.length + imagingAlerts.length) > 0 ? 'warning' : 'neutral'} title="New lab + imaging results" />
-            <StatPill label="action items" value={unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length} tone={(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length) > 0 ? 'danger' : 'neutral'} title="Unsigned notes + delinquent orders" />
+            <StatPill label="to sign" value={unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length} tone={(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length) > 0 ? 'danger' : 'neutral'} title="Unsigned SOAP notes + verbal orders to co-sign" />
           </>
         )}
       />
@@ -1221,18 +1221,19 @@ const DoctorDashboard: React.FC = () => {
             </div>
 
           </div>
-          {/* Results Alerts */}
+          {/* New Results — completed lab/imaging results ready for doctor review */}
           <div className="flex">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
-                      Results Alerts
+                      New Results
                     </h2>
+                    <span className="text-[9px] text-gray-400 normal-case tracking-normal">Lab &amp; imaging results to review</span>
                   </div>
                   <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
                     (labAlerts.length + imagingAlerts.length) > 0
@@ -1363,17 +1364,18 @@ const DoctorDashboard: React.FC = () => {
             </div>
 
           </div>
-          {/* Action Items */}
+          {/* To Sign — unsigned SOAP notes + verbal orders needing co-signature */}
           <div className="flex">
             {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg className="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
+                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
+                      <span className="text-[9px] text-gray-400 normal-case tracking-normal">SOAP notes &amp; verbal orders</span>
                     </div>
                     <span className="px-2 py-0.5 bg-warning-50 text-warning-700 text-xs font-bold rounded-full tabular-nums">
                       {unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length}
@@ -1391,7 +1393,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Unsigned ({unsignedNotes.length})
+                    SOAP ({unsignedNotes.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('labs')}
@@ -1401,7 +1403,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Labs ({pendingLabs.length})
+                    Lab Orders ({pendingLabs.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('imaging')}
@@ -1411,7 +1413,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Imaging ({pendingImaging.length})
+                    Imaging Orders ({pendingImaging.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('rx')}
@@ -1421,7 +1423,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Rx ({pendingRx.length})
+                    Rx Orders ({pendingRx.length})
                   </button>
                 </div>
 
@@ -1548,10 +1550,10 @@ const DoctorDashboard: React.FC = () => {
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
                   </div>
                 </div>
-                <div className="p-4 text-center text-sm text-gray-400">No action items</div>
+                <div className="p-4 text-center text-sm text-gray-400">All notes signed, no pending orders</div>
               </div>
             )}
           </div>
