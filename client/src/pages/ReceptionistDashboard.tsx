@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
@@ -400,6 +400,12 @@ const ReceptionistDashboard: React.FC = () => {
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
   const [selectedClinic, setSelectedClinic] = useState('');
+  const [clinicDropdownOpen, setClinicDropdownOpen] = useState(false);
+  const [clinicSearchTerm, setClinicSearchTerm] = useState('');
+  const clinicDropdownRef = useRef<HTMLDivElement>(null);
+  const [newPatientClinicOpen, setNewPatientClinicOpen] = useState(false);
+  const [newPatientClinicSearch, setNewPatientClinicSearch] = useState('');
+  const newPatientClinicRef = useRef<HTMLDivElement>(null);
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [newPatientEncounterType, setNewPatientEncounterType] = useState('walk-in');
   const [newPatientChiefComplaint, setNewPatientChiefComplaint] = useState('');
@@ -458,6 +464,27 @@ const ReceptionistDashboard: React.FC = () => {
       setClinics(['General Practice']);
     });
   }, []);
+
+  // Close clinic dropdowns on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (clinicDropdownRef.current && !clinicDropdownRef.current.contains(e.target as Node)) {
+        setClinicDropdownOpen(false);
+      }
+      if (newPatientClinicRef.current && !newPatientClinicRef.current.contains(e.target as Node)) {
+        setNewPatientClinicOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredClinics = clinics.filter(c =>
+    c.toLowerCase().includes(clinicSearchTerm.toLowerCase())
+  );
+  const filteredNewPatientClinics = clinics.filter(c =>
+    c.toLowerCase().includes(newPatientClinicSearch.toLowerCase())
+  );
 
   // New patient form state
   const [newPatient, setNewPatient] = useState({
@@ -2508,17 +2535,57 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Clinic *
                   </label>
-                  <select
-                    value={selectedClinic}
-                    onChange={(e) => setSelectedClinic(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Clinic</option>
-                    {clinics.map((clinic) => (
-                      <option key={clinic} value={clinic}>{clinic}</option>
-                    ))}
-                  </select>
+                  <div className="relative" ref={clinicDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => { setClinicDropdownOpen(!clinicDropdownOpen); setClinicSearchTerm(''); }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-left flex items-center justify-between bg-white hover:border-primary-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <span className={selectedClinic ? 'text-gray-900' : 'text-gray-400'}>
+                        {selectedClinic || 'Select Clinic'}
+                      </span>
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${clinicDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {clinicDropdownOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden">
+                        <div className="p-2 border-b border-gray-100">
+                          <input
+                            type="text"
+                            value={clinicSearchTerm}
+                            onChange={(e) => setClinicSearchTerm(e.target.value)}
+                            placeholder="Search clinics..."
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          <div
+                            onClick={() => { setSelectedClinic(''); setClinicDropdownOpen(false); }}
+                            className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 ${!selectedClinic ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-500 italic'}`}
+                          >
+                            — No clinic selected —
+                          </div>
+                          {filteredClinics.map((clinic) => (
+                            <div
+                              key={clinic}
+                              onClick={() => { setSelectedClinic(clinic); setClinicDropdownOpen(false); setClinicSearchTerm(''); }}
+                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-primary-50 ${
+                                selectedClinic === clinic ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-900'
+                              }`}
+                            >
+                              {selectedClinic === clinic && <span className="mr-2">✓</span>}
+                              {clinic}
+                            </div>
+                          ))}
+                          {filteredClinics.length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-400 text-center">No clinics match</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -2927,16 +2994,57 @@ const ReceptionistDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Preferred Clinic
                   </label>
-                  <select
-                    value={newPatient.preferred_clinic}
-                    onChange={(e) => setNewPatient({ ...newPatient, preferred_clinic: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select Clinic</option>
-                    {clinics.map((clinic) => (
-                      <option key={clinic} value={clinic}>{clinic}</option>
-                    ))}
-                  </select>
+                  <div className="relative" ref={newPatientClinicRef}>
+                    <button
+                      type="button"
+                      onClick={() => { setNewPatientClinicOpen(!newPatientClinicOpen); setNewPatientClinicSearch(''); }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-left flex items-center justify-between bg-white hover:border-primary-400 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    >
+                      <span className={newPatient.preferred_clinic ? 'text-gray-900' : 'text-gray-400'}>
+                        {newPatient.preferred_clinic || 'Select Clinic'}
+                      </span>
+                      <svg className={`w-4 h-4 text-gray-400 transition-transform ${newPatientClinicOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {newPatientClinicOpen && (
+                      <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden">
+                        <div className="p-2 border-b border-gray-100">
+                          <input
+                            type="text"
+                            value={newPatientClinicSearch}
+                            onChange={(e) => setNewPatientClinicSearch(e.target.value)}
+                            placeholder="Search clinics..."
+                            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          <div
+                            onClick={() => { setNewPatient({ ...newPatient, preferred_clinic: '' }); setNewPatientClinicOpen(false); }}
+                            className={`px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 ${!newPatient.preferred_clinic ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-500 italic'}`}
+                          >
+                            — No clinic selected —
+                          </div>
+                          {filteredNewPatientClinics.map((clinic) => (
+                            <div
+                              key={clinic}
+                              onClick={() => { setNewPatient({ ...newPatient, preferred_clinic: clinic }); setNewPatientClinicOpen(false); setNewPatientClinicSearch(''); }}
+                              className={`px-4 py-2 text-sm cursor-pointer hover:bg-primary-50 ${
+                                newPatient.preferred_clinic === clinic ? 'bg-primary-50 text-primary-700 font-medium' : 'text-gray-900'
+                              }`}
+                            >
+                              {newPatient.preferred_clinic === clinic && <span className="mr-2">✓</span>}
+                              {clinic}
+                            </div>
+                          ))}
+                          {filteredNewPatientClinics.length === 0 && (
+                            <div className="px-4 py-3 text-sm text-gray-400 text-center">No clinics match</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>
