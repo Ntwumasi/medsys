@@ -2299,7 +2299,7 @@ const NurseDashboard: React.FC = () => {
                   </div>
 
                   {/* Room + Visit + Alert — clean single row */}
-                  <div className="flex items-start gap-4 pt-4 mt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-4 pt-4 mt-4 border-t border-gray-100">
                     {/* Room */}
                     <div className="w-48 flex-shrink-0">
                       <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Room</div>
@@ -2780,14 +2780,13 @@ const NurseDashboard: React.FC = () => {
                                     className={`flex-1 min-w-0 text-base font-semibold py-2 px-3 border rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none ${vitalErrors.temperature ? 'border-danger-500 bg-danger-50' : 'border-gray-300'}`}
                                     placeholder="37.0"
                                   />
-                                  <AppSelect
-                                    value={vitals.temperature_unit || 'C'}
-                                    onChange={(val) => setVitals({ ...vitals, temperature_unit: val as 'C' | 'F' })}
-                                    options={[
-                                      { value: 'C', label: '°C' },
-                                      { value: 'F', label: '°F' },
-                                    ]}
-                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setVitals({ ...vitals, temperature_unit: vitals.temperature_unit === 'C' ? 'F' : 'C' })}
+                                    className="flex-shrink-0 px-3 py-2 text-xs font-bold border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors"
+                                  >
+                                    °{vitals.temperature_unit || 'C'}
+                                  </button>
                                 </div>
                                 {vitalErrors.temperature && (
                                   <p className="text-xs text-danger-600 mt-2 font-medium">{vitalErrors.temperature}</p>
@@ -2998,14 +2997,13 @@ const NurseDashboard: React.FC = () => {
                                     className="flex-1 min-w-0 text-base font-semibold py-2 px-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                     placeholder="70"
                                   />
-                                  <AppSelect
-                                    value={vitals.weight_unit || 'kg'}
-                                    onChange={(val) => setVitals({ ...vitals, weight_unit: val as 'kg' | 'lbs' })}
-                                    options={[
-                                      { value: 'kg', label: 'kg' },
-                                      { value: 'lbs', label: 'lbs' },
-                                    ]}
-                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setVitals({ ...vitals, weight_unit: vitals.weight_unit === 'kg' ? 'lbs' : 'kg' })}
+                                    className="flex-shrink-0 px-3 py-2 text-xs font-bold border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors"
+                                  >
+                                    {vitals.weight_unit || 'kg'}
+                                  </button>
                                 </div>
                               </div>
 
@@ -3029,14 +3027,13 @@ const NurseDashboard: React.FC = () => {
                                     className="flex-1 min-w-0 text-base font-semibold py-2 px-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
                                     placeholder="170"
                                   />
-                                  <AppSelect
-                                    value={vitals.height_unit || 'cm'}
-                                    onChange={(val) => setVitals({ ...vitals, height_unit: val as 'cm' | 'in' })}
-                                    options={[
-                                      { value: 'cm', label: 'cm' },
-                                      { value: 'in', label: 'in' },
-                                    ]}
-                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setVitals({ ...vitals, height_unit: vitals.height_unit === 'cm' ? 'in' : 'cm' })}
+                                    className="flex-shrink-0 px-3 py-2 text-xs font-bold border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors"
+                                  >
+                                    {vitals.height_unit || 'cm'}
+                                  </button>
                                 </div>
                               </div>
                             </div>
