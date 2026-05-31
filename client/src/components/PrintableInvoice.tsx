@@ -661,7 +661,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           <div className="border-b-2 border-primary-600 pb-6 mb-6">
             <div className="flex justify-between items-start">
               <div>
-                <img src="/medics-logo.png" alt="Medics Clinic" className="h-16 mb-2" />
+                <img src="/medics-logo.png" alt="Medics Clinic" style={{ height: '64px', maxWidth: '220px', objectFit: 'contain' }} className="mb-2" />
                 <p className="text-sm text-gray-500 mt-2">Adjacent The Avenue</p>
                 <p className="text-sm text-gray-500">Mahama Road, Accra</p>
                 <p className="text-sm text-gray-500">Tel: +233 (0) 55 341 1221</p>
