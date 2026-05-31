@@ -509,10 +509,10 @@ const runLabCompletionSideEffects = async (
     }
   }
 
-  // 2. Billing
+  // 2. Billing — use resolvePrice for correct payer-aware pricing
   try {
     const chargeResult = await pool.query(
-      `SELECT id, service_name, price FROM charge_master
+      `SELECT id, service_name, service_code, price FROM charge_master
        WHERE (service_code = $1 OR service_name ILIKE $2)
        AND category = 'lab' AND is_active = true
        LIMIT 1`,
@@ -520,7 +520,6 @@ const runLabCompletionSideEffects = async (
     );
 
     const charge = chargeResult.rows[0];
-    const labPrice = charge ? parseFloat(charge.price) : 75.0;
     const chargeDescription = charge ? charge.service_name : order.test_name;
     const chargeMasterId = charge ? charge.id : null;
 
@@ -531,6 +530,19 @@ const runLabCompletionSideEffects = async (
 
     if (invoiceResult.rows.length > 0) {
       const invoiceId = invoiceResult.rows[0].id;
+
+      // Resolve price using the pricing service (respects payer overrides)
+      let labPrice: number;
+      if (charge) {
+        const { resolvePrice } = require('../services/priceResolutionService');
+        const resolved = await resolvePrice(charge.id, invoiceId);
+        labPrice = resolved.unitPrice;
+      } else {
+        // No charge master match — log warning, use fallback
+        console.warn(`⚠️ Lab billing: No charge_master match for test "${order.test_name}" (code: ${order.test_code}). Using fallback price.`);
+        labPrice = 0; // Don't silently bill GHS 75 — let receptionist correct it
+      }
+
       const existingItem = await pool.query(
         `SELECT id FROM invoice_items
          WHERE invoice_id = $1 AND description = $2`,

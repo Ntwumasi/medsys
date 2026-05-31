@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { resolvePrice } from '../services/priceResolutionService';
+import auditService from '../services/auditService';
+
+interface AuthRequest extends Request {
+  user?: { id: number; role: string; username: string };
+}
 
 // Get all charges from charge master
 // Supports optional payer filtering: ?payer_type=insurance&payer_id=3
@@ -157,11 +162,12 @@ export const getInvoiceItems = async (req: Request, res: Response): Promise<void
 // Remove item from invoice
 export const removeInvoiceItem = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as AuthRequest;
     const { id } = req.params;
 
     // Get item details first
     const itemResult = await pool.query(
-      'SELECT invoice_id FROM invoice_items WHERE id = $1',
+      'SELECT * FROM invoice_items WHERE id = $1',
       [id]
     );
 
@@ -170,7 +176,8 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const invoiceId = itemResult.rows[0].invoice_id;
+    const item = itemResult.rows[0];
+    const invoiceId = item.invoice_id;
 
     // Delete the item
     await pool.query('DELETE FROM invoice_items WHERE id = $1', [id]);
@@ -188,6 +195,24 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
       [newTotal, invoiceId]
     );
 
+    // Audit log the deletion
+    if (authReq.user) {
+      await auditService.log({
+        userId: authReq.user.id,
+        action: 'delete',
+        entityType: 'invoice_item',
+        entityId: parseInt(id as string),
+        details: { invoice_id: invoiceId },
+        oldValues: {
+          description: item.description,
+          unit_price: parseFloat(item.unit_price),
+          quantity: item.quantity,
+          total_price: parseFloat(item.total_price),
+          category: item.category,
+        },
+      });
+    }
+
     res.json({
       message: 'Invoice item removed successfully',
       new_total: newTotal,
@@ -201,6 +226,7 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
 // Update invoice item (price, description, quantity)
 export const updateInvoiceItem = async (req: Request, res: Response): Promise<void> => {
   try {
+    const authReq = req as AuthRequest;
     const { id } = req.params;
     const { unit_price, description, quantity } = req.body;
 
@@ -216,9 +242,13 @@ export const updateInvoiceItem = async (req: Request, res: Response): Promise<vo
     }
 
     const existing = existingResult.rows[0];
-    const newUnitPrice = unit_price !== undefined ? parseFloat(unit_price) : parseFloat(existing.unit_price);
-    const newQty = quantity !== undefined ? quantity : existing.quantity;
-    const newDescription = description !== undefined ? description : existing.description;
+    const oldUnitPrice = parseFloat(existing.unit_price);
+    const oldQty = existing.quantity;
+    const oldDescription = existing.description;
+
+    const newUnitPrice = unit_price !== undefined ? parseFloat(unit_price) : oldUnitPrice;
+    const newQty = quantity !== undefined ? quantity : oldQty;
+    const newDescription = description !== undefined ? description : oldDescription;
     const newTotalPrice = newUnitPrice * newQty;
 
     // Update the item
@@ -243,6 +273,22 @@ export const updateInvoiceItem = async (req: Request, res: Response): Promise<vo
       'UPDATE invoices SET total_amount = $1, subtotal = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [newTotal, invoiceId]
     );
+
+    // Audit log the price change
+    if (authReq.user) {
+      await auditService.log({
+        userId: authReq.user.id,
+        action: 'update',
+        entityType: 'invoice_item',
+        entityId: parseInt(id as string),
+        details: {
+          invoice_id: invoiceId,
+          description: newDescription,
+        },
+        oldValues: { unit_price: oldUnitPrice, quantity: oldQty, description: oldDescription, total_price: oldUnitPrice * oldQty },
+        newValues: { unit_price: newUnitPrice, quantity: newQty, description: newDescription, total_price: newTotalPrice },
+      });
+    }
 
     res.json({
       message: 'Invoice item updated successfully',
