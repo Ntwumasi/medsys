@@ -2298,160 +2298,84 @@ const NurseDashboard: React.FC = () => {
                     })()}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200">
-                    <div className="p-4">
-                      <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Room Assignment</div>
+                  {/* Room + Visit + Alert — clean single row */}
+                  <div className="flex items-start gap-4 pt-4 mt-4 border-t border-gray-100">
+                    {/* Room */}
+                    <div className="w-48 flex-shrink-0">
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Room</div>
                       {selectedPatient.room_number && !editingRoom ? (
-                        <div className="flex items-center justify-between">
-                          <div className="font-bold text-xl text-gray-900">
-                            {selectedPatient.room_name || `Room ${selectedPatient.room_number}`}
-                          </div>
-                          <button
-                            onClick={() => setEditingRoom(true)}
-                            className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors font-semibold"
-                          >
-                            Change
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900">{selectedPatient.room_name || `Room ${selectedPatient.room_number}`}</span>
+                          <button onClick={() => setEditingRoom(true)} className="text-xs text-primary-600 hover:text-primary-800 font-medium">Change</button>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           <AppSelect
                             value=""
-                            onChange={(val) => {
-                              if (val) {
-                                handleAssignRoom(selectedPatient.id, Number(val));
-                                setEditingRoom(false);
-                              }
-                            }}
-                            options={rooms
-                              .filter((r) => r.is_available)
-                              .map((room) => ({
-                                value: room.id,
-                                label: room.room_name || `Room ${room.room_number}`,
-                              }))}
-                            placeholder={selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM'}
+                            onChange={(val) => { if (val) { handleAssignRoom(selectedPatient.id, Number(val)); setEditingRoom(false); } }}
+                            options={rooms.filter((r) => r.is_available).map((room) => ({ value: room.id, label: room.room_name || `Room ${room.room_number}` }))}
+                            placeholder={selectedPatient.room_number ? 'Change room...' : 'Assign room...'}
                           />
-                          {editingRoom && (
-                            <button
-                              onClick={() => setEditingRoom(false)}
-                              className="w-full px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors font-semibold"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Today's Visit</div>
-                      {selectedPatient.chief_complaint && !editingTodaysVisit ? (
-                        <div className="flex items-center justify-between">
-                          <div className="font-bold text-lg text-gray-900">{selectedPatient.chief_complaint}</div>
-                          <button
-                            onClick={() => {
-                              setTodaysVisitValue(selectedPatient.chief_complaint);
-                              setEditingTodaysVisit(true);
-                            }}
-                            className="px-3 py-1 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors font-semibold"
-                          >
-                            Edit
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2">
-                            <textarea
-                              value={todaysVisitValue}
-                              onChange={(e) => setTodaysVisitValue(e.target.value)}
-                              className="flex-1 px-3 py-2 border-2 border-warning-300 bg-warning-50 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-transparent font-semibold text-amber-900 resize-none"
-                              rows={2}
-                              placeholder="Enter patient's reason for today's visit... (or use voice)"
-                              autoFocus
-                            />
-                            <VoiceDictationButton
-                              onTranscriptChange={setTodaysVisitValue}
-                              currentValue={todaysVisitValue}
-                              appendMode={true}
-                              size="md"
-                              showStatus={false}
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={handleUpdateTodaysVisit}
-                              className="flex-1 px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700 transition-colors font-semibold"
-                            >
-                              Save
-                            </button>
-                            {selectedPatient.chief_complaint && (
-                              <button
-                                onClick={() => {
-                                  setEditingTodaysVisit(false);
-                                  setTodaysVisitValue('');
-                                }}
-                                className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300 transition-colors font-semibold"
-                              >
-                                Cancel
-                              </button>
-                            )}
-                          </div>
+                          {editingRoom && <button onClick={() => setEditingRoom(false)} className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>}
                         </div>
                       )}
                     </div>
 
-                    <div className="p-4 flex items-center justify-center">
-                      {doctorAlertedPatients.has(selectedPatient.id) ? (
-                        <div className="w-full px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2">
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          Doctor Alerted
+                    {/* Today's Visit */}
+                    <div className="flex-1">
+                      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Today's Visit</div>
+                      {selectedPatient.chief_complaint && !editingTodaysVisit ? (
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-gray-900">{selectedPatient.chief_complaint}</span>
+                          <button onClick={() => { setTodaysVisitValue(selectedPatient.chief_complaint); setEditingTodaysVisit(true); }} className="text-xs text-primary-600 hover:text-primary-800 font-medium">Edit</button>
                         </div>
                       ) : (
-                        <button
-                          onClick={handleAlertDoctor}
-                          className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-sm flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                          </svg>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={todaysVisitValue}
+                            onChange={(e) => setTodaysVisitValue(e.target.value)}
+                            className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="Reason for visit..."
+                            autoFocus
+                          />
+                          <VoiceDictationButton onTranscriptChange={setTodaysVisitValue} currentValue={todaysVisitValue} appendMode={true} size="sm" showStatus={false} />
+                          <button onClick={handleUpdateTodaysVisit} className="px-3 py-1.5 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 font-semibold">Save</button>
+                          {selectedPatient.chief_complaint && (
+                            <button onClick={() => { setEditingTodaysVisit(false); setTodaysVisitValue(''); }} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 font-medium">Cancel</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Alert Doctor */}
+                    <div className="flex-shrink-0">
+                      {doctorAlertedPatients.has(selectedPatient.id) ? (
+                        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-success-50 text-success-700 border border-success-200 rounded-lg text-sm font-semibold">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                          Doctor Alerted
+                        </span>
+                      ) : (
+                        <button onClick={handleAlertDoctor} className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-semibold transition-colors">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                           Alert Doctor
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Quick Action Buttons - Lab, Imaging, Documents */}
-                  <div className="flex items-center gap-2 mt-4">
-                    <button
-                      onClick={() => setShowLabOrderModal(true)}
-                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-1.5"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                      </svg>
+                  {/* Quick Actions Row */}
+                  <div className="flex items-center gap-2 mt-3">
+                    <button onClick={() => setShowLabOrderModal(true)} className="px-3 py-1.5 text-xs bg-white text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                       Order Labs
                     </button>
-                    <button
-                      onClick={() => setShowImagingOrderModal(true)}
-                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-1.5"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                      </svg>
+                    <button onClick={() => setShowImagingOrderModal(true)} className="px-3 py-1.5 text-xs bg-white text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" /></svg>
                       Order Imaging
                     </button>
-                    <button
-                      onClick={() => setActiveTab('documents')}
-                      className={`px-3 py-1.5 text-sm border rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
-                        activeTab === 'documents'
-                          ? 'bg-gray-100 text-gray-900 border-gray-300'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
+                    <button onClick={() => setActiveTab('documents')} className="px-3 py-1.5 text-xs bg-white text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       Documents
                     </button>
                   </div>
