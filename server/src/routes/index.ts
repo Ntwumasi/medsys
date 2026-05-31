@@ -512,8 +512,8 @@ router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/:id/self-pay-tier', authenticateToken, authorizeRoles('doctor', 'admin'), setSelfPayTier);
 router.post('/encounters/:id/billing-payer',  authenticateToken, authorizeRoles('doctor', 'admin'), setBillingPayer);
-router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor'), addDiagnosis);
-router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('doctor'), deleteDiagnosis);
+router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor', 'admin'), addDiagnosis);
+router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('doctor', 'admin'), deleteDiagnosis);
 
 // Appointment routes (with input validation)
 router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);
@@ -524,10 +524,10 @@ router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
 router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
 
 // Medication routes
-router.post('/medications', authenticateToken, authorizeRoles('doctor'), prescribeMedication);
+router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);
 router.get('/medications/patient/:patient_id', authenticateToken, getPatientMedications);
-router.put('/medications/:id', authenticateToken, authorizeRoles('doctor'), updateMedication);
-router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('doctor'), discontinueMedication);
+router.put('/medications/:id', authenticateToken, authorizeRoles('doctor', 'admin'), updateMedication);
+router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('doctor', 'admin'), discontinueMedication);
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
 
 // Workflow routes - Receptionist
@@ -563,16 +563,16 @@ router.get('/workflow/nurse/notifications', authenticateToken, authorizeRoles('n
 router.get('/workflow/nurse/patients', authenticateToken, authorizeRoles('nurse'), getNurseAssignedPatients);
 
 // Workflow routes - Doctor
-router.post('/workflow/doctor/start', authenticateToken, authorizeRoles('doctor'), doctorStartEncounter);
-router.get('/workflow/doctor/rooms', authenticateToken, authorizeRoles('doctor'), getEncountersByRoom);
-router.post('/workflow/doctor/complete-encounter', authenticateToken, authorizeRoles('doctor'), doctorCompleteEncounter);
+router.post('/workflow/doctor/start', authenticateToken, authorizeRoles('doctor', 'admin'), doctorStartEncounter);
+router.get('/workflow/doctor/rooms', authenticateToken, authorizeRoles('doctor', 'admin'), getEncountersByRoom);
+router.post('/workflow/doctor/complete-encounter', authenticateToken, authorizeRoles('doctor', 'admin'), doctorCompleteEncounter);
 
 // Clinical notes routes (with input validation)
 router.post('/clinical-notes', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema), createClinicalNote);
 router.get('/clinical-notes/encounter/:encounter_id', authenticateToken, getEncounterNotes);
 router.get('/clinical-notes/patient/:patient_id', authenticateToken, getPatientNotes);
 router.put('/clinical-notes/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema.partial()), updateClinicalNote);
-router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('doctor'), signClinicalNote);
+router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('doctor', 'admin'), signClinicalNote);
 router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, getSignedNotes);
 
 // Orders routes - Lab
@@ -602,7 +602,7 @@ router.post('/imaging/integration/orders/:id/worklist-pushed', authenticateBridg
 router.post('/webhooks/orthanc/study', authenticateBridge, orthancStudyWebhook);
 
 // Orders routes - Pharmacy
-router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor'), createPharmacyOrder);
+router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor', 'admin'), createPharmacyOrder);
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
 router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor'), updatePharmacyOrder);
 router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin', 'doctor'), processRefill);
@@ -612,9 +612,9 @@ router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('ph
 router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);
 
 // Get doctor alerts - recently completed results
-router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor'), getDoctorAlerts);
-router.post('/orders/lab/:id/doctor-review', authenticateToken, authorizeRoles('doctor'), doctorReviewLabResult);
-router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor'), getDoctorDelinquent);
+router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor', 'admin'), getDoctorAlerts);
+router.post('/orders/lab/:id/doctor-review', authenticateToken, authorizeRoles('doctor', 'admin'), doctorReviewLabResult);
+router.get('/orders/doctor-delinquent', authenticateToken, authorizeRoles('doctor', 'admin'), getDoctorDelinquent);
 
 // Lab test sets - reusable bundles of labs (BIGPAY Screening, Olams Pre-Employment, etc.)
 // Nurses can read and apply lab sets (useful when entering labs on behalf
@@ -706,7 +706,7 @@ router.post('/nurse-procedures/:id/cancel', authenticateToken, authorizeRoles('d
 router.get('/hp/:encounter_id', authenticateToken, authorizeRoles('nurse', 'doctor'), getHP);
 router.post('/hp/save', authenticateToken, authorizeRoles('nurse', 'doctor'), saveHPSection);
 router.get('/hp/:encounter_id/status', authenticateToken, authorizeRoles('nurse', 'doctor'), getHPStatus);
-router.post('/hp/:encounter_id/sign', authenticateToken, authorizeRoles('doctor'), signSOAP);
+router.post('/hp/:encounter_id/sign', authenticateToken, authorizeRoles('doctor', 'admin'), signSOAP);
 router.get('/hp/:encounter_id/addenda', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), getAddenda);
 router.post('/hp/:encounter_id/addenda', authenticateToken, authorizeRoles('doctor', 'admin'), addAddendum);
 router.post('/hp/parse-dictation', authenticateToken, authorizeRoles('nurse', 'doctor'), parseDictation);
@@ -722,7 +722,7 @@ router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'),
 
 // Short Stay Unit routes
 router.get('/short-stay/beds', authenticateToken, authorizeRoles('doctor', 'nurse'), getShortStayBeds);
-router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor'), assignBed);
+router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor', 'admin'), assignBed);
 router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseBed);
 router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
 
@@ -812,7 +812,7 @@ router.get('/lab/analytics/export', authenticateToken, authorizeRoles('lab', 'ad
 // Critical Result Alerts routes
 router.get('/lab/critical-alerts', authenticateToken, authorizeRoles('lab', 'doctor'), getCriticalResultAlerts);
 router.post('/lab/critical-alerts', authenticateToken, authorizeRoles('lab'), createCriticalResultAlert);
-router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor'), acknowledgeCriticalResult);
+router.post('/lab/critical-alerts/:id/acknowledge', authenticateToken, authorizeRoles('doctor', 'admin'), acknowledgeCriticalResult);
 
 // Patient Documents routes (with input validation)
 router.get('/documents/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientDocuments);
