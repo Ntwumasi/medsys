@@ -215,9 +215,7 @@ interface CalendarEvent {
 }
 
 const ReceptionistDashboard: React.FC = () => {
-  console.log('ReceptionistDashboard: Component rendering');
-  const { user } = useAuth();
-  console.log('ReceptionistDashboard: User', user);
+  useAuth(); // Ensure authenticated
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [searchParams] = useSearchParams();
@@ -1605,18 +1603,13 @@ const ReceptionistDashboard: React.FC = () => {
     ]);
   };
 
-  console.log('ReceptionistDashboard: Render check - loading:', loading, 'error:', error);
-
   if (loading) {
-    console.log('ReceptionistDashboard: Showing loading spinner');
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
-
-  console.log('ReceptionistDashboard: Rendering main UI');
   const checkedInToday = todayAppointments.filter((a) => a.status === 'checked_in').length;
   return (
     <AppLayout>
