@@ -1613,49 +1613,77 @@ const DoctorDashboard: React.FC = () => {
 
       {/* Row 2: Patient Workspace with folder tabs */}
       <div id="selected-encounter-panel" className="mt-2">
-        {/* Folder Tabs */}
+        {/* Active Patients Header + Folder Tabs */}
         {roomEncounters.length > 0 && (
-          <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
-            {roomEncounters
-              .filter(e => e.status !== 'cancelled')
-              .sort((a, b) => {
-                // Patients with rooms first, then without
-                if (a.room_number && !b.room_number) return -1;
-                if (!a.room_number && b.room_number) return 1;
-                return 0;
-              })
-              .map((enc) => {
-              const isSelected = selectedEncounter?.id === enc.id;
-              const hasRoom = !!enc.room_number;
-              const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
-              // Color scheme based on status
-              const tabColor = isSelected
-                ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
-                : isCompleted
-                ? 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-50'
-                : !hasRoom
-                ? 'bg-gray-50 text-gray-400 border-gray-200 border-dashed'
-                : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100';
-              return (
-              <button
-                key={enc.id}
-                onClick={() => handleSelectEncounter(enc)}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  enc.status === 'with_doctor' ? 'bg-primary-500' :
-                  enc.status === 'ready_for_doctor' ? 'bg-warning-400 animate-pulse' :
-                  isCompleted ? 'bg-gray-300' :
-                  !hasRoom ? 'bg-gray-300' :
-                  'bg-success-400'
-                }`} />
-                <span className={!hasRoom && !isSelected ? 'opacity-60' : ''}>{enc.patient_name}</span>
-                {hasRoom && <span className={`text-[10px] px-1.5 py-0.5 rounded ${isSelected ? 'bg-primary-100 text-primary-600' : 'bg-white/60 text-inherit'}`}>Rm {enc.room_number}</span>}
-                {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
-                {isCompleted && <span className="text-[10px] text-gray-400">Done</span>}
-              </button>
-              );
-            })}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-gray-900">Active Patients Today</h2>
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-primary-100 text-primary-700">
+                  {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length} in care
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-500"></span> With you</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warning-400"></span> Waiting</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success-400"></span> In room</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300"></span> Done</span>
+              </div>
+            </div>
+            <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
+              {roomEncounters
+                .filter(e => e.status !== 'cancelled')
+                .sort((a, b) => {
+                  if (a.room_number && !b.room_number) return -1;
+                  if (!a.room_number && b.room_number) return 1;
+                  return 0;
+                })
+                .map((enc) => {
+                const isSelected = selectedEncounter?.id === enc.id;
+                const hasRoom = !!enc.room_number;
+                const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
+                const isWithDoctor = enc.status === 'with_doctor';
+                const isWaiting = enc.status === 'ready_for_doctor';
+                // Vibrant color scheme based on status
+                const tabColor = isSelected
+                  ? 'bg-white text-gray-900 border-gray-300 shadow-md relative z-10 ring-1 ring-primary-200'
+                  : isCompleted
+                  ? 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                  : isWithDoctor
+                  ? 'bg-primary-50 text-primary-800 border-primary-300 hover:bg-primary-100'
+                  : isWaiting
+                  ? 'bg-warning-50 text-warning-800 border-warning-300 hover:bg-warning-100'
+                  : hasRoom
+                  ? 'bg-success-50 text-success-800 border-success-300 hover:bg-success-100'
+                  : 'bg-gray-50 text-gray-500 border-gray-200 border-dashed hover:bg-gray-100';
+                return (
+                <button
+                  key={enc.id}
+                  onClick={() => handleSelectEncounter(enc)}
+                  className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    isWithDoctor ? 'bg-primary-500' :
+                    isWaiting ? 'bg-warning-400 animate-pulse' :
+                    isCompleted ? 'bg-gray-300' :
+                    hasRoom ? 'bg-success-400' :
+                    'bg-gray-300'
+                  }`} />
+                  <span>{enc.patient_name}</span>
+                  {hasRoom && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      isSelected ? 'bg-primary-100 text-primary-600' :
+                      isWithDoctor ? 'bg-primary-100 text-primary-600' :
+                      isWaiting ? 'bg-warning-100 text-warning-600' :
+                      'bg-success-100 text-success-600'
+                    }`}>Rm {enc.room_number}</span>
+                  )}
+                  {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
+                  {isCompleted && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">Done</span>}
+                </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
