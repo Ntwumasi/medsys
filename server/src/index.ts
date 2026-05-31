@@ -95,6 +95,11 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    // Allow all medsys.healthcare subdomains (staging, demo, etc.)
+    if (/^https:\/\/([a-z0-9-]+\.)?medsys\.healthcare$/i.test(origin)) {
+      return callback(null, true);
+    }
+
     if (process.env.NODE_ENV === 'production') {
       logger.warn({ origin, allowed: allowedOrigins }, 'CORS rejected origin');
       return callback(new Error('CORS not allowed'), false);
