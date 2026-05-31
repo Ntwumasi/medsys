@@ -2031,13 +2031,24 @@ const NurseDashboard: React.FC = () => {
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedPatient.patient_name}</h2>
-                      <div className="flex gap-4 mt-2 text-sm">
-                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
-                          Patient #: {selectedPatient.patient_number}
+                      <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
+                        <span className="text-gray-500">
+                          <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Patient #</span>
+                          <span className="font-mono text-gray-700">{selectedPatient.patient_number}</span>
                         </span>
-                        <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-lg font-semibold">
-                          Encounter #: {selectedPatient.encounter_number}
+                        <span className="text-gray-300">&middot;</span>
+                        <span className="text-gray-500">
+                          <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Encounter</span>
+                          <span className="font-mono text-gray-700">{selectedPatient.encounter_number}</span>
                         </span>
+                        {selectedPatient.room_number && (
+                          <>
+                            <span className="text-gray-300">&middot;</span>
+                            <span className="inline-flex items-center px-2 py-0.5 bg-success-50 text-success-700 text-xs font-semibold rounded">
+                              {selectedPatient.room_name || `Room ${selectedPatient.room_number}`}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -2329,13 +2340,8 @@ const NurseDashboard: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200">
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-50 p-4 rounded-xl border border-gray-200">
-                      <div className="text-xs text-gray-500 uppercase font-bold mb-2 flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                        Room Assignment
-                      </div>
+                    <div className="p-4">
+                      <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Room Assignment</div>
                       {selectedPatient.room_number && !editingRoom ? (
                         <div className="flex items-center justify-between">
                           <div className="font-bold text-xl text-gray-900">
@@ -2377,13 +2383,8 @@ const NurseDashboard: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    <div className="bg-gradient-to-br from-primary-50 to-secondary-50 p-4 rounded-xl border border-primary-200">
-                      <div className="text-xs text-gray-500 uppercase font-bold mb-2 flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                        Today's Visit
-                      </div>
+                    <div className="p-4">
+                      <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Today's Visit</div>
                       {selectedPatient.chief_complaint && !editingTodaysVisit ? (
                         <div className="flex items-center justify-between">
                           <div className="font-bold text-lg text-gray-900">{selectedPatient.chief_complaint}</div>
@@ -2439,11 +2440,7 @@ const NurseDashboard: React.FC = () => {
                       )}
                     </div>
 
-                    <div className={`p-4 rounded-xl border flex items-center justify-center ${
-                      doctorAlertedPatients.has(selectedPatient.id)
-                        ? 'bg-gradient-to-br from-primary-50 to-secondary-50 border-primary-200'
-                        : 'bg-gradient-to-br from-success-50 to-success-50 border-success-200'
-                    }`}>
+                    <div className="p-4 flex items-center justify-center">
                       {doctorAlertedPatients.has(selectedPatient.id) ? (
                         <div className="w-full px-6 py-3 bg-gradient-to-r from-primary-500 to-secondary-500 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2">
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -2469,34 +2466,34 @@ const NurseDashboard: React.FC = () => {
                   </div>
 
                   {/* Quick Action Buttons - Lab, Imaging, Documents */}
-                  <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div className="flex items-center gap-2 mt-4">
                     <button
                       onClick={() => setShowLabOrderModal(true)}
-                      className="p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-primary-50 text-primary-700 border-2 border-primary-200 hover:bg-primary-100 hover:border-primary-300"
+                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-1.5"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                       </svg>
                       Order Labs
                     </button>
                     <button
                       onClick={() => setShowImagingOrderModal(true)}
-                      className="p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 bg-secondary-50 text-secondary-700 border-2 border-secondary-200 hover:bg-secondary-100 hover:border-secondary-300"
+                      className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-1.5"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                       </svg>
                       Order Imaging
                     </button>
                     <button
                       onClick={() => setActiveTab('documents')}
-                      className={`p-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                      className={`px-3 py-1.5 text-sm border rounded-lg transition-colors font-medium flex items-center gap-1.5 ${
                         activeTab === 'documents'
-                          ? 'bg-warning-100 text-warning-800 border-2 border-warning-300'
-                          : 'bg-warning-50 text-warning-700 border-2 border-warning-200 hover:bg-warning-100 hover:border-warning-300'
+                          ? 'bg-gray-100 text-gray-900 border-gray-300'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                       }`}
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       Documents
@@ -2510,86 +2507,121 @@ const NurseDashboard: React.FC = () => {
                     <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
                   </div>
                   <div className="border-b border-gray-200 px-6">
-                    <nav className="flex -mb-px overflow-x-auto">
+                    <nav className="flex gap-2 overflow-x-auto" aria-label="Clinical Notes Tabs">
                       <button
                         onClick={() => setActiveTab('hp')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'hp'
                             ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        SOAP
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          SOAP
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('vitals')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'vitals'
                             ? 'border-rose-500 text-rose-600 bg-rose-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Vital Signs
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                          </svg>
+                          Vital Signs
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('orders')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors relative ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'orders'
                             ? 'border-primary-600 text-primary-600 bg-primary-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Doctor's Orders
-                        {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
-                          <span className="ml-2 px-2 py-0.5 text-xs bg-primary-100 text-primary-800 rounded-full">
-                            {labOrders.length + imagingOrders.length + pharmacyOrders.length}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          Doctor's Orders
+                          {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
+                            <span className="px-2 py-0.5 text-xs bg-primary-100 text-primary-800 rounded-full">
+                              {labOrders.length + imagingOrders.length + pharmacyOrders.length}
+                            </span>
+                          )}
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('procedures')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'procedures'
                             ? 'border-success-600 text-success-600 bg-success-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Nurse Procedures
-                        {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
-                          <span className="ml-2 px-2 py-0.5 text-xs bg-success-100 text-success-800 rounded-full">
-                            {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                          </svg>
+                          Nurse Procedures
+                          {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length > 0 && (
+                            <span className="px-2 py-0.5 text-xs bg-success-100 text-success-800 rounded-full">
+                              {nurseProcedures.filter(p => p.encounter_id === selectedPatient.id).length}
+                            </span>
+                          )}
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('notes')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'notes'
                             ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Clinical Notes
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Clinical Notes
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('routing')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'routing'
                             ? 'border-teal-500 text-teal-600 bg-teal-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Patient Routing
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                          Patient Routing
+                        </div>
                       </button>
                       <button
                         onClick={() => setActiveTab('documents')}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'documents'
                             ? 'border-warning-600 text-warning-600 bg-warning-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Documents
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          Documents
+                        </div>
                       </button>
                       <button
                         onClick={async () => {
@@ -2606,13 +2638,18 @@ const NurseDashboard: React.FC = () => {
                             }
                           }
                         }}
-                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'billing'
                             ? 'border-emerald-600 text-emerald-600 bg-emerald-50'
-                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
-                        Billing
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Billing
+                        </div>
                       </button>
                     </nav>
                   </div>
