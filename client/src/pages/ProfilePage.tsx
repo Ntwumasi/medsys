@@ -34,14 +34,14 @@ interface LoginEntry {
 
 interface Preferences {
   theme: 'light' | 'dark';
-  emailAlerts: boolean;
+  textAlerts: boolean;
   soundEnabled: boolean;
   language: string;
 }
 
 const DEFAULT_PREFS: Preferences = {
   theme: 'light',
-  emailAlerts: true,
+  textAlerts: true,
   soundEnabled: true,
   language: 'en',
 };
@@ -302,23 +302,20 @@ export default function ProfilePage() {
             </div>
           </Link>
 
-          <div className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+          <Link
+            to="/call"
+            className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
             </div>
             <div>
-              <p className="text-sm font-semibold text-gray-900">Phone</p>
-              {profile?.phone ? (
-                <a href={`tel:${profile.phone}`} className="text-xs text-primary-600 hover:underline">
-                  {profile.phone}
-                </a>
-              ) : (
-                <p className="text-xs text-gray-500">Not set</p>
-              )}
+              <p className="text-sm font-semibold text-gray-900">Internal Calls</p>
+              <p className="text-xs text-gray-500">VoIP call staff members</p>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Main content grid */}
@@ -507,21 +504,21 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Email alerts */}
+              {/* Text/SMS alerts */}
               <div className="flex items-center justify-between py-2 border-b border-gray-50">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Email alerts</p>
-                  <p className="text-xs text-gray-400">Receive email notifications</p>
+                  <p className="text-sm font-medium text-gray-900">Text alerts</p>
+                  <p className="text-xs text-gray-400">Receive SMS notifications</p>
                 </div>
                 <button
-                  onClick={() => updatePref('emailAlerts', !prefs.emailAlerts)}
+                  onClick={() => updatePref('textAlerts', !prefs.textAlerts)}
                   className={`relative w-10 h-6 rounded-full transition-colors ${
-                    prefs.emailAlerts ? 'bg-primary-500' : 'bg-gray-300'
+                    prefs.textAlerts ? 'bg-primary-500' : 'bg-gray-300'
                   }`}
-                  aria-label="Toggle email alerts"
+                  aria-label="Toggle text alerts"
                 >
                   <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    prefs.emailAlerts ? 'translate-x-4' : 'translate-x-0'
+                    prefs.textAlerts ? 'translate-x-4' : 'translate-x-0'
                   }`} />
                 </button>
               </div>
