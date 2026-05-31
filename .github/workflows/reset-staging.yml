@@ -1,0 +1,26 @@
+name: Reset Staging DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "reset" to confirm'
+        required: true
+
+jobs:
+  reset:
+    name: Reset Staging Database
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'reset'
+    environment: staging
+    steps:
+      - name: Install Neon CLI
+        run: npm install -g neonctl
+
+      - name: Delete and recreate staging branch
+        run: |
+          neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name staging --yes || true
+          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name staging --parent main
+          echo "✅ Staging database reset to a fresh copy of production"
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
