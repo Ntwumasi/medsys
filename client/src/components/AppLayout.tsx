@@ -336,10 +336,10 @@ function CallPanelButton() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-500 transition-colors relative"
+        className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors relative"
         aria-label="Voice calls"
       >
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
         {otherUsers.length > 0 && (
@@ -608,37 +608,43 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         <div className="flex-1 sm:hidden" />
 
         {/* Right side items */}
-        <div className="flex items-center gap-2 lg:gap-4 ml-auto">
+        <div className="flex items-center gap-1 ml-auto">
           {/* Super Admin Role Switcher */}
           <SuperAdminRoleSwitcher />
 
-          {/* Messages */}
-          <MessageBadge />
+          {/* Action icons group */}
+          <div className="flex items-center gap-0.5">
+            {/* Messages */}
+            <MessageBadge />
 
-          {/* Voice calls (VoIP) */}
-          <CallPanelButton />
+            {/* Voice calls (VoIP) */}
+            <CallPanelButton />
 
-          {/* Notifications */}
-          <NotificationCenter />
+            {/* Notifications */}
+            <NotificationCenter />
+          </div>
+
+          {/* Divider */}
+          <div className="hidden sm:block w-px h-7 bg-gray-200 mx-2" />
 
           {/* User menu */}
           <div className="relative">
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2 p-2 rounded-lg hover:bg-primary-50 transition-colors"
+              className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-gray-50 transition-colors group"
             >
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-transparent group-hover:ring-primary-200 transition-all">
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
-              <div className="hidden md:block text-left min-w-[120px]">
-                <p className="text-sm font-medium text-text-primary truncate">
+              <div className="hidden md:block text-left min-w-[100px]">
+                <p className="text-sm font-medium text-gray-900 truncate leading-tight">
                   {user?.first_name} {user?.last_name}
                 </p>
-                <p className={`text-xs px-2 py-0.5 rounded-full inline-block ${getRoleColor(user?.role || '')}`}>
-                  {user?.role}
+                <p className="text-xs text-gray-500 capitalize leading-tight mt-0.5">
+                  {user?.role?.replace('_', ' ')}
                 </p>
               </div>
-              <svg className="w-4 h-4 text-text-secondary hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 text-gray-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -647,29 +653,29 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
             {userMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-20 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden">
                   {/* User header */}
-                  <div className="px-4 py-4 bg-gradient-to-r from-primary-50 to-secondary-50">
+                  <div className="px-5 py-4 bg-gradient-to-br from-primary-50 via-white to-secondary-50 border-b border-gray-100">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-white shadow-sm">
                         {user?.first_name?.[0]}{user?.last_name?.[0]}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-gray-900 truncate">
                           {user?.first_name} {user?.last_name}
                         </p>
-                        <p className={`text-xs px-2 py-0.5 rounded-full inline-block mt-0.5 ${getRoleColor(user?.role || '')}`}>
-                          {user?.role}
+                        <p className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getRoleColor(user?.role || '')}`}>
+                          {user?.role?.replace('_', ' ')}
                         </p>
                       </div>
                     </div>
                   </div>
 
                   {/* Menu items */}
-                  <div className="py-1">
+                  <div className="py-1.5 px-1.5">
                     <Link
                       to="/profile"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -679,7 +685,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                     </Link>
                     <Link
                       to="/messages"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                       onClick={() => setUserMenuOpen(false)}
                     >
                       <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -690,10 +696,10 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                   </div>
 
                   {/* Sign out */}
-                  <div className="border-t border-gray-100 py-1">
+                  <div className="border-t border-gray-100 py-1.5 px-1.5">
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-danger-600 hover:bg-danger-50 transition-colors"
+                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
