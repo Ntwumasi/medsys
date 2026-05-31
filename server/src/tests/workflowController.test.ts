@@ -109,9 +109,11 @@ describe('workflowController', () => {
       mockClient.query.mockResolvedValueOnce({ rows: [encounter] } as any);
       // 6. Encounter count (returning patient = 2)
       mockClient.query.mockResolvedValueOnce({ rows: [{ count: '2' }] } as any);
+      // 6b. Previous visit count (has previous visits)
+      mockClient.query.mockResolvedValueOnce({ rows: [{ count: '1' }] } as any);
       // 7. MAX invoice id
       mockClient.query.mockResolvedValueOnce({ rows: [{ next_id: '50' }] } as any);
-      // 8. Consultation charge_master lookup (CONS-GP)
+      // 8. Consultation charge_master lookup (CONS-GP fallback — no clinic passed)
       mockClient.query.mockResolvedValueOnce({
         rows: [{ id: 10, price: '200.00', service_name: 'General Consultation' }],
       } as any);

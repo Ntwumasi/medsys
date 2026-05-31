@@ -93,11 +93,19 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const encounter = result.rows[0];
 
     // Check if this is a new or returning patient
+    // Use count > 1 because the current encounter was already inserted above
     const encounterCountResult = await client.query(
       `SELECT COUNT(*) FROM encounters WHERE patient_id = $1`,
       [patient_id]
     );
-    const isNewPatient = parseInt(encounterCountResult.rows[0].count) === 1;
+    const totalEncounters = parseInt(encounterCountResult.rows[0].count);
+    // Also check if patient has any PREVIOUS encounters (before today) to be safe
+    const previousVisitResult = await client.query(
+      `SELECT COUNT(*) FROM encounters WHERE patient_id = $1 AND id != $2`,
+      [patient_id, encounter.id]
+    );
+    const hasPreviousVisits = parseInt(previousVisitResult.rows[0].count) > 0;
+    const isNewPatient = totalEncounters === 1 && !hasPreviousVisits;
 
     // Create invoice with proper billing - use MAX(id) to avoid collisions
     const maxIdResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
@@ -122,18 +130,32 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       });
     }
 
-    // 2. General consultation fee for all patients
-    const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' :
-                        encounter.encounter_type === 'new' ? 'CONS-PCP' : 'CONS-GP';
-    const consultResult = await client.query(
-      'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1',
-      [consultCode]
-    );
+    // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
     if (!departmentClinics.includes(clinic)) {
+      // Try clinic-specific consultation charge first (e.g., "Cardiology Consultation")
+      let consultResult = { rows: [] as any[] };
+      if (clinic) {
+        consultResult = await client.query(
+          `SELECT id, price, service_name FROM charge_master
+           WHERE category = 'consultation' AND is_active = true
+           AND (service_name ILIKE $1 OR service_name ILIKE $2)
+           LIMIT 1`,
+          [`${clinic} Consult%`, `${clinic}%Consultation%`]
+        );
+      }
+      // Fall back to encounter-type-based charge code
+      if (consultResult.rows.length === 0) {
+        const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' :
+                            encounter.encounter_type === 'new' ? 'CONS-PCP' : 'CONS-GP';
+        consultResult = await client.query(
+          'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1',
+          [consultCode]
+        );
+      }
       checkInCharges.push({
         chargeMasterId: consultResult.rows.length > 0 ? consultResult.rows[0].id : null,
-        description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : 'General Consultation',
+        description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : `${clinic || 'General'} Consultation`,
         price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 200,
       });
     }
