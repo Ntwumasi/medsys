@@ -53,6 +53,7 @@ describe('Patient Controller', () => {
           .mockResolvedValueOnce({ rows: [] }) // Duplicate check - no duplicates
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
+          .mockResolvedValueOnce({ rows: [] }) // generatePatientUsername: SELECT username
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
           .mockResolvedValueOnce({}), // COMMIT
@@ -96,6 +97,7 @@ describe('Patient Controller', () => {
           .mockResolvedValueOnce({ rows: [] }) // Duplicate check
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
+          .mockResolvedValueOnce({ rows: [] }) // generatePatientUsername: SELECT username
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
           .mockResolvedValueOnce({}), // COMMIT
@@ -110,7 +112,6 @@ describe('Patient Controller', () => {
       await createPatient(req, res);
 
       expect(res.status).toHaveBeenCalledWith(201);
-      // Verify that the patient data includes Ghana fields
       expect(mockClient.query).toHaveBeenCalled();
     });
 
@@ -140,6 +141,7 @@ describe('Patient Controller', () => {
           .mockResolvedValueOnce({ rows: [] }) // Duplicate check
           .mockResolvedValueOnce({}) // BEGIN
           .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // Count patients
+          .mockResolvedValueOnce({ rows: [] }) // generatePatientUsername
           .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // Create user
           .mockResolvedValueOnce({ rows: [createdPatient] }) // Create patient
           .mockResolvedValueOnce({}), // COMMIT

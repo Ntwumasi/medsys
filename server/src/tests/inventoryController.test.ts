@@ -397,7 +397,9 @@ describe('Inventory Controller', () => {
       await getExpiringMedications(req, res);
 
       const queryCall = vi.mocked(pool.query).mock.calls[0][0] as string;
-      expect(queryCall).toContain("INTERVAL '30 days'");
+      expect(queryCall).toContain("INTERVAL '1 day' * $1");
+      const queryParams = vi.mocked(pool.query).mock.calls[0][1] as number[];
+      expect(queryParams[0]).toBe(30);
     });
   });
 
@@ -472,7 +474,8 @@ describe('Inventory Controller', () => {
         .mockResolvedValueOnce({ rows: mockDailyRevenue } as any) // dailyRevenue
         .mockResolvedValueOnce({ rows: [mockTotals] } as any) // totals
         .mockResolvedValueOnce({ rows: [mockRevenueTotal] } as any) // revenueTotal
-        .mockResolvedValueOnce({ rows: mockTopMeds } as any); // topMedications
+        .mockResolvedValueOnce({ rows: mockTopMeds } as any) // topMedications
+        .mockResolvedValueOnce({ rows: [] } as any); // orders
 
       const req = mockRequest({}, {}, {});
       const res = mockResponse();
@@ -486,6 +489,7 @@ describe('Inventory Controller', () => {
           total_revenue: mockRevenueTotal.total_revenue,
         },
         top_medications: mockTopMeds,
+        orders: [],
       });
     });
   });

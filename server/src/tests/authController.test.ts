@@ -33,6 +33,8 @@ const mockResponse = () => {
   const res: Partial<Response> = {
     json: vi.fn().mockReturnThis(),
     status: vi.fn().mockReturnThis(),
+    cookie: vi.fn().mockReturnThis(),
+    clearCookie: vi.fn().mockReturnThis(),
   };
   return res as Response;
 };
