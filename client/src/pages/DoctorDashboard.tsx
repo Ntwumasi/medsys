@@ -331,8 +331,10 @@ const DoctorDashboard: React.FC = () => {
           loadSOAPSignStatus(firstPatient.id);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading room encounters:', error);
+      const detail = error.response?.data?.detail || error.response?.data?.error || '';
+      if (detail) showToast(`Patient list error: ${detail}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -987,8 +989,9 @@ const DoctorDashboard: React.FC = () => {
       loadRoomEncounters();
     } catch (error: any) {
       console.error('Error alerting nurse:', error);
+      const detail = error.response?.data?.detail ? ` (${error.response.data.detail})` : '';
       const errorMessage = error.response?.data?.error || error.message || 'Failed to alert nurse';
-      showToast(errorMessage, 'error');
+      showToast(`${errorMessage}${detail}`, 'error');
     }
   };
 

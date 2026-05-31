@@ -926,9 +926,9 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
     res.json({
       encounters: encountersWithVitals,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get encounters by room error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to load patient list', detail: error.message });
   }
 };
 
@@ -1305,7 +1305,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     });
   } catch (error) {
     console.error('Doctor complete encounter error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to complete encounter', detail: (error as any).message });
   }
 };
 
