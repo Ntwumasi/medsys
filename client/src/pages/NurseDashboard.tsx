@@ -284,6 +284,9 @@ const NurseDashboard: React.FC = () => {
   // Track routing status for each encounter (key: encounterId-department)
   const [routedDepartments, setRoutedDepartments] = useState<Set<string>>(new Set());
 
+  // Medication administration loading
+  const [administeringOrderId, setAdministeringOrderId] = useState<number | null>(null);
+
   // AI suggestions
   const [aiTriageSuggestion, setAiTriageSuggestion] = useState<{ suggested_priority: string; confidence: string; reasoning: string; key_concerns: string[]; recommended_actions: string[] } | null>(null);
   const [loadingTriageSuggestion, setLoadingTriageSuggestion] = useState(false);
@@ -401,6 +404,7 @@ const NurseDashboard: React.FC = () => {
     loadRooms();
     loadShortStayBeds();
     loadDoctorNotifications();
+    loadDueTasks();
     if (selectedPatientRef.current) {
       loadOrders();
       loadClinicalNotes();
@@ -497,6 +501,7 @@ const NurseDashboard: React.FC = () => {
       setProcedureHistory(res.data.procedures || []);
     } catch (error) {
       console.error('Error loading procedure history:', error);
+      showToast('Failed to load procedure history', 'error');
     }
   };
 
@@ -1267,26 +1272,34 @@ const NurseDashboard: React.FC = () => {
 
   // Record medication administration
   const handleAdministerMedication = async (orderId: number, medicationName: string) => {
-    // Check allergy cross-reactivity before administering
-    if (selectedPatient) {
-      try {
-        const res = await apiClient.post('/allergy-check', {
-          patient_id: selectedPatient.patient_id,
-          medication_name: medicationName,
-        });
+    if (administeringOrderId) return; // Prevent double-click
+    setAdministeringOrderId(orderId);
+    try {
+      // Check allergy cross-reactivity before administering
+      if (selectedPatient) {
+        try {
+          const res = await apiClient.post('/allergy-check', {
+            patient_id: selectedPatient.patient_id,
+            medication_name: medicationName,
+          });
 
-        if (res.data.warnings && res.data.warnings.length > 0) {
-          setNurseAllergyWarnings(res.data.warnings);
-          setPendingAdminOrder({ id: orderId, name: medicationName });
-          setShowNurseAllergyModal(true);
-          return;
+          if (res.data.warnings && res.data.warnings.length > 0) {
+            setNurseAllergyWarnings(res.data.warnings);
+            setPendingAdminOrder({ id: orderId, name: medicationName });
+            setShowNurseAllergyModal(true);
+            setAdministeringOrderId(null);
+            return;
+          }
+        } catch (error) {
+          console.error('Error checking allergies:', error);
+          showToast('Allergy check failed — proceeding with caution', 'warning');
         }
-      } catch (error) {
-        console.error('Error checking allergies:', error);
       }
-    }
 
-    await executeAdministration(orderId, medicationName);
+      await executeAdministration(orderId, medicationName);
+    } finally {
+      setAdministeringOrderId(null);
+    }
   };
 
   const executeAdministration = async (orderId: number, medicationName: string) => {
@@ -1483,6 +1496,32 @@ const NurseDashboard: React.FC = () => {
           </>
         )}
       />
+
+      {/* Quick Stats Row — matches Doctor Dashboard stat card pattern */}
+      {mainView === 'patients' && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Active Patients</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{assignedPatients.filter(p => !p.is_checked_out).length}</p>
+            <p className="text-xs text-gray-400 mt-0.5">in care today</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Vitals Pending</p>
+            <p className="text-2xl font-bold text-warning-600 mt-1">{assignedPatients.filter(p => !p.is_checked_out && (!p.vital_signs || Object.keys(p.vital_signs).length === 0)).length}</p>
+            <p className="text-xs text-gray-400 mt-0.5">need vitals</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Procedures</p>
+            <p className="text-2xl font-bold text-success-600 mt-1">{nurseProcedures.filter(p => p.status === 'in_progress' || p.status === 'pending').length}</p>
+            <p className="text-xs text-gray-400 mt-0.5">active / pending</p>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
+            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Doctor Alerts</p>
+            <p className={`text-2xl font-bold mt-1 ${unreadNotifications > 0 ? 'text-warning-600' : 'text-gray-900'}`}>{unreadNotifications}</p>
+            <p className="text-xs text-gray-400 mt-0.5">unread messages</p>
+          </div>
+        </div>
+      )}
 
       {/* Room Status — refined card grid. Color reserved for state
           accent (left stripe + tiny dot), surface stays neutral. */}
@@ -2058,6 +2097,58 @@ const NurseDashboard: React.FC = () => {
                     )}
                   </div>
 
+                  {/* Vitals Summary Cards */}
+                  {selectedPatient.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                      {selectedPatient.vital_signs.blood_pressure_systolic && (
+                        <div className="bg-red-50 rounded-lg p-2.5 text-center border border-red-100">
+                          <p className="text-[10px] font-semibold text-red-600 uppercase">BP</p>
+                          <p className="text-sm font-bold text-red-900">{selectedPatient.vital_signs.blood_pressure_systolic}/{selectedPatient.vital_signs.blood_pressure_diastolic}</p>
+                          <p className="text-[10px] text-red-500">mmHg</p>
+                        </div>
+                      )}
+                      {selectedPatient.vital_signs.heart_rate && (
+                        <div className="bg-pink-50 rounded-lg p-2.5 text-center border border-pink-100">
+                          <p className="text-[10px] font-semibold text-pink-600 uppercase">HR</p>
+                          <p className="text-sm font-bold text-pink-900">{selectedPatient.vital_signs.heart_rate}</p>
+                          <p className="text-[10px] text-pink-500">bpm</p>
+                        </div>
+                      )}
+                      {selectedPatient.vital_signs.temperature && (
+                        <div className="bg-orange-50 rounded-lg p-2.5 text-center border border-orange-100">
+                          <p className="text-[10px] font-semibold text-orange-600 uppercase">Temp</p>
+                          <p className="text-sm font-bold text-orange-900">{selectedPatient.vital_signs.temperature}°{selectedPatient.vital_signs.temperature_unit || 'C'}</p>
+                          <p className="text-[10px] text-orange-500">{selectedPatient.vital_signs.temperature_unit || 'Celsius'}</p>
+                        </div>
+                      )}
+                      {selectedPatient.vital_signs.oxygen_saturation && (
+                        <div className="bg-blue-50 rounded-lg p-2.5 text-center border border-blue-100">
+                          <p className="text-[10px] font-semibold text-blue-600 uppercase">SpO2</p>
+                          <p className="text-sm font-bold text-blue-900">{selectedPatient.vital_signs.oxygen_saturation}%</p>
+                          <p className="text-[10px] text-blue-500">Saturation</p>
+                        </div>
+                      )}
+                      {selectedPatient.vital_signs.respiratory_rate && (
+                        <div className="bg-cyan-50 rounded-lg p-2.5 text-center border border-cyan-100">
+                          <p className="text-[10px] font-semibold text-cyan-600 uppercase">RR</p>
+                          <p className="text-sm font-bold text-cyan-900">{selectedPatient.vital_signs.respiratory_rate}</p>
+                          <p className="text-[10px] text-cyan-500">breaths/min</p>
+                        </div>
+                      )}
+                      {selectedPatient.vital_signs.pain_level != null && (
+                        <div className={`rounded-lg p-2.5 text-center border ${
+                          selectedPatient.vital_signs.pain_level >= 7 ? 'bg-red-50 border-red-100' :
+                          selectedPatient.vital_signs.pain_level >= 4 ? 'bg-yellow-50 border-yellow-100' :
+                          'bg-green-50 border-green-100'
+                        }`}>
+                          <p className="text-[10px] font-semibold text-gray-600 uppercase">Pain</p>
+                          <p className="text-sm font-bold text-gray-900">{selectedPatient.vital_signs.pain_level}/10</p>
+                          <p className="text-[10px] text-gray-500">Level</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Progress Indicator */}
                   <div className="mt-6 mb-4">
                     {(() => {
@@ -2419,13 +2510,13 @@ const NurseDashboard: React.FC = () => {
                   <div className="flex justify-between items-center p-6 pb-0 mb-4">
                     <h2 className="text-2xl font-bold text-gray-900">Clinical Notes</h2>
                   </div>
-                  <div className="border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-50 px-6">
+                  <div className="border-b border-gray-200 px-6">
                     <nav className="flex -mb-px overflow-x-auto">
                       <button
                         onClick={() => setActiveTab('hp')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           activeTab === 'hp'
-                            ? 'border-primary-500 text-primary-600'
+                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2433,9 +2524,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('vitals')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                           activeTab === 'vitals'
-                            ? 'border-primary-500 text-primary-600'
+                            ? 'border-rose-500 text-rose-600 bg-rose-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2443,9 +2534,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('orders')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors relative ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors relative ${
                           activeTab === 'orders'
-                            ? 'border-primary-500 text-primary-600'
+                            ? 'border-primary-600 text-primary-600 bg-primary-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2458,9 +2549,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('procedures')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'procedures'
-                            ? 'border-success-500 text-success-600'
+                            ? 'border-success-600 text-success-600 bg-success-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2473,9 +2564,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('notes')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'notes'
-                            ? 'border-primary-500 text-primary-600'
+                            ? 'border-indigo-500 text-indigo-600 bg-indigo-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2483,9 +2574,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('routing')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'routing'
-                            ? 'border-primary-500 text-primary-600'
+                            ? 'border-teal-500 text-teal-600 bg-teal-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2493,9 +2584,9 @@ const NurseDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={() => setActiveTab('documents')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'documents'
-                            ? 'border-warning-500 text-warning-600'
+                            ? 'border-warning-600 text-warning-600 bg-warning-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -2512,12 +2603,13 @@ const NurseDashboard: React.FC = () => {
                               setEncounterInvoice(inv);
                             } catch {
                               setEncounterInvoice(null);
+                              showToast('No invoice found for this encounter', 'info');
                             }
                           }
                         }}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                        className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
                           activeTab === 'billing'
-                            ? 'border-success-500 text-success-600'
+                            ? 'border-emerald-600 text-emerald-600 bg-emerald-50'
                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                         }`}
                       >
@@ -3407,9 +3499,10 @@ const NurseDashboard: React.FC = () => {
                                           {order.status === 'dispensed' && (
                                             <button
                                               onClick={() => handleAdministerMedication(order.id, order.medication_name)}
-                                              className="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700"
+                                              disabled={administeringOrderId === order.id}
+                                              className="px-3 py-1 bg-primary-600 text-white text-xs rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                              Record Administration
+                                              {administeringOrderId === order.id ? 'Checking...' : 'Record Administration'}
                                             </button>
                                           )}
                                         </div>
