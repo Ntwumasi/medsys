@@ -272,7 +272,7 @@ const ReceptionistDashboard: React.FC = () => {
   const handleResetPassword = async (s: StaffMember) => {
     if (s.role === 'admin') return; // belt + suspenders; server also rejects
     const fullName = `${s.first_name} ${s.last_name}`;
-    if (!window.confirm(`Reset password for ${fullName}? They will be forced to change it on next login.`)) return;
+    if (!(await confirmDialog({ title: 'Reset Password', message: `Reset password for ${fullName}? They will be forced to change it on next login.`, confirmLabel: 'Reset', variant: 'warning' }))) return;
     setResettingPwId(s.id);
     try {
       const res = await apiClient.post(`/users/${s.id}/reset-password`);
@@ -282,7 +282,7 @@ const ReceptionistDashboard: React.FC = () => {
         name: fullName,
       });
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to reset password');
+      showToast(err.response?.data?.error || 'Failed to reset password', 'error');
     } finally {
       setResettingPwId(null);
     }
@@ -394,6 +394,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchHighlightIndex, setSearchHighlightIndex] = useState(-1);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
@@ -423,6 +424,11 @@ const ReceptionistDashboard: React.FC = () => {
   // Follow-up checkout modal state
   const [showFollowUpCheckoutModal, setShowFollowUpCheckoutModal] = useState(false);
   const [followUpCheckoutItem, setFollowUpCheckoutItem] = useState<QueueItem | null>(null);
+
+  // AI encounter discharge summary
+  const [aiDischargeSummary, setAiDischargeSummary] = useState<{ summary: string; key_findings: string[]; discharge_instructions: string[]; follow_up_recommendation: string } | null>(null);
+  const [loadingDischargeSummary, setLoadingDischargeSummary] = useState(false);
+  const [dischargeSummaryEncounterId, setDischargeSummaryEncounterId] = useState<number | null>(null);
   const [schedulingFollowUp, setSchedulingFollowUp] = useState(false);
 
   // Special invoice state
@@ -887,11 +893,18 @@ const ReceptionistDashboard: React.FC = () => {
   const handleSaveEditAppointment = async () => {
     if (!editingAppointment) return;
 
+    const [hours, minutes] = editAppointmentTime.split(':').map(Number);
+    const newDate = new Date(editAppointmentDate);
+    newDate.setHours(hours, minutes, 0, 0);
+
+    // Prevent rescheduling to past dates
+    if (newDate < new Date()) {
+      showToast('Cannot reschedule appointment to a past date or time', 'error');
+      return;
+    }
+
     setSavingEditAppointment(true);
     try {
-      const [hours, minutes] = editAppointmentTime.split(':').map(Number);
-      const newDate = new Date(editAppointmentDate);
-      newDate.setHours(hours, minutes, 0, 0);
 
       await apiClient.put(`/appointments/${editingAppointment.id}`, {
         appointment_date: newDate.toISOString(),
@@ -987,11 +1000,25 @@ const ReceptionistDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error checking in patient:', error);
 
-      // Extract error message from API response
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to check in patient';
+      const existingEncounterId = apiError.response?.data?.existingEncounterId;
 
-      showToast(errorMessage, 'error');
+      if (existingEncounterId) {
+        // Patient already checked in — offer to go to their encounter in queue
+        const goToQueue = await confirmDialog({
+          title: 'Patient Already Checked In',
+          message: errorMessage + '\n\nWould you like to view them in the queue?',
+          confirmLabel: 'View in Queue',
+          cancelLabel: 'Stay Here',
+        });
+        if (goToQueue) {
+          setActiveView('queue');
+          setQueueSearchTerm(selectedPatient?.patient_number || '');
+        }
+      } else {
+        showToast(errorMessage, 'error');
+      }
     } finally {
       setCheckingIn(false);
     }
@@ -1185,6 +1212,24 @@ const ReceptionistDashboard: React.FC = () => {
   const handlePaymentComplete = () => {
     // Reload the patient queue data after payment is completed
     loadData();
+  };
+
+  const handleGenerateAiSummary = async (item: QueueItem) => {
+    setLoadingDischargeSummary(true);
+    setDischargeSummaryEncounterId(item.id);
+    setAiDischargeSummary(null);
+    try {
+      const res = await apiClient.post('/ai/encounter-summary', {
+        patientName: item.patient_name,
+        chiefComplaint: item.chief_complaint,
+      });
+      setAiDischargeSummary(res.data);
+    } catch {
+      showToast('AI summary unavailable', 'info');
+      setDischargeSummaryEncounterId(null);
+    } finally {
+      setLoadingDischargeSummary(false);
+    }
   };
 
   const handleCheckout = async (encounterId: number, patientName: string) => {
@@ -2198,23 +2243,66 @@ const ReceptionistDashboard: React.FC = () => {
 
                       {/* Checkout button - show for completed patients or those ready for checkout */}
                       {(isCompleted || item.workflow_status === 'ready_for_checkout') && item.workflow_status !== 'discharged' && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => handleCheckout(item.id, item.patient_name)}
-                          leftIcon={
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                          }
-                        >
-                          Checkout
-                        </Button>
+                        <>
+                          <button
+                            onClick={() => handleGenerateAiSummary(item)}
+                            disabled={loadingDischargeSummary && dischargeSummaryEncounterId === item.id}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                            title="Generate AI visit summary"
+                          >
+                            {loadingDischargeSummary && dischargeSummaryEncounterId === item.id ? '...' : '✨ Summary'}
+                          </button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => handleCheckout(item.id, item.patient_name)}
+                            leftIcon={
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                              </svg>
+                            }
+                          >
+                            Checkout
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
                 );
               })}
+
+              {/* AI Encounter Summary Panel */}
+              {aiDischargeSummary && dischargeSummaryEncounterId && (
+                <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-bold text-indigo-900 text-sm flex items-center gap-1">✨ AI Visit Summary</h4>
+                    <button onClick={() => { setAiDischargeSummary(null); setDischargeSummaryEncounterId(null); }} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+                  </div>
+                  <p className="text-sm text-gray-700 mb-3">{aiDischargeSummary.summary}</p>
+                  {aiDischargeSummary.key_findings?.length > 0 && (
+                    <div className="mb-2">
+                      <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Key Findings</h5>
+                      <ul className="text-xs text-gray-600 list-disc list-inside space-y-0.5">
+                        {aiDischargeSummary.key_findings.map((f: string, i: number) => <li key={i}>{f}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {aiDischargeSummary.discharge_instructions?.length > 0 && (
+                    <div className="mb-2">
+                      <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Discharge Instructions</h5>
+                      <ul className="text-xs text-gray-600 list-disc list-inside space-y-0.5">
+                        {aiDischargeSummary.discharge_instructions.map((d: string, i: number) => <li key={i}>{d}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {aiDischargeSummary.follow_up_recommendation && (
+                    <div>
+                      <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Follow-up</h5>
+                      <p className="text-xs text-gray-700">{aiDischargeSummary.follow_up_recommendation}</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {filteredQueue.length === 0 && (
                 <EmptyState
@@ -2256,17 +2344,37 @@ const ReceptionistDashboard: React.FC = () => {
                   <input
                     type="text"
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => { setSearchTerm(e.target.value); setSearchHighlightIndex(-1); }}
+                    onKeyDown={(e) => {
+                      if (!searchTerm || selectedPatient) return;
+                      const list = filteredPatients;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSearchHighlightIndex(prev => Math.min(prev + 1, list.length - 1));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSearchHighlightIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === 'Enter' && searchHighlightIndex >= 0 && searchHighlightIndex < list.length) {
+                        e.preventDefault();
+                        handlePatientSelect(list[searchHighlightIndex]);
+                        setSearchHighlightIndex(-1);
+                      } else if (e.key === 'Escape') {
+                        setSearchTerm('');
+                        setSearchHighlightIndex(-1);
+                      }
+                    }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     placeholder="Enter patient number or name..."
                   />
                   {searchTerm && !selectedPatient && (
                     <div className="mt-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                      {filteredPatients.map((patient) => (
+                      {filteredPatients.map((patient, idx) => (
                         <div
                           key={patient.id}
                           onClick={() => handlePatientSelect(patient)}
-                          className="p-4 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                          className={`p-4 cursor-pointer border-b last:border-b-0 ${
+                            idx === searchHighlightIndex ? 'bg-primary-50 ring-1 ring-inset ring-primary-300' : 'hover:bg-gray-50'
+                          }`}
                         >
                           <div className="flex justify-between items-start">
                             <div>
@@ -3325,6 +3433,15 @@ const ReceptionistDashboard: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+              {/* Calendar Legend */}
+              <div className="flex flex-wrap gap-3 mb-3 text-xs">
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#7c3aed' }}></span> Scheduled</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#3b82f6' }}></span> Confirmed</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#22c55e' }}></span> Checked In</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#6b7280' }}></span> Completed</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#ef4444' }}></span> Cancelled</span>
+                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#f97316' }}></span> Pharmacy Refill</span>
               </div>
               <div style={{ height: 600 }}>
                 <Calendar

@@ -210,6 +210,9 @@ import {
   generateCounseling,
   parseVoiceCommand,
   getAIStatus,
+  suggestTriagePriority,
+  suggestTestOrders,
+  generateEncounterSummary,
 } from '../controllers/aiController';
 import {
   getSystemUpdates,
@@ -751,6 +754,9 @@ router.post('/ai/dosage-verify', authenticateToken, authorizeRoles('pharmacy', '
 router.post('/ai/substitutions', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'doctor', 'admin'), suggestSubstitutions);
 router.post('/ai/counseling', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), generateCounseling);
 router.post('/ai/voice-command', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), parseVoiceCommand);
+router.post('/ai/triage-suggest', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), suggestTriagePriority);
+router.post('/ai/test-suggest', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), suggestTestOrders);
+router.post('/ai/encounter-summary', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist', 'admin'), generateEncounterSummary);
 router.get('/inventory/expiry-calendar', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiryCalendar);
 router.get('/patients/:patientId/medication-timeline', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor', 'nurse'), getPatientMedicationTimeline);
 

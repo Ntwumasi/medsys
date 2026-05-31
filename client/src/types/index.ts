@@ -205,6 +205,8 @@ export interface ApiError {
       message?: string;
       existingPatientId?: number;
       existingPatientNumber?: string;
+      existingEncounterId?: number;
+      existingEncounterNumber?: string;
       // Auth security fields
       details?: string[];
       attempts_remaining?: number;

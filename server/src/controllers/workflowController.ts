@@ -737,7 +737,7 @@ export const alertDoctor = async (req: Request, res: Response): Promise<void> =>
 
     const result = await pool.query(
       `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
-       VALUES ($1, $2, $3, $4, 'patient_ready', $5)
+       VALUES ($1, $2, $3, $4, 'ready_for_doctor', $5)
        RETURNING *`,
       [encounter_id, patient_id, nurse_id, doctor_id, message || 'Patient is ready for doctor']
     );
@@ -777,7 +777,7 @@ export const getNurseNotifications = async (req: Request, res: Response): Promis
        JOIN users from_user ON a.from_user_id = from_user.id
        WHERE (a.to_user_id = $1 OR e.nurse_id = $1)
          AND from_user.role = 'doctor'
-         AND a.alert_type = 'patient_ready'
+         AND a.alert_type IN ('patient_ready', 'follow_up_care')
          AND a.is_read = false
          AND e.status NOT IN ('completed', 'discharged')
        ORDER BY a.id, a.created_at DESC
@@ -852,7 +852,7 @@ export const getEncountersByRoom = async (req: Request, res: Response): Promise<
         EXISTS(
           SELECT 1 FROM alerts a
           WHERE a.encounter_id = e.id
-          AND a.alert_type = 'patient_ready'
+          AND a.alert_type IN ('patient_ready', 'ready_for_doctor')
           AND a.is_read = false
         ) as has_nurse_alert
       FROM encounters e
@@ -1238,7 +1238,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     if (nurse_id) {
       await pool.query(
         `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
-         VALUES ($1, $2, $3, $4, 'patient_ready', $5)`,
+         VALUES ($1, $2, $3, $4, 'follow_up_care', $5)`,
         [
           encounter_id,
           patient_id,
@@ -1568,7 +1568,7 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
     // Create alert for all receptionists that patient is ready for billing/checkout
     await pool.query(
       `INSERT INTO alerts (encounter_id, patient_id, from_user_id, to_user_id, alert_type, message)
-       SELECT $1, $2, $3, u.id, 'patient_ready', $4
+       SELECT $1, $2, $3, u.id, 'ready_for_checkout', $4
        FROM users u
        WHERE u.role = 'receptionist' AND u.is_active = true`,
       [
@@ -1690,7 +1690,7 @@ export const getReceptionistAlerts = async (req: Request, res: Response): Promis
     await pool.query(
       `UPDATE alerts SET is_read = true
        WHERE is_read = false
-         AND alert_type = 'patient_ready'
+         AND alert_type IN ('patient_ready', 'ready_for_checkout')
          AND (
            DATE(created_at) < CURRENT_DATE
            OR encounter_id IN (
@@ -1719,7 +1719,7 @@ export const getReceptionistAlerts = async (req: Request, res: Response): Promis
        LEFT JOIN invoices i ON i.encounter_id = e.id
        WHERE a.to_user_id = $1
          AND a.is_read = false
-         AND a.alert_type = 'patient_ready'
+         AND a.alert_type IN ('patient_ready', 'ready_for_checkout')
          AND DATE(a.created_at) = CURRENT_DATE
          AND e.status IN ('completed', 'discharged')
          AND (i.id IS NULL OR i.status != 'paid')

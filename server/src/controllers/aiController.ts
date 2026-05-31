@@ -238,3 +238,105 @@ export const getAIStatus = async (req: Request, res: Response): Promise<void> =>
     res.status(500).json({ error: 'Failed to get AI status' });
   }
 };
+
+/**
+ * AI-powered triage priority suggestion
+ */
+export const suggestTriagePriority = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const { chiefComplaint, vitals, patientAge, patientGender } = req.body;
+
+    if (!chiefComplaint) {
+      res.status(400).json({ error: 'Chief complaint is required' });
+      return;
+    }
+
+    if (!aiService.isAvailable()) {
+      res.status(503).json({ error: 'AI service is not configured' });
+      return;
+    }
+
+    const result = await aiService.suggestTriagePriority(
+      { chiefComplaint, vitals, patientAge, patientGender },
+      authReq.user?.id
+    );
+
+    if (result.success) {
+      res.json(result.data);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error: any) {
+    console.error('Triage suggestion error:', error);
+    res.status(500).json({ error: 'Failed to get triage suggestion' });
+  }
+};
+
+/**
+ * AI-powered test suggestions based on chief complaint
+ */
+export const suggestTestOrders = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const { chiefComplaint, patientAge, patientGender, existingDiagnoses, currentMedications, recentLabTests } = req.body;
+
+    if (!chiefComplaint) {
+      res.status(400).json({ error: 'Chief complaint is required' });
+      return;
+    }
+
+    if (!aiService.isAvailable()) {
+      res.status(503).json({ error: 'AI service is not configured' });
+      return;
+    }
+
+    const result = await aiService.suggestTests(
+      { chiefComplaint, patientAge, patientGender, existingDiagnoses, currentMedications, recentLabTests },
+      authReq.user?.id
+    );
+
+    if (result.success) {
+      res.json(result.data);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error: any) {
+    console.error('Test suggestion error:', error);
+    res.status(500).json({ error: 'Failed to get test suggestions' });
+  }
+};
+
+/**
+ * AI-generated encounter/discharge summary
+ */
+export const generateEncounterSummary = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as AuthRequest;
+    const { patientName, patientAge, chiefComplaint, vitals, diagnoses, clinicalNotes, labResults, imagingResults, medications, procedures } = req.body;
+
+    if (!chiefComplaint) {
+      res.status(400).json({ error: 'Chief complaint is required' });
+      return;
+    }
+
+    if (!aiService.isAvailable()) {
+      res.status(503).json({ error: 'AI service is not configured' });
+      return;
+    }
+
+    const result = await aiService.generateEncounterSummary(
+      { patientName, patientAge, chiefComplaint, vitals, diagnoses, clinicalNotes, labResults, imagingResults, medications, procedures },
+      authReq.user?.id
+    );
+
+    if (result.success) {
+      res.json(result.data);
+    } else {
+      res.status(500).json({ error: result.error });
+    }
+  } catch (error: any) {
+    console.error('Encounter summary error:', error);
+    res.status(500).json({ error: 'Failed to generate encounter summary' });
+  }
+};

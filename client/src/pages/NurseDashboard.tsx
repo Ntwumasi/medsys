@@ -153,7 +153,20 @@ interface DoctorNotification {
   doctor_name: string;
   created_at: string;
   is_read: boolean;
+  alert_type?: string;
 }
+
+// Infer notification category from message content for visual badges
+const getNotificationBadge = (notification: DoctorNotification): { label: string; color: string } => {
+  const msg = (notification.message || '').toLowerCase();
+  if (msg.includes('critical') || msg.includes('urgent') || msg.includes('stat'))
+    return { label: 'Critical', color: 'bg-red-100 text-red-700' };
+  if (msg.includes('follow-up') || msg.includes('follow up') || msg.includes('review'))
+    return { label: 'Follow-up', color: 'bg-purple-100 text-purple-700' };
+  if (msg.includes('ready') || msg.includes('completed') || msg.includes('returned'))
+    return { label: 'Routine', color: 'bg-blue-100 text-blue-700' };
+  return { label: 'Info', color: 'bg-gray-100 text-gray-600' };
+};
 
 interface Doctor {
   id: number;
@@ -270,6 +283,13 @@ const NurseDashboard: React.FC = () => {
 
   // Track routing status for each encounter (key: encounterId-department)
   const [routedDepartments, setRoutedDepartments] = useState<Set<string>>(new Set());
+
+  // AI suggestions
+  const [aiTriageSuggestion, setAiTriageSuggestion] = useState<{ suggested_priority: string; confidence: string; reasoning: string; key_concerns: string[]; recommended_actions: string[] } | null>(null);
+  const [loadingTriageSuggestion, setLoadingTriageSuggestion] = useState(false);
+  const [aiTestSuggestions, setAiTestSuggestions] = useState<{ lab_tests: { test_name: string; test_code: string; priority: string; rationale: string }[]; imaging_tests: { study_type: string; body_part: string; priority: string; rationale: string }[]; clinical_note: string } | null>(null);
+  const [loadingTestSuggestions, setLoadingTestSuggestions] = useState(false);
+  const [showAiTestPanel, setShowAiTestPanel] = useState(false);
 
   // Auto-save for vitals — the debounce timer lives inside the useEffect,
   // so we only need a flag to know whether the user has touched anything.
@@ -619,6 +639,23 @@ const NurseDashboard: React.FC = () => {
     setShowProcedureHistory(false);
     setProcedureHistory([]);
     setShowAddProcedure(false);
+
+    // Load existing department routing history for this encounter
+    try {
+      const routingRes = await apiClient.get(`/department-routing/encounter/${patient.id}`);
+      const routings = routingRes.data.routings || [];
+      setRoutedDepartments(prev => {
+        const newSet = new Set(prev);
+        routings.forEach((r: { department: string; status: string }) => {
+          if (r.status !== 'cancelled') {
+            newSet.add(`${patient.id}-${r.department}`);
+          }
+        });
+        return newSet;
+      });
+    } catch {
+      // Non-critical — routing buttons will still work
+    }
 
     // Only call start if patient hasn't been started yet (status is not 'with_nurse' or from_doctor)
     // This updates nurse_started_at in the database
@@ -1169,6 +1206,44 @@ const NurseDashboard: React.FC = () => {
     }
   };
 
+  // AI triage suggestion
+  const handleGetTriageSuggestion = async () => {
+    if (!selectedPatient) return;
+    setLoadingTriageSuggestion(true);
+    setAiTriageSuggestion(null);
+    try {
+      const res = await apiClient.post('/ai/triage-suggest', {
+        chiefComplaint: selectedPatient.chief_complaint,
+        vitals: vitals,
+      });
+      setAiTriageSuggestion(res.data);
+    } catch {
+      showToast('AI triage suggestion unavailable', 'info');
+    } finally {
+      setLoadingTriageSuggestion(false);
+    }
+  };
+
+  // AI test suggestions
+  const handleGetTestSuggestions = async () => {
+    if (!selectedPatient) return;
+    setLoadingTestSuggestions(true);
+    setAiTestSuggestions(null);
+    setShowAiTestPanel(true);
+    try {
+      const recentTests = labOrders.map(l => l.test_name);
+      const res = await apiClient.post('/ai/test-suggest', {
+        chiefComplaint: selectedPatient.chief_complaint,
+        recentLabTests: recentTests,
+      });
+      setAiTestSuggestions(res.data);
+    } catch {
+      showToast('AI test suggestion unavailable', 'info');
+    } finally {
+      setLoadingTestSuggestions(false);
+    }
+  };
+
   // Update triage priority
   const handleUpdateTriagePriority = async (priority: 'green' | 'yellow' | 'red') => {
     if (!selectedPatient) return;
@@ -1590,9 +1665,15 @@ const NurseDashboard: React.FC = () => {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">
-                              {notification.patient_name}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
+                                {notification.patient_name}
+                              </p>
+                              {(() => {
+                                const badge = getNotificationBadge(notification);
+                                return <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${badge.color}`}>{badge.label}</span>;
+                              })()}
+                            </div>
                             <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
                               {notification.message}
                             </p>
@@ -1935,7 +2016,46 @@ const NurseDashboard: React.FC = () => {
                           {p.toUpperCase()}
                         </button>
                       ))}
+                      <button
+                        onClick={handleGetTriageSuggestion}
+                        disabled={loadingTriageSuggestion}
+                        className="ml-2 px-2 py-2 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                        title="AI triage suggestion"
+                      >
+                        {loadingTriageSuggestion ? '...' : '✨ AI'}
+                      </button>
                     </div>
+                    {/* AI Triage Suggestion */}
+                    {aiTriageSuggestion && (
+                      <div className={`mt-2 p-3 rounded-lg border text-xs ${
+                        aiTriageSuggestion.suggested_priority === 'red' ? 'bg-red-50 border-red-200' :
+                        aiTriageSuggestion.suggested_priority === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                        'bg-green-50 border-green-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold">
+                            AI Suggests: {aiTriageSuggestion.suggested_priority.toUpperCase()}
+                            <span className="font-normal text-gray-500 ml-1">({aiTriageSuggestion.confidence} confidence)</span>
+                          </span>
+                          <button onClick={() => setAiTriageSuggestion(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+                        </div>
+                        <p className="text-gray-700 mb-1">{aiTriageSuggestion.reasoning}</p>
+                        {aiTriageSuggestion.key_concerns?.length > 0 && (
+                          <div className="mt-1">
+                            <span className="font-semibold">Concerns: </span>
+                            {aiTriageSuggestion.key_concerns.join(' • ')}
+                          </div>
+                        )}
+                        {aiTriageSuggestion.suggested_priority !== selectedPatient.current_priority && (
+                          <button
+                            onClick={() => handleUpdateTriagePriority(aiTriageSuggestion.suggested_priority as 'green' | 'yellow' | 'red')}
+                            className="mt-2 px-3 py-1 bg-indigo-600 text-white rounded font-semibold hover:bg-indigo-700 transition-colors"
+                          >
+                            Apply {aiTriageSuggestion.suggested_priority.toUpperCase()} priority
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Progress Indicator */}
@@ -2935,8 +3055,18 @@ const NurseDashboard: React.FC = () => {
                     {/* Doctor's Orders Tab */}
                     {activeTab === 'orders' && (
                       <div className="space-y-4">
-                        {/* Create Lab Order Button */}
-                        <div className="flex justify-end mb-4">
+                        {/* Create Lab Order + AI Suggest Buttons */}
+                        <div className="flex justify-end gap-2 mb-4">
+                          <button
+                            onClick={handleGetTestSuggestions}
+                            disabled={loadingTestSuggestions}
+                            className="bg-indigo-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-100 flex items-center gap-2 text-sm font-medium transition-colors"
+                          >
+                            {loadingTestSuggestions ? (
+                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            ) : '✨'}
+                            AI Suggest Tests
+                          </button>
                           <button
                             onClick={() => setShowLabOrderModal(true)}
                             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2 text-sm font-medium"
@@ -2947,6 +3077,68 @@ const NurseDashboard: React.FC = () => {
                             Create Lab Order
                           </button>
                         </div>
+
+                        {/* AI Test Suggestions Panel */}
+                        {showAiTestPanel && (
+                          <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-bold text-indigo-900 text-sm flex items-center gap-1">✨ AI-Suggested Tests</h4>
+                              <button onClick={() => { setShowAiTestPanel(false); setAiTestSuggestions(null); }} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+                            </div>
+                            {loadingTestSuggestions ? (
+                              <p className="text-sm text-indigo-600 animate-pulse">Analyzing chief complaint...</p>
+                            ) : aiTestSuggestions ? (
+                              <div className="space-y-3">
+                                {aiTestSuggestions.clinical_note && (
+                                  <p className="text-xs text-gray-700 italic">{aiTestSuggestions.clinical_note}</p>
+                                )}
+                                {aiTestSuggestions.lab_tests?.length > 0 && (
+                                  <div>
+                                    <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Lab Tests</h5>
+                                    <div className="space-y-1">
+                                      {aiTestSuggestions.lab_tests.map((test, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs border border-indigo-100">
+                                          <div>
+                                            <span className="font-semibold text-gray-900">{test.test_name}</span>
+                                            {test.test_code && <span className="text-gray-400 ml-1">({test.test_code})</span>}
+                                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                              test.priority === 'stat' ? 'bg-red-100 text-red-700' :
+                                              test.priority === 'urgent' ? 'bg-yellow-100 text-yellow-700' :
+                                              'bg-gray-100 text-gray-600'
+                                            }`}>{test.priority}</span>
+                                          </div>
+                                          <span className="text-gray-500 max-w-[200px] truncate" title={test.rationale}>{test.rationale}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {aiTestSuggestions.imaging_tests?.length > 0 && (
+                                  <div>
+                                    <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Imaging</h5>
+                                    <div className="space-y-1">
+                                      {aiTestSuggestions.imaging_tests.map((test, i) => (
+                                        <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs border border-indigo-100">
+                                          <div>
+                                            <span className="font-semibold text-gray-900">{test.study_type} — {test.body_part}</span>
+                                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                              test.priority === 'stat' ? 'bg-red-100 text-red-700' :
+                                              test.priority === 'urgent' ? 'bg-yellow-100 text-yellow-700' :
+                                              'bg-gray-100 text-gray-600'
+                                            }`}>{test.priority}</span>
+                                          </div>
+                                          <span className="text-gray-500 max-w-[200px] truncate" title={test.rationale}>{test.rationale}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500">No suggestions available</p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Doctor's Instructions for Nurse */}
                         {clinicalNotes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (

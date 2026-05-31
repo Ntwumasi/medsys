@@ -503,6 +503,225 @@ If there is NO meaningful cross-reactivity risk, return: { "has_risk": false, "r
       return { success: false, error: error.message || 'AI processing failed' };
     }
   },
+  /**
+   * Suggest triage priority based on vitals and chief complaint
+   */
+  async suggestTriagePriority(request: {
+    chiefComplaint: string;
+    vitals?: {
+      temperature?: number;
+      heart_rate?: number;
+      blood_pressure_systolic?: number;
+      blood_pressure_diastolic?: number;
+      respiratory_rate?: number;
+      oxygen_saturation?: number;
+      pain_level?: number;
+    };
+    patientAge?: number;
+    patientGender?: string;
+  }, userId?: number): Promise<AIResponse> {
+    if (!openai) {
+      return { success: false, error: 'AI service not configured' };
+    }
+
+    const hash = generateRequestHash('triage_priority', request);
+    const cached = await checkCache('triage_priority', hash);
+    if (cached) {
+      return { success: true, data: cached, cached: true };
+    }
+
+    try {
+      const vitalsStr = request.vitals ? Object.entries(request.vitals)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ') : 'No vitals recorded yet';
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an emergency triage nurse AI assistant. Based on the patient's chief complaint and vital signs, suggest a triage priority level.
+
+Priority levels:
+- "green" (Stable): Non-urgent, can wait safely
+- "yellow" (Urgent): Needs attention soon, potential for deterioration
+- "red" (Critical): Immediate attention required, life-threatening
+
+Respond with JSON only:
+{
+  "suggested_priority": "green" | "yellow" | "red",
+  "confidence": "high" | "medium" | "low",
+  "reasoning": "Brief 1-2 sentence clinical reasoning",
+  "key_concerns": ["Up to 3 specific concerns that influenced the priority"],
+  "recommended_actions": ["Up to 3 immediate actions the nurse should consider"]
+}`
+          },
+          {
+            role: 'user',
+            content: `Chief Complaint: ${request.chiefComplaint}
+Vitals: ${vitalsStr}
+${request.patientAge ? `Age: ${request.patientAge}` : ''}
+${request.patientGender ? `Gender: ${request.patientGender}` : ''}`
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 500,
+        response_format: { type: 'json_object' },
+      });
+
+      const response = JSON.parse(completion.choices[0].message.content || '{}');
+      await saveToCache('triage_priority', hash, request, response, userId);
+      return { success: true, data: response };
+    } catch (error: any) {
+      console.error('Triage suggestion AI error:', error);
+      return { success: false, error: error.message || 'AI processing failed' };
+    }
+  },
+
+  /**
+   * Suggest lab/imaging tests based on chief complaint and patient history
+   */
+  async suggestTests(request: {
+    chiefComplaint: string;
+    patientAge?: number;
+    patientGender?: string;
+    existingDiagnoses?: string[];
+    currentMedications?: string[];
+    recentLabTests?: string[];
+  }, userId?: number): Promise<AIResponse> {
+    if (!openai) {
+      return { success: false, error: 'AI service not configured' };
+    }
+
+    const hash = generateRequestHash('test_suggestion', request);
+    const cached = await checkCache('test_suggestion', hash);
+    if (cached) {
+      return { success: true, data: cached, cached: true };
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a clinical decision support AI. Based on the patient's chief complaint and history, suggest relevant laboratory and imaging tests that would help with diagnosis.
+
+Respond with JSON only:
+{
+  "lab_tests": [
+    {
+      "test_name": "Full Blood Count",
+      "test_code": "FBC",
+      "priority": "routine" | "urgent" | "stat",
+      "rationale": "Brief reason why this test is relevant"
+    }
+  ],
+  "imaging_tests": [
+    {
+      "study_type": "X-Ray",
+      "body_part": "Chest",
+      "priority": "routine" | "urgent" | "stat",
+      "rationale": "Brief reason"
+    }
+  ],
+  "clinical_note": "Brief overall assessment of what to rule out (1-2 sentences)"
+}
+
+Only suggest tests that are clinically relevant. Limit to 5 lab tests and 2 imaging tests maximum.`
+          },
+          {
+            role: 'user',
+            content: `Chief Complaint: ${request.chiefComplaint}
+${request.patientAge ? `Age: ${request.patientAge}` : ''}
+${request.patientGender ? `Gender: ${request.patientGender}` : ''}
+${request.existingDiagnoses?.length ? `Existing Diagnoses: ${request.existingDiagnoses.join(', ')}` : ''}
+${request.currentMedications?.length ? `Current Medications: ${request.currentMedications.join(', ')}` : ''}
+${request.recentLabTests?.length ? `Recent Lab Tests (already done): ${request.recentLabTests.join(', ')}` : ''}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+        response_format: { type: 'json_object' },
+      });
+
+      const response = JSON.parse(completion.choices[0].message.content || '{}');
+      await saveToCache('test_suggestion', hash, request, response, userId);
+      return { success: true, data: response };
+    } catch (error: any) {
+      console.error('Test suggestion AI error:', error);
+      return { success: false, error: error.message || 'AI processing failed' };
+    }
+  },
+
+  /**
+   * Generate encounter discharge summary from clinical data
+   */
+  async generateEncounterSummary(request: {
+    patientName: string;
+    patientAge?: number;
+    chiefComplaint: string;
+    vitals?: Record<string, unknown>;
+    diagnoses?: string[];
+    clinicalNotes?: string[];
+    labResults?: { test_name: string; result?: string; status: string }[];
+    imagingResults?: { study_type: string; body_part: string; status: string }[];
+    medications?: { name: string; dosage: string; frequency: string }[];
+    procedures?: { name: string; status: string }[];
+  }, userId?: number): Promise<AIResponse> {
+    if (!openai) {
+      return { success: false, error: 'AI service not configured' };
+    }
+
+    const hash = generateRequestHash('encounter_summary', request);
+    const cached = await checkCache('encounter_summary', hash);
+    if (cached) {
+      return { success: true, data: cached, cached: true };
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a medical documentation AI assistant. Generate a concise, professional discharge summary from the clinical encounter data provided.
+
+Respond with JSON:
+{
+  "summary": "A concise narrative summary (3-5 sentences) covering presentation, key findings, diagnosis, and treatment plan",
+  "key_findings": ["Up to 5 key clinical findings"],
+  "discharge_instructions": ["Up to 5 patient instructions"],
+  "follow_up_recommendation": "Brief follow-up recommendation if applicable"
+}`
+          },
+          {
+            role: 'user',
+            content: `Patient: ${request.patientName}${request.patientAge ? ` (Age: ${request.patientAge})` : ''}
+Chief Complaint: ${request.chiefComplaint}
+${request.vitals ? `Vitals: ${JSON.stringify(request.vitals)}` : ''}
+${request.diagnoses?.length ? `Diagnoses: ${request.diagnoses.join(', ')}` : ''}
+${request.clinicalNotes?.length ? `Clinical Notes:\n${request.clinicalNotes.join('\n')}` : ''}
+${request.labResults?.length ? `Lab Results: ${request.labResults.map(l => `${l.test_name}: ${l.result || l.status}`).join(', ')}` : ''}
+${request.imagingResults?.length ? `Imaging: ${request.imagingResults.map(i => `${i.study_type} ${i.body_part}: ${i.status}`).join(', ')}` : ''}
+${request.medications?.length ? `Medications: ${request.medications.map(m => `${m.name} ${m.dosage} ${m.frequency}`).join(', ')}` : ''}
+${request.procedures?.length ? `Procedures: ${request.procedures.map(p => `${p.name}: ${p.status}`).join(', ')}` : ''}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 800,
+        response_format: { type: 'json_object' },
+      });
+
+      const response = JSON.parse(completion.choices[0].message.content || '{}');
+      await saveToCache('encounter_summary', hash, request, response, userId);
+      return { success: true, data: response };
+    } catch (error: any) {
+      console.error('Encounter summary AI error:', error);
+      return { success: false, error: error.message || 'AI processing failed' };
+    }
+  },
 };
 
 export default aiService;
