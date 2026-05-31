@@ -215,7 +215,7 @@ interface CalendarEvent {
 }
 
 const ReceptionistDashboard: React.FC = () => {
-  const { user } = useAuth();
+  useAuth(); // Ensure authenticated
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [searchParams] = useSearchParams();
