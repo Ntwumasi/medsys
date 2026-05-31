@@ -10,6 +10,7 @@ import AppLayout from '../components/AppLayout';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import LoginActivityPanel from '../components/LoginActivityPanel';
 import DashboardHeader from '../components/DashboardHeader';
+import AppSelect from '../components/ui/AppSelect';
 import NumberTicker from '../components/ui/NumberTicker';
 import InsightCard from '../components/ui/InsightCard';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
@@ -1753,21 +1754,16 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Patient Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Patient
-                </label>
-                <select
+                <AppSelect
+                  label="Select Patient"
                   value={selectedPatientId || ''}
-                  onChange={(e) => setSelectedPatientId(e.target.value ? Number(e.target.value) : null)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">-- Select a Patient --</option>
-                  {patients.map((patient) => (
-                    <option key={patient.id} value={patient.id}>
-                      {patient.first_name} {patient.last_name} ({patient.patient_number})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedPatientId(val ? Number(val) : null)}
+                  placeholder="-- Select a Patient --"
+                  options={patients.map((patient) => ({
+                    value: patient.id,
+                    label: `${patient.first_name} ${patient.last_name} (${patient.patient_number})`,
+                  }))}
+                />
               </div>
             </div>
 
@@ -1916,22 +1912,17 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assigned Doctor *
-                    </label>
-                    <select
+                    <AppSelect
+                      label="Assigned Doctor *"
                       value={corporateForm.assigned_doctor_id}
-                      onChange={(e) => setCorporateForm({ ...corporateForm, assigned_doctor_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      onChange={(val) => setCorporateForm({ ...corporateForm, assigned_doctor_id: val })}
+                      placeholder="Select Doctor"
                       required
-                    >
-                      <option value="">Select Doctor</option>
-                      {doctors.map((doctor) => (
-                        <option key={doctor.id} value={doctor.id}>
-                          Dr. {doctor.first_name} {doctor.last_name}
-                        </option>
-                      ))}
-                    </select>
+                      options={doctors.map((doctor) => ({
+                        value: doctor.id,
+                        label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+                      }))}
+                    />
                   </div>
                 </div>
                 <div className="mt-4">
@@ -2320,49 +2311,47 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Role / Department *
-                    </label>
-                    <select
+                    <AppSelect
+                      label="Role / Department *"
                       value={staffForm.role}
-                      onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value, clinic: e.target.value === 'doctor' ? staffForm.clinic : '' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      onChange={(val) => setStaffForm({ ...staffForm, role: val, clinic: val === 'doctor' ? staffForm.clinic : '' })}
                       required
-                    >
-                      <option value="doctor">Doctor</option>
-                      <option value="nurse">Nurse</option>
-                      <option value="receptionist">Receptionist</option>
-                      <option value="lab">Lab Technician</option>
-                      <option value="pharmacy">Pharmacy</option>
-                      <option value="imaging">Imaging/Radiology</option>
-                      <option value="admin">Administrator</option>
-                    </select>
+                      options={[
+                        { value: 'doctor', label: 'Doctor' },
+                        { value: 'nurse', label: 'Nurse' },
+                        { value: 'receptionist', label: 'Receptionist' },
+                        { value: 'lab', label: 'Lab Technician' },
+                        { value: 'pharmacy', label: 'Pharmacy' },
+                        { value: 'imaging', label: 'Imaging/Radiology' },
+                        { value: 'admin', label: 'Administrator' },
+                      ]}
+                    />
                   </div>
                   {staffForm.role === 'doctor' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Clinic / Specialty</label>
-                      <select
+                      <AppSelect
+                        label="Clinic / Specialty"
                         value={staffForm.clinic}
-                        onChange={(e) => setStaffForm({ ...staffForm, clinic: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="">— Select clinic —</option>
-                        <option value="General Practice">General Practice</option>
-                        <option value="ENT (Ear, Nose & Throat)">ENT (Ear, Nose & Throat)</option>
-                        <option value="Urology">Urology</option>
-                        <option value="Cardiology">Cardiology</option>
-                        <option value="Dermatology">Dermatology</option>
-                        <option value="Gastroenterology">Gastroenterology</option>
-                        <option value="Neurology">Neurology</option>
-                        <option value="Obstetrics & Gynecology">Obstetrics & Gynecology</option>
-                        <option value="Ophthalmology">Ophthalmology</option>
-                        <option value="Orthopedics">Orthopedics</option>
-                        <option value="Pediatrics">Pediatrics</option>
-                        <option value="Psychiatry">Psychiatry</option>
-                        <option value="Pulmonology">Pulmonology</option>
-                        <option value="Rheumatology">Rheumatology</option>
-                        <option value="Endocrinology">Endocrinology</option>
-                      </select>
+                        onChange={(val) => setStaffForm({ ...staffForm, clinic: val })}
+                        placeholder="— Select clinic —"
+                        options={[
+                          { value: 'General Practice', label: 'General Practice' },
+                          { value: 'ENT (Ear, Nose & Throat)', label: 'ENT (Ear, Nose & Throat)' },
+                          { value: 'Urology', label: 'Urology' },
+                          { value: 'Cardiology', label: 'Cardiology' },
+                          { value: 'Dermatology', label: 'Dermatology' },
+                          { value: 'Gastroenterology', label: 'Gastroenterology' },
+                          { value: 'Neurology', label: 'Neurology' },
+                          { value: 'Obstetrics & Gynecology', label: 'Obstetrics & Gynecology' },
+                          { value: 'Ophthalmology', label: 'Ophthalmology' },
+                          { value: 'Orthopedics', label: 'Orthopedics' },
+                          { value: 'Pediatrics', label: 'Pediatrics' },
+                          { value: 'Psychiatry', label: 'Psychiatry' },
+                          { value: 'Pulmonology', label: 'Pulmonology' },
+                          { value: 'Rheumatology', label: 'Rheumatology' },
+                          { value: 'Endocrinology', label: 'Endocrinology' },
+                        ]}
+                      />
                       <p className="text-xs text-gray-500 mt-1">Which clinic this doctor practices in.</p>
                     </div>
                   )}
@@ -2713,16 +2702,17 @@ const Dashboard: React.FC = () => {
                                 <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
                                 <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
                                 <td className="px-3 py-2">
-                                  <select
+                                  <AppSelect
                                     value={t.status}
-                                    onChange={(e) => inlineUpdateStatus(t.id, e.target.value as AdminTask['status'])}
+                                    onChange={(val) => inlineUpdateStatus(t.id, val as AdminTask['status'])}
                                     className={`text-xs px-2 py-1 rounded-full font-medium border cursor-pointer ${statusStyle[t.status]}`}
-                                  >
-                                    <option value="pending">Pending</option>
-                                    <option value="in_progress">In Progress</option>
-                                    <option value="blocked">Blocked</option>
-                                    <option value="complete">Complete</option>
-                                  </select>
+                                    options={[
+                                      { value: 'pending', label: 'Pending' },
+                                      { value: 'in_progress', label: 'In Progress' },
+                                      { value: 'blocked', label: 'Blocked' },
+                                      { value: 'complete', label: 'Complete' },
+                                    ]}
+                                  />
                                 </td>
                                 <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
                                 <td className="px-3 py-2">
@@ -2814,17 +2804,17 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
-                    <select
+                    <AppSelect
+                      label="Status"
                       value={taskForm.status}
-                      onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value as AdminTask['status'] })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="blocked">Blocked</option>
-                      <option value="complete">Complete</option>
-                    </select>
+                      onChange={(val) => setTaskForm({ ...taskForm, status: val as AdminTask['status'] })}
+                      options={[
+                        { value: 'pending', label: 'Pending' },
+                        { value: 'in_progress', label: 'In Progress' },
+                        { value: 'blocked', label: 'Blocked' },
+                        { value: 'complete', label: 'Complete' },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Due Date</label>
@@ -3193,37 +3183,37 @@ const Dashboard: React.FC = () => {
               {/* Filters */}
               <div className="flex items-center gap-4 mt-4">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">Action:</label>
-                  <select
+                  <AppSelect
+                    label="Action:"
                     value={auditActionFilter}
-                    onChange={(e) => setAuditActionFilter(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="all">All Actions</option>
-                    <option value="create">Create</option>
-                    <option value="update">Update</option>
-                    <option value="delete">Delete</option>
-                    <option value="complete">Complete</option>
-                    <option value="login">Login</option>
-                    <option value="logout">Logout</option>
-                  </select>
+                    onChange={(val) => setAuditActionFilter(val)}
+                    options={[
+                      { value: 'all', label: 'All Actions' },
+                      { value: 'create', label: 'Create' },
+                      { value: 'update', label: 'Update' },
+                      { value: 'delete', label: 'Delete' },
+                      { value: 'complete', label: 'Complete' },
+                      { value: 'login', label: 'Login' },
+                      { value: 'logout', label: 'Logout' },
+                    ]}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">Entity:</label>
-                  <select
+                  <AppSelect
+                    label="Entity:"
                     value={auditEntityFilter}
-                    onChange={(e) => setAuditEntityFilter(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="all">All Entities</option>
-                    <option value="patient">Patient</option>
-                    <option value="encounter">Encounter</option>
-                    <option value="appointment">Appointment</option>
-                    <option value="lab_order">Lab Order</option>
-                    <option value="prescription">Prescription</option>
-                    <option value="invoice">Invoice</option>
-                    <option value="user">User</option>
-                  </select>
+                    onChange={(val) => setAuditEntityFilter(val)}
+                    options={[
+                      { value: 'all', label: 'All Entities' },
+                      { value: 'patient', label: 'Patient' },
+                      { value: 'encounter', label: 'Encounter' },
+                      { value: 'appointment', label: 'Appointment' },
+                      { value: 'lab_order', label: 'Lab Order' },
+                      { value: 'prescription', label: 'Prescription' },
+                      { value: 'invoice', label: 'Invoice' },
+                      { value: 'user', label: 'User' },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -3433,28 +3423,28 @@ const Dashboard: React.FC = () => {
                 onChange={(e) => { setChargeSearch(e.target.value); setChargesPage(1); }}
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
               />
-              <select
+              <AppSelect
                 value={chargeCategoryFilter}
-                onChange={(e) => { setChargeCategoryFilter(e.target.value); setChargesPage(1); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-              >
-                <option value="all">All Categories</option>
-                {chargeCategories.map(cat => (
-                  <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-                ))}
-              </select>
-              <select
+                onChange={(val) => { setChargeCategoryFilter(val); setChargesPage(1); }}
+                options={[
+                  { value: 'all', label: 'All Categories' },
+                  ...chargeCategories.map(cat => ({
+                    value: cat,
+                    label: cat.charAt(0).toUpperCase() + cat.slice(1),
+                  })),
+                ]}
+              />
+              <AppSelect
                 value={selectedPayerFilter}
-                onChange={(e) => { setSelectedPayerFilter(e.target.value); setChargesPage(1); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm font-medium"
-              >
-                <option value="cash">Cash / Self-Pay</option>
-                {payers.map(p => (
-                  <option key={`${p.payer_type}:${p.id}`} value={`${p.payer_type}:${p.id}`}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => { setSelectedPayerFilter(val); setChargesPage(1); }}
+                options={[
+                  { value: 'cash', label: 'Cash / Self-Pay' },
+                  ...payers.map(p => ({
+                    value: `${p.payer_type}:${p.id}`,
+                    label: p.name,
+                  })),
+                ]}
+              />
             </div>
 
             {chargesLoading ? (
@@ -3595,20 +3585,20 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                    <select
+                    <AppSelect
+                      label="Category *"
                       value={editingCharge?.category ?? newCharge.category}
-                      onChange={(e) => editingCharge ? setEditingCharge({ ...editingCharge, category: e.target.value }) : setNewCharge({ ...newCharge, category: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="consultation">Consultation</option>
-                      <option value="lab">Lab</option>
-                      <option value="imaging">Imaging</option>
-                      <option value="pharmacy">Pharmacy</option>
-                      <option value="procedure">Procedure</option>
-                      <option value="registration">Registration</option>
-                      <option value="other">Other</option>
-                    </select>
+                      onChange={(val) => editingCharge ? setEditingCharge({ ...editingCharge, category: val }) : setNewCharge({ ...newCharge, category: val })}
+                      options={[
+                        { value: 'consultation', label: 'Consultation' },
+                        { value: 'lab', label: 'Lab' },
+                        { value: 'imaging', label: 'Imaging' },
+                        { value: 'pharmacy', label: 'Pharmacy' },
+                        { value: 'procedure', label: 'Procedure' },
+                        { value: 'registration', label: 'Registration' },
+                        { value: 'other', label: 'Other' },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cash / Self-Pay Price (GH₵) *</label>

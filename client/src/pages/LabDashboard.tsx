@@ -15,6 +15,7 @@ import LabResultModal, { type LabResultAlert } from '../components/LabResultModa
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PrioritySelect from '../components/PrioritySelect';
 import FrequencySelect from '../components/FrequencySelect';
+import AppSelect from '../components/ui/AppSelect';
 
 // Interfaces
 interface LabOrder {
@@ -1997,11 +1998,15 @@ const LabDashboard: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <input type="text" value={quickRegForm.phone} onChange={(e) => setQuickRegForm({ ...quickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                      <select value={quickRegForm.gender} onChange={(e) => setQuickRegForm({ ...quickRegForm, gender: e.target.value })} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                        <option value="">Gender</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                      </select>
+                      <AppSelect
+                        value={quickRegForm.gender}
+                        onChange={(val) => setQuickRegForm({ ...quickRegForm, gender: val })}
+                        options={[
+                          { value: 'male', label: 'Male' },
+                          { value: 'female', label: 'Female' },
+                        ]}
+                        placeholder="Gender"
+                      />
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => setShowQuickRegister(false)} className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
@@ -2115,16 +2120,16 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <select
+                  <AppSelect
                     value={priorityFilter}
-                    onChange={(e) => setPriorityFilter(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">All Priorities</option>
-                    <option value="stat">STAT</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="routine">Routine</option>
-                  </select>
+                    onChange={(val) => setPriorityFilter(val)}
+                    options={[
+                      { value: 'stat', label: 'STAT' },
+                      { value: 'urgent', label: 'Urgent' },
+                      { value: 'routine', label: 'Routine' },
+                    ]}
+                    placeholder="All Priorities"
+                  />
                 </div>
                 <div>
                   <input
@@ -2815,25 +2820,25 @@ const LabDashboard: React.FC = () => {
                   onChange={(e) => setInventorySearch(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
-                <select
+                <AppSelect
                   value={inventoryTypeFilter}
-                  onChange={(e) => setInventoryTypeFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">All Types</option>
-                  <option value="reagent">Reagents</option>
-                  <option value="supply">Supplies</option>
-                  <option value="equipment">Equipment</option>
-                </select>
-                <select
+                  onChange={(val) => setInventoryTypeFilter(val)}
+                  options={[
+                    { value: 'reagent', label: 'Reagents' },
+                    { value: 'supply', label: 'Supplies' },
+                    { value: 'equipment', label: 'Equipment' },
+                  ]}
+                  placeholder="All Types"
+                />
+                <AppSelect
                   value={inventoryStatusFilter}
-                  onChange={(e) => setInventoryStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">All Status</option>
-                  <option value="low_stock">Low Stock Only</option>
-                  <option value="expiring">Expiring Soon</option>
-                </select>
+                  onChange={(val) => setInventoryStatusFilter(val)}
+                  options={[
+                    { value: 'low_stock', label: 'Low Stock Only' },
+                    { value: 'expiring', label: 'Expiring Soon' },
+                  ]}
+                  placeholder="All Status"
+                />
                 <button
                   onClick={() => {
                     setInventorySearch('');
@@ -2972,16 +2977,12 @@ const LabDashboard: React.FC = () => {
                   onChange={(e) => setCatalogSearch(e.target.value)}
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
-                <select
+                <AppSelect
                   value={catalogCategory}
-                  onChange={(e) => setCatalogCategory(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">All Categories</option>
-                  {catalogCategories.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setCatalogCategory(val)}
+                  options={catalogCategories.map(cat => ({ value: cat, label: cat }))}
+                  placeholder="All Categories"
+                />
                 <button
                   onClick={() => {
                     setCatalogSearch('');
@@ -3313,18 +3314,12 @@ const LabDashboard: React.FC = () => {
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-bold text-gray-900">Levey-Jennings Chart</h3>
-                  <select
+                  <AppSelect
                     value={selectedQCTest}
-                    onChange={(e) => setSelectedQCTest(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">Select Test</option>
-                    {qcAvailableTests.map(test => (
-                      <option key={test.test_code} value={test.test_code}>
-                        {test.test_code} - {test.test_name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedQCTest(val)}
+                    options={qcAvailableTests.map(test => ({ value: test.test_code, label: `${test.test_code} - ${test.test_name}` }))}
+                    placeholder="Select Test"
+                  />
                 </div>
 
                 {leveyJenningsData ? (
@@ -3581,16 +3576,16 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
-                  <select
+                  <AppSelect
+                    label="Type *"
                     value={inventoryForm.item_type}
-                    onChange={(e) => setInventoryForm({ ...inventoryForm, item_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="reagent">Reagent</option>
-                    <option value="supply">Supply</option>
-                    <option value="equipment">Equipment</option>
-                  </select>
+                    onChange={(val) => setInventoryForm({ ...inventoryForm, item_type: val })}
+                    options={[
+                      { value: 'reagent', label: 'Reagent' },
+                      { value: 'supply', label: 'Supply' },
+                      { value: 'equipment', label: 'Equipment' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
@@ -3677,17 +3672,17 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Storage Conditions</label>
-                  <select
+                  <AppSelect
+                    label="Storage Conditions"
                     value={inventoryForm.storage_conditions}
-                    onChange={(e) => setInventoryForm({ ...inventoryForm, storage_conditions: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="room_temp">Room Temperature</option>
-                    <option value="refrigerated">Refrigerated (2-8°C)</option>
-                    <option value="frozen">Frozen (-20°C)</option>
-                    <option value="deep_frozen">Deep Frozen (-80°C)</option>
-                  </select>
+                    onChange={(val) => setInventoryForm({ ...inventoryForm, storage_conditions: val })}
+                    options={[
+                      { value: 'room_temp', label: 'Room Temperature' },
+                      { value: 'refrigerated', label: 'Refrigerated (2-8°C)' },
+                      { value: 'frozen', label: 'Frozen (-20°C)' },
+                      { value: 'deep_frozen', label: 'Deep Frozen (-80°C)' },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -3725,17 +3720,17 @@ const LabDashboard: React.FC = () => {
                 <p className="text-sm text-gray-600">Current Stock: <span className="font-bold">{editingItem.quantity_on_hand} {editingItem.unit}</span></p>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
-                <select
+                <AppSelect
+                  label="Adjustment Type"
                   value={adjustStockForm.transaction_type}
-                  onChange={(e) => setAdjustStockForm({ ...adjustStockForm, transaction_type: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="purchase">Purchase (Add Stock)</option>
-                  <option value="adjustment">Adjustment</option>
-                  <option value="expired">Expired (Remove)</option>
-                  <option value="transfer">Transfer</option>
-                </select>
+                  onChange={(val) => setAdjustStockForm({ ...adjustStockForm, transaction_type: val })}
+                  options={[
+                    { value: 'purchase', label: 'Purchase (Add Stock)' },
+                    { value: 'adjustment', label: 'Adjustment' },
+                    { value: 'expired', label: 'Expired (Remove)' },
+                    { value: 'transfer', label: 'Transfer' },
+                  ]}
+                />
               </div>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (+ to add, - to remove)</label>
@@ -3876,20 +3871,20 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Specimen Type</label>
-                  <select
+                  <AppSelect
+                    label="Specimen Type"
                     value={testForm.specimen_type}
-                    onChange={(e) => setTestForm({ ...testForm, specimen_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="blood">Blood</option>
-                    <option value="urine">Urine</option>
-                    <option value="stool">Stool</option>
-                    <option value="swab">Swab</option>
-                    <option value="csf">CSF</option>
-                    <option value="tissue">Tissue</option>
-                    <option value="other">Other</option>
-                  </select>
+                    onChange={(val) => setTestForm({ ...testForm, specimen_type: val })}
+                    options={[
+                      { value: 'blood', label: 'Blood' },
+                      { value: 'urine', label: 'Urine' },
+                      { value: 'stool', label: 'Stool' },
+                      { value: 'swab', label: 'Swab' },
+                      { value: 'csf', label: 'CSF' },
+                      { value: 'tissue', label: 'Tissue' },
+                      { value: 'other', label: 'Other' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">TAT (hours)</label>
@@ -4068,20 +4063,14 @@ const LabDashboard: React.FC = () => {
                                     <td className="px-3 py-2">{p.parameter_name}</td>
                                     <td className="px-3 py-2">
                                       {p.value_type === 'qualitative' && p.qualitative_options ? (
-                                        <select
+                                        <AppSelect
                                           value={value}
-                                          onChange={(e) =>
-                                            setTemplateValues({ ...templateValues, [key]: e.target.value })
+                                          onChange={(val) =>
+                                            setTemplateValues({ ...templateValues, [key]: val })
                                           }
-                                          className="w-full px-2 py-1 border border-gray-300 rounded"
-                                        >
-                                          <option value="">—</option>
-                                          {p.qualitative_options.split('|').map((opt) => (
-                                            <option key={opt} value={opt}>
-                                              {opt}
-                                            </option>
-                                          ))}
-                                        </select>
+                                          options={p.qualitative_options.split('|').map((opt) => ({ value: opt, label: opt }))}
+                                          placeholder="—"
+                                        />
                                       ) : (
                                         <input
                                           type={p.value_type === 'numeric' ? 'text' : 'text'}
@@ -4282,23 +4271,15 @@ const LabDashboard: React.FC = () => {
                     </div>
                   ) : (
                     <>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Assign reviewer <span className="text-danger-600">*</span>
-                      </label>
-                      <select
+                      <AppSelect
+                        label="Assign reviewer *"
                         value={assignedReviewerId}
-                        onChange={(e) =>
-                          setAssignedReviewerId(e.target.value ? parseInt(e.target.value, 10) : '')
+                        onChange={(val) =>
+                          setAssignedReviewerId(val ? parseInt(val, 10) : '')
                         }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="">— Pick a reviewer —</option>
-                        {labReviewers.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.first_name} {r.last_name} ({r.role})
-                          </option>
-                        ))}
-                      </select>
+                        options={labReviewers.map((r) => ({ value: r.id, label: `${r.first_name} ${r.last_name} (${r.role})` }))}
+                        placeholder="— Pick a reviewer —"
+                      />
                       {labReviewers.length === 0 && (
                         <p className="text-xs text-danger-600 mt-1">
                           No other lab user is set up. Check &quot;Skip Verification&quot; to submit directly.
@@ -4745,16 +4726,16 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Control Level *</label>
-                  <select
+                  <AppSelect
+                    label="Control Level *"
                     value={qcForm.control_level}
-                    onChange={(e) => setQCForm({ ...qcForm, control_level: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
-                  >
-                    <option value="low">Low Control</option>
-                    <option value="normal">Normal Control</option>
-                    <option value="high">High Control</option>
-                  </select>
+                    onChange={(val) => setQCForm({ ...qcForm, control_level: val })}
+                    options={[
+                      { value: 'low', label: 'Low Control' },
+                      { value: 'normal', label: 'Normal Control' },
+                      { value: 'high', label: 'High Control' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Lot Number</label>

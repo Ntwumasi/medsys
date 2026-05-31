@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSmartDictation } from '../hooks/useSmartDictation';
+import AppSelect from './ui/AppSelect';
 import type { ParsedSection } from '../hooks/useSmartDictation';
 
 interface ExistingSection {
@@ -248,15 +249,15 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                 {sectionsWithExisting.length > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">When section has content:</span>
-                    <select
+                    <AppSelect
                       value={mergeMode}
-                      onChange={(e) => setMergeMode(e.target.value as MergeMode)}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
-                    >
-                      <option value="append">Append to existing</option>
-                      <option value="prepend">Prepend to existing</option>
-                      <option value="replace">Replace existing</option>
-                    </select>
+                      onChange={(val) => setMergeMode(val as MergeMode)}
+                      options={[
+                        { value: 'append', label: 'Append to existing' },
+                        { value: 'prepend', label: 'Prepend to existing' },
+                        { value: 'replace', label: 'Replace existing' },
+                      ]}
+                    />
                   </div>
                 )}
               </div>

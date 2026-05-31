@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
+import AppSelect from './ui/AppSelect';
 
 // Admin viewer for login_attempts. The server has been logging every
 // successful and failed login with IP and user-agent since the original
@@ -243,16 +244,16 @@ const LoginActivityPanel: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Result</label>
-          <select
+          <AppSelect
+            label="Result"
             value={filterSuccess}
-            onChange={(e) => setFilterSuccess(e.target.value as 'all' | 'success' | 'failed')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-          >
-            <option value="all">All</option>
-            <option value="success">Successful</option>
-            <option value="failed">Failed</option>
-          </select>
+            onChange={(val) => setFilterSuccess(val as 'all' | 'success' | 'failed')}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'success', label: 'Successful' },
+              { value: 'failed', label: 'Failed' },
+            ]}
+          />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">User</label>

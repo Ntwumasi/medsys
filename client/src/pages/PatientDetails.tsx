@@ -8,6 +8,7 @@ import VitalSignsHistory from '../components/VitalSignsHistory';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
+import AppSelect from '../components/ui/AppSelect';
 import { useDialog } from '../context/DialogContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -1396,14 +1397,12 @@ const PatientDetails: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
                   <input type="date" value={editData.date_of_birth || ''} onChange={(e) => setEditData({ ...editData, date_of_birth: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                  <select value={editData.gender || ''} onChange={(e) => setEditData({ ...editData, gender: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
+                <AppSelect
+                  label="Gender"
+                  value={editData.gender || ''}
+                  onChange={(val) => setEditData({ ...editData, gender: val })}
+                  options={[{value:'',label:'Select'},{value:'male',label:'Male'},{value:'female',label:'Female'}]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
@@ -1445,47 +1444,27 @@ const PatientDetails: React.FC = () => {
               </div>
               <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Insurance & Billing</h4>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payer Type</label>
-                  <select
-                    value={editPayerType}
-                    onChange={(e) => { setEditPayerType(e.target.value); setEditPayerId(null); }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="self_pay">Self Pay</option>
-                    <option value="corporate">Corporate / Employer</option>
-                    <option value="insurance">Health Insurance</option>
-                  </select>
-                </div>
+                <AppSelect
+                  label="Payer Type"
+                  value={editPayerType}
+                  onChange={(val) => { setEditPayerType(val); setEditPayerId(null); }}
+                  options={[{value:'self_pay',label:'Self Pay'},{value:'corporate',label:'Corporate / Employer'},{value:'insurance',label:'Health Insurance'}]}
+                />
                 {editPayerType === 'corporate' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Corporate Client</label>
-                    <select
-                      value={editPayerId ?? ''}
-                      onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">Select corporate client</option>
-                      {corporateClients.map((cc) => (
-                        <option key={cc.id} value={cc.id}>{cc.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <AppSelect
+                    label="Corporate Client"
+                    value={editPayerId ?? ''}
+                    onChange={(val) => setEditPayerId(val ? Number(val) : null)}
+                    options={[{value:'',label:'Select corporate client'}, ...corporateClients.map((cc) => ({value:cc.id,label:cc.name}))]}
+                  />
                 )}
                 {editPayerType === 'insurance' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Provider</label>
-                    <select
-                      value={editPayerId ?? ''}
-                      onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="">Select insurance provider</option>
-                      {insuranceProviders.map((ip) => (
-                        <option key={ip.id} value={ip.id}>{ip.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <AppSelect
+                    label="Insurance Provider"
+                    value={editPayerId ?? ''}
+                    onChange={(val) => setEditPayerId(val ? Number(val) : null)}
+                    options={[{value:'',label:'Select insurance provider'}, ...insuranceProviders.map((ip) => ({value:ip.id,label:ip.name}))]}
+                  />
                 )}
               </div>
             </div>

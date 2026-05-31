@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import AppSelect from '../components/ui/AppSelect';
 
 interface QueueStatus {
   pending: number;
@@ -725,21 +726,14 @@ const QuickBooksSettings: React.FC = () => {
             {activeTab === 'queue' && (
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <select
+                  <AppSelect
                     value={queueFilter}
-                    onChange={(e) => {
-                      setQueueFilter(e.target.value);
-                      loadQueueItems(e.target.value || undefined);
+                    onChange={(val) => {
+                      setQueueFilter(val);
+                      loadQueueItems(val || undefined);
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="sent">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="error">Errors</option>
-                    <option value="waiting">Waiting</option>
-                  </select>
+                    options={[{value:'',label:'All Statuses'},{value:'pending',label:'Pending'},{value:'sent',label:'In Progress'},{value:'completed',label:'Completed'},{value:'error',label:'Errors'},{value:'waiting',label:'Waiting'}]}
+                  />
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleClearQueue('completed')}
@@ -811,20 +805,14 @@ const QuickBooksSettings: React.FC = () => {
             {activeTab === 'mappings' && (
               <div>
                 <div className="mb-4">
-                  <select
+                  <AppSelect
                     value={mappingFilter}
-                    onChange={(e) => {
-                      setMappingFilter(e.target.value);
-                      loadMappings(e.target.value || undefined);
+                    onChange={(val) => {
+                      setMappingFilter(val);
+                      loadMappings(val || undefined);
                     }}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="">All Entity Types</option>
-                    <option value="patient">Customers (Patients)</option>
-                    <option value="service">Items (Services)</option>
-                    <option value="invoice">Invoices</option>
-                    <option value="payment">Payments</option>
-                  </select>
+                    options={[{value:'',label:'All Entity Types'},{value:'patient',label:'Customers (Patients)'},{value:'service',label:'Items (Services)'},{value:'invoice',label:'Invoices'},{value:'payment',label:'Payments'}]}
+                  />
                 </div>
 
                 <div className="overflow-x-auto">

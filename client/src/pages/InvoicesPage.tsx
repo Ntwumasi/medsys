@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
 import { TableRowSkeleton } from '../components/Skeleton';
+import AppSelect from '../components/ui/AppSelect';
 
 // Safe date formatting helper
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatString: string, fallback: string = 'N/A'): string => {
@@ -261,16 +262,11 @@ const InvoicesPage: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              <select
+              <AppSelect
                 value={invoicesStatusFilter}
-                onChange={(e) => setInvoicesStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-              </select>
+                onChange={(val) => setInvoicesStatusFilter(val)}
+                options={[{value:'all',label:'All Statuses'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'paid',label:'Paid'}]}
+              />
               <button
                 onClick={handleInvoiceSearch}
                 className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"

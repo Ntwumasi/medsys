@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import AppSelect from '../components/ui/AppSelect';
 
 interface Receipt {
   id: number;
@@ -234,19 +235,11 @@ const ReceiptsPage: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
             />
-            <select
+            <AppSelect
               value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-            >
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="rpay">Rpay</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-            </select>
+              onChange={(val) => setMethodFilter(val)}
+              options={[{value:'all',label:'All Methods'},{value:'cash',label:'Cash'},{value:'card',label:'Card'},{value:'mobile_money',label:'Mobile Money'},{value:'rpay',label:'Rpay'},{value:'bank_transfer',label:'Bank Transfer'},{value:'cheque',label:'Cheque'}]}
+            />
             <div className="flex rounded-lg border border-gray-300 overflow-hidden">
               {(['today', 'week', 'month', 'all'] as const).map((period) => (
                 <button

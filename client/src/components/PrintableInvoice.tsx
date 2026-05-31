@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import AppSelect from './ui/AppSelect';
 import type { ApiError } from '../types';
 
 interface InvoiceItem {
@@ -567,19 +568,19 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                      <select
+                      <AppSelect
+                        label="Payment Method"
                         value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        <option value="cash">Cash</option>
-                        <option value="card">Card</option>
-                        <option value="mobile_money">Mobile Money</option>
-                        <option value="rpay">Rpay</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="cheque">Cheque</option>
-                      </select>
+                        onChange={(val) => setPaymentMethod(val)}
+                        options={[
+                          { value: 'cash', label: 'Cash' },
+                          { value: 'card', label: 'Card' },
+                          { value: 'mobile_money', label: 'Mobile Money' },
+                          { value: 'rpay', label: 'Rpay' },
+                          { value: 'bank_transfer', label: 'Bank Transfer' },
+                          { value: 'cheque', label: 'Cheque' },
+                        ]}
+                      />
                     </div>
                   </div>
 
@@ -731,45 +732,37 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                 {editingPayer ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Payer Type</label>
-                      <select
+                      <AppSelect
+                        label="Payer Type"
                         value={editPayerType}
-                        onChange={(e) => { setEditPayerType(e.target.value); setEditPayerId(null); }}
-                        className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                      >
-                        <option value="self_pay">Self Pay</option>
-                        <option value="corporate">Corporate / Employer</option>
-                        <option value="insurance">Health Insurance</option>
-                      </select>
+                        onChange={(val) => { setEditPayerType(val); setEditPayerId(null); }}
+                        options={[
+                          { value: 'self_pay', label: 'Self Pay' },
+                          { value: 'corporate', label: 'Corporate / Employer' },
+                          { value: 'insurance', label: 'Health Insurance' },
+                        ]}
+                      />
                     </div>
                     {editPayerType === 'corporate' && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Corporate Client</label>
-                        <select
+                        <AppSelect
+                          label="Corporate Client"
                           value={editPayerId ?? ''}
-                          onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">Select corporate client</option>
-                          {ccOptions.map((cc) => (
-                            <option key={cc.id} value={cc.id}>{cc.name}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setEditPayerId(val ? Number(val) : null)}
+                          placeholder="Select corporate client"
+                          options={ccOptions.map((cc) => ({ value: cc.id, label: cc.name }))}
+                        />
                       </div>
                     )}
                     {editPayerType === 'insurance' && (
                       <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Insurance Provider</label>
-                        <select
+                        <AppSelect
+                          label="Insurance Provider"
                           value={editPayerId ?? ''}
-                          onChange={(e) => setEditPayerId(e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">Select insurance provider</option>
-                          {ipOptions.map((ip) => (
-                            <option key={ip.id} value={ip.id}>{ip.name}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setEditPayerId(val ? Number(val) : null)}
+                          placeholder="Select insurance provider"
+                          options={ipOptions.map((ip) => ({ value: ip.id, label: ip.name }))}
+                        />
                       </div>
                     )}
                     <div className="flex gap-2 pt-1">

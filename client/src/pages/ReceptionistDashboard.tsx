@@ -13,7 +13,7 @@ import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import type { ApiError } from '../types';
-import { Card, Button, Badge, Input, Select, EmptyState } from '../components/ui';
+import { Card, Button, Badge, Input, Select, EmptyState, AppSelect } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
@@ -2154,38 +2154,22 @@ const ReceptionistDashboard: React.FC = () => {
 
                     <div className="mt-4 flex gap-3 flex-wrap">
                       {!isCompleted && !item.nurse_name && (
-                        <select
-                          onChange={(e) => handleAssignNurse(item.id, Number(e.target.value))}
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                          defaultValue=""
-                        >
-                          <option value="">Assign Nurse</option>
-                          {nurses.map((nurse) => (
-                            <option key={nurse.id} value={nurse.id}>
-                              {nurse.first_name} {nurse.last_name}
-                            </option>
-                          ))}
-                        </select>
+                        <AppSelect
+                          value=""
+                          onChange={(val) => { if (val) handleAssignNurse(item.id, Number(val)); }}
+                          options={nurses.map((nurse) => ({ value: String(nurse.id), label: `${nurse.first_name} ${nurse.last_name}` }))}
+                          placeholder="Assign Nurse"
+                        />
                       )}
 
                       {!isCompleted && editingNurseForEncounter === item.id && item.nurse_name && (
                         <div className="flex items-center gap-2">
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleAssignNurse(item.id, Number(e.target.value));
-                              }
-                            }}
-                            className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                            defaultValue=""
-                          >
-                            <option value="">Select new nurse</option>
-                            {nurses.map((nurse) => (
-                              <option key={nurse.id} value={nurse.id}>
-                                {nurse.first_name} {nurse.last_name}
-                              </option>
-                            ))}
-                          </select>
+                          <AppSelect
+                            value=""
+                            onChange={(val) => { if (val) handleAssignNurse(item.id, Number(val)); }}
+                            options={nurses.map((nurse) => ({ value: String(nurse.id), label: `${nurse.first_name} ${nurse.last_name}` }))}
+                            placeholder="Select new nurse"
+                          />
                           <button
                             onClick={() => setEditingNurseForEncounter(null)}
                             className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
@@ -2199,18 +2183,12 @@ const ReceptionistDashboard: React.FC = () => {
                       )}
 
                       {!isCheckedOut && !item.doctor_name && (
-                        <select
-                          onChange={(e) => handleAssignDoctor(item.id, Number(e.target.value))}
-                          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                          defaultValue=""
-                        >
-                          <option value="">Assign Doctor</option>
-                          {doctors.map((doctor) => (
-                            <option key={doctor.id} value={doctor.id}>
-                              Dr. {doctor.first_name} {doctor.last_name}
-                            </option>
-                          ))}
-                        </select>
+                        <AppSelect
+                          value=""
+                          onChange={(val) => { if (val) handleAssignDoctor(item.id, Number(val)); }}
+                          options={doctors.map((doctor) => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))}
+                          placeholder="Assign Doctor"
+                        />
                       )}
 
                       {!isCheckedOut && editingDoctorForEncounter === item.id && (
@@ -2225,23 +2203,12 @@ const ReceptionistDashboard: React.FC = () => {
                             </div>
                           ) : (
                             <>
-                              <select
-                                onChange={(e) => {
-                                  if (e.target.value) {
-                                    handleAssignDoctor(item.id, Number(e.target.value));
-                                  }
-                                }}
-                                className="pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                                defaultValue=""
-                                autoFocus
-                              >
-                                <option value="">Select new doctor</option>
-                                {doctors.map((doctor) => (
-                                  <option key={doctor.id} value={doctor.id}>
-                                    Dr. {doctor.first_name} {doctor.last_name}
-                                  </option>
-                                ))}
-                              </select>
+                              <AppSelect
+                                value=""
+                                onChange={(val) => { if (val) handleAssignDoctor(item.id, Number(val)); }}
+                                options={doctors.map((doctor) => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))}
+                                placeholder="Select new doctor"
+                              />
                               <button
                                 onClick={() => setEditingDoctorForEncounter(null)}
                                 className="px-3 py-2 text-gray-600 hover:text-gray-800 transition-colors"
@@ -2588,87 +2555,53 @@ const ReceptionistDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Assign Doctor
-                  </label>
-                  <select
-                    value={selectedDoctorId}
-                    onChange={(e) => setSelectedDoctorId(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Assign later</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  value={selectedDoctorId}
+                  onChange={(val) => setSelectedDoctorId(val)}
+                  options={[{ value: '', label: 'Assign later' }, ...doctors.map((doctor) => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))]}
+                  label="Assign Doctor"
+                  placeholder="Assign later"
+                />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Encounter Type
-                  </label>
-                  <select
-                    value={encounterType}
-                    onChange={(e) => setEncounterType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="walk-in">Walk-in</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="emergency">Emergency</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={encounterType}
+                  onChange={(val) => setEncounterType(val)}
+                  options={[
+                    { value: 'walk-in', label: 'Walk-in' },
+                    { value: 'scheduled', label: 'Scheduled' },
+                    { value: 'emergency', label: 'Emergency' },
+                  ]}
+                  label="Encounter Type"
+                />
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Payer Type
-                    </label>
-                    <select
-                      value={checkinPayerType}
-                      onChange={(e) => { setCheckinPayerType(e.target.value); setCheckinPayerId(null); }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="self_pay">Self Pay</option>
-                      <option value="corporate">Corporate / Employer</option>
-                      <option value="insurance">Health Insurance</option>
-                    </select>
-                  </div>
+                  <AppSelect
+                    value={checkinPayerType}
+                    onChange={(val) => { setCheckinPayerType(val); setCheckinPayerId(null); }}
+                    options={[
+                      { value: 'self_pay', label: 'Self Pay' },
+                      { value: 'corporate', label: 'Corporate / Employer' },
+                      { value: 'insurance', label: 'Health Insurance' },
+                    ]}
+                    label="Payer Type"
+                  />
                   {checkinPayerType === 'corporate' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Corporate Client
-                      </label>
-                      <select
-                        value={checkinPayerId ?? ''}
-                        onChange={(e) => setCheckinPayerId(e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      >
-                        <option value="">Select corporate client</option>
-                        {corporateClients.map((cc) => (
-                          <option key={cc.id} value={cc.id}>{cc.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <AppSelect
+                      value={checkinPayerId != null ? String(checkinPayerId) : ''}
+                      onChange={(val) => setCheckinPayerId(val ? Number(val) : null)}
+                      options={corporateClients.map((cc) => ({ value: String(cc.id), label: cc.name }))}
+                      label="Corporate Client"
+                      placeholder="Select corporate client"
+                    />
                   )}
                   {checkinPayerType === 'insurance' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Insurance Provider
-                      </label>
-                      <select
-                        value={checkinPayerId ?? ''}
-                        onChange={(e) => setCheckinPayerId(e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                      >
-                        <option value="">Select insurance provider</option>
-                        {insuranceProviders.map((ip) => (
-                          <option key={ip.id} value={ip.id}>{ip.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <AppSelect
+                      value={checkinPayerId != null ? String(checkinPayerId) : ''}
+                      onChange={(val) => setCheckinPayerId(val ? Number(val) : null)}
+                      options={insuranceProviders.map((ip) => ({ value: String(ip.id), label: ip.name }))}
+                      label="Insurance Provider"
+                      placeholder="Select insurance provider"
+                    />
                   )}
                 </div>
 
@@ -2888,10 +2821,10 @@ const ReceptionistDashboard: React.FC = () => {
                     Date of Birth *
                   </label>
                   <div className="grid grid-cols-3 gap-2">
-                    <select
-                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : ''}
-                      onChange={(e) => {
-                        const day = parseInt(e.target.value);
+                    <AppSelect
+                      value={newPatient.date_of_birth ? String(new Date(newPatient.date_of_birth).getDate()) : ''}
+                      onChange={(val) => {
+                        const day = parseInt(val);
                         const month = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : 0;
                         const year = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : 2000;
                         if (day) {
@@ -2899,18 +2832,14 @@ const ReceptionistDashboard: React.FC = () => {
                           setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      options={Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+                      placeholder="Day"
                       required
-                    >
-                      <option value="">Day</option>
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                        <option key={day} value={day}>{day}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : ''}
-                      onChange={(e) => {
-                        const month = parseInt(e.target.value);
+                    />
+                    <AppSelect
+                      value={newPatient.date_of_birth ? String(new Date(newPatient.date_of_birth).getMonth()) : ''}
+                      onChange={(val) => {
+                        const month = parseInt(val);
                         const day = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : 1;
                         const year = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : 2000;
                         if (!isNaN(month)) {
@@ -2918,18 +2847,14 @@ const ReceptionistDashboard: React.FC = () => {
                           setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      options={['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => ({ value: String(i), label: month }))}
+                      placeholder="Month"
                       required
-                    >
-                      <option value="">Month</option>
-                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, i) => (
-                        <option key={i} value={i}>{month}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getFullYear() : ''}
-                      onChange={(e) => {
-                        const year = parseInt(e.target.value);
+                    />
+                    <AppSelect
+                      value={newPatient.date_of_birth ? String(new Date(newPatient.date_of_birth).getFullYear()) : ''}
+                      onChange={(val) => {
+                        const year = parseInt(val);
                         const day = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getDate() : 1;
                         const month = newPatient.date_of_birth ? new Date(newPatient.date_of_birth).getMonth() : 0;
                         if (year) {
@@ -2937,33 +2862,25 @@ const ReceptionistDashboard: React.FC = () => {
                           setNewPatient({ ...newPatient, date_of_birth: newDate.toISOString().split('T')[0] });
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                      options={Array.from({ length: 120 }, (_, i) => { const y = new Date().getFullYear() - i; return { value: String(y), label: String(y) }; })}
+                      placeholder="Year"
                       required
-                    >
-                      <option value="">Year</option>
-                      {Array.from({ length: 120 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                        <option key={year} value={year}>{year}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Gender *
-                  </label>
-                  <select
-                    value={newPatient.gender}
-                    onChange={(e) => setNewPatient({ ...newPatient, gender: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={newPatient.gender}
+                  onChange={(val) => setNewPatient({ ...newPatient, gender: val })}
+                  options={[
+                    { value: 'Male', label: 'Male' },
+                    { value: 'Female', label: 'Female' },
+                    { value: 'Other', label: 'Other' },
+                  ]}
+                  label="Gender *"
+                  placeholder="Select Gender"
+                  required
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -3047,21 +2964,18 @@ const ReceptionistDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Concierge
-                  </label>
-                  <select
-                    value={newPatient.vip_status}
-                    onChange={(e) => setNewPatient({ ...newPatient, vip_status: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">None</option>
-                    <option value="silver">Silver</option>
-                    <option value="gold">Gold</option>
-                    <option value="platinum">Platinum</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={newPatient.vip_status}
+                  onChange={(val) => setNewPatient({ ...newPatient, vip_status: val })}
+                  options={[
+                    { value: '', label: 'None' },
+                    { value: 'silver', label: 'Silver' },
+                    { value: 'gold', label: 'Gold' },
+                    { value: 'platinum', label: 'Platinum' },
+                  ]}
+                  label="Concierge"
+                  placeholder="None"
+                />
               </div>
 
               {/* Contact Information */}
@@ -3136,21 +3050,13 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Region
-                  </label>
-                  <select
-                    value={newPatient.region}
-                    onChange={(e) => setNewPatient({ ...newPatient, region: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select Region</option>
-                    {ghanaRegions.map((region) => (
-                      <option key={region} value={region}>{region}</option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  value={newPatient.region}
+                  onChange={(val) => setNewPatient({ ...newPatient, region: val })}
+                  options={ghanaRegions.map((region) => ({ value: region, label: region }))}
+                  label="Region"
+                  placeholder="Select Region"
+                />
               </div>
 
               {/* Emergency Contact */}
@@ -3185,24 +3091,20 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Relationship
-                  </label>
-                  <select
-                    value={newPatient.emergency_contact_relationship}
-                    onChange={(e) => setNewPatient({ ...newPatient, emergency_contact_relationship: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select Relationship</option>
-                    <option value="Spouse">Spouse</option>
-                    <option value="Parent">Parent</option>
-                    <option value="Child">Child</option>
-                    <option value="Sibling">Sibling</option>
-                    <option value="Friend">Friend</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={newPatient.emergency_contact_relationship}
+                  onChange={(val) => setNewPatient({ ...newPatient, emergency_contact_relationship: val })}
+                  options={[
+                    { value: 'Spouse', label: 'Spouse' },
+                    { value: 'Parent', label: 'Parent' },
+                    { value: 'Child', label: 'Child' },
+                    { value: 'Sibling', label: 'Sibling' },
+                    { value: 'Friend', label: 'Friend' },
+                    { value: 'Other', label: 'Other' },
+                  ]}
+                  label="Relationship"
+                  placeholder="Select Relationship"
+                />
               </div>
 
               {/* PCP Information */}
@@ -3218,25 +3120,21 @@ const ReceptionistDashboard: React.FC = () => {
                     PCP Name
                   </label>
                   <div className="space-y-2">
-                    <select
+                    <AppSelect
                       value={newPatient.pcp_name && !doctors.some(d => `Dr. ${d.first_name} ${d.last_name}` === newPatient.pcp_name) ? '__other__' : newPatient.pcp_name}
-                      onChange={(e) => {
-                        if (e.target.value === '__other__') {
+                      onChange={(val) => {
+                        if (val === '__other__') {
                           setNewPatient({ ...newPatient, pcp_name: '' });
                         } else {
-                          setNewPatient({ ...newPatient, pcp_name: e.target.value });
+                          setNewPatient({ ...newPatient, pcp_name: val });
                         }
                       }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="">Select Doctor</option>
-                      {doctors.map((doctor) => (
-                        <option key={doctor.id} value={`Dr. ${doctor.first_name} ${doctor.last_name}`}>
-                          Dr. {doctor.first_name} {doctor.last_name}
-                        </option>
-                      ))}
-                      <option value="__other__">-- Enter Other Doctor --</option>
-                    </select>
+                      options={[
+                        ...doctors.map((doctor) => ({ value: `Dr. ${doctor.first_name} ${doctor.last_name}`, label: `Dr. ${doctor.first_name} ${doctor.last_name}` })),
+                        { value: '__other__', label: '-- Enter Other Doctor --' },
+                      ]}
+                      placeholder="Select Doctor"
+                    />
                     {(newPatient.pcp_name === '' || (newPatient.pcp_name && !doctors.some(d => `Dr. ${d.first_name} ${d.last_name}` === newPatient.pcp_name))) && (
                       <input
                         type="text"
@@ -3311,19 +3209,13 @@ const ReceptionistDashboard: React.FC = () => {
                     </div>
                     {selectedPayerTypes.includes('corporate') && (
                       <div className="ml-7">
-                        <select
-                          value={selectedCorporateClient || ''}
-                          onChange={(e) => setSelectedCorporateClient(e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        <AppSelect
+                          value={selectedCorporateClient != null ? String(selectedCorporateClient) : ''}
+                          onChange={(val) => setSelectedCorporateClient(val ? Number(val) : null)}
+                          options={corporateClients.map((client) => ({ value: String(client.id), label: client.name }))}
+                          placeholder="Select Corporate Client"
                           required={selectedPayerTypes.includes('corporate')}
-                        >
-                          <option value="">Select Corporate Client</option>
-                          {corporateClients.map((client) => (
-                            <option key={client.id} value={client.id}>
-                              {client.name}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     )}
                   </div>
@@ -3351,19 +3243,13 @@ const ReceptionistDashboard: React.FC = () => {
                     </div>
                     {selectedPayerTypes.includes('insurance') && (
                       <div className="ml-7">
-                        <select
-                          value={selectedInsuranceProvider || ''}
-                          onChange={(e) => setSelectedInsuranceProvider(e.target.value ? Number(e.target.value) : null)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        <AppSelect
+                          value={selectedInsuranceProvider != null ? String(selectedInsuranceProvider) : ''}
+                          onChange={(val) => setSelectedInsuranceProvider(val ? Number(val) : null)}
+                          options={insuranceProviders.map((provider) => ({ value: String(provider.id), label: provider.name }))}
+                          placeholder="Select Insurance Provider"
                           required={selectedPayerTypes.includes('insurance')}
-                        >
-                          <option value="">Select Insurance Provider</option>
-                          {insuranceProviders.map((provider) => (
-                            <option key={provider.id} value={provider.id}>
-                              {provider.name}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     )}
                   </div>
@@ -3379,20 +3265,18 @@ const ReceptionistDashboard: React.FC = () => {
                   Visit Details
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Encounter Type</label>
-                    <select
-                      value={newPatientEncounterType}
-                      onChange={(e) => setNewPatientEncounterType(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    >
-                      <option value="walk-in">Walk-in</option>
-                      <option value="new">New Patient</option>
-                      <option value="consultation">Consultation</option>
-                      <option value="procedure">Procedure</option>
-                      <option value="general-checkup">General Checkup</option>
-                    </select>
-                  </div>
+                  <AppSelect
+                    value={newPatientEncounterType}
+                    onChange={(val) => setNewPatientEncounterType(val)}
+                    options={[
+                      { value: 'walk-in', label: 'Walk-in' },
+                      { value: 'new', label: 'New Patient' },
+                      { value: 'consultation', label: 'Consultation' },
+                      { value: 'procedure', label: 'Procedure' },
+                      { value: 'general-checkup', label: 'General Checkup' },
+                    ]}
+                    label="Encounter Type"
+                  />
                   <div className="flex items-end">
                     <div className="bg-primary-50 border border-primary-200 rounded-lg px-4 py-2 text-sm text-primary-700 w-full">
                       Registration + Consultation fees auto-applied at check-in
@@ -3539,18 +3423,12 @@ const ReceptionistDashboard: React.FC = () => {
                 <h3 className="text-lg font-bold text-gray-900">Appointment Calendar</h3>
                 <div className="flex items-center gap-4">
                   {/* Doctor Filter */}
-                  <select
-                    value={calendarDoctorFilter}
-                    onChange={(e) => handleDoctorFilterChange(e.target.value ? parseInt(e.target.value) : '')}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-violet-500"
-                  >
-                    <option value="">All Doctors</option>
-                    {doctors.map(doctor => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  <AppSelect
+                    value={calendarDoctorFilter ? String(calendarDoctorFilter) : ''}
+                    onChange={(val) => handleDoctorFilterChange(val ? parseInt(val) : '')}
+                    options={[{ value: '', label: 'All Doctors' }, ...doctors.map(doctor => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))]}
+                    placeholder="All Doctors"
+                  />
                   {/* View Toggle */}
                   <div className="flex items-center gap-2">
                     <button
@@ -3755,72 +3633,56 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
 
                 {/* Appointment Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Type</label>
-                  <select
-                    value={bookingType}
-                    onChange={(e) => setBookingType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value="follow-up">Follow-up Visit</option>
-                    <option value="new-patient">New Patient</option>
-                    <option value="consultation">Consultation</option>
-                    <option value="procedure">Procedure</option>
-                    <option value="checkup">General Checkup</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={bookingType}
+                  onChange={(val) => setBookingType(val)}
+                  options={[
+                    { value: 'follow-up', label: 'Follow-up Visit' },
+                    { value: 'new-patient', label: 'New Patient' },
+                    { value: 'consultation', label: 'Consultation' },
+                    { value: 'procedure', label: 'Procedure' },
+                    { value: 'checkup', label: 'General Checkup' },
+                  ]}
+                  label="Appointment Type"
+                />
 
                 {/* Clinic */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Clinic</label>
-                  <select
-                    value={bookingClinic}
-                    onChange={(e) => setBookingClinic(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value="">Select a clinic...</option>
-                    {clinics.map((clinic) => (
-                      <option key={clinic} value={clinic}>{clinic}</option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  value={bookingClinic}
+                  onChange={(val) => setBookingClinic(val)}
+                  options={clinics.map((clinic) => ({ value: clinic, label: clinic }))}
+                  label="Clinic"
+                  placeholder="Select a clinic..."
+                />
 
                 {/* Doctor (Optional) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Doctor (Optional)</label>
-                  <select
-                    value={bookingDoctor || ''}
-                    onChange={(e) => setBookingDoctor(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value="">Any available doctor</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>Dr. {doctor.first_name} {doctor.last_name}</option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  value={bookingDoctor != null ? String(bookingDoctor) : ''}
+                  onChange={(val) => setBookingDoctor(val ? Number(val) : null)}
+                  options={[{ value: '', label: 'Any available doctor' }, ...doctors.map((doctor) => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))]}
+                  label="Doctor (Optional)"
+                  placeholder="Any available doctor"
+                />
 
                 {/* Duration */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
-                  <select
-                    value={bookingDuration}
-                    onChange={(e) => {
-                      const newDuration = Number(e.target.value);
-                      setBookingDuration(newDuration);
-                      if (selectedSlot) {
-                        const newEnd = new Date(selectedSlot.start.getTime() + newDuration * 60000);
-                        setSelectedSlot({ ...selectedSlot, end: newEnd });
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value={15}>15 minutes</option>
-                    <option value={30}>30 minutes</option>
-                    <option value={45}>45 minutes</option>
-                    <option value={60}>1 hour</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={String(bookingDuration)}
+                  onChange={(val) => {
+                    const newDuration = Number(val);
+                    setBookingDuration(newDuration);
+                    if (selectedSlot) {
+                      const newEnd = new Date(selectedSlot.start.getTime() + newDuration * 60000);
+                      setSelectedSlot({ ...selectedSlot, end: newEnd });
+                    }
+                  }}
+                  options={[
+                    { value: '15', label: '15 minutes' },
+                    { value: '30', label: '30 minutes' },
+                    { value: '45', label: '45 minutes' },
+                    { value: '60', label: '1 hour' },
+                  ]}
+                  label="Duration"
+                />
 
                 {/* Reason */}
                 <div>
@@ -4022,35 +3884,27 @@ const ReceptionistDashboard: React.FC = () => {
                 </div>
 
                 {/* Appointment Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Type</label>
-                  <select
-                    value={editAppointmentType}
-                    onChange={(e) => setEditAppointmentType(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value="follow-up">Follow-up Visit</option>
-                    <option value="new-patient">New Patient</option>
-                    <option value="consultation">Consultation</option>
-                    <option value="procedure">Procedure</option>
-                    <option value="checkup">General Checkup</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={editAppointmentType}
+                  onChange={(val) => setEditAppointmentType(val)}
+                  options={[
+                    { value: 'follow-up', label: 'Follow-up Visit' },
+                    { value: 'new-patient', label: 'New Patient' },
+                    { value: 'consultation', label: 'Consultation' },
+                    { value: 'procedure', label: 'Procedure' },
+                    { value: 'checkup', label: 'General Checkup' },
+                  ]}
+                  label="Appointment Type"
+                />
 
                 {/* Doctor (Optional) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Doctor (Optional)</label>
-                  <select
-                    value={editAppointmentDoctor || ''}
-                    onChange={(e) => setEditAppointmentDoctor(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent"
-                  >
-                    <option value="">Any available doctor</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>Dr. {doctor.first_name} {doctor.last_name}</option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  value={editAppointmentDoctor != null ? String(editAppointmentDoctor) : ''}
+                  onChange={(val) => setEditAppointmentDoctor(val ? Number(val) : null)}
+                  options={[{ value: '', label: 'Any available doctor' }, ...doctors.map((doctor) => ({ value: String(doctor.id), label: `Dr. ${doctor.first_name} ${doctor.last_name}` }))]}
+                  label="Doctor (Optional)"
+                  placeholder="Any available doctor"
+                />
 
                 {/* Reason / Notes */}
                 <div>
@@ -4425,32 +4279,32 @@ const ReceptionistDashboard: React.FC = () => {
                 onChange={(e) => setStaffSearch(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               />
-              <select
+              <AppSelect
                 value={staffRoleFilter}
-                onChange={(e) => setStaffRoleFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="all">All Roles</option>
-                <option value="doctor">Doctor</option>
-                <option value="nurse">Nurse</option>
-                <option value="receptionist">Receptionist</option>
-                <option value="lab">Lab</option>
-                <option value="pharmacy">Pharmacy</option>
-                <option value="pharmacist">Pharmacist</option>
-                <option value="pharmacy_tech">Pharmacy Tech</option>
-                <option value="imaging">Imaging</option>
-                <option value="accountant">Accountant</option>
-                <option value="admin">Admin</option>
-              </select>
-              <select
+                onChange={(val) => setStaffRoleFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Roles' },
+                  { value: 'doctor', label: 'Doctor' },
+                  { value: 'nurse', label: 'Nurse' },
+                  { value: 'receptionist', label: 'Receptionist' },
+                  { value: 'lab', label: 'Lab' },
+                  { value: 'pharmacy', label: 'Pharmacy' },
+                  { value: 'pharmacist', label: 'Pharmacist' },
+                  { value: 'pharmacy_tech', label: 'Pharmacy Tech' },
+                  { value: 'imaging', label: 'Imaging' },
+                  { value: 'accountant', label: 'Accountant' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
+              <AppSelect
                 value={staffStatusFilter}
-                onChange={(e) => setStaffStatusFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                onChange={(val) => setStaffStatusFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
             </div>
 
             {staffLoading ? (
@@ -4628,38 +4482,34 @@ const ReceptionistDashboard: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Role *</label>
-                    <select
+                    <AppSelect
                       value={newStaffForm.role}
-                      onChange={(e) => setNewStaffForm({ ...newStaffForm, role: e.target.value, clinic: e.target.value === 'doctor' ? newStaffForm.clinic : '' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    >
-                      <option value="doctor">Doctor</option>
-                      <option value="nurse">Nurse</option>
-                      <option value="receptionist">Receptionist</option>
-                      <option value="lab">Lab</option>
-                      <option value="pharmacy">Pharmacy</option>
-                      <option value="pharmacist">Pharmacist</option>
-                      <option value="pharmacy_tech">Pharmacy Tech</option>
-                      <option value="imaging">Imaging</option>
-                      <option value="accountant">Accountant</option>
-                    </select>
+                      onChange={(val) => setNewStaffForm({ ...newStaffForm, role: val, clinic: val === 'doctor' ? newStaffForm.clinic : '' })}
+                      options={[
+                        { value: 'doctor', label: 'Doctor' },
+                        { value: 'nurse', label: 'Nurse' },
+                        { value: 'receptionist', label: 'Receptionist' },
+                        { value: 'lab', label: 'Lab' },
+                        { value: 'pharmacy', label: 'Pharmacy' },
+                        { value: 'pharmacist', label: 'Pharmacist' },
+                        { value: 'pharmacy_tech', label: 'Pharmacy Tech' },
+                        { value: 'imaging', label: 'Imaging' },
+                        { value: 'accountant', label: 'Accountant' },
+                      ]}
+                      label="Role *"
+                    />
                     <p className="text-xs text-gray-500 mt-1">Admin accounts must be created by an existing admin.</p>
                   </div>
 
                   {newStaffForm.role === 'doctor' && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Clinic / Specialty</label>
-                      <select
+                      <AppSelect
                         value={newStaffForm.clinic}
-                        onChange={(e) => setNewStaffForm({ ...newStaffForm, clinic: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      >
-                        <option value="">— Select clinic —</option>
-                        {clinics.map(c => (
-                          <option key={c} value={c}>{c}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setNewStaffForm({ ...newStaffForm, clinic: val })}
+                        options={clinics.map(c => ({ value: c, label: c }))}
+                        label="Clinic / Specialty"
+                        placeholder="-- Select clinic --"
+                      />
                       <p className="text-xs text-gray-500 mt-1">Which clinic this doctor practices in.</p>
                     </div>
                   )}
@@ -4931,19 +4781,17 @@ const ReceptionistDashboard: React.FC = () => {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                  <select
-                    value={editPatientData.gender || ''}
-                    onChange={(e) => setEditPatientData({ ...editPatientData, gender: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  >
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
+                <AppSelect
+                  value={editPatientData.gender || ''}
+                  onChange={(val) => setEditPatientData({ ...editPatientData, gender: val })}
+                  options={[
+                    { value: 'male', label: 'Male' },
+                    { value: 'female', label: 'Female' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                  label="Gender"
+                  placeholder="Select"
+                />
               </div>
 
               <div>

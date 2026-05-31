@@ -5,6 +5,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { Card, Modal, Input, Select, Textarea, Button } from '../components/ui';
+import AppSelect from '../components/ui/AppSelect';
 
 interface Appointment {
   id: number;
@@ -224,19 +225,12 @@ const AppointmentsCalendar: React.FC = () => {
       <div className="flex items-center gap-4">
         {/* Doctor Filter */}
         <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">Doctor:</label>
-          <select
+          <AppSelect
+            label="Doctor"
             value={selectedDoctor}
-            onChange={(e) => setSelectedDoctor(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Doctors</option>
-            {doctors.map((doctor) => (
-              <option key={doctor.id} value={doctor.id}>
-                Dr. {doctor.first_name} {doctor.last_name}
-              </option>
-            ))}
-          </select>
+            onChange={(val) => setSelectedDoctor(val)}
+            options={[{value:'all',label:'All Doctors'}, ...doctors.map((doctor) => ({value:String(doctor.id),label:`Dr. ${doctor.first_name} ${doctor.last_name}`}))]}
+          />
         </div>
 
         {/* View Toggle */}

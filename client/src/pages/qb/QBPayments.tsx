@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
+import AppSelect from '../../components/ui/AppSelect';
 
 interface Payment {
   id: number;
@@ -167,19 +168,11 @@ const QBPayments: React.FC = () => {
                 </button>
               ))}
             </div>
-            <select
+            <AppSelect
               value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="card">Card</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="insurance">Insurance</option>
-            </select>
+              onChange={(val) => setMethodFilter(val)}
+              options={[{value:'all',label:'All Methods'},{value:'cash',label:'Cash'},{value:'card',label:'Card'},{value:'mobile_money',label:'Mobile Money'},{value:'bank_transfer',label:'Bank Transfer'},{value:'cheque',label:'Cheque'},{value:'insurance',label:'Insurance'}]}
+            />
             <div className="flex items-center gap-2">
               <input
                 type="date"

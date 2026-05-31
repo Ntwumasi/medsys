@@ -7,6 +7,7 @@ import { StatCard, Card, Button, StatusBadge, EmptyState, SkeletonStatCard } fro
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { useSmartPolling } from '../hooks/useSmartPolling';
+import AppSelect from '../components/ui/AppSelect';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import type { SparkPoint } from '../components/ui/Sparkline';
 
@@ -1053,11 +1054,7 @@ const ImagingDashboard: React.FC = () => {
                 <input type="text" value={walkinImagingType} onChange={(e) => setWalkinImagingType(e.target.value)} placeholder="Imaging type (e.g., X-Ray, CT Scan, Ultrasound)" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-secondary-500" />
                 <input type="text" value={walkinBodyPart} onChange={(e) => setWalkinBodyPart(e.target.value)} placeholder="Body part (optional)" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-secondary-500" />
                 <div className="grid grid-cols-2 gap-3">
-                  <select value={walkinPriority} onChange={(e) => setWalkinPriority(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                    <option value="routine">Routine</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="stat">STAT</option>
-                  </select>
+                  <AppSelect value={walkinPriority} onChange={(val) => setWalkinPriority(val)} options={[{value:'routine',label:'Routine'},{value:'urgent',label:'Urgent'},{value:'stat',label:'STAT'}]} />
                   <button onClick={() => { if (!walkinImagingType.trim()) return; setWalkinStudies([...walkinStudies, { imaging_type: walkinImagingType.trim(), body_part: walkinBodyPart.trim(), priority: walkinPriority }]); setWalkinImagingType(''); setWalkinBodyPart(''); }} className="px-3 py-2 bg-secondary-600 text-white rounded-lg text-sm font-medium hover:bg-secondary-700">+ Add to List</button>
                 </div>
               </div>

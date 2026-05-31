@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../api/client';
+import AppSelect from '../../components/ui/AppSelect';
 
 interface Invoice {
   id: number;
@@ -387,21 +388,12 @@ const QBInvoices: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Payment Method</label>
-                <select
-                  value={paymentForm.payment_method}
-                  onChange={(e) => setPaymentForm({...paymentForm, payment_method: e.target.value})}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="insurance">Insurance</option>
-                </select>
-              </div>
+              <AppSelect
+                label="Payment Method"
+                value={paymentForm.payment_method}
+                onChange={(val) => setPaymentForm({...paymentForm, payment_method: val})}
+                options={[{value:'cash',label:'Cash'},{value:'card',label:'Card'},{value:'mobile_money',label:'Mobile Money'},{value:'bank_transfer',label:'Bank Transfer'},{value:'cheque',label:'Cheque'},{value:'insurance',label:'Insurance'}]}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Reference Number</label>

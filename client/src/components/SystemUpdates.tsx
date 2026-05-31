@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import AppSelect from './ui/AppSelect';
 import type { ApiError } from '../types';
 
 interface UpdateParams {
@@ -225,27 +226,27 @@ const SystemUpdates: React.FC = () => {
       {/* Header with filters and add button */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <select
+          <AppSelect
             value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="all">All Categories</option>
-            <option value="feature">Features</option>
-            <option value="improvement">Improvements</option>
-            <option value="bugfix">Bug Fixes</option>
-            <option value="planned">Planned</option>
-          </select>
-          <select
+            onChange={(val) => setFilterCategory(val)}
+            options={[
+              { value: 'all', label: 'All Categories' },
+              { value: 'feature', label: 'Features' },
+              { value: 'improvement', label: 'Improvements' },
+              { value: 'bugfix', label: 'Bug Fixes' },
+              { value: 'planned', label: 'Planned' },
+            ]}
+          />
+          <AppSelect
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="all">All Status</option>
-            <option value="completed">Completed</option>
-            <option value="in_progress">In Progress</option>
-            <option value="planned">Planned</option>
-          </select>
+            onChange={(val) => setFilterStatus(val)}
+            options={[
+              { value: 'all', label: 'All Status' },
+              { value: 'completed', label: 'Completed' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'planned', label: 'Planned' },
+            ]}
+          />
         </div>
         <button
           onClick={() => {
@@ -299,29 +300,29 @@ const SystemUpdates: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
+              <AppSelect
+                label="Category"
                 value={formData.category}
-                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="feature">Feature</option>
-                <option value="improvement">Improvement</option>
-                <option value="bugfix">Bug Fix</option>
-                <option value="planned">Planned</option>
-              </select>
+                onChange={(val) => setFormData({ ...formData, category: val })}
+                options={[
+                  { value: 'feature', label: 'Feature' },
+                  { value: 'improvement', label: 'Improvement' },
+                  { value: 'bugfix', label: 'Bug Fix' },
+                  { value: 'planned', label: 'Planned' },
+                ]}
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
+              <AppSelect
+                label="Status"
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="completed">Completed</option>
-                <option value="in_progress">In Progress</option>
-                <option value="planned">Planned</option>
-              </select>
+                onChange={(val) => setFormData({ ...formData, status: val })}
+                options={[
+                  { value: 'completed', label: 'Completed' },
+                  { value: 'in_progress', label: 'In Progress' },
+                  { value: 'planned', label: 'Planned' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Version</label>

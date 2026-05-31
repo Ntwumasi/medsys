@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AppLayout from '../components/AppLayout';
+import AppSelect from '../components/ui/AppSelect';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -256,28 +257,13 @@ const PatientRegistrationPage: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
                   <div className="flex gap-2">
-                    <select value={dobDay} onChange={(e) => setDobDay(e.target.value)} required className="flex-1 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
-                      <option value="">Day</option>
-                      {days.map(d => <option key={d} value={String(d)}>{d}</option>)}
-                    </select>
-                    <select value={dobMonth} onChange={(e) => setDobMonth(e.target.value)} required className="flex-1 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
-                      <option value="">Month</option>
-                      {months.map((m, i) => <option key={m} value={String(i + 1)}>{m}</option>)}
-                    </select>
-                    <select value={dobYear} onChange={(e) => setDobYear(e.target.value)} required className="flex-1 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm">
-                      <option value="">Year</option>
-                      {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
-                    </select>
+                    <AppSelect value={dobDay} onChange={(val) => setDobDay(val)} required placeholder="Day" options={days.map(d => ({ value: String(d), label: String(d) }))} className="flex-1" />
+                    <AppSelect value={dobMonth} onChange={(val) => setDobMonth(val)} required placeholder="Month" options={months.map((m, i) => ({ value: String(i + 1), label: m }))} className="flex-1" />
+                    <AppSelect value={dobYear} onChange={(val) => setDobYear(val)} required placeholder="Year" options={years.map(y => ({ value: String(y), label: String(y) }))} className="flex-1" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender *</label>
-                  <select required value={patient.gender} onChange={(e) => updateField('gender', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select Gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
+                  <AppSelect label="Gender" required value={patient.gender} onChange={(val) => updateField('gender', val)} placeholder="Select Gender" options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }]} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
@@ -288,20 +274,10 @@ const PatientRegistrationPage: React.FC = () => {
                   <NationalityAutocomplete value={patient.nationality} onChange={(value: string) => updateField('nationality', value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Clinic</label>
-                  <select value={patient.preferred_clinic} onChange={(e) => updateField('preferred_clinic', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select Clinic</option>
-                    {clinics.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <AppSelect label="Preferred Clinic" value={patient.preferred_clinic} onChange={(val) => updateField('preferred_clinic', val)} placeholder="Select Clinic" options={clinics.map(c => ({ value: c, label: c }))} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Concierge</label>
-                  <select value={patient.vip_status} onChange={(e) => updateField('vip_status', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">None</option>
-                    <option value="silver">Silver</option>
-                    <option value="gold">Gold</option>
-                    <option value="platinum">Platinum</option>
-                  </select>
+                  <AppSelect label="Concierge" value={patient.vip_status} onChange={(val) => updateField('vip_status', val)} placeholder="None" options={[{ value: 'silver', label: 'Silver' }, { value: 'gold', label: 'Gold' }, { value: 'platinum', label: 'Platinum' }]} />
                 </div>
               </div>
             </div>
@@ -336,11 +312,7 @@ const PatientRegistrationPage: React.FC = () => {
                   <input type="text" value={patient.city} onChange={(e) => updateField('city', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-                  <select value={patient.region} onChange={(e) => updateField('region', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select Region</option>
-                    {ghanaRegions.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <AppSelect label="Region" value={patient.region} onChange={(val) => updateField('region', val)} placeholder="Select Region" options={ghanaRegions.map(r => ({ value: r, label: r }))} />
                 </div>
               </div>
             </div>
@@ -363,16 +335,7 @@ const PatientRegistrationPage: React.FC = () => {
                   <input type="tel" value={patient.emergency_contact_phone} onChange={(e) => updateField('emergency_contact_phone', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
-                  <select value={patient.emergency_contact_relationship} onChange={(e) => updateField('emergency_contact_relationship', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select Relationship</option>
-                    <option value="spouse">Spouse</option>
-                    <option value="parent">Parent</option>
-                    <option value="child">Child</option>
-                    <option value="sibling">Sibling</option>
-                    <option value="friend">Friend</option>
-                    <option value="other">Other</option>
-                  </select>
+                  <AppSelect label="Relationship" value={patient.emergency_contact_relationship} onChange={(val) => updateField('emergency_contact_relationship', val)} placeholder="Select Relationship" options={[{ value: 'spouse', label: 'Spouse' }, { value: 'parent', label: 'Parent' }, { value: 'child', label: 'Child' }, { value: 'sibling', label: 'Sibling' }, { value: 'friend', label: 'Friend' }, { value: 'other', label: 'Other' }]} />
                 </div>
               </div>
             </div>
@@ -387,15 +350,7 @@ const PatientRegistrationPage: React.FC = () => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">PCP Name</label>
-                  <select value={patient.pcp_name} onChange={(e) => updateField('pcp_name', e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="">Select Doctor</option>
-                    {doctors.map(d => (
-                      <option key={d.id} value={`Dr. ${d.first_name} ${d.last_name}`}>
-                        Dr. {d.first_name} {d.last_name}
-                      </option>
-                    ))}
-                  </select>
+                  <AppSelect label="PCP Name" value={patient.pcp_name} onChange={(val) => updateField('pcp_name', val)} placeholder="Select Doctor" options={doctors.map(d => ({ value: `Dr. ${d.first_name} ${d.last_name}`, label: `Dr. ${d.first_name} ${d.last_name}` }))} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">PCP Phone</label>
@@ -424,10 +379,7 @@ const PatientRegistrationPage: React.FC = () => {
                   </div>
                   {selectedPayerTypes.includes('corporate') && (
                     <div className="ml-7">
-                      <select value={selectedCorporateClient || ''} onChange={(e) => setSelectedCorporateClient(e.target.value ? Number(e.target.value) : null)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" required>
-                        <option value="">Select Corporate Client</option>
-                        {corporateClients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                      </select>
+                      <AppSelect value={selectedCorporateClient || ''} onChange={(val) => setSelectedCorporateClient(val ? Number(val) : null)} required placeholder="Select Corporate Client" options={corporateClients.map(c => ({ value: String(c.id), label: c.name }))} />
                     </div>
                   )}
                 </div>
@@ -438,10 +390,7 @@ const PatientRegistrationPage: React.FC = () => {
                   </div>
                   {selectedPayerTypes.includes('insurance') && (
                     <div className="ml-7">
-                      <select value={selectedInsuranceProvider || ''} onChange={(e) => setSelectedInsuranceProvider(e.target.value ? Number(e.target.value) : null)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" required>
-                        <option value="">Select Insurance Provider</option>
-                        {insuranceProviders.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
+                      <AppSelect value={selectedInsuranceProvider || ''} onChange={(val) => setSelectedInsuranceProvider(val ? Number(val) : null)} required placeholder="Select Insurance Provider" options={insuranceProviders.map(p => ({ value: String(p.id), label: p.name }))} />
                     </div>
                   )}
                 </div>
@@ -458,11 +407,7 @@ const PatientRegistrationPage: React.FC = () => {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Timing *</label>
-                  <select value={paymentTiming} onChange={(e) => setPaymentTiming(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <option value="pay_now">Pay Now</option>
-                    <option value="pay_later">Pay Later</option>
-                  </select>
+                  <AppSelect label="Payment Timing" required value={paymentTiming} onChange={(val) => setPaymentTiming(val)} options={[{ value: 'pay_now', label: 'Pay Now' }, { value: 'pay_later', label: 'Pay Later' }]} />
                 </div>
               </div>
             </div>
@@ -495,39 +440,18 @@ const PatientRegistrationPage: React.FC = () => {
                       <input type="time" value={appointmentTime} onChange={(e) => setAppointmentTime(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" required={showAppointment} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Duration</label>
-                      <select value={appointmentDuration} onChange={(e) => setAppointmentDuration(Number(e.target.value))} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value={15}>15 minutes</option>
-                        <option value={30}>30 minutes</option>
-                        <option value={45}>45 minutes</option>
-                        <option value={60}>1 hour</option>
-                      </select>
+                      <AppSelect label="Duration" value={appointmentDuration} onChange={(val) => setAppointmentDuration(Number(val))} options={[{ value: '15', label: '15 minutes' }, { value: '30', label: '30 minutes' }, { value: '45', label: '45 minutes' }, { value: '60', label: '1 hour' }]} />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Appointment Type</label>
-                      <select value={appointmentType} onChange={(e) => setAppointmentType(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="new">New Patient</option>
-                        <option value="consultation">Consultation</option>
-                        <option value="follow-up">Follow-up Visit</option>
-                        <option value="procedure">Procedure</option>
-                        <option value="general-checkup">General Checkup</option>
-                      </select>
+                      <AppSelect label="Appointment Type" value={appointmentType} onChange={(val) => setAppointmentType(val)} options={[{ value: 'new', label: 'New Patient' }, { value: 'consultation', label: 'Consultation' }, { value: 'follow-up', label: 'Follow-up Visit' }, { value: 'procedure', label: 'Procedure' }, { value: 'general-checkup', label: 'General Checkup' }]} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Clinic</label>
-                      <select value={appointmentClinic} onChange={(e) => setAppointmentClinic(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="">Select Clinic</option>
-                        {clinics.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <AppSelect label="Clinic" value={appointmentClinic} onChange={(val) => setAppointmentClinic(val)} placeholder="Select Clinic" options={clinics.map(c => ({ value: c, label: c }))} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Doctor</label>
-                      <select value={appointmentDoctor || ''} onChange={(e) => setAppointmentDoctor(e.target.value ? Number(e.target.value) : null)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="">Any available doctor</option>
-                        {doctors.map(d => <option key={d.id} value={d.id}>Dr. {d.first_name} {d.last_name}</option>)}
-                      </select>
+                      <AppSelect label="Doctor" value={appointmentDoctor || ''} onChange={(val) => setAppointmentDoctor(val ? Number(val) : null)} placeholder="Any available doctor" options={doctors.map(d => ({ value: String(d.id), label: `Dr. ${d.first_name} ${d.last_name}` }))} />
                     </div>
                   </div>
                   <div>

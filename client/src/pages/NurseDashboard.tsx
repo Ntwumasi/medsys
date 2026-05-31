@@ -20,6 +20,7 @@ import type { ApiError } from '../types';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import InsightCard from '../components/ui/InsightCard';
+import AppSelect from '../components/ui/AppSelect';
 
 interface ClinicalNote {
   id: number;
@@ -1975,16 +1976,15 @@ const NurseDashboard: React.FC = () => {
                 {/* Assignment Form */}
                 {selectedPatient && shortStayBeds.some(b => b.is_available) && (
                   <div className="space-y-2 pt-2 border-t border-violet-200">
-                    <select
+                    <AppSelect
                       value={selectedBedId || ''}
-                      onChange={(e) => setSelectedBedId(e.target.value ? Number(e.target.value) : null)}
-                      className="w-full px-3 py-2 border border-violet-300 rounded-lg focus:ring-2 focus:ring-secondary-500 bg-white text-sm"
-                    >
-                      <option value="">Select a bed...</option>
-                      {shortStayBeds.filter(b => b.is_available).map((bed) => (
-                        <option key={bed.id} value={bed.id}>{bed.bed_name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setSelectedBedId(val ? Number(val) : null)}
+                      options={shortStayBeds.filter(b => b.is_available).map((bed) => ({
+                        value: bed.id,
+                        label: bed.bed_name,
+                      }))}
+                      placeholder="Select a bed..."
+                    />
                     <input
                       type="text"
                       value={shortStayNotes}
@@ -2346,27 +2346,22 @@ const NurseDashboard: React.FC = () => {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleAssignRoom(selectedPatient.id, Number(e.target.value));
+                          <AppSelect
+                            value=""
+                            onChange={(val) => {
+                              if (val) {
+                                handleAssignRoom(selectedPatient.id, Number(val));
                                 setEditingRoom(false);
                               }
                             }}
-                            className="w-full px-3 py-2 border-2 border-warning-300 bg-warning-50 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-transparent font-semibold text-amber-900"
-                            defaultValue=""
-                          >
-                            <option value="">
-                              {selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM'}
-                            </option>
-                            {rooms
+                            options={rooms
                               .filter((r) => r.is_available)
-                              .map((room) => (
-                                <option key={room.id} value={room.id}>
-                                  {room.room_name || `Room ${room.room_number}`}
-                                </option>
-                              ))}
-                          </select>
+                              .map((room) => ({
+                                value: room.id,
+                                label: room.room_name || `Room ${room.room_number}`,
+                              }))}
+                            placeholder={selectedPatient.room_number ? '🔄 Select new room' : '⚠️ ASSIGN ROOM'}
+                          />
                           {editingRoom && (
                             <button
                               onClick={() => setEditingRoom(false)}
@@ -2844,14 +2839,14 @@ const NurseDashboard: React.FC = () => {
                                     className={`flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none ${vitalErrors.temperature ? 'border-danger-500 bg-danger-50' : 'border-orange-300'}`}
                                     placeholder="37.0"
                                   />
-                                  <select
-                                    value={vitals.temperature_unit}
-                                    onChange={(e) => setVitals({ ...vitals, temperature_unit: e.target.value as 'C' | 'F' })}
-                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-orange-300 rounded-lg bg-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none"
-                                  >
-                                    <option value="C">°C</option>
-                                    <option value="F">°F</option>
-                                  </select>
+                                  <AppSelect
+                                    value={vitals.temperature_unit || 'C'}
+                                    onChange={(val) => setVitals({ ...vitals, temperature_unit: val as 'C' | 'F' })}
+                                    options={[
+                                      { value: 'C', label: '°C' },
+                                      { value: 'F', label: '°F' },
+                                    ]}
+                                  />
                                 </div>
                                 {vitalErrors.temperature && (
                                   <p className="text-xs text-danger-600 mt-2 font-medium">{vitalErrors.temperature}</p>
@@ -3062,14 +3057,14 @@ const NurseDashboard: React.FC = () => {
                                     className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-success-300 rounded-lg bg-white focus:ring-2 focus:ring-success-500 focus:border-success-500 outline-none"
                                     placeholder="70"
                                   />
-                                  <select
-                                    value={vitals.weight_unit}
-                                    onChange={(e) => setVitals({ ...vitals, weight_unit: e.target.value as 'kg' | 'lbs' })}
-                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-success-300 rounded-lg bg-white focus:ring-2 focus:ring-success-500 focus:border-success-500 outline-none"
-                                  >
-                                    <option value="kg">kg</option>
-                                    <option value="lbs">lbs</option>
-                                  </select>
+                                  <AppSelect
+                                    value={vitals.weight_unit || 'kg'}
+                                    onChange={(val) => setVitals({ ...vitals, weight_unit: val as 'kg' | 'lbs' })}
+                                    options={[
+                                      { value: 'kg', label: 'kg' },
+                                      { value: 'lbs', label: 'lbs' },
+                                    ]}
+                                  />
                                 </div>
                               </div>
 
@@ -3093,14 +3088,14 @@ const NurseDashboard: React.FC = () => {
                                     className="flex-1 min-w-0 text-xl sm:text-2xl font-bold text-center py-3 px-2 border-2 border-secondary-300 rounded-lg bg-white focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 outline-none"
                                     placeholder="170"
                                   />
-                                  <select
-                                    value={vitals.height_unit}
-                                    onChange={(e) => setVitals({ ...vitals, height_unit: e.target.value as 'cm' | 'in' })}
-                                    className="flex-shrink-0 text-base sm:text-lg font-semibold py-3 px-2 sm:px-3 border-2 border-secondary-300 rounded-lg bg-white focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500 outline-none"
-                                  >
-                                    <option value="cm">cm</option>
-                                    <option value="in">in</option>
-                                  </select>
+                                  <AppSelect
+                                    value={vitals.height_unit || 'cm'}
+                                    onChange={(val) => setVitals({ ...vitals, height_unit: val as 'cm' | 'in' })}
+                                    options={[
+                                      { value: 'cm', label: 'cm' },
+                                      { value: 'in', label: 'in' },
+                                    ]}
+                                  />
                                 </div>
                               </div>
                             </div>
@@ -3557,19 +3552,16 @@ const NurseDashboard: React.FC = () => {
                             <h4 className="font-bold text-success-800 mb-3">Select Procedure</h4>
                             <div className="space-y-3">
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Procedure</label>
-                                <select
+                                <AppSelect
                                   value={selectedProcedureId || ''}
-                                  onChange={(e) => setSelectedProcedureId(e.target.value ? parseInt(e.target.value) : null)}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-success-500"
-                                >
-                                  <option value="">-- Select a procedure --</option>
-                                  {availableProcedures.map((proc) => (
-                                    <option key={proc.id} value={proc.id}>
-                                      {proc.service_name} — GHS {Number(proc.price).toFixed(2)}
-                                    </option>
-                                  ))}
-                                </select>
+                                  onChange={(val) => setSelectedProcedureId(val ? parseInt(val) : null)}
+                                  options={availableProcedures.map((proc) => ({
+                                    value: proc.id,
+                                    label: `${proc.service_name} — GHS ${Number(proc.price).toFixed(2)}`,
+                                  }))}
+                                  placeholder="-- Select a procedure --"
+                                  label="Procedure"
+                                />
                               </div>
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
@@ -3708,19 +3700,16 @@ const NurseDashboard: React.FC = () => {
                                   {editingProcedureId === procedure.id && (
                                     <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
                                       <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Procedure type</label>
-                                        <select
+                                        <AppSelect
                                           value={editProcedureChargeId ?? ''}
-                                          onChange={(e) => setEditProcedureChargeId(e.target.value ? Number(e.target.value) : null)}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
-                                        >
-                                          <option value="">— Keep current ({procedure.procedure_name}) —</option>
-                                          {availableProcedures.map(ap => (
-                                            <option key={ap.id} value={ap.id}>
-                                              {ap.service_name} — GHS {Number(ap.price || 0).toFixed(2)}
-                                            </option>
-                                          ))}
-                                        </select>
+                                          onChange={(val) => setEditProcedureChargeId(val ? Number(val) : null)}
+                                          options={availableProcedures.map(ap => ({
+                                            value: ap.id,
+                                            label: `${ap.service_name} — GHS ${Number(ap.price || 0).toFixed(2)}`,
+                                          }))}
+                                          placeholder={`— Keep current (${procedure.procedure_name}) —`}
+                                          label="Procedure type"
+                                        />
                                       </div>
                                       <div>
                                         <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
@@ -4231,27 +4220,27 @@ const NurseDashboard: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
-              <select
+              <AppSelect
                 value={inventoryCategoryFilter}
-                onChange={(e) => setInventoryCategoryFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-              >
-                <option value="all">All Categories</option>
-                <option value="Supplies">Supplies</option>
-                <option value="Equipment">Equipment</option>
-                <option value="PPE">PPE</option>
-                <option value="Medications">Medications</option>
-              </select>
-              <select
+                onChange={(val) => setInventoryCategoryFilter(val)}
+                options={[
+                  { value: 'all', label: 'All Categories' },
+                  { value: 'Supplies', label: 'Supplies' },
+                  { value: 'Equipment', label: 'Equipment' },
+                  { value: 'PPE', label: 'PPE' },
+                  { value: 'Medications', label: 'Medications' },
+                ]}
+              />
+              <AppSelect
                 value={inventorySortBy}
-                onChange={(e) => setInventorySortBy(e.target.value as any)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="category">Sort by Category</option>
-                <option value="quantity">Sort by Quantity</option>
-                <option value="status">Sort by Status</option>
-              </select>
+                onChange={(val) => setInventorySortBy(val as any)}
+                options={[
+                  { value: 'name', label: 'Sort by Name' },
+                  { value: 'category', label: 'Sort by Category' },
+                  { value: 'quantity', label: 'Sort by Quantity' },
+                  { value: 'status', label: 'Sort by Status' },
+                ]}
+              />
               <button
                 onClick={() => setInventoryShowLowOnly(!inventoryShowLowOnly)}
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -4421,21 +4410,17 @@ const NurseDashboard: React.FC = () => {
               <div className="space-y-4">
                 {/* Select Doctor */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ordering Doctor <span className="text-danger-500">*</span>
-                  </label>
-                  <select
+                  <AppSelect
                     value={labOrderForm.ordering_provider_id || ''}
-                    onChange={(e) => setLabOrderForm({ ...labOrderForm, ordering_provider_id: Number(e.target.value) || null })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  >
-                    <option value="">Select a doctor...</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setLabOrderForm({ ...labOrderForm, ordering_provider_id: Number(val) || null })}
+                    options={doctors.map((doctor) => ({
+                      value: doctor.id,
+                      label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+                    }))}
+                    placeholder="Select a doctor..."
+                    label="Ordering Doctor"
+                    required
+                  />
                 </div>
 
                 {/* Read-only test sets — nurse can apply, only doctors create */}
@@ -4559,43 +4544,38 @@ const NurseDashboard: React.FC = () => {
               <div className="space-y-4">
                 {/* Select Doctor */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ordering Doctor <span className="text-danger-500">*</span>
-                  </label>
-                  <select
+                  <AppSelect
                     value={imagingOrderForm.ordering_provider_id || ''}
-                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, ordering_provider_id: Number(e.target.value) || null })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
-                  >
-                    <option value="">Select a doctor...</option>
-                    {doctors.map((doctor) => (
-                      <option key={doctor.id} value={doctor.id}>
-                        Dr. {doctor.first_name} {doctor.last_name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setImagingOrderForm({ ...imagingOrderForm, ordering_provider_id: Number(val) || null })}
+                    options={doctors.map((doctor) => ({
+                      value: doctor.id,
+                      label: `Dr. ${doctor.first_name} ${doctor.last_name}`,
+                    }))}
+                    placeholder="Select a doctor..."
+                    label="Ordering Doctor"
+                    required
+                  />
                 </div>
 
                 {/* Study Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Study Type <span className="text-danger-500">*</span>
-                  </label>
-                  <select
+                  <AppSelect
                     value={imagingOrderForm.study_type}
-                    onChange={(e) => setImagingOrderForm({ ...imagingOrderForm, study_type: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-secondary-500 focus:border-secondary-500"
-                  >
-                    <option value="">Select study type...</option>
-                    <option value="X-Ray">X-Ray</option>
-                    <option value="CT Scan">CT Scan</option>
-                    <option value="MRI">MRI</option>
-                    <option value="Ultrasound">Ultrasound</option>
-                    <option value="Mammogram">Mammogram</option>
-                    <option value="Fluoroscopy">Fluoroscopy</option>
-                    <option value="PET Scan">PET Scan</option>
-                    <option value="Nuclear Medicine">Nuclear Medicine</option>
-                  </select>
+                    onChange={(val) => setImagingOrderForm({ ...imagingOrderForm, study_type: val })}
+                    options={[
+                      { value: 'X-Ray', label: 'X-Ray' },
+                      { value: 'CT Scan', label: 'CT Scan' },
+                      { value: 'MRI', label: 'MRI' },
+                      { value: 'Ultrasound', label: 'Ultrasound' },
+                      { value: 'Mammogram', label: 'Mammogram' },
+                      { value: 'Fluoroscopy', label: 'Fluoroscopy' },
+                      { value: 'PET Scan', label: 'PET Scan' },
+                      { value: 'Nuclear Medicine', label: 'Nuclear Medicine' },
+                    ]}
+                    placeholder="Select study type..."
+                    label="Study Type"
+                    required
+                  />
                 </div>
 
                 {/* Body Part */}
@@ -4727,17 +4707,17 @@ const NurseDashboard: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select
+                    <AppSelect
                       value={inventoryForm.category}
-                      onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="Supplies">Supplies</option>
-                      <option value="Equipment">Equipment</option>
-                      <option value="PPE">PPE</option>
-                      <option value="Medications">Medications</option>
-                    </select>
+                      onChange={(val) => setInventoryForm({ ...inventoryForm, category: val })}
+                      options={[
+                        { value: 'Supplies', label: 'Supplies' },
+                        { value: 'Equipment', label: 'Equipment' },
+                        { value: 'PPE', label: 'PPE' },
+                        { value: 'Medications', label: 'Medications' },
+                      ]}
+                      label="Category"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
@@ -4763,18 +4743,18 @@ const NurseDashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                    <select
+                    <AppSelect
                       value={inventoryForm.unit}
-                      onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="pcs">pcs</option>
-                      <option value="boxes">boxes</option>
-                      <option value="rolls">rolls</option>
-                      <option value="packs">packs</option>
-                      <option value="bottles">bottles</option>
-                    </select>
+                      onChange={(val) => setInventoryForm({ ...inventoryForm, unit: val })}
+                      options={[
+                        { value: 'pcs', label: 'pcs' },
+                        { value: 'boxes', label: 'boxes' },
+                        { value: 'rolls', label: 'rolls' },
+                        { value: 'packs', label: 'packs' },
+                        { value: 'bottles', label: 'bottles' },
+                      ]}
+                      label="Unit"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Min Qty</label>

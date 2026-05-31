@@ -3,6 +3,7 @@ import apiClient from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import AppLayout from '../components/AppLayout';
+import AppSelect from '../components/ui/AppSelect';
 import type { ApiError } from '../types';
 
 interface InventoryItem {
@@ -476,24 +477,16 @@ const NurseProcurement: React.FC = () => {
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
-              <select
+              <AppSelect
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-              >
-                <option value="all">All Categories</option>
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select
+                onChange={(val) => setCategoryFilter(val)}
+                options={[{value:'all',label:'All Categories'}, ...categories.map(c => ({value:c,label:c}))]}
+              />
+              <AppSelect
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="category">Sort by Category</option>
-                <option value="quantity">Sort by Quantity</option>
-                <option value="status">Sort by Status</option>
-              </select>
+                onChange={(val) => setSortBy(val as any)}
+                options={[{value:'name',label:'Sort by Name'},{value:'category',label:'Sort by Category'},{value:'quantity',label:'Sort by Quantity'},{value:'status',label:'Sort by Status'}]}
+              />
               <button
                 type="button"
                 onClick={() => setShowLowOnly(v => !v)}
@@ -609,10 +602,9 @@ const NurseProcurement: React.FC = () => {
                   return (
                     <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                       <div className="col-span-5">
-                        <select
+                        <AppSelect
                           value={row.inventory_id ?? ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
+                          onChange={(val) => {
                             if (val === '') {
                               updateDraftRow(idx, { inventory_id: null });
                             } else if (val === 'new') {
@@ -629,16 +621,9 @@ const NurseProcurement: React.FC = () => {
                               }
                             }
                           }}
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
-                        >
-                          <option value="">Pick existing item…</option>
-                          {items.map(i => (
-                            <option key={i.id} value={i.id}>
-                              {i.item_name} ({i.quantity_on_hand} {i.unit} in stock)
-                            </option>
-                          ))}
-                          <option value="new">--- Or type a new item ---</option>
-                        </select>
+                          placeholder="Pick existing item…"
+                          options={[...items.map(i => ({value:i.id,label:`${i.item_name} (${i.quantity_on_hand} ${i.unit} in stock)`})),{value:'new',label:'--- Or type a new item ---'}]}
+                        />
                         {row.inventory_id === null && (
                           <input
                             type="text"
@@ -818,19 +803,12 @@ const NurseProcurement: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Item *</label>
-                <select
+                <AppSelect
                   value={purchaseForm.inventory_id}
-                  onChange={(e) => setPurchaseForm({ ...purchaseForm, inventory_id: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="">Select item or choose "Other"...</option>
-                  {items.map(i => (
-                    <option key={i.id} value={i.id}>
-                      {i.item_name} ({i.quantity_on_hand} {i.unit} in stock)
-                    </option>
-                  ))}
-                  <option value="other">--- Other (type manually) ---</option>
-                </select>
+                  onChange={(val) => setPurchaseForm({ ...purchaseForm, inventory_id: val })}
+                  placeholder="Select item or choose &quot;Other&quot;..."
+                  options={[...items.map(i => ({value:String(i.id),label:`${i.item_name} (${i.quantity_on_hand} ${i.unit} in stock)`})),{value:'other',label:'--- Other (type manually) ---'}]}
+                />
                 {purchaseForm.inventory_id === 'other' && (
                   <input
                     type="text"
@@ -970,27 +948,20 @@ const NurseProcurement: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select value={newItem.category} onChange={(e) => setNewItem({ ...newItem, category: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                      <option>Supplies</option>
-                      <option>Equipment</option>
-                      <option>Consumables</option>
-                      <option>Medications</option>
-                      <option>PPE</option>
-                      <option>Other</option>
-                    </select>
+                    <AppSelect
+                      label="Category"
+                      value={newItem.category}
+                      onChange={(val) => setNewItem({ ...newItem, category: val })}
+                      options={[{value:'Supplies',label:'Supplies'},{value:'Equipment',label:'Equipment'},{value:'Consumables',label:'Consumables'},{value:'Medications',label:'Medications'},{value:'PPE',label:'PPE'},{value:'Other',label:'Other'}]}
+                    />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                    <select value={newItem.unit} onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                      <option value="pcs">Pieces</option>
-                      <option value="box">Box</option>
-                      <option value="pack">Pack</option>
-                      <option value="bottle">Bottle</option>
-                      <option value="roll">Roll</option>
-                      <option value="pair">Pair</option>
-                      <option value="set">Set</option>
-                    </select>
+                    <AppSelect
+                      label="Unit"
+                      value={newItem.unit}
+                      onChange={(val) => setNewItem({ ...newItem, unit: val })}
+                      options={[{value:'pcs',label:'Pieces'},{value:'box',label:'Box'},{value:'pack',label:'Pack'},{value:'bottle',label:'Bottle'},{value:'roll',label:'Roll'},{value:'pair',label:'Pair'},{value:'set',label:'Set'}]}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-4">

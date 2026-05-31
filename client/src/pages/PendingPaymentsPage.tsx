@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
 import { TableRowSkeleton } from '../components/Skeleton';
+import AppSelect from '../components/ui/AppSelect';
 
 interface PendingInvoice {
   id: number;
@@ -240,17 +241,11 @@ const PendingPaymentsPage: React.FC = () => {
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 min-w-[200px]"
               />
-              <select
+              <AppSelect
                 value={agingFilter}
-                onChange={(e) => setAgingFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="all">All Ages</option>
-                <option value="0-30">0-30 Days</option>
-                <option value="31-60">31-60 Days</option>
-                <option value="61-90">61-90 Days</option>
-                <option value="90+">90+ Days</option>
-              </select>
+                onChange={(val) => setAgingFilter(val)}
+                options={[{value:'all',label:'All Ages'},{value:'0-30',label:'0-30 Days'},{value:'31-60',label:'31-60 Days'},{value:'61-90',label:'61-90 Days'},{value:'90+',label:'90+ Days'}]}
+              />
               <button
                 onClick={handleSearch}
                 className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"

@@ -15,6 +15,7 @@ import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
+import AppSelect from '../components/ui/AppSelect';
 import PrioritySelect from '../components/PrioritySelect';
 import FrequencySelect from '../components/FrequencySelect';
 import LabTestSetChips from '../components/LabTestSetChips';
@@ -1910,14 +1911,14 @@ const DoctorDashboard: React.FC = () => {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <select
+                      <AppSelect
                         value={currentDiagnosis.type}
-                        onChange={(e) => setCurrentDiagnosis(prev => ({...prev, type: e.target.value as 'primary' | 'secondary'}))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
-                      >
-                        <option value="primary">Primary</option>
-                        <option value="secondary">Secondary</option>
-                      </select>
+                        onChange={(val) => setCurrentDiagnosis(prev => ({...prev, type: val as 'primary' | 'secondary'}))}
+                        options={[
+                          { value: 'primary', label: 'Primary' },
+                          { value: 'secondary', label: 'Secondary' },
+                        ]}
+                      />
                     </div>
                     <div className="sm:col-span-2">
                       <button
@@ -2760,17 +2761,12 @@ const DoctorDashboard: React.FC = () => {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
                             placeholder="Dosage"
                           />
-                          <select
+                          <AppSelect
                             value={currentPharmacyOrder.frequency}
-                            onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
-                            title="Frequency — drives the qty auto-calculator"
-                          >
-                            <option value="">Frequency…</option>
-                            {FREQUENCY_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                          </select>
+                            onChange={(val) => setCurrentPharmacyOrder({...currentPharmacyOrder, frequency: val})}
+                            options={FREQUENCY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))}
+                            placeholder="Frequency…"
+                          />
                           <input
                             type="number"
                             min="1"
@@ -2803,15 +2799,15 @@ const DoctorDashboard: React.FC = () => {
                             placeholder="Refill"
                           />
                         </div>
-                        <select
+                        <AppSelect
                           value={currentPharmacyOrder.priority}
-                          onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
-                        >
-                          <option value="routine">Routine</option>
-                          <option value="urgent">Urgent</option>
-                          <option value="stat">STAT</option>
-                        </select>
+                          onChange={(val) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: val})}
+                          options={[
+                            { value: 'routine', label: 'Routine' },
+                            { value: 'urgent', label: 'Urgent' },
+                            { value: 'stat', label: 'STAT' },
+                          ]}
+                        />
                         <textarea
                           value={currentPharmacyOrder.notes}
                           onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, notes: e.target.value})}
@@ -3555,21 +3551,21 @@ const DoctorDashboard: React.FC = () => {
               {followUpRequired && (
                 <div className="space-y-4 pl-2 border-l-4 border-primary-200 ml-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
-                    <select
+                    <AppSelect
+                      label="Timeframe"
                       value={followUpTimeframe}
-                      onChange={(e) => setFollowUpTimeframe(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="48-72 hours">48-72 hours (post-op / acute)</option>
-                      <option value="1 week">1 week</option>
-                      <option value="2 weeks">2 weeks</option>
-                      <option value="3 weeks">3 weeks</option>
-                      <option value="1 month">1 month</option>
-                      <option value="2 months">2 months</option>
-                      <option value="3 months">3 months</option>
-                      <option value="6 months">6 months</option>
-                    </select>
+                      onChange={(val) => setFollowUpTimeframe(val)}
+                      options={[
+                        { value: '48-72 hours', label: '48-72 hours (post-op / acute)' },
+                        { value: '1 week', label: '1 week' },
+                        { value: '2 weeks', label: '2 weeks' },
+                        { value: '3 weeks', label: '3 weeks' },
+                        { value: '1 month', label: '1 month' },
+                        { value: '2 months', label: '2 months' },
+                        { value: '3 months', label: '3 months' },
+                        { value: '6 months', label: '6 months' },
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>

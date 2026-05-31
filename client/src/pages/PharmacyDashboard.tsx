@@ -11,6 +11,7 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import AppSelect from '../components/ui/AppSelect';
 import NumberTicker from '../components/ui/NumberTicker';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
@@ -2231,26 +2232,24 @@ const PharmacyDashboard: React.FC = () => {
                 onChange={(e) => setInventorySearch(e.target.value)}
                 className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
               />
-              <select
+              <AppSelect
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
-              >
-                <option value="">All Categories</option>
-                {inventoryCategories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-              <select
+                onChange={(val) => setCategoryFilter(val)}
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...inventoryCategories.map((cat) => ({ value: cat, label: cat })),
+                ]}
+              />
+              <AppSelect
                 value={inventoryFilter}
-                onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low_stock' | 'expiring' | 'expired')}
-                className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="low_stock">Low Stock</option>
-                <option value="expiring">Expiring Soon</option>
-                <option value="expired">Expired</option>
-              </select>
+                onChange={(val) => setInventoryFilter(val as 'all' | 'low_stock' | 'expiring' | 'expired')}
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'low_stock', label: 'Low Stock' },
+                  { value: 'expiring', label: 'Expiring Soon' },
+                  { value: 'expired', label: 'Expired' },
+                ]}
+              />
               <button
                 onClick={() => setShowAddInventoryModal(true)}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
@@ -2583,17 +2582,13 @@ const PharmacyDashboard: React.FC = () => {
                 <h3 className="text-sm font-semibold text-primary-800 mb-3">Invoice Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-                    <select
+                    <AppSelect
+                      label="Supplier"
                       value={invoiceHeader.supplier_id}
-                      onChange={(e) => setInvoiceHeader({ ...invoiceHeader, supplier_id: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
-                    >
-                      <option value="">Select supplier...</option>
-                      {suppliers.map((s) => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setInvoiceHeader({ ...invoiceHeader, supplier_id: val })}
+                      placeholder="Select supplier..."
+                      options={suppliers.map((s) => ({ value: String(s.id), label: s.name }))}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
@@ -2657,17 +2652,13 @@ const PharmacyDashboard: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                         {/* Row 1: Medication + current prices */}
                         <div className="md:col-span-2">
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Medication</label>
-                          <select
+                          <AppSelect
+                            label="Medication"
                             value={item.inventory_id}
-                            onChange={(e) => updateLineItem(idx, 'inventory_id', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm"
-                          >
-                            <option value="">Select medication...</option>
-                            {inventory.map((inv) => (
-                              <option key={inv.id} value={inv.id}>{inv.medication_name} ({inv.quantity_on_hand} in stock)</option>
-                            ))}
-                          </select>
+                            onChange={(val) => updateLineItem(idx, 'inventory_id', val)}
+                            placeholder="Select medication..."
+                            options={inventory.map((inv) => ({ value: String(inv.id), label: `${inv.medication_name} (${inv.quantity_on_hand} in stock)` }))}
+                          />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Current Selling</label>
@@ -3233,22 +3224,22 @@ const PharmacyDashboard: React.FC = () => {
               </datalist>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
-              <select
+              <AppSelect
+                label="Unit *"
                 value={newInventoryForm.unit}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              >
-                <option value="tablet">Tablet</option>
-                <option value="capsule">Capsule</option>
-                <option value="bottle">Bottle</option>
-                <option value="vial">Vial</option>
-                <option value="ampoule">Ampoule</option>
-                <option value="pack">Pack</option>
-                <option value="tube">Tube</option>
-                <option value="sachet">Sachet</option>
-                <option value="box">Box</option>
-              </select>
+                onChange={(val) => setNewInventoryForm({ ...newInventoryForm, unit: val })}
+                options={[
+                  { value: 'tablet', label: 'Tablet' },
+                  { value: 'capsule', label: 'Capsule' },
+                  { value: 'bottle', label: 'Bottle' },
+                  { value: 'vial', label: 'Vial' },
+                  { value: 'ampoule', label: 'Ampoule' },
+                  { value: 'pack', label: 'Pack' },
+                  { value: 'tube', label: 'Tube' },
+                  { value: 'sachet', label: 'Sachet' },
+                  { value: 'box', label: 'Box' },
+                ]}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
@@ -3364,25 +3355,25 @@ const PharmacyDashboard: React.FC = () => {
                 </datalist>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                <select
+                <AppSelect
+                  label="Unit"
                   value={editingInventory.unit}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, unit: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                >
-                  <option value="tablet">Tablet</option>
-                  <option value="capsule">Capsule</option>
-                  <option value="bottle">Bottle</option>
-                  <option value="vial">Vial</option>
-                  <option value="ampoule">Ampoule</option>
-                  <option value="tube">Tube</option>
-                  <option value="sachet">Sachet</option>
-                  <option value="box">Box</option>
-                  <option value="pack">Pack</option>
-                  <option value="piece">Piece</option>
-                  <option value="ml">mL</option>
-                  <option value="strip">Strip</option>
-                </select>
+                  onChange={(val) => setEditingInventory({ ...editingInventory, unit: val })}
+                  options={[
+                    { value: 'tablet', label: 'Tablet' },
+                    { value: 'capsule', label: 'Capsule' },
+                    { value: 'bottle', label: 'Bottle' },
+                    { value: 'vial', label: 'Vial' },
+                    { value: 'ampoule', label: 'Ampoule' },
+                    { value: 'tube', label: 'Tube' },
+                    { value: 'sachet', label: 'Sachet' },
+                    { value: 'box', label: 'Box' },
+                    { value: 'pack', label: 'Pack' },
+                    { value: 'piece', label: 'Piece' },
+                    { value: 'ml', label: 'mL' },
+                    { value: 'strip', label: 'Strip' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>

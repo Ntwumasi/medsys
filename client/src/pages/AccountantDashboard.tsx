@@ -8,6 +8,7 @@ import InsightCard from '../components/ui/InsightCard';
 import Sparkline, { type SparkPoint } from '../components/ui/Sparkline';
 import Delta from '../components/ui/Delta';
 import { useNotification } from '../context/NotificationContext';
+import AppSelect from '../components/ui/AppSelect';
 import { useDialog } from '../context/DialogContext';
 import {
   OverviewSkeleton,
@@ -1286,16 +1287,11 @@ const AccountantDashboard: React.FC = () => {
                       onKeyDown={(e) => e.key === 'Enter' && loadInvoices()}
                       className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg"
                     />
-                    <select
+                    <AppSelect
                       value={invoiceFilter}
-                      onChange={(e) => setInvoiceFilter(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="pending">Pending</option>
-                      <option value="partial">Partial</option>
-                      <option value="paid">Paid</option>
-                    </select>
+                      onChange={(val) => setInvoiceFilter(val)}
+                      options={[{value:'all',label:'All Status'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'paid',label:'Paid'}]}
+                    />
                     <button
                       onClick={loadInvoices}
                       className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
@@ -1558,17 +1554,11 @@ const AccountantDashboard: React.FC = () => {
                 {/* Filters and Actions */}
                 <div className="flex flex-wrap gap-4 items-center justify-between">
                   <div className="flex gap-4 items-center">
-                    <select
+                    <AppSelect
                       value={reminderFilter}
-                      onChange={(e) => setReminderFilter(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="all">All Outstanding</option>
-                      <option value="0-30">0-30 Days</option>
-                      <option value="31-60">31-60 Days</option>
-                      <option value="61-90">61-90 Days</option>
-                      <option value="90+">90+ Days</option>
-                    </select>
+                      onChange={(val) => setReminderFilter(val)}
+                      options={[{value:'all',label:'All Outstanding'},{value:'0-30',label:'0-30 Days'},{value:'31-60',label:'31-60 Days'},{value:'61-90',label:'61-90 Days'},{value:'90+',label:'90+ Days'}]}
+                    />
                   </div>
                   <div className="flex gap-2">
                     {selectedForBulk.length > 0 && (
@@ -1748,20 +1738,11 @@ const AccountantDashboard: React.FC = () => {
                       onKeyDown={(e) => e.key === 'Enter' && loadClaims()}
                       className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg"
                     />
-                    <select
+                    <AppSelect
                       value={claimFilter}
-                      onChange={(e) => setClaimFilter(e.target.value)}
-                      className="px-4 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="draft">Draft</option>
-                      <option value="pending_doctor_review">Pending Doctor Review</option>
-                      <option value="approved_by_doctor">Approved by Doctor</option>
-                      <option value="submitted">Submitted</option>
-                      <option value="approved">Approved</option>
-                      <option value="denied">Denied</option>
-                      <option value="paid">Paid</option>
-                    </select>
+                      onChange={(val) => setClaimFilter(val)}
+                      options={[{value:'all',label:'All Status'},{value:'draft',label:'Draft'},{value:'pending_doctor_review',label:'Pending Doctor Review'},{value:'approved_by_doctor',label:'Approved by Doctor'},{value:'submitted',label:'Submitted'},{value:'approved',label:'Approved'},{value:'denied',label:'Denied'},{value:'paid',label:'Paid'}]}
+                    />
                     <button
                       onClick={loadClaims}
                       className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import AppSelect from '../components/ui/AppSelect';
 
 interface Charge {
   id: number;
@@ -367,18 +368,12 @@ export default function PriceListManagement() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 capitalize"
-                  >
-                    {CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat} className="capitalize">{cat}</option>
-                    ))}
-                  </select>
-                </div>
+                <AppSelect
+                  label="Category *"
+                  value={form.category}
+                  onChange={(val) => setForm({ ...form, category: val })}
+                  options={CATEGORIES.map((cat) => ({ value: cat, label: cat.charAt(0).toUpperCase() + cat.slice(1) }))}
+                />
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Price (GHS) *</label>
