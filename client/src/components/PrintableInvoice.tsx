@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { branding } from '../config/branding';
 import AppSelect from './ui/AppSelect';
 import type { ApiError } from '../types';
 
@@ -661,11 +662,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           <div className="border-b-2 border-primary-600 pb-6 mb-6">
             <div className="flex justify-between items-start">
               <div>
-                <img src="/medics-logo.png" alt="Medics Clinic" style={{ height: '64px', maxWidth: '220px', objectFit: 'contain' }} className="mb-2" />
-                <p className="text-sm text-gray-500 mt-2">Adjacent The Avenue</p>
-                <p className="text-sm text-gray-500">Mahama Road, Accra</p>
-                <p className="text-sm text-gray-500">Tel: +233 (0) 55 341 1221</p>
-                <p className="text-sm text-gray-500">info@medicsgroupgh.com</p>
+                {branding.clinicLogo ? (
+                  <img src={branding.clinicLogo} alt={branding.clinicName} style={{ height: '64px', maxWidth: '220px', objectFit: 'contain' }} className="mb-2" />
+                ) : (
+                  <h1 className="text-2xl font-bold text-primary-600 mb-2">{branding.clinicName}</h1>
+                )}
+                {branding.clinicAddress && <p className="text-sm text-gray-500 mt-2">{branding.clinicAddress}</p>}
+                {branding.clinicPhone && <p className="text-sm text-gray-500">Tel: {branding.clinicPhone}</p>}
+                {branding.clinicEmail && <p className="text-sm text-gray-500">{branding.clinicEmail}</p>}
               </div>
               <div className="text-right">
                 <h2 className="text-2xl font-bold text-gray-900">INVOICE</h2>
@@ -983,8 +987,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
           {/* Footer */}
           <div className="border-t-2 border-gray-300 pt-6 text-center text-sm text-gray-600">
-            <p className="font-semibold mb-2">Thank you for choosing Medics Clinic.</p>
-            <p>For billing inquiries, please contact us at info@medicsgroupgh.com</p>
+            <p className="font-semibold mb-2">Thank you for choosing {branding.clinicName}.</p>
+            {branding.clinicEmail && <p>For billing inquiries, please contact us at {branding.clinicEmail}</p>}
             <p className="mt-2 text-xs">This is a computer-generated invoice and does not require a signature.</p>
           </div>
         </div>
