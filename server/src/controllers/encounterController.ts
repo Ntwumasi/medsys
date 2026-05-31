@@ -402,6 +402,63 @@ export const setBillingPayer = async (req: Request, res: Response): Promise<void
   }
 };
 
+// Get full encounter details for AI summary / discharge context
+export const getEncounterDetails = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Fetch encounter + patient info, diagnoses, notes, orders, and results in parallel
+    const [encounterRes, diagnosesRes, notesRes, labRes, imagingRes, pharmRes, proceduresRes] = await Promise.all([
+      pool.query(
+        `SELECT e.*, u.first_name || ' ' || u.last_name as provider_name,
+                p.patient_number, p.date_of_birth, p.gender,
+                u_patient.first_name || ' ' || u_patient.last_name as patient_name
+         FROM encounters e
+         LEFT JOIN users u ON e.provider_id = u.id
+         LEFT JOIN patients p ON e.patient_id = p.id
+         LEFT JOIN users u_patient ON p.user_id = u_patient.id
+         WHERE e.id = $1`, [id]
+      ),
+      pool.query(`SELECT * FROM diagnoses WHERE encounter_id = $1`, [id]),
+      pool.query(
+        `SELECT content, note_type, created_at FROM clinical_notes WHERE encounter_id = $1 ORDER BY created_at`, [id]
+      ),
+      pool.query(
+        `SELECT test_name, test_code, priority, status, results, notes FROM lab_orders WHERE encounter_id = $1`, [id]
+      ),
+      pool.query(
+        `SELECT imaging_type, body_part, priority, status FROM imaging_orders WHERE encounter_id = $1`, [id]
+      ),
+      pool.query(
+        `SELECT medication_name, dosage, frequency, route, status FROM pharmacy_orders WHERE encounter_id = $1`, [id]
+      ),
+      pool.query(
+        `SELECT procedure_name, status FROM nurse_procedures WHERE encounter_id = $1`, [id]
+      ),
+    ]);
+
+    if (encounterRes.rows.length === 0) {
+      res.status(404).json({ error: 'Encounter not found' });
+      return;
+    }
+
+    const encounter = encounterRes.rows[0];
+
+    res.json({
+      encounter,
+      diagnoses: diagnosesRes.rows,
+      clinical_notes: notesRes.rows,
+      lab_orders: labRes.rows,
+      imaging_orders: imagingRes.rows,
+      pharmacy_orders: pharmRes.rows,
+      procedures: proceduresRes.rows,
+    });
+  } catch (error) {
+    console.error('Get encounter details error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Update chief complaint (Today's Visit) - used by nurses
 export const updateChiefComplaint = async (req: Request, res: Response): Promise<void> => {
   try {

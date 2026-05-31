@@ -363,6 +363,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [assigningDoctor, setAssigningDoctor] = useState<number | null>(null);
 
   // Appointments state
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [allRefills, setAllRefills] = useState<RefillEvent[]>([]);
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
@@ -530,11 +531,9 @@ const ReceptionistDashboard: React.FC = () => {
   }, 30_000, true);
 
   const loadData = async () => {
-    console.log('ReceptionistDashboard: loadData starting');
     try {
       setError(null);
-      console.log('ReceptionistDashboard: Making API calls');
-      const [patientsRes, queueRes, nursesRes, doctorsRes, corporateClientsRes, insuranceProvidersRes] = await Promise.all([
+      const results = await Promise.allSettled([
         apiClient.get('/patients'),
         apiClient.get('/workflow/queue'),
         apiClient.get('/workflow/nurses'),
@@ -542,26 +541,25 @@ const ReceptionistDashboard: React.FC = () => {
         apiClient.get('/payer-sources/corporate-clients'),
         apiClient.get('/payer-sources/insurance-providers'),
       ]);
-      console.log('ReceptionistDashboard: API calls succeeded', { patientsRes, queueRes, nursesRes, doctorsRes, corporateClientsRes, insuranceProvidersRes });
 
-      setPatients(patientsRes.data.patients || []);
-      setQueue(queueRes.data.queue || []);
-      setNurses(nursesRes.data.nurses || []);
-      setDoctors(doctorsRes.data.doctors || []);
-      setCorporateClients(corporateClientsRes.data.corporate_clients || []);
-      setInsuranceProviders(insuranceProvidersRes.data.insurance_providers || []);
+      // Update each piece of state independently — a single failing endpoint won't wipe the rest
+      if (results[0].status === 'fulfilled') setPatients(results[0].value.data.patients || []);
+      if (results[1].status === 'fulfilled') setQueue(results[1].value.data.queue || []);
+      if (results[2].status === 'fulfilled') setNurses(results[2].value.data.nurses || []);
+      if (results[3].status === 'fulfilled') setDoctors(results[3].value.data.doctors || []);
+      if (results[4].status === 'fulfilled') setCorporateClients(results[4].value.data.corporate_clients || []);
+      if (results[5].status === 'fulfilled') setInsuranceProviders(results[5].value.data.insurance_providers || []);
+
+      const failures = results.filter(r => r.status === 'rejected');
+      if (failures.length > 0) {
+        console.error(`${failures.length} of 6 dashboard API calls failed`);
+        if (failures.length === results.length) {
+          setError('Failed to load dashboard data. Please check your connection.');
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
-      const apiError = error as ApiError;
-      const errorMsg = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to load dashboard data';
-      setError(errorMsg);
-      // Set empty arrays so the dashboard still renders
-      setPatients([]);
-      setQueue([]);
-      setNurses([]);
-      setDoctors([]);
-      setCorporateClients([]);
-      setInsuranceProviders([]);
+      setError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
@@ -631,6 +629,7 @@ const ReceptionistDashboard: React.FC = () => {
   }, [activeView, calendarDate, calendarView]);
 
   const loadAppointments = async () => {
+    setLoadingAppointments(true);
     try {
       // Calculate date range based on calendar view
       let fromDate: Date;
@@ -683,6 +682,8 @@ const ReceptionistDashboard: React.FC = () => {
       setAllAppointments([]);
       setAllRefills([]);
       setCalendarEvents([]);
+    } finally {
+      setLoadingAppointments(false);
     }
   };
 
@@ -952,6 +953,15 @@ const ReceptionistDashboard: React.FC = () => {
     e.preventDefault();
     if (!selectedPatient) return;
 
+    // Confirm before check-in
+    const payerLabel = checkinPayerType === 'self_pay' ? 'Self Pay' : checkinPayerType === 'corporate' ? 'Corporate' : 'Insurance';
+    if (!(await confirmDialog({
+      title: 'Confirm Check-In',
+      message: `Check in ${selectedPatient.first_name} ${selectedPatient.last_name}?\n\nClinic: ${selectedClinic || 'Not selected'}\nPayer: ${payerLabel}\n${chiefComplaint ? `Complaint: ${chiefComplaint}` : ''}`,
+      confirmLabel: 'Check In',
+      variant: 'default',
+    }))) return;
+
     try {
       setCheckingIn(true);
       // Update patient payer source before check-in (so invoice uses correct pricing)
@@ -1219,9 +1229,37 @@ const ReceptionistDashboard: React.FC = () => {
     setDischargeSummaryEncounterId(item.id);
     setAiDischargeSummary(null);
     try {
+      // Fetch full encounter details for richer AI context
+      const detailsRes = await apiClient.get(`/encounters/${item.id}/details`);
+      const d = detailsRes.data;
+      const encounter = d.encounter || {};
+
       const res = await apiClient.post('/ai/encounter-summary', {
         patientName: item.patient_name,
-        chiefComplaint: item.chief_complaint,
+        patientAge: encounter.date_of_birth ? Math.floor((Date.now() - new Date(encounter.date_of_birth).getTime()) / 31557600000) : undefined,
+        chiefComplaint: item.chief_complaint || encounter.chief_complaint,
+        vitals: encounter.vital_signs,
+        diagnoses: (d.diagnoses || []).map((dx: { diagnosis_description: string }) => dx.diagnosis_description),
+        clinicalNotes: (d.clinical_notes || []).map((n: { content: string }) => n.content),
+        labResults: (d.lab_orders || []).map((l: { test_name: string; results?: string; status: string }) => ({
+          test_name: l.test_name,
+          result: l.results,
+          status: l.status,
+        })),
+        imagingResults: (d.imaging_orders || []).map((i: { imaging_type: string; body_part: string; status: string }) => ({
+          study_type: i.imaging_type,
+          body_part: i.body_part,
+          status: i.status,
+        })),
+        medications: (d.pharmacy_orders || []).map((m: { medication_name: string; dosage: string; frequency: string }) => ({
+          name: m.medication_name,
+          dosage: m.dosage,
+          frequency: m.frequency,
+        })),
+        procedures: (d.procedures || []).map((p: { procedure_name: string; status: string }) => ({
+          name: p.procedure_name,
+          status: p.status,
+        })),
       });
       setAiDischargeSummary(res.data);
     } catch {
@@ -3434,6 +3472,13 @@ const ReceptionistDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
+              {/* Loading indicator */}
+              {loadingAppointments && (
+                <div className="flex items-center gap-2 mb-2 text-sm text-primary-600">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary-400 border-t-transparent rounded-full" />
+                  Loading calendar...
+                </div>
+              )}
               {/* Calendar Legend */}
               <div className="flex flex-wrap gap-3 mb-3 text-xs">
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#7c3aed' }}></span> Scheduled</span>

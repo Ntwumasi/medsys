@@ -40,6 +40,7 @@ import {
   createEncounter,
   getEncounters,
   getEncounterById,
+  getEncounterDetails,
   updateEncounter,
   addDiagnosis,
   deleteDiagnosis,
@@ -506,6 +507,7 @@ router.get('/patients/:id/ai-summary',  authenticateToken, authorizeRoles('recep
 router.post('/encounters',              authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);
 router.get('/encounters',               authenticateToken, authorizeRoles(...CLINICAL_STAFF), getEncounters);
 router.get('/encounters/:id',           authenticateToken, authorizeRoles(...CLINICAL_STAFF), getEncounterById);
+router.get('/encounters/:id/details',  authenticateToken, authorizeRoles(...CLINICAL_STAFF, 'receptionist'), getEncounterDetails);
 router.put('/encounters/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), updateEncounter);
 router.patch('/encounters/:id/chief-complaint', authenticateToken, authorizeRoles('nurse', 'receptionist'), updateChiefComplaint);
 router.post('/encounters/:id/self-pay-tier', authenticateToken, authorizeRoles('doctor', 'admin'), setSelfPayTier);
