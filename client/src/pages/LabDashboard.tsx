@@ -16,6 +16,7 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PrioritySelect from '../components/PrioritySelect';
 import FrequencySelect from '../components/FrequencySelect';
 import AppSelect from '../components/ui/AppSelect';
+import { branding } from '../config/branding';
 
 // Interfaces
 interface LabOrder {
@@ -4538,8 +4539,12 @@ const LabDashboard: React.FC = () => {
             <div ref={printRef} className="lab-report p-8 font-serif text-black">
               {/* Header — Medics Group logo + clinic info */}
               <div className="header text-center mb-2">
-                <img src="/medics-logo.png" alt="Medics Group" className="mx-auto mb-1" style={{ height: 70 }} />
-                <div className="text-xs text-gray-700">N41 Nmatie Abonase St · Tse Addo, Accra · lab.medicsclinic@gmail.com</div>
+                {branding.clinicLogo ? (
+                  <img src={branding.clinicLogo} alt={branding.clinicName} className="mx-auto mb-1" style={{ height: 70 }} />
+                ) : (
+                  <h2 className="text-xl font-bold mb-1">{branding.clinicName}</h2>
+                )}
+                <div className="text-xs text-gray-700">{[branding.clinicAddress, branding.clinicEmail].filter(Boolean).join(' · ') || 'Laboratory Report'}</div>
               </div>
 
               <div style={{ borderTop: '2px solid #000', margin: '4px 0 10px' }} />

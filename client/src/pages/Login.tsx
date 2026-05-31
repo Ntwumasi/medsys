@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import type { ApiError } from '../types';
 import type { LoginGeo } from '../api/auth';
+import { branding } from '../config/branding';
 
 const isProduction = import.meta.env.PROD;
 
@@ -172,11 +173,18 @@ const Login: React.FC = () => {
       <div className="relative w-full max-w-md mx-auto">
         {/* Logo */}
         <div className="flex justify-center mb-10">
-          <img
-            src="/medics-logo.png"
-            alt="Medics Clinic"
-            className="h-16 w-auto object-contain"
-          />
+          {branding.clinicLogo ? (
+            <img
+              src={branding.clinicLogo}
+              alt={branding.clinicName}
+              className="h-16 w-auto object-contain"
+            />
+          ) : (
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-primary-600">{branding.clinicName}</h1>
+              <p className="text-xs text-gray-400 mt-1">{branding.clinicTagline}</p>
+            </div>
+          )}
         </div>
 
         {/* Login Card */}
