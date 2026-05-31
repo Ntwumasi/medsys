@@ -260,7 +260,7 @@ const NurseDashboard: React.FC = () => {
   const [doctorMessageContent, setDoctorMessageContent] = useState('');
 
   // Tab state for better UI organization
-  const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'procedures' | 'notes' | 'routing' | 'documents' | 'billing'>('hp');
+  const [activeTab, setActiveTab] = useState<'hp' | 'vitals' | 'orders' | 'pharmacy' | 'procedures' | 'notes' | 'routing' | 'documents' | 'billing'>('hp');
   const [encounterInvoice, setEncounterInvoice] = useState<any>(null);
 
   // Room editing state
@@ -1898,40 +1898,41 @@ const NurseDashboard: React.FC = () => {
         </div>
 
         {/* Short Stay Unit — compact horizontal layout above patient tabs */}
-        {shortStayBeds.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
-            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
-                <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Short Stay Unit</h2>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
-                  shortStayBeds.filter(b => b.is_available).length > 0 ? 'bg-secondary-50 text-secondary-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {shortStayBeds.filter(b => b.is_available).length}/{shortStayBeds.length} available
-                </span>
-                {selectedPatient && shortStayBeds.some(b => b.is_available) && (
-                  <div className="flex items-center gap-2">
-                    <AppSelect
-                      value={selectedBedId || ''}
-                      onChange={(val) => setSelectedBedId(val ? Number(val) : null)}
-                      options={shortStayBeds.filter(b => b.is_available).map((bed) => ({ value: bed.id, label: bed.bed_name }))}
-                      placeholder="Select bed..."
-                    />
-                    <button
-                      onClick={handleAssignShortStayBed}
-                      disabled={!selectedBedId}
-                      className="px-3 py-1.5 bg-secondary-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                    >
-                      Assign
-                    </button>
-                  </div>
-                )}
-              </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-4">
+          <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+              </svg>
+              <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Short Stay Unit</h2>
             </div>
+            <div className="flex items-center gap-3">
+              <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
+                shortStayBeds.length === 0 ? 'bg-gray-100 text-gray-500' :
+                shortStayBeds.filter(b => b.is_available).length > 0 ? 'bg-secondary-50 text-secondary-700' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {shortStayBeds.length === 0 ? '0 beds' : `${shortStayBeds.filter(b => b.is_available).length}/${shortStayBeds.length} available`}
+              </span>
+              {selectedPatient && shortStayBeds.some(b => b.is_available) && (
+                <div className="flex items-center gap-2">
+                  <AppSelect
+                    value={selectedBedId || ''}
+                    onChange={(val) => setSelectedBedId(val ? Number(val) : null)}
+                    options={shortStayBeds.filter(b => b.is_available).map((bed) => ({ value: bed.id, label: bed.bed_name }))}
+                    placeholder="Select bed..."
+                  />
+                  <button
+                    onClick={handleAssignShortStayBed}
+                    disabled={!selectedBedId}
+                    className="px-3 py-1.5 bg-secondary-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                  >
+                    Assign
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {shortStayBeds.length > 0 ? (
             <div className="px-4 py-2 flex gap-2 flex-wrap">
               {shortStayBeds.map((bed) => (
                 <div
@@ -1956,8 +1957,12 @@ const NurseDashboard: React.FC = () => {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="px-4 py-3 text-sm text-gray-400 text-center">
+              No beds configured
+            </div>
+          )}
+        </div>
 
         {/* Folder Tabs for Patients */}
         {assignedPatients.length > 0 && (
@@ -2127,7 +2132,7 @@ const NurseDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Progress Indicator */}
+                  {/* Patient Journey Timeline */}
                   <div className="mt-6 mb-4">
                     {(() => {
                       // Calculate progress based on workflow_status
@@ -2152,29 +2157,27 @@ const NurseDashboard: React.FC = () => {
                         'at_imaging': { stage: 'At Imaging', progress: 65, color: 'bg-indigo-500' },
                         'at_pharmacy': { stage: 'At Pharmacy', progress: 75, color: 'bg-green-500' },
                         'ready_for_checkout': { stage: 'Ready for Checkout', progress: 90, color: 'bg-success-500' },
+                        'completed': { stage: 'Completed', progress: 95, color: 'bg-emerald-500' },
+                        'discharged': { stage: 'Discharged', progress: 100, color: 'bg-gray-500' },
+                        'checked_out': { stage: 'Checked Out', progress: 100, color: 'bg-gray-500' },
                       };
 
-                      let { stage, progress, color } = statusMap[workflowStatus] || statusMap['checked_in'];
+                      let { stage, progress } = statusMap[workflowStatus] || statusMap['checked_in'];
 
                       // Only allow "Ready for Checkout" if all orders are complete
                       if (workflowStatus === 'ready_for_checkout' && hasOrders && !allOrdersComplete) {
-                        // Orders still pending - show appropriate status instead
                         if (!labsComplete) {
                           stage = 'At Lab';
                           progress = 65;
-                          color = 'bg-teal-500';
                         } else if (!imagingComplete) {
                           stage = 'At Imaging';
                           progress = 65;
-                          color = 'bg-indigo-500';
                         } else if (!pharmacyComplete) {
                           stage = 'At Pharmacy';
                           progress = 75;
-                          color = 'bg-green-500';
                         } else {
                           stage = 'Orders Pending';
                           progress = 70;
-                          color = 'bg-yellow-500';
                         }
                       }
 
@@ -2184,116 +2187,109 @@ const NurseDashboard: React.FC = () => {
                         stage = 'Orders Complete';
                       }
 
-                      // Get location color for badge
-                      const isAtDepartment = ['at_lab', 'at_imaging', 'at_pharmacy'].includes(workflowStatus);
+                      // Define journey steps
+                      const baseSteps = [
+                        { key: 'checked_in', label: 'Check In', threshold: 10 },
+                        { key: 'in_room', label: 'Room', threshold: 15 },
+                        { key: 'vitals_complete', label: 'Vitals', threshold: 30 },
+                        { key: 'with_nurse', label: 'Nurse', threshold: 35 },
+                        { key: 'with_doctor', label: 'Doctor', threshold: 55 },
+                      ];
+
+                      // Conditionally add order steps
+                      const orderSteps: { key: string; label: string; threshold: number }[] = [];
+                      if (labOrders.length > 0) orderSteps.push({ key: 'at_lab', label: 'Lab', threshold: 65 });
+                      if (imagingOrders.length > 0) orderSteps.push({ key: 'at_imaging', label: 'Imaging', threshold: 65 });
+                      if (pharmacyOrders.length > 0) orderSteps.push({ key: 'at_pharmacy', label: 'Pharmacy', threshold: 75 });
+
+                      const endSteps = [
+                        { key: 'ready_for_checkout', label: 'Checkout', threshold: 90 },
+                        { key: 'done', label: 'Done', threshold: 100 },
+                      ];
+
+                      const steps = [...baseSteps, ...orderSteps, ...endSteps];
 
                       return (
-                        <div className="bg-gradient-to-br from-gray-50 via-primary-50 to-secondary-50 p-6 rounded-2xl border-2 border-primary-200 shadow-lg">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Patient Journey</div>
-                              <div className="flex items-center gap-3">
-                                <div className="text-lg font-bold text-gray-900">{stage}</div>
-                                {isAtDepartment && (
-                                  <span className={`px-3 py-1 rounded-full text-xs font-bold text-white animate-pulse ${
-                                    workflowStatus === 'at_lab' ? 'bg-teal-500' :
-                                    workflowStatus === 'at_imaging' ? 'bg-indigo-500' :
-                                    'bg-green-500'
-                                  }`}>
-                                    {workflowStatus === 'at_lab' ? '🔬 Currently at Lab' :
-                                     workflowStatus === 'at_imaging' ? '📷 Currently at Imaging' :
-                                     '💊 Currently at Pharmacy'}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-3xl font-black bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent">
-                                {progress}%
-                              </div>
-                              <div className="text-xs text-gray-500 font-semibold">Complete</div>
-                            </div>
+                        <div className="bg-white p-5 rounded-xl border border-gray-200">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Patient Journey</div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              progress >= 90 ? 'bg-emerald-100 text-emerald-800' :
+                              progress >= 55 ? 'bg-primary-100 text-primary-800' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {stage}
+                            </span>
                           </div>
 
-                          {/* Progress Bar */}
-                          <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-                            <div
-                              className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out shadow-lg ${
-                                isAtDepartment ? color : 'bg-gradient-to-r from-primary-500 via-secondary-500 to-secondary-500'
-                              }`}
-                              style={{ width: `${progress}%` }}
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-r from-white/30 to-transparent animate-pulse"></div>
-                            </div>
+                          {/* Step Timeline */}
+                          <div className="flex items-start">
+                            {steps.map((step, idx) => {
+                              const isCompleted = progress > step.threshold;
+                              const isCurrent = progress >= step.threshold && (idx === steps.length - 1 || progress < steps[idx + 1].threshold);
 
-                            {/* Milestone markers */}
-                            <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between px-1">
-                              {[15, 30, 45, 65, 85, 100].map((milestone) => (
-                                <div
-                                  key={milestone}
-                                  className={`w-2 h-2 rounded-full border-2 transition-all duration-300 ${
-                                    progress >= milestone
-                                      ? 'bg-white border-primary-600 scale-110 shadow-lg'
-                                      : 'bg-gray-300 border-gray-400'
-                                  }`}
-                                />
-                              ))}
-                            </div>
+                              return (
+                                <div key={step.key} className="flex items-start flex-1 min-w-0">
+                                  <div className="flex flex-col items-center">
+                                    {/* Circle */}
+                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all ${
+                                      isCompleted
+                                        ? 'bg-teal-500 border-teal-500'
+                                        : isCurrent
+                                        ? 'bg-primary-500 border-primary-500 ring-4 ring-primary-100'
+                                        : 'bg-white border-gray-300'
+                                    }`}>
+                                      {isCompleted ? (
+                                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      ) : isCurrent ? (
+                                        <div className="w-2.5 h-2.5 bg-white rounded-full animate-pulse" />
+                                      ) : null}
+                                    </div>
+                                    {/* Label */}
+                                    <span className={`mt-1.5 text-[10px] leading-tight text-center font-medium ${
+                                      isCompleted ? 'text-teal-700' :
+                                      isCurrent ? 'text-primary-700 font-bold' :
+                                      'text-gray-400'
+                                    }`}>
+                                      {step.label}
+                                    </span>
+                                  </div>
+                                  {/* Connecting line */}
+                                  {idx < steps.length - 1 && (
+                                    <div className={`flex-1 h-0.5 mt-3.5 mx-1 ${
+                                      isCompleted ? 'bg-teal-400' : 'bg-gray-200 border-t border-dashed border-gray-300'
+                                    }`} style={{ minWidth: '12px' }} />
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
 
-                          {/* Order Status Badges */}
+                          {/* Active Order Pills */}
                           {hasOrders && (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <div className="text-xs font-bold text-gray-500 uppercase tracking-wider w-full mb-1">
-                                Active Orders:
-                              </div>
+                            <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
                               {labOrders.length > 0 && (
-                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
-                                  labOrders.every(o => o.status === 'completed')
-                                    ? 'bg-success-100 text-success-800 border border-success-300'
-                                    : labOrders.some(o => o.status === 'in_progress')
-                                    ? 'bg-primary-100 text-primary-800 border border-primary-300 animate-pulse'
-                                    : 'bg-warning-100 text-warning-800 border border-warning-300'
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  labsComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-teal-100 text-teal-700'
                                 }`}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                  </svg>
-                                  Labs ({labOrders.length})
-                                  {labOrders.every(o => o.status === 'completed') ? ' ✓' :
-                                   labOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
-                                </div>
-                              )}
-                              {pharmacyOrders.length > 0 && (
-                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
-                                  pharmacyOrders.every(o => o.status === 'completed' || o.status === 'dispensed')
-                                    ? 'bg-success-100 text-success-800 border border-success-300'
-                                    : pharmacyOrders.some(o => o.status === 'in_progress' || o.status === 'ready')
-                                    ? 'bg-primary-100 text-primary-800 border border-primary-300 animate-pulse'
-                                    : 'bg-warning-100 text-warning-800 border border-warning-300'
-                                }`}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                  </svg>
-                                  Pharmacy ({pharmacyOrders.length})
-                                  {pharmacyOrders.every(o => o.status === 'completed' || o.status === 'dispensed') ? ' ✓' :
-                                   pharmacyOrders.some(o => o.status === 'in_progress' || o.status === 'ready') ? ' ⏳' : ' ⏸'}
-                                </div>
+                                  Lab ({labOrders.filter(o => o.status === 'completed').length}/{labOrders.length})
+                                </span>
                               )}
                               {imagingOrders.length > 0 && (
-                                <div className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-2 transition-all ${
-                                  imagingOrders.every(o => o.status === 'completed')
-                                    ? 'bg-success-100 text-success-800 border border-success-300'
-                                    : imagingOrders.some(o => o.status === 'in_progress')
-                                    ? 'bg-primary-100 text-primary-800 border border-primary-300 animate-pulse'
-                                    : 'bg-warning-100 text-warning-800 border border-warning-300'
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  imagingComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
                                 }`}>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                  </svg>
-                                  Imaging ({imagingOrders.length})
-                                  {imagingOrders.every(o => o.status === 'completed') ? ' ✓' :
-                                   imagingOrders.some(o => o.status === 'in_progress') ? ' ⏳' : ' ⏸'}
-                                </div>
+                                  Imaging ({imagingOrders.filter(o => o.status === 'completed').length}/{imagingOrders.length})
+                                </span>
+                              )}
+                              {pharmacyOrders.length > 0 && (
+                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  pharmacyComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  Pharmacy ({pharmacyOrders.filter(o => o.status === 'completed' || o.status === 'dispensed').length}/{pharmacyOrders.length})
+                                </span>
                               )}
                             </div>
                           )}
@@ -2514,6 +2510,26 @@ const NurseDashboard: React.FC = () => {
                           {(labOrders.length > 0 || imagingOrders.length > 0 || pharmacyOrders.length > 0) && (
                             <span className="px-2 py-0.5 text-xs bg-primary-100 text-primary-800 rounded-full">
                               {labOrders.length + imagingOrders.length + pharmacyOrders.length}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('pharmacy')}
+                        className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
+                          activeTab === 'pharmacy'
+                            ? 'border-amber-500 text-amber-600 bg-amber-50'
+                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                          </svg>
+                          Pharmacy
+                          {pharmacyOrders.length > 0 && (
+                            <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
+                              {pharmacyOrders.length}
                             </span>
                           )}
                         </div>
@@ -3514,6 +3530,84 @@ const NurseDashboard: React.FC = () => {
                         ) : (
                           <div className="text-center py-8 text-gray-500">
                             No doctor's orders for this patient
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pharmacy Tab */}
+                    {activeTab === 'pharmacy' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-amber-700">Pharmacy Orders</h3>
+                          <span className="text-sm text-gray-500">{pharmacyOrders.length} order{pharmacyOrders.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        {pharmacyOrders.length > 0 ? (
+                          <div className="space-y-2">
+                            {pharmacyOrders.map((order) => (
+                              <div key={order.id} className={`border rounded-lg p-4 ${
+                                order.status === 'ready' ? 'border-orange-300 bg-orange-50' :
+                                order.status === 'dispensed' ? 'border-success-200 bg-success-50' :
+                                'border-amber-200 bg-amber-50'
+                              }`}>
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-gray-900">{order.medication_name}</h4>
+                                    <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-1 text-sm text-gray-600">
+                                      <div><span className="font-medium text-gray-500">Dosage:</span> {order.dosage}</div>
+                                      <div><span className="font-medium text-gray-500">Frequency:</span> {order.frequency}</div>
+                                      <div><span className="font-medium text-gray-500">Route:</span> {order.route}</div>
+                                      <div><span className="font-medium text-gray-500">Priority:</span>{' '}
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                          order.priority === 'stat' ? 'bg-danger-100 text-danger-800' :
+                                          order.priority === 'urgent' ? 'bg-warning-100 text-warning-800' :
+                                          'bg-success-100 text-success-800'
+                                        }`}>
+                                          {order.priority.toUpperCase()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                      Ordered by: {order.ordering_provider_name} &middot; {safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a')}
+                                    </p>
+                                  </div>
+                                  <div className="ml-4 flex flex-col items-end gap-2">
+                                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                      order.status === 'ready' ? 'bg-orange-100 text-orange-800' :
+                                      order.status === 'dispensed' ? 'bg-success-100 text-success-800' :
+                                      order.status === 'in_progress' ? 'bg-primary-100 text-primary-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {order.status === 'ready' ? 'Ready for Pickup' :
+                                       order.status === 'dispensed' ? 'Dispensed' :
+                                       order.status === 'in_progress' ? 'Preparing' :
+                                       order.status}
+                                    </span>
+                                    {order.status === 'ready' && (
+                                      <button
+                                        onClick={() => confirmMedicationPickup(order.id)}
+                                        className="px-3 py-1.5 bg-success-600 text-white text-xs font-semibold rounded-lg hover:bg-success-700"
+                                      >
+                                        Confirm Pickup
+                                      </button>
+                                    )}
+                                    {order.status === 'dispensed' && (
+                                      <button
+                                        onClick={() => handleAdministerMedication(order.id, order.medication_name)}
+                                        disabled={administeringOrderId === order.id}
+                                        className="px-3 py-1.5 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {administeringOrderId === order.id ? 'Checking...' : 'Record Administration'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            No pharmacy orders for this patient
                           </div>
                         )}
                       </div>
