@@ -10,6 +10,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || (
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000, // 15s timeout — prevents indefinite hangs on slow networks
   headers: {
     'Content-Type': 'application/json',
   },
@@ -101,5 +102,30 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Retry interceptor — automatically retries failed requests (network errors, timeouts, 5xx)
+// with exponential backoff. Skips retries for 4xx errors (client errors).
+apiClient.interceptors.response.use(undefined, async (error) => {
+  const config = error.config;
+  if (!config) return Promise.reject(error);
+
+  // Don't retry POST/PUT/DELETE (not idempotent) or already-retried requests
+  const isIdempotent = !config.method || config.method === 'get';
+  config.__retryCount = config.__retryCount || 0;
+  const maxRetries = isIdempotent ? 2 : 0;
+
+  const isNetworkError = !error.response; // timeout, DNS failure, network offline
+  const isServerError = error.response?.status >= 500;
+  const shouldRetry = (isNetworkError || isServerError) && config.__retryCount < maxRetries;
+
+  if (shouldRetry) {
+    config.__retryCount += 1;
+    const delay = Math.min(1000 * Math.pow(2, config.__retryCount - 1), 5000); // 1s, 2s, max 5s
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return apiClient(config);
+  }
+
+  return Promise.reject(error);
+});
 
 export default apiClient;
