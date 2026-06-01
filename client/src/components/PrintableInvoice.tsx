@@ -190,7 +190,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   };
 
   // Payment state
-  const [paymentAmount, setPaymentAmount] = useState<string>(balanceDue.toFixed(2));
+  const [paymentAmount, setPaymentAmount] = useState<string>('0.00');
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
 

@@ -1215,6 +1215,116 @@ export const getPendingVerificationQueue = async (
 };
 
 // Imaging Orders
+// Shared helper: add an imaging study as a line item on the encounter's invoice.
+// Idempotent — guarded against double-billing by description, so it can safely run
+// both when a provider orders the study (bill immediately) and again on completion.
+// Returns silently if there's no invoice for the encounter yet (completion path will bill later).
+const billImagingOrderToInvoice = async (order: any): Promise<void> => {
+  try {
+    const invoiceResult = await pool.query(
+      'SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1',
+      [order.encounter_id]
+    );
+    if (invoiceResult.rows.length === 0) return;
+    const invoiceId = invoiceResult.rows[0].id;
+
+    const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
+    const description = `Imaging: ${label}`;
+
+    // Guard against double-billing the same study on the same invoice
+    const existingItem = await pool.query(
+      'SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2',
+      [invoiceId, description]
+    );
+    if (existingItem.rows.length > 0) return;
+
+    // Resolve the charge: prefer an exact service_name match, then a fuzzy type+body_part match
+    let charge: { id: number; price: string } | null = null;
+    const exact = await pool.query(
+      "SELECT id, price FROM charge_master WHERE LOWER(service_name) = LOWER($1) AND category = 'imaging' AND is_active = true LIMIT 1",
+      [order.imaging_type]
+    );
+    if (exact.rows.length > 0) {
+      charge = exact.rows[0];
+    } else {
+      const fuzzy = await pool.query(
+        `SELECT id, price FROM charge_master
+         WHERE (service_name ILIKE $1 OR service_name ILIKE $2)
+           AND category = 'imaging' AND is_active = true
+         ORDER BY CASE WHEN service_name ILIKE $1 THEN 1 ELSE 2 END
+         LIMIT 1`,
+        [`%${order.imaging_type}%${order.body_part || ''}%`, `%${order.imaging_type}%`]
+      );
+      if (fuzzy.rows.length > 0) charge = fuzzy.rows[0];
+    }
+
+    let chargeMasterId: number | null = null;
+    let billingPrice: number;
+    if (charge) {
+      chargeMasterId = charge.id;
+      const { resolvePrice } = require('../services/priceResolutionService');
+      const resolved = await resolvePrice(charge.id, invoiceId);
+      billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
+    } else {
+      // No catalog entry — fall back to standard imaging prices
+      const fallbackPrices: Record<string, number> = {
+        'X-Ray': 80.00,
+        'CT Scan': 350.00,
+        'MRI': 800.00,
+        'Ultrasound': 150.00,
+        'Mammogram': 200.00,
+        'Fluoroscopy': 250.00,
+      };
+      billingPrice = fallbackPrices[order.imaging_type] || 150.00;
+    }
+
+    await pool.query(
+      `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
+       VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
+      [invoiceId, chargeMasterId, description, billingPrice]
+    );
+    await pool.query(
+      `UPDATE invoices
+       SET subtotal = subtotal + $2, total_amount = total_amount + $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [invoiceId, billingPrice]
+    );
+  } catch (err) {
+    console.error('Imaging billing failed (non-fatal):', err);
+  }
+};
+
+// Remove a previously-billed imaging study from the encounter's invoice (e.g. on cancellation).
+const removeImagingOrderFromInvoice = async (order: any): Promise<void> => {
+  try {
+    const invoiceResult = await pool.query(
+      'SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1',
+      [order.encounter_id]
+    );
+    if (invoiceResult.rows.length === 0) return;
+    const invoiceId = invoiceResult.rows[0].id;
+
+    const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
+    const description = `Imaging: ${label}`;
+
+    const del = await pool.query(
+      'DELETE FROM invoice_items WHERE invoice_id = $1 AND description = $2 RETURNING total_price',
+      [invoiceId, description]
+    );
+    if (del.rows.length > 0) {
+      const removed = del.rows.reduce((sum: number, r: any) => sum + parseFloat(r.total_price), 0);
+      await pool.query(
+        `UPDATE invoices
+         SET subtotal = subtotal - $2, total_amount = total_amount - $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [invoiceId, removed]
+      );
+    }
+  } catch (err) {
+    console.error('Imaging billing reversal failed (non-fatal):', err);
+  }
+};
+
 export const createImagingOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
@@ -1265,33 +1375,11 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
 
     const order = result.rows[0];
 
-    // For walk-in/OTC patients (ordered by imaging tech), bill immediately
-    if (currentUserRole === 'imaging') {
-      try {
-        let invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
-        if (invoiceRow.rows.length > 0) {
-          const invoiceId = invoiceRow.rows[0].id;
-          const chargeResult = await pool.query(
-            "SELECT id, price FROM charge_master WHERE LOWER(service_name) = LOWER($1) AND category = 'imaging' AND is_active = true LIMIT 1",
-            [studyType]
-          );
-          if (chargeResult.rows.length > 0) {
-            const charge = chargeResult.rows[0];
-            const { resolvePrice } = require('../services/priceResolutionService');
-            const resolved = await resolvePrice(charge.id, invoiceId);
-            const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
-            const label = `${studyType}${body_part ? ' (' + body_part + ')' : ''}`;
-            await pool.query(
-              'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, $2, $3, 1, $4, $4, $5)',
-              [invoiceId, charge.id, label, billingPrice, 'imaging']
-            );
-            const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
-            await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
-          }
-        }
-      } catch (billingErr) {
-        console.error('Walk-in imaging billing on order creation failed (non-fatal):', billingErr);
-      }
+    // Bill the study to the encounter's invoice as soon as it's ordered, so it
+    // shows up for the cashier without waiting for the study to be completed.
+    // Scheduled (future) orders are billed when performed, not at booking time.
+    if (priority !== 'scheduled') {
+      await billImagingOrderToInvoice(order);
     }
 
     // Create a walk-in imaging appointment for scheduled orders
@@ -1422,74 +1510,15 @@ export const updateImagingOrder = async (req: Request, res: Response): Promise<v
       details: updateData
     });
 
-    // When imaging order is completed: bill the study and send notifications
+    // Reverse billing if the order is cancelled (it was billed at order time)
+    if (updateData.status === 'cancelled') {
+      await removeImagingOrderFromInvoice(updatedOrder);
+    }
+
+    // When imaging order is completed: bill the study (no-op if already billed at
+    // order time, via the dedup guard) and send notifications
     if (updateData.status === 'completed') {
-      // Bill the completed imaging order
-      try {
-        const chargeResult = await pool.query(
-          `SELECT id, service_name, price FROM charge_master
-           WHERE (service_name ILIKE $1 OR service_name ILIKE $2)
-           AND category = 'imaging' AND is_active = true
-           ORDER BY
-             CASE WHEN service_name ILIKE $1 THEN 1 ELSE 2 END
-           LIMIT 1`,
-          [`%${updatedOrder.imaging_type}%${updatedOrder.body_part}%`, `%${updatedOrder.imaging_type}%`]
-        );
-
-        const charge = chargeResult.rows[0];
-        let imagingPrice = 150.00;
-        if (charge) {
-          imagingPrice = parseFloat(charge.price);
-        } else {
-          const fallbackPrices: Record<string, number> = {
-            'X-Ray': 80.00,
-            'CT Scan': 350.00,
-            'MRI': 800.00,
-            'Ultrasound': 150.00,
-            'Mammogram': 200.00,
-            'Fluoroscopy': 250.00,
-          };
-          imagingPrice = fallbackPrices[updatedOrder.imaging_type] || 150.00;
-        }
-
-        const chargeDescription = charge ? charge.service_name : `${updatedOrder.imaging_type} - ${updatedOrder.body_part}`;
-        const chargeMasterId = charge ? charge.id : null;
-
-        const invoiceResult = await pool.query(
-          `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-          [updatedOrder.encounter_id]
-        );
-
-        if (invoiceResult.rows.length > 0) {
-          const invoiceId = invoiceResult.rows[0].id;
-
-          // Guard against double-billing
-          const existingItem = await pool.query(
-            `SELECT id FROM invoice_items
-             WHERE invoice_id = $1 AND description = $2`,
-            [invoiceId, `Imaging: ${chargeDescription}`]
-          );
-
-          if (existingItem.rows.length === 0) {
-            await pool.query(
-              `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-               VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
-              [invoiceId, chargeMasterId, `Imaging: ${chargeDescription}`, imagingPrice]
-            );
-
-            await pool.query(
-              `UPDATE invoices
-               SET subtotal = subtotal + $2,
-                   total_amount = total_amount + $2,
-                   updated_at = CURRENT_TIMESTAMP
-               WHERE id = $1`,
-              [invoiceId, imagingPrice]
-            );
-          }
-        }
-      } catch (billingError) {
-        console.error('Error billing completed imaging order:', billingError);
-      }
+      await billImagingOrderToInvoice(updatedOrder);
 
       await notificationService.notifyImagingComplete(parseInt(id));
 
