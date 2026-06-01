@@ -511,12 +511,30 @@ const runLabCompletionSideEffects = async (
 
   // 2. Billing — use resolvePrice for correct payer-aware pricing
   try {
+    // Match charge_master by: 1) exact service_code, 2) name contains test_name,
+    // 3) test_name contains service_name (handles "liver function tests" matching
+    //    "Liver Function Test"), 4) keyword-based fuzzy match using first 2+ words
+    const testName = (order.test_name || '').trim();
+    // Strip trailing 's' for singular/plural matching (e.g., "tests" → "test")
+    const keywords = testName.split(/\s+/).filter((w: string) => w.length > 2).slice(0, 3)
+      .map((k: string) => k.replace(/s$/i, ''));
+    const keywordPattern = keywords.length > 0 ? keywords.map((k: string) => `(?=.*${k})`).join('') : testName;
+
     const chargeResult = await pool.query(
       `SELECT id, service_name, service_code, price FROM charge_master
-       WHERE (service_code = $1 OR service_name ILIKE $2)
-       AND category = 'lab' AND is_active = true
+       WHERE category = 'lab' AND is_active = true
+       AND (
+         service_code = $1
+         OR service_name ILIKE $2
+         OR $3 ILIKE '%' || service_name || '%'
+         OR service_name ~* $4
+       )
+       ORDER BY
+         CASE WHEN service_code = $1 THEN 1
+              WHEN service_name ILIKE $2 THEN 2
+              ELSE 3 END
        LIMIT 1`,
-      [order.test_code, `%${order.test_name}%`]
+      [order.test_code, `%${testName}%`, testName, keywordPattern]
     );
 
     const charge = chargeResult.rows[0];
