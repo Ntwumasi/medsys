@@ -133,21 +133,31 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
     if (!departmentClinics.includes(clinic)) {
-      // Try clinic-specific consultation charge first (e.g., "Cardiology Consultation")
+      // Try clinic-specific consultation charge first
+      // The charge_master uses various naming patterns:
+      //   "Cardiology" (SPEC-CARDIO), "Internal Medicine" (SPEC-INTMED),
+      //   "Family Medicine" → falls through to "General Practitioner Consult"
       let consultResult = { rows: [] as any[] };
       if (clinic) {
+        // Search broadly: clinic name anywhere in service_name, or exact match
         consultResult = await client.query(
           `SELECT id, price, service_name FROM charge_master
            WHERE category = 'consultation' AND is_active = true
-           AND (service_name ILIKE $1 OR service_name ILIKE $2)
+           AND (service_name ILIKE $1 OR service_name ILIKE $2 OR service_name ILIKE $3)
+           ORDER BY
+             CASE WHEN service_name ILIKE $1 THEN 1
+                  WHEN service_name ILIKE $2 THEN 2
+                  ELSE 3 END
            LIMIT 1`,
-          [`${clinic} Consult%`, `${clinic}%Consultation%`]
+          [`${clinic}`, `${clinic} %`, `%${clinic}%`]
         );
       }
       // Fall back to encounter-type-based charge code
       if (consultResult.rows.length === 0) {
-        const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' :
-                            encounter.encounter_type === 'new' ? 'CONS-PCP' : 'CONS-GP';
+        // Family Medicine, General Practice → CONS-GP
+        // Follow-up → CONS-REVIEW
+        // New patient → CONS-GP (not CONS-PCP which is "Primary Care" at GHS 400)
+        const consultCode = encounter.encounter_type === 'follow-up' ? 'CONS-REVIEW' : 'CONS-GP';
         consultResult = await client.query(
           'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1',
           [consultCode]
