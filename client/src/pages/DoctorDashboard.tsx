@@ -28,6 +28,7 @@ import StatCard from '../components/ui/StatCard';
 import type { SparkPoint } from '../components/ui/Sparkline';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { VitalSigns } from '../types';
+import { calculateAge } from '../utils/age';
 
 interface RoomEncounter {
   id: number;
@@ -35,6 +36,8 @@ interface RoomEncounter {
   patient_name: string;
   patient_number: string;
   encounter_number: string;
+  date_of_birth?: string;
+  gender?: string;
   room_number: string;
   room_name?: string;
   nurse_name?: string;
@@ -1177,49 +1180,72 @@ const DoctorDashboard: React.FC = () => {
 
       {/* Row 1: Three info cards side by side */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
-          {/* Messages */}
+          {/* Active Patients */}
           <div className="flex">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Messages</h2>
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Active Patients</h2>
                   </div>
-                  {notes.length > 0 && (
+                  {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length > 0 && (
                     <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-bold rounded-full tabular-nums">
-                      {notes.length}
+                      {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length}
                     </span>
                   )}
                 </div>
               </div>
               <div className="max-h-56 overflow-y-auto">
-                {notes.length > 0 ? (
+                {roomEncounters.length > 0 ? (
                   <div className="divide-y divide-gray-100">
-                    {notes.slice(0, 10).map((note) => (
-                      <div key={note.id} className="px-4 py-2.5">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
-                            note.note_type === 'nurse_to_doctor' ? 'bg-secondary-100 text-secondary-700' :
-                            note.note_type === 'nurse_general' ? 'bg-success-100 text-success-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{note.note_type?.replace(/_/g, ' ')}</span>
-                        </div>
-                        <p className="text-sm text-gray-800 line-clamp-1">{note.content}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{note.created_by_name} • {new Date(note.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
-                      </div>
-                    ))}
+                    {roomEncounters
+                      .filter(e => e.status !== 'cancelled')
+                      .sort((a, b) => {
+                        const order: Record<string, number> = { with_doctor: 0, ready_for_doctor: 1, in_room: 2, checked_in: 3, completed: 4, discharged: 5 };
+                        return (order[a.status || ''] ?? 3) - (order[b.status || ''] ?? 3);
+                      })
+                      .map((enc) => {
+                        const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
+                        const isWithDoctor = enc.status === 'with_doctor';
+                        const isWaiting = enc.status === 'ready_for_doctor';
+                        const isInRoom = !!enc.room_number && !isWithDoctor && !isWaiting && !isCompleted;
+                        const statusLabel = isWithDoctor ? 'With you' : isWaiting ? 'Waiting' : isInRoom ? 'In room' : isCompleted ? 'Done' : enc.status === 'checked_in' ? 'Checked in' : (enc.status?.replace(/_/g, ' ') || '');
+                        const dotColor = isWithDoctor ? 'bg-primary-500' : isWaiting ? 'bg-warning-400 animate-pulse' : isInRoom ? 'bg-success-400' : isCompleted ? 'bg-gray-300' : 'bg-gray-300';
+                        return (
+                          <button
+                            key={enc.id}
+                            onClick={() => { handleSelectEncounter(enc); document.getElementById('selected-encounter-panel')?.scrollIntoView({ behavior: 'smooth' }); }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+                              <span className="text-sm font-semibold text-gray-900 truncate">{enc.patient_name}</span>
+                              {enc.room_number && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 flex-shrink-0">
+                                  Rm {enc.room_number}
+                                </span>
+                              )}
+                              <span className={`ml-auto text-[10px] font-medium flex-shrink-0 ${
+                                isWithDoctor ? 'text-primary-600' : isWaiting ? 'text-warning-600' : isInRoom ? 'text-success-600' : 'text-gray-400'
+                              }`}>{statusLabel}</span>
+                            </div>
+                            {enc.chief_complaint && (
+                              <p className="text-xs text-gray-400 mt-0.5 ml-4 truncate">{enc.chief_complaint}</p>
+                            )}
+                          </button>
+                        );
+                      })}
                   </div>
                 ) : (
                   <div className="p-6 text-center text-gray-400">
-                    <p className="text-sm">No messages yet</p>
+                    <p className="text-sm">No patients assigned today</p>
                   </div>
                 )}
               </div>
             </div>
-
           </div>
           {/* New Results — completed lab/imaging results ready for doctor review */}
           <div className="flex">
@@ -1696,7 +1722,15 @@ const DoctorDashboard: React.FC = () => {
                 <div className="pb-4 border-b border-gray-100">
                   <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedEncounter.patient_name}</h2>
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                        {selectedEncounter.patient_name}
+                        {selectedEncounter.date_of_birth && (
+                          <span className="text-lg font-normal text-gray-400 ml-2">
+                            {calculateAge(selectedEncounter.date_of_birth)}
+                            {selectedEncounter.gender && <span className="ml-1">· {selectedEncounter.gender}</span>}
+                          </span>
+                        )}
+                      </h2>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
                         <span className="text-gray-500">
                           <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Patient #</span>

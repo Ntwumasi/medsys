@@ -17,6 +17,7 @@ import { Card, Button, Badge, Input, Select, EmptyState, AppSelect } from '../co
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
+import { calculateAge } from '../utils/age';
 
 // Setup date-fns localizer for react-big-calendar
 const locales = {
@@ -2039,7 +2040,7 @@ const ReceptionistDashboard: React.FC = () => {
                         </div>
 
                         <div className="mt-2 flex gap-4 text-sm text-gray-700 flex-wrap items-center">
-                          <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')}</span>
+                          <span>DOB: {safeFormatDate(item.date_of_birth, 'MM/dd/yyyy')} ({calculateAge(item.date_of_birth)})</span>
                           {item.patient_phone && (
                             <a href={`tel:${item.patient_phone}`} className="text-primary-600 hover:underline flex items-center gap-1">
                               📞 {item.patient_phone}
@@ -2413,7 +2414,7 @@ const ReceptionistDashboard: React.FC = () => {
                             </div>
                             <div className="text-right">
                               <div className="text-sm font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                                DOB: {safeFormatDate(patient.date_of_birth, 'MM/dd/yyyy')}
+                                DOB: {safeFormatDate(patient.date_of_birth, 'MM/dd/yyyy')} ({calculateAge(patient.date_of_birth)})
                               </div>
                             </div>
                           </div>
@@ -2464,7 +2465,7 @@ const ReceptionistDashboard: React.FC = () => {
                     <div className="text-sm space-y-1">
                       <p><span className="font-medium">Name:</span> {selectedPatient.first_name} {selectedPatient.last_name}</p>
                       <p><span className="font-medium">Patient #:</span> {selectedPatient.patient_number}</p>
-                      <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')}</p>
+                      <p><span className="font-medium">DOB:</span> {safeFormatDate(selectedPatient.date_of_birth, 'MM/dd/yyyy')} <span className="font-semibold text-primary-600">({calculateAge(selectedPatient.date_of_birth)})</span></p>
                       {selectedPatient.gender && (
                         <p><span className="font-medium">Gender:</span> {selectedPatient.gender}</p>
                       )}
