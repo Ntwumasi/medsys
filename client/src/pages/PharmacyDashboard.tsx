@@ -1705,7 +1705,7 @@ const PharmacyDashboard: React.FC = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="font-semibold text-gray-700">Qty: {order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
+                                  <span className="font-bold text-primary-700 bg-primary-50 border-2 border-primary-300 px-2 py-0.5 rounded-lg">Qty: {order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
                                   {order.days_supply && (
                                     <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
                                       {order.days_supply}-day supply
@@ -1948,7 +1948,7 @@ const PharmacyDashboard: React.FC = () => {
                         <div><span className="text-gray-500">Dosage:</span> {selectedOrder.dosage}</div>
                         <div><span className="text-gray-500">Frequency:</span> {selectedOrder.frequency}</div>
                         <div><span className="text-gray-500">Route:</span> {selectedOrder.route}</div>
-                        <div><span className="text-gray-500">Quantity:</span> {selectedOrder.quantity}</div>
+                        <div className="bg-primary-50 border border-primary-200 rounded px-2 py-1 -mx-2"><span className="text-primary-700 font-semibold">Quantity:</span> <span className="font-bold text-primary-900 text-base">{selectedOrder.quantity}</span></div>
                         <div><span className="text-gray-500">Refills:</span> {selectedOrder.refills || 0}</div>
                         {selectedOrder.notes && (
                           <div><span className="text-gray-500">Notes:</span> {selectedOrder.notes}</div>
@@ -3567,13 +3567,14 @@ const PharmacyDashboard: React.FC = () => {
             {/* Editable Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Dispense</label>
+                <label className="block text-sm font-bold text-primary-700 mb-1">Quantity to Dispense *</label>
                 <input
                   type="text"
                   value={editingOrder.quantity}
                   onChange={(e) => setEditingOrder({ ...editingOrder, quantity: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border-2 border-primary-400 bg-primary-50 rounded-lg px-3 py-2.5 text-lg font-bold text-primary-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                 />
+                <p className="text-xs text-gray-500 mt-1">Verify auto-calculated quantity before dispensing</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Dosage</label>
