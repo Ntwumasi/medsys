@@ -511,16 +511,38 @@ const runLabCompletionSideEffects = async (
 
   // 2. Billing — use resolvePrice for correct payer-aware pricing
   try {
-    // Match charge_master by: 1) exact service_code, 2) name contains test_name,
-    // 3) test_name contains service_name (handles "liver function tests" matching
-    //    "Liver Function Test"), 4) keyword-based fuzzy match using first 2+ words
+    // Lab pricing priority:
+    // 1. lab_test_catalog (authoritative — updated lab price list)
+    // 2. charge_master (fallback — general billing charges)
     const testName = (order.test_name || '').trim();
-    // Strip trailing 's' for singular/plural matching (e.g., "tests" → "test")
     const keywords = testName.split(/\s+/).filter((w: string) => w.length > 2).slice(0, 3)
       .map((k: string) => k.replace(/s$/i, ''));
     const keywordPattern = keywords.length > 0 ? keywords.map((k: string) => `(?=.*${k})`).join('') : testName;
 
-    const chargeResult = await pool.query(
+    // Try lab_test_catalog first (the updated lab price list)
+    let catalogMatch: any = null;
+    try {
+      const catalogResult = await pool.query(
+        `SELECT id, test_code, test_name, base_price FROM lab_test_catalog
+         WHERE is_active = true
+         AND (
+           test_code = $1
+           OR test_name ILIKE $2
+           OR $3 ILIKE '%' || test_name || '%'
+           OR test_name ~* $4
+         )
+         ORDER BY
+           CASE WHEN test_code = $1 THEN 1
+                WHEN test_name ILIKE $2 THEN 2
+                ELSE 3 END
+         LIMIT 1`,
+        [order.test_code, `%${testName}%`, testName, keywordPattern]
+      );
+      catalogMatch = catalogResult.rows[0];
+    } catch { /* lab_test_catalog might not exist in all environments */ }
+
+    // Fall back to charge_master if not found in catalog
+    const chargeResult = catalogMatch ? { rows: [] } : await pool.query(
       `SELECT id, service_name, service_code, price FROM charge_master
        WHERE category = 'lab' AND is_active = true
        AND (
@@ -537,9 +559,13 @@ const runLabCompletionSideEffects = async (
       [order.test_code, `%${testName}%`, testName, keywordPattern]
     );
 
+    // Use catalog match (authoritative) or charge_master fallback
     const charge = chargeResult.rows[0];
-    const chargeDescription = charge ? charge.service_name : order.test_name;
+    const labSource = catalogMatch || charge;
+    const chargeDescription = catalogMatch ? catalogMatch.test_name : (charge ? charge.service_name : order.test_name);
     const chargeMasterId = charge ? charge.id : null;
+    // Price: catalog base_price takes priority over charge_master price
+    const directLabPrice = catalogMatch ? parseFloat(catalogMatch.base_price) : null;
 
     const invoiceResult = await pool.query(
       `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
@@ -549,16 +575,20 @@ const runLabCompletionSideEffects = async (
     if (invoiceResult.rows.length > 0) {
       const invoiceId = invoiceResult.rows[0].id;
 
-      // Resolve price using the pricing service (respects payer overrides)
+      // Resolve price: catalog price > payer-resolved price > charge_master price
       let labPrice: number;
-      if (charge) {
+      if (directLabPrice != null) {
+        // Use lab_test_catalog price (the authoritative lab price list)
+        labPrice = directLabPrice;
+      } else if (charge) {
+        // Fall back to charge_master with payer-aware price resolution
         const { resolvePrice } = require('../services/priceResolutionService');
         const resolved = await resolvePrice(charge.id, invoiceId);
         labPrice = resolved.unitPrice;
       } else {
-        // No charge master match — log warning, use fallback
-        console.warn(`⚠️ Lab billing: No charge_master match for test "${order.test_name}" (code: ${order.test_code}). Using fallback price.`);
-        labPrice = 0; // Don't silently bill GHS 75 — let receptionist correct it
+        // No match anywhere — log warning
+        console.warn(`⚠️ Lab billing: No match for test "${order.test_name}" (code: ${order.test_code}) in lab_test_catalog or charge_master.`);
+        labPrice = 0;
       }
 
       const existingItem = await pool.query(
