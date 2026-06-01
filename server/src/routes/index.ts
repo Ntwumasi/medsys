@@ -348,7 +348,13 @@ import {
   updateRequisition,
   deleteRequisition,
 } from '../controllers/nurseRequisitionsController';
-import { authenticateToken, authorizeRoles } from '../middleware/auth';
+import {
+  requestLink as portalRequestLink,
+  staffSendLink as portalStaffSendLink,
+  verify as portalVerify,
+  getMe as portalGetMe,
+} from '../controllers/patientPortalController';
+import { authenticateToken, authorizeRoles, enforcePatientOwnership } from '../middleware/auth';
 import { authenticateBridge } from '../middleware/bridgeAuth';
 import {
   getPendingWorklist,
@@ -411,6 +417,12 @@ router.post('/auth/change-password', authenticateToken, validateBody(changePassw
 router.post('/auth/request-reset', requestPasswordReset);
 router.post('/auth/reset-password', validateBody(resetPasswordSchema), resetPassword);
 router.get('/auth/login-history', authenticateToken, getLoginHistory);
+
+// Patient portal (passwordless SMS access)
+router.post('/patient-portal/request-link', portalRequestLink);
+router.post('/patient-portal/verify', portalVerify);
+router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin'), portalStaffSendLink);
+router.get('/patient-portal/me', authenticateToken, portalGetMe);
 
 // Admin reports — also exposed to accountants for the financial dashboard.
 import { getDoctorRevenue, getDoctorRevenueLines } from '../controllers/adminReportsController';
@@ -517,7 +529,7 @@ router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('do
 
 // Appointment routes (with input validation)
 router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);
-router.get('/appointments', authenticateToken, getAppointments);
+router.get('/appointments', authenticateToken, enforcePatientOwnership, getAppointments);
 router.get('/appointments/today', authenticateToken, getTodayAppointments);
 router.put('/appointments/:id', authenticateToken, validateBody(createAppointmentSchema.partial()), updateAppointment);
 router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
@@ -525,7 +537,7 @@ router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
 
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);
-router.get('/medications/patient/:patient_id', authenticateToken, getPatientMedications);
+router.get('/medications/patient/:patient_id', authenticateToken, enforcePatientOwnership, getPatientMedications);
 router.put('/medications/:id', authenticateToken, authorizeRoles('doctor', 'admin'), updateMedication);
 router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('doctor', 'admin'), discontinueMedication);
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
@@ -577,7 +589,7 @@ router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, 
 
 // Orders routes - Lab
 router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab'), createLabOrder);
-router.get('/orders/lab', authenticateToken, getLabOrders);
+router.get('/orders/lab', authenticateToken, enforcePatientOwnership, getLabOrders);
 // Pending-verification queue MUST be registered before the :id routes below,
 // otherwise Express interprets "pending-verification" as an :id parameter.
 router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
@@ -589,7 +601,7 @@ router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 
 // Orders routes - Imaging (nurses can create for verbal orders)
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse', 'imaging'), createImagingOrder);
-router.get('/orders/imaging', authenticateToken, getImagingOrders);
+router.get('/orders/imaging', authenticateToken, enforcePatientOwnership, getImagingOrders);
 router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
 
 // Imaging integration routes — frontend

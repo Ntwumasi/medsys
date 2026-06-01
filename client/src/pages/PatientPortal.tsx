@@ -1,65 +1,235 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
+import apiClient from '../api/client';
+import { setActiveToken } from '../api/client';
+import { patientPortalAPI } from '../api/patientPortal';
+import { branding } from '../config/branding';
+
+type TabKey = 'labs' | 'imaging' | 'medications' | 'appointments';
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'labs', label: 'Lab Results' },
+  { key: 'imaging', label: 'Imaging Reports' },
+  { key: 'medications', label: 'Medications' },
+  { key: 'appointments', label: 'Appointments' },
+];
+
+const fmtDate = (value?: string | null): string => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? '—' : format(d, 'MMM d, yyyy');
+};
+
+const StatusPill: React.FC<{ status?: string }> = ({ status }) => {
+  if (!status) return null;
+  const s = status.toLowerCase();
+  const color =
+    s.includes('complete') || s.includes('verified') || s === 'active'
+      ? 'bg-green-100 text-green-700'
+      : s.includes('cancel') || s.includes('reject')
+      ? 'bg-red-100 text-red-700'
+      : 'bg-amber-100 text-amber-700';
+  return <span className={`text-xs font-medium px-2 py-0.5 rounded ${color}`}>{status}</span>;
+};
+
+const EmptyState: React.FC<{ text: string }> = ({ text }) => (
+  <div className="text-center py-12 text-gray-500">{text}</div>
+);
 
 const PatientPortal: React.FC = () => {
+  const [firstName, setFirstName] = useState('');
+  const [patientId, setPatientId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('labs');
+
+  const [labs, setLabs] = useState<any[]>([]);
+  const [imaging, setImaging] = useState<any[]>([]);
+  const [meds, setMeds] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const me = await patientPortalAPI.me();
+        // Sliding session: persist a renewed token if the server issued one.
+        if (me.renewed_token) {
+          localStorage.setItem('token', me.renewed_token);
+          setActiveToken(me.renewed_token);
+        }
+        if (cancelled) return;
+        setFirstName(me.first_name || '');
+        setPatientId(me.patient_id);
+
+        const [labRes, imgRes, medRes, apptRes] = await Promise.all([
+          apiClient.get('/orders/lab'),
+          apiClient.get('/orders/imaging'),
+          apiClient.get(`/medications/patient/${me.patient_id}`),
+          apiClient.get('/appointments'),
+        ]);
+        if (cancelled) return;
+        setLabs(labRes.data.lab_orders || []);
+        setImaging(imgRes.data.imaging_orders || []);
+        setMeds(medRes.data.medications || []);
+        setAppointments(apptRes.data.appointments || []);
+      } catch {
+        if (!cancelled) setError('We could not load your records right now. Please try again shortly.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const renderLabs = () => {
+    if (!labs.length) return <EmptyState text="No lab results yet. Results appear here once your provider releases them." />;
+    return (
+      <div className="space-y-3">
+        {labs.map((o) => (
+          <div key={o.id} className="border border-gray-200 rounded-lg p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-900">{o.test_name}</p>
+                <p className="text-sm text-gray-500">Ordered {fmtDate(o.ordered_at)}</p>
+              </div>
+              <StatusPill status={o.verification_status === 'verified' ? 'Verified' : o.status} />
+            </div>
+            {o.results ? (
+              <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{o.results}</p>
+            ) : (
+              <p className="mt-2 text-sm text-gray-400">Result pending — your provider will discuss it with you.</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderImaging = () => {
+    if (!imaging.length) return <EmptyState text="No imaging reports yet." />;
+    return (
+      <div className="space-y-3">
+        {imaging.map((o) => (
+          <div key={o.id} className="border border-gray-200 rounded-lg p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-900">
+                  {o.imaging_type}{o.body_part ? ` — ${o.body_part}` : ''}
+                </p>
+                <p className="text-sm text-gray-500">Ordered {fmtDate(o.ordered_date)}</p>
+              </div>
+              <StatusPill status={o.status} />
+            </div>
+            {o.findings ? (
+              <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{o.findings}</p>
+            ) : (
+              <p className="mt-2 text-sm text-gray-400">Report pending.</p>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderMeds = () => {
+    if (!meds.length) return <EmptyState text="No medications on record." />;
+    return (
+      <div className="space-y-3">
+        {meds.map((m) => (
+          <div key={m.id} className="border border-gray-200 rounded-lg p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-900">{m.medication_name}</p>
+                <p className="text-sm text-gray-600">
+                  {[m.dosage, m.frequency].filter(Boolean).join(' · ')}
+                </p>
+                {m.prescribing_doctor_name && (
+                  <p className="text-sm text-gray-500">Prescribed by {m.prescribing_doctor_name}</p>
+                )}
+              </div>
+              <StatusPill status={m.status} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderAppointments = () => {
+    if (!appointments.length) return <EmptyState text="No appointments scheduled." />;
+    return (
+      <div className="space-y-3">
+        {appointments.map((a) => (
+          <div key={a.id} className="border border-gray-200 rounded-lg p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="font-semibold text-gray-900">{fmtDate(a.appointment_date)}</p>
+                {a.reason && <p className="text-sm text-gray-600">{a.reason}</p>}
+                {a.provider_name && <p className="text-sm text-gray-500">With {a.provider_name}</p>}
+              </div>
+              <StatusPill status={a.status} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <AppLayout title="Patient Portal">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-12 text-center">
-          <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">
+            {firstName ? `Welcome, ${firstName}` : 'Your health records'}
+          </h2>
+          <p className="text-gray-500">View your lab results, imaging reports, medications and appointments.</p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+        )}
+
+        <div className="bg-white rounded-2xl shadow border border-gray-200">
+          <div className="flex border-b border-gray-200 overflow-x-auto">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`px-4 py-3 text-sm font-medium whitespace-nowrap ${
+                  activeTab === t.key
+                    ? 'text-primary-700 border-b-2 border-primary-600'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Welcome to the Patient Portal</h2>
-          <p className="text-gray-600 text-lg max-w-2xl mx-auto mb-8">
-            Your personal health hub is coming soon. Here you'll be able to view your medical records,
-            upcoming appointments, test results, and more.
-          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-3xl mx-auto mt-12">
-            <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+          <div className="p-5">
+            {loading || patientId === null ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Medical Records</h3>
-              <p className="text-sm text-gray-500">View your visit history and health records</p>
-              <span className="inline-block mt-3 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">Coming Soon</span>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Appointments</h3>
-              <p className="text-sm text-gray-500">Schedule and manage your appointments</p>
-              <span className="inline-block mt-3 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">Coming Soon</span>
-            </div>
-
-            <div className="p-6 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="w-12 h-12 bg-secondary-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">Test Results</h3>
-              <p className="text-sm text-gray-500">Access your lab and imaging results</p>
-              <span className="inline-block mt-3 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">Coming Soon</span>
-            </div>
+            ) : (
+              <>
+                {activeTab === 'labs' && renderLabs()}
+                {activeTab === 'imaging' && renderImaging()}
+                {activeTab === 'medications' && renderMeds()}
+                {activeTab === 'appointments' && renderAppointments()}
+              </>
+            )}
           </div>
         </div>
 
-      {/* Footer */}
-      <footer className="mt-12 py-6 bg-white border-t border-gray-200 -mx-6 -mb-6">
-        <div className="max-w-7xl mx-auto px-6 text-center text-gray-500 text-sm">
-          <p>For medical emergencies, please call 911 or visit your nearest emergency room.</p>
-          <p className="mt-2">Need help? Contact us at (555) 123-4567</p>
-        </div>
-      </footer>
+        <footer className="mt-10 py-6 text-center text-gray-500 text-sm">
+          <p>For medical emergencies, please call your local emergency number or visit the nearest emergency room.</p>
+          {branding.clinicPhone && <p className="mt-2">Need help? Contact us at {branding.clinicPhone}</p>}
+        </footer>
+      </div>
     </AppLayout>
   );
 };

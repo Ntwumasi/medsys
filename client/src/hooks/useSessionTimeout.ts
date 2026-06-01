@@ -5,6 +5,7 @@ interface SessionTimeoutConfig {
   timeoutMinutes?: number;      // Total inactivity time before logout (default: 30)
   warningMinutes?: number;      // When to show warning before logout (default: 5)
   checkIntervalSeconds?: number; // How often to check (default: 30)
+  disabled?: boolean;           // Skip idle-logout entirely (e.g. patient portal — persistent session)
 }
 
 interface SessionTimeoutState {
@@ -18,9 +19,11 @@ export const useSessionTimeout = (config: SessionTimeoutConfig = {}): SessionTim
     timeoutMinutes = 30,
     warningMinutes = 5,
     checkIntervalSeconds = 30,
+    disabled = false,
   } = config;
 
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated: authed, logout } = useAuth();
+  const isAuthenticated = authed && !disabled;
   const [isWarningVisible, setIsWarningVisible] = useState(false);
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   
