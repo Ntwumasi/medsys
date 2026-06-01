@@ -1097,7 +1097,7 @@ const DoctorDashboard: React.FC = () => {
           <>
             <StatPill label="active" value={roomEncounters.length} tone={roomEncounters.length > 0 ? 'primary' : 'neutral'} title="Active patients in rooms" />
             <StatPill label="results" value={labAlerts.length + imagingAlerts.length} tone={(labAlerts.length + imagingAlerts.length) > 0 ? 'warning' : 'neutral'} title="New lab + imaging results" />
-            <StatPill label="action items" value={unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length} tone={(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length) > 0 ? 'danger' : 'neutral'} title="Unsigned notes + delinquent orders" />
+            <StatPill label="to sign" value={unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length} tone={(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length) > 0 ? 'danger' : 'neutral'} title="Unsigned SOAP notes + verbal orders to co-sign" />
           </>
         )}
       />
@@ -1221,18 +1221,19 @@ const DoctorDashboard: React.FC = () => {
             </div>
 
           </div>
-          {/* Results Alerts */}
+          {/* New Results — completed lab/imaging results ready for doctor review */}
           <div className="flex">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
               <div className="px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
-                      Results Alerts
+                      New Results
                     </h2>
+                    <span className="text-[9px] text-gray-400 normal-case tracking-normal">Lab &amp; imaging results to review</span>
                   </div>
                   <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
                     (labAlerts.length + imagingAlerts.length) > 0
@@ -1363,17 +1364,18 @@ const DoctorDashboard: React.FC = () => {
             </div>
 
           </div>
-          {/* Action Items */}
+          {/* To Sign — unsigned SOAP notes + verbal orders needing co-signature */}
           <div className="flex">
             {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) ? (
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg className="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
+                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
+                      <span className="text-[9px] text-gray-400 normal-case tracking-normal">SOAP notes &amp; verbal orders</span>
                     </div>
                     <span className="px-2 py-0.5 bg-warning-50 text-warning-700 text-xs font-bold rounded-full tabular-nums">
                       {unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length}
@@ -1391,7 +1393,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Unsigned ({unsignedNotes.length})
+                    SOAP ({unsignedNotes.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('labs')}
@@ -1401,7 +1403,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Labs ({pendingLabs.length})
+                    Lab Orders ({pendingLabs.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('imaging')}
@@ -1411,7 +1413,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Imaging ({pendingImaging.length})
+                    Imaging Orders ({pendingImaging.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('rx')}
@@ -1421,7 +1423,7 @@ const DoctorDashboard: React.FC = () => {
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    Rx ({pendingRx.length})
+                    Rx Orders ({pendingRx.length})
                   </button>
                 </div>
 
@@ -1548,10 +1550,10 @@ const DoctorDashboard: React.FC = () => {
                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Action Items</h2>
+                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
                   </div>
                 </div>
-                <div className="p-4 text-center text-sm text-gray-400">No action items</div>
+                <div className="p-4 text-center text-sm text-gray-400">All notes signed, no pending orders</div>
               </div>
             )}
           </div>
@@ -1613,49 +1615,77 @@ const DoctorDashboard: React.FC = () => {
 
       {/* Row 2: Patient Workspace with folder tabs */}
       <div id="selected-encounter-panel" className="mt-2">
-        {/* Folder Tabs */}
+        {/* Active Patients Header + Folder Tabs */}
         {roomEncounters.length > 0 && (
-          <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
-            {roomEncounters
-              .filter(e => e.status !== 'cancelled')
-              .sort((a, b) => {
-                // Patients with rooms first, then without
-                if (a.room_number && !b.room_number) return -1;
-                if (!a.room_number && b.room_number) return 1;
-                return 0;
-              })
-              .map((enc) => {
-              const isSelected = selectedEncounter?.id === enc.id;
-              const hasRoom = !!enc.room_number;
-              const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
-              // Color scheme based on status
-              const tabColor = isSelected
-                ? 'bg-white text-gray-900 border-gray-200 shadow-sm relative z-10'
-                : isCompleted
-                ? 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-50'
-                : !hasRoom
-                ? 'bg-gray-50 text-gray-400 border-gray-200 border-dashed'
-                : 'bg-primary-50 text-primary-700 border-primary-200 hover:bg-primary-100';
-              return (
-              <button
-                key={enc.id}
-                onClick={() => handleSelectEncounter(enc)}
-                className={`px-4 py-2 text-sm font-medium rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  enc.status === 'with_doctor' ? 'bg-primary-500' :
-                  enc.status === 'ready_for_doctor' ? 'bg-warning-400 animate-pulse' :
-                  isCompleted ? 'bg-gray-300' :
-                  !hasRoom ? 'bg-gray-300' :
-                  'bg-success-400'
-                }`} />
-                <span className={!hasRoom && !isSelected ? 'opacity-60' : ''}>{enc.patient_name}</span>
-                {hasRoom && <span className={`text-[10px] px-1.5 py-0.5 rounded ${isSelected ? 'bg-primary-100 text-primary-600' : 'bg-white/60 text-inherit'}`}>Rm {enc.room_number}</span>}
-                {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
-                {isCompleted && <span className="text-[10px] text-gray-400">Done</span>}
-              </button>
-              );
-            })}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-gray-900">Active Patients Today</h2>
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-primary-100 text-primary-700">
+                  {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length} in care
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-gray-400">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-500"></span> With you</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warning-400"></span> Waiting</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success-400"></span> In room</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300"></span> Done</span>
+              </div>
+            </div>
+            <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
+              {roomEncounters
+                .filter(e => e.status !== 'cancelled')
+                .sort((a, b) => {
+                  if (a.room_number && !b.room_number) return -1;
+                  if (!a.room_number && b.room_number) return 1;
+                  return 0;
+                })
+                .map((enc) => {
+                const isSelected = selectedEncounter?.id === enc.id;
+                const hasRoom = !!enc.room_number;
+                const isCompleted = enc.status === 'discharged' || enc.status === 'completed';
+                const isWithDoctor = enc.status === 'with_doctor';
+                const isWaiting = enc.status === 'ready_for_doctor';
+                // Vibrant color scheme based on status
+                const tabColor = isSelected
+                  ? 'bg-white text-gray-900 border-gray-300 shadow-md relative z-10 ring-1 ring-primary-200'
+                  : isCompleted
+                  ? 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                  : isWithDoctor
+                  ? 'bg-primary-50 text-primary-800 border-primary-300 hover:bg-primary-100'
+                  : isWaiting
+                  ? 'bg-warning-50 text-warning-800 border-warning-300 hover:bg-warning-100'
+                  : hasRoom
+                  ? 'bg-success-50 text-success-800 border-success-300 hover:bg-success-100'
+                  : 'bg-gray-50 text-gray-500 border-gray-200 border-dashed hover:bg-gray-100';
+                return (
+                <button
+                  key={enc.id}
+                  onClick={() => handleSelectEncounter(enc)}
+                  className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                    isWithDoctor ? 'bg-primary-500' :
+                    isWaiting ? 'bg-warning-400 animate-pulse' :
+                    isCompleted ? 'bg-gray-300' :
+                    hasRoom ? 'bg-success-400' :
+                    'bg-gray-300'
+                  }`} />
+                  <span>{enc.patient_name}</span>
+                  {hasRoom && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      isSelected ? 'bg-primary-100 text-primary-600' :
+                      isWithDoctor ? 'bg-primary-100 text-primary-600' :
+                      isWaiting ? 'bg-warning-100 text-warning-600' :
+                      'bg-success-100 text-success-600'
+                    }`}>Rm {enc.room_number}</span>
+                  )}
+                  {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
+                  {isCompleted && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">Done</span>}
+                </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
