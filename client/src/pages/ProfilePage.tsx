@@ -84,15 +84,20 @@ export default function ProfilePage() {
 
   const loadProfile = async () => {
     try {
-      const [profileRes, historyRes] = await Promise.all([
-        apiClient.get('/auth/me'),
-        authAPI.getLoginHistory().catch(() => ({ history: [] })),
-      ]);
+      const profileRes = await apiClient.get('/auth/me');
       const p = profileRes.data.user || profileRes.data;
       setProfile(p);
-      setLoginHistory((historyRes.history || historyRes || []).slice(0, 10));
       setPhoneValue(p?.phone || '');
       if (p?.profile_photo) setProfilePhoto(p.profile_photo);
+
+      // Login history is non-critical — load separately
+      try {
+        const historyRes = await authAPI.getLoginHistory();
+        const history = historyRes?.login_history || historyRes?.history || [];
+        setLoginHistory(Array.isArray(history) ? history.slice(0, 10) : []);
+      } catch {
+        setLoginHistory([]);
+      }
     } catch {
       showToast('Failed to load profile', 'error');
     } finally {
