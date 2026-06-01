@@ -21,6 +21,7 @@ import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import InsightCard from '../components/ui/InsightCard';
 import AppSelect from '../components/ui/AppSelect';
+import { calculateAge } from '../utils/age';
 
 interface ClinicalNote {
   id: number;
@@ -1998,7 +1999,15 @@ const NurseDashboard: React.FC = () => {
                 <div className="pb-4 border-b border-gray-100">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-900 mb-2">{selectedPatient.patient_name}</h2>
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                        {selectedPatient.patient_name}
+                        {(selectedPatient as any).date_of_birth && (
+                          <span className="text-lg font-normal text-gray-400 ml-2">
+                            {calculateAge((selectedPatient as any).date_of_birth)}
+                            {(selectedPatient as any).gender && <span className="ml-1">· {(selectedPatient as any).gender}</span>}
+                          </span>
+                        )}
+                      </h2>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
                         <span className="text-gray-500">
                           <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Patient #</span>
