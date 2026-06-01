@@ -174,7 +174,7 @@ const AppContent: React.FC = () => {
         <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ErrorBoundary><ProfilePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/clinics" element={<ProtectedRoute><ClinicManagement /></ProtectedRoute>} />
         <Route path="/price-list" element={<ProtectedRoute><PriceListManagement /></ProtectedRoute>} />
 
