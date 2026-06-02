@@ -36,6 +36,7 @@ import {
   checkDuplicates,
   getAISummary,
 } from '../controllers/patientController';
+import { getDuplicateCandidates, mergePatients } from '../controllers/patientMergeController';
 import {
   createEncounter,
   getEncounters,
@@ -511,6 +512,9 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admi
 router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse'), checkDuplicates);
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
 router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
+// Duplicate-patient cleanup (registered before /patients/:id so "duplicates"/"merge" aren't treated as an id)
+router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin'), getDuplicateCandidates);
+router.post('/patients/merge',          authenticateToken, authorizeRoles('admin'), mergePatients);
 router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
 router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
 router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);

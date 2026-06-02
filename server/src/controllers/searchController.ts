@@ -22,13 +22,14 @@ export const searchPatients = async (req: Request, res: Response): Promise<void>
         u.first_name || ' ' || u.last_name as full_name
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
-       WHERE p.patient_number ILIKE $1
+       WHERE p.merged_into IS NULL
+         AND (p.patient_number ILIKE $1
           OR u.first_name ILIKE $1
           OR u.last_name ILIKE $1
           OR (u.first_name || ' ' || u.last_name) ILIKE $1
           OR u.phone ILIKE $1
-          OR u.email ILIKE $1
-       ORDER BY p.created_at DESC
+          OR u.email ILIKE $1)
+       ORDER BY (p.source = 'carecode'), p.created_at DESC
        LIMIT 20`,
       [searchTerm]
     );

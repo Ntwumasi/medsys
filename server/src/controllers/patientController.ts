@@ -298,11 +298,12 @@ export const getPatients = async (req: Request, res: Response): Promise<void> =>
              p.pcp_name, p.pcp_phone, p.vip_status
       FROM patients p
       LEFT JOIN users u ON p.user_id = u.id
+      WHERE p.merged_into IS NULL
     `;
     const params: any[] = [];
 
     if (search) {
-      query += ` WHERE p.patient_number ILIKE $1 OR u.first_name ILIKE $1 OR u.last_name ILIKE $1`;
+      query += ` AND (p.patient_number ILIKE $1 OR u.first_name ILIKE $1 OR u.last_name ILIKE $1)`;
       params.push(`%${search}%`);
     }
 
