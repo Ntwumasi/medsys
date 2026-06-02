@@ -3,6 +3,8 @@ import OpenAI from 'openai';
 import crypto from 'crypto';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+import { aiService } from '../services/aiService';
+import drugInteractionService from '../services/drugInteractionService';
 
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const openaiClient = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
@@ -640,6 +642,110 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
     });
   } catch (error) {
     console.error('Get patient summary error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * Screen the patient's full medication list for drug–drug interactions.
+ * Aggregates prescribed/dispensed meds (pharmacy_orders + medications table)
+ * with home meds documented as free text in the SOAP note, then runs the local
+ * interaction database plus an AI screen. Visible to doctors and pharmacy.
+ */
+export const getMedicationInteractions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Structured + dispensed medication names
+    const structured = await pool.query(
+      `SELECT DISTINCT medication_name FROM (
+         SELECT medication_name FROM pharmacy_orders
+          WHERE patient_id = $1 AND status NOT IN ('cancelled', 'rejected')
+         UNION
+         SELECT medication_name FROM medications
+          WHERE patient_id = $1 AND status = 'active'
+       ) x WHERE medication_name IS NOT NULL AND medication_name != ''`,
+      [id]
+    );
+
+    // Home meds documented free-text in the most recent SOAP
+    const homeMeds = await pool.query(
+      `SELECT hp.content
+         FROM hp_sections hp
+         JOIN encounters e ON hp.encounter_id = e.id
+        WHERE e.patient_id = $1 AND hp.section_id = 'home_medications'
+          AND hp.content IS NOT NULL AND hp.content != ''
+        ORDER BY e.encounter_date DESC LIMIT 1`,
+      [id]
+    );
+
+    // Patient context for a sharper AI screen
+    const ctx = await pool.query(
+      `SELECT date_of_birth, allergies FROM patients WHERE id = $1`,
+      [id]
+    );
+
+    const names = structured.rows.map((r: any) => r.medication_name as string);
+    if (homeMeds.rows[0]?.content) {
+      // Split the free-text home-med blob into individual lines/items; the AI
+      // tolerates dosage noise, so we just need rough tokens.
+      const tokens = String(homeMeds.rows[0].content)
+        .split(/[\n,;]+/)
+        .map((t) => t.replace(/^[\s\-•*\d.\)]+/, '').trim())
+        .filter((t) => t.length > 1);
+      names.push(...tokens);
+    }
+
+    const uniqueNames = Array.from(new Set(names.map((n) => n.trim()).filter(Boolean)));
+
+    if (uniqueNames.length < 2) {
+      res.json({ medications: uniqueNames, interactions: [], aiAvailable: aiService.isAvailable(), summary: '' });
+      return;
+    }
+
+    // Local interaction DB (best-effort) + AI screen
+    let dbInteractions: any[] = [];
+    try {
+      dbInteractions = await drugInteractionService.checkMultipleInteractions(uniqueNames);
+    } catch (e) {
+      console.error('DB interaction check failed:', e);
+    }
+
+    const age = ctx.rows[0]?.date_of_birth
+      ? Math.floor((Date.now() - new Date(ctx.rows[0].date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
+      : undefined;
+
+    const ai = await aiService.screenMedicationInteractions(
+      uniqueNames,
+      { patientAge: age, allergies: ctx.rows[0]?.allergies || undefined },
+      (req as any).user?.userId
+    );
+
+    // Merge, de-duplicating obvious repeats (same drug pair)
+    const seen = new Set<string>();
+    const interactions = [...dbInteractions, ...ai.interactions]
+      .map((i: any) => ({
+        drug1: i.drug1,
+        drug2: i.drug2,
+        severity: (i.severity || 'moderate').toLowerCase(),
+        description: i.description || '',
+        recommendation: i.recommendation || '',
+      }))
+      .filter((i) => {
+        const key = [i.drug1, i.drug2].map((d) => (d || '').toLowerCase()).sort().join('|');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    res.json({
+      medications: uniqueNames,
+      interactions,
+      aiAvailable: ai.available,
+      summary: ai.summary || '',
+    });
+  } catch (error) {
+    console.error('Get medication interactions error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

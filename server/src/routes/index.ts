@@ -33,6 +33,7 @@ import {
   getPatientById,
   updatePatient,
   getPatientSummary,
+  getMedicationInteractions,
   checkDuplicates,
   getAISummary,
 } from '../controllers/patientController';
@@ -519,6 +520,7 @@ router.post('/patients/merge',          authenticateToken, authorizeRoles('admin
 router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
 router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
 router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);
+router.get('/patients/:id/medication-interactions', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacist', 'pharmacy', 'pharmacy_tech', 'admin'), getMedicationInteractions);
 router.get('/patients/:id/ai-summary',  authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), getAISummary);
 
 // Encounter routes
