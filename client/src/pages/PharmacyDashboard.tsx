@@ -271,6 +271,18 @@ const PharmacyDashboard: React.FC = () => {
   const title = 'Pharmacy Dashboard';
   const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
+
+  // Deep-link from a notification: ?tab=orders|inventory opens that section.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const valid = ['orders', 'otc', 'inventory', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
+    if (tab && valid.includes(tab)) {
+      setActiveTab(tab as typeof activeTab);
+      // Clear the param so it doesn't stick on refresh
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
   const [loading, setLoading] = useState(true);
 
   // Suppliers state

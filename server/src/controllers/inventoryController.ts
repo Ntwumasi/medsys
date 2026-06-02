@@ -2,6 +2,52 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import { validateIntervalDays } from '../utils/sqlSecurity';
 import { notificationService } from '../services/notificationService';
+import { auditService } from '../services/auditService';
+
+// Manually add a refill entry to the refills calendar. Refills are normally
+// computed from dispensed orders; this lets a pharmacist place one directly.
+// Implemented as a dispensed pharmacy_order with refills=1 and a days_supply
+// that lands the estimated refill date on the chosen date.
+export const createManualRefill = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const { patient_id, medication_name, refill_date, quantity, dosage, frequency, days_supply, notes } = req.body;
+    if (!patient_id || !medication_name || !refill_date) {
+      res.status(400).json({ error: 'Patient, medication and refill date are required' });
+      return;
+    }
+    const refill = new Date(refill_date);
+    if (isNaN(refill.getTime())) {
+      res.status(400).json({ error: 'Invalid refill date' });
+      return;
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const daysUntil = Math.max(0, Math.round((refill.getTime() - today.getTime()) / 86400000));
+    const ds = days_supply !== undefined && days_supply !== null && days_supply !== '' ? parseInt(String(days_supply)) : daysUntil;
+
+    const result = await pool.query(
+      `INSERT INTO pharmacy_orders
+        (patient_id, encounter_id, ordering_provider, medication_name, dosage, frequency, quantity, refills, days_supply, priority, status, dispensed_date, notes)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, 1, $7, 'routine', 'dispensed', CURRENT_DATE, $8)
+       RETURNING *`,
+      [patient_id, authReq.user?.id || null, String(medication_name).trim(), dosage || null, frequency || null,
+       quantity != null && quantity !== '' ? String(quantity) : null, ds, notes || 'Manually added refill']
+    );
+
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'create',
+      entityType: 'pharmacy_refill_manual',
+      entityId: result.rows[0].id,
+      details: { patient_id, medication_name, refill_date },
+    });
+
+    res.status(201).json({ message: 'Refill added to calendar', refill: result.rows[0] });
+  } catch (error) {
+    console.error('Create manual refill error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 // Get all inventory items with optional filters
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
