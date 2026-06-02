@@ -2668,12 +2668,6 @@ const Dashboard: React.FC = () => {
                 if (!groups[t.category]) groups[t.category] = [];
                 groups[t.category].push(t);
               }
-              const statusStyle: Record<AdminTask['status'], string> = {
-                complete:    'bg-success-100 text-success-700 border-success-200',
-                in_progress: 'bg-primary-100 text-primary-700 border-primary-200',
-                pending:     'bg-warning-100 text-warning-700 border-warning-200',
-                blocked:     'bg-danger-100 text-danger-700 border-danger-200',
-              };
               return (
                 <div className="space-y-6">
                   {Object.keys(groups).map(cat => (
@@ -2705,7 +2699,7 @@ const Dashboard: React.FC = () => {
                                   <AppSelect
                                     value={t.status}
                                     onChange={(val) => inlineUpdateStatus(t.id, val as AdminTask['status'])}
-                                    className={`text-xs px-2 py-1 rounded-full font-medium border cursor-pointer ${statusStyle[t.status]}`}
+                                    className="text-xs cursor-pointer"
                                     options={[
                                       { value: 'pending', label: 'Pending' },
                                       { value: 'in_progress', label: 'In Progress' },

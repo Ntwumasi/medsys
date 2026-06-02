@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -13,6 +14,7 @@ const NotificationCenter: React.FC = () => {
   } = useNotification();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -29,9 +31,13 @@ const NotificationCenter: React.FC = () => {
     setIsOpen(!isOpen);
   };
 
-  const handleNotificationClick = (id: string, isRead?: boolean) => {
-    if (!isRead) {
-      markAsRead(id);
+  const handleNotificationClick = (notification: { id: string; is_read?: boolean; link?: string }) => {
+    if (!notification.is_read) {
+      markAsRead(notification.id);
+    }
+    if (notification.link) {
+      setIsOpen(false);
+      navigate(notification.link);
     }
   };
 
@@ -137,7 +143,7 @@ const NotificationCenter: React.FC = () => {
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    onClick={() => handleNotificationClick(notification.id, notification.is_read)}
+                    onClick={() => handleNotificationClick(notification)}
                     className={`px-4 py-3 hover:bg-gray-50 transition-colors group cursor-pointer ${
                       !notification.is_read ? 'bg-primary-50/50' : ''
                     }`}
@@ -153,9 +159,19 @@ const NotificationCenter: React.FC = () => {
                             <span className="w-2 h-2 bg-primary-500 rounded-full flex-shrink-0 mt-1.5"></span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
-                        </p>
+                        <div className="flex items-center justify-between mt-1">
+                          <p className="text-xs text-gray-500">
+                            {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                          </p>
+                          {notification.link && (
+                            <span className="text-xs font-medium text-primary-600 flex items-center gap-0.5">
+                              View
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={(e) => {

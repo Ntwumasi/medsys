@@ -11,6 +11,30 @@ interface Notification {
   type: ToastType;
   timestamp: Date;
   is_read?: boolean;
+  link?: string;
+}
+
+// Map a notification's entity to a deep-link into the user's dashboard. The
+// recipient's role decides which dashboard /dashboard renders, and both the
+// pharmacy and lab dashboards expose 'orders' and 'inventory' tabs, so a tab
+// hint + highlighted id is enough to land them on the right section.
+function deriveNotificationLink(entityType?: string, entityId?: number): string | undefined {
+  if (!entityType) return undefined;
+  const hl = entityId != null ? `&highlight=${entityId}` : '';
+  switch (entityType) {
+    case 'pharmacy_order':
+    case 'lab_order':
+    case 'imaging_order':
+      return `/dashboard?tab=orders${hl}`;
+    case 'pharmacy_inventory':
+    case 'inventory':
+    case 'inventory_batch':
+      return `/dashboard?tab=inventory${hl}`;
+    case 'encounter':
+      return `/dashboard`;
+    default:
+      return undefined;
+  }
 }
 
 interface NotificationContextType {
@@ -59,13 +83,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
     try {
       const response = await apiClient.get('/notifications?limit=50');
-      const fetchedNotifications = response.data.notifications.map((n: any) => ({
-        id: n.id.toString(),
-        message: n.message,
-        type: n.type as ToastType,
-        timestamp: new Date(n.created_at),
-        is_read: n.is_read,
-      }));
+      const fetchedNotifications = response.data.notifications.map((n: any) => {
+        const md = n.metadata || {};
+        return {
+          id: n.id.toString(),
+          message: n.message,
+          type: n.type as ToastType,
+          timestamp: new Date(n.created_at),
+          is_read: n.is_read,
+          link: deriveNotificationLink(md.entityType, md.entityId),
+        };
+      });
       setNotifications(fetchedNotifications);
       setUnreadCount(response.data.unread_count);
     } catch (error) {

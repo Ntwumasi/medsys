@@ -244,6 +244,17 @@ const LabDashboard: React.FC = () => {
   // Main tab state
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins' | 'verification'>('orders');
   const [walkIns, setWalkIns] = useState<any[]>([]);
+
+  // Deep-link from a notification: ?tab=orders|inventory|... opens that section.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const valid = ['orders', 'inventory', 'analytics', 'alerts', 'catalog', 'qc', 'walkins', 'verification'];
+    if (tab && valid.includes(tab)) {
+      setActiveTab(tab as typeof activeTab);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
   const [statusFilter, setStatusFilter] = useState<string>(''); // '', 'pending', 'in_progress', 'stat'
 
