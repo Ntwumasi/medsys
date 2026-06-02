@@ -36,9 +36,19 @@ const AUTH_REDIRECT_THRESHOLD = 3; // need 3 in a row before we give up
 // nuke a freshly-acquired session.
 let activeToken: string | null = null;
 
+// Timestamp of the most recent successful login. For a short grace period
+// afterwards we suppress the auth-failure redirect: the dashboard fires a burst
+// of requests immediately after login, and on this clinic's slow/cold-start
+// Neon connection a transient 401 in that burst must NOT hard-reload the user
+// back to a blank login page (the "had to log in twice" glitch).
+let lastLoginAt = 0;
+const POST_LOGIN_GRACE_MS = 10000;
+
 // Call this on login to snapshot the current token
 export const setActiveToken = (token: string) => {
   activeToken = token;
+  lastLoginAt = Date.now();
+  consecutive401s = 0;
 };
 
 // Call this on logout to prevent stale 401s from interfering with the next login
@@ -86,6 +96,12 @@ apiClient.interceptors.response.use(
 
       const isAuthEndpoint = url.includes('/auth/me');
       consecutive401s++;
+
+      // Grace period right after login: never bounce a freshly-created session
+      // on a transient 401 from the post-login request burst.
+      if (Date.now() - lastLoginAt < POST_LOGIN_GRACE_MS) {
+        return Promise.reject(error);
+      }
 
       // Immediately redirect for /auth/me (token is definitely bad)
       // or after several consecutive 401s from data endpoints (not a transient blip)

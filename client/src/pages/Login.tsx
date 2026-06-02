@@ -59,6 +59,11 @@ const Login: React.FC = () => {
 
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  // Geolocation for the login audit is captured on mount (in parallel while the
+  // user types), so the Sign In tap fires the request instantly instead of
+  // stalling up to 4s on a GPS fix / permission prompt — the latter made the
+  // first tap look dead and staff would tap "log in" twice.
+  const geoPromiseRef = useRef<Promise<LoginGeo> | null>(null);
 
   const { login, clearMustChangePassword, isAuthenticated, mustChangePassword } = useAuth();
   const navigate = useNavigate();
@@ -75,13 +80,16 @@ const Login: React.FC = () => {
     }
   }, [isAuthenticated, mustChangePassword, navigate]);
 
-  // Auto-focus username on mount, or password if username is already filled
+  // Auto-focus username on mount, or password if username is already filled.
+  // Also kick off geolocation capture now so it's ready (or resolving) by the
+  // time the user submits.
   useEffect(() => {
     if (username) {
       passwordRef.current?.focus();
     } else {
       usernameRef.current?.focus();
     }
+    geoPromiseRef.current = captureLoginGeo();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -115,9 +123,14 @@ const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      // Capture geolocation in parallel with form submission. Never blocks
-      // login beyond 4s; if denied/unavailable, we still record the source.
-      const geo = await captureLoginGeo();
+      // Use the geo capture started on mount. Wait at most ~1.2s for it so a
+      // fast submitter never stalls — login fires immediately either way and we
+      // still record the source if it has resolved.
+      const geoPromise = geoPromiseRef.current ?? captureLoginGeo();
+      const geo = await Promise.race<LoginGeo>([
+        geoPromise,
+        new Promise<LoginGeo>((resolve) => setTimeout(() => resolve({ source: 'timeout' }), 1200)),
+      ]);
       const response = await login({ username, password, geo });
 
       // Check if user must change password
