@@ -560,9 +560,16 @@ export const getLabTestCatalog = async (req: Request, res: Response): Promise<vo
     }
 
     if (search) {
-      query += ` AND (test_name ILIKE $${paramIndex} OR test_code ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
+      // Fuzzy, token-based search: every whitespace-separated word must appear
+      // (substring, case-insensitive) in the test name OR code. This matches
+      // partial words ("urin"), out-of-order multi-word queries ("count blood"),
+      // and ignores extra spaces — far more forgiving than a single substring.
+      const tokens = String(search).trim().split(/\s+/).filter(Boolean);
+      for (const tok of tokens) {
+        query += ` AND (test_name ILIKE $${paramIndex} OR test_code ILIKE $${paramIndex})`;
+        params.push(`%${tok}%`);
+        paramIndex++;
+      }
     }
 
     query += ` ORDER BY category, test_name`;
