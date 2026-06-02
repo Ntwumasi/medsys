@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
 
 interface Clinic {
   id: number;
@@ -13,13 +14,16 @@ interface Clinic {
 }
 
 interface PayerPrice {
+  payer_id: number;
   name: string;
   price: number | null;
   excluded: boolean;
+  set: boolean;
 }
 interface ClinicPricing {
   id: number;
   name: string;
+  charge_master_id: number | null;
   self_pay: number | null;
   insurance: PayerPrice[];
   corporate: PayerPrice[];
@@ -27,6 +31,8 @@ interface ClinicPricing {
 
 export default function ClinicManagement() {
   const { showToast } = useNotification();
+  const { user } = useAuth();
+  const canEditPrices = user?.role === 'admin' || user?.is_super_admin === true;
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [pricing, setPricing] = useState<Record<number, ClinicPricing>>({});
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -35,6 +41,52 @@ export default function ClinicManagement() {
   const [editingClinic, setEditingClinic] = useState<Clinic | null>(null);
   const [form, setForm] = useState({ name: '', description: '', consultation_price: '' });
   const [saving, setSaving] = useState(false);
+
+  // Inline price editing within the expanded panel
+  const [editingPriceId, setEditingPriceId] = useState<number | null>(null);
+  const [priceForm, setPriceForm] = useState<{
+    self_pay: string;
+    insurance: Record<number, { price: string; excluded: boolean }>;
+    corporate: Record<number, { price: string; excluded: boolean }>;
+  }>({ self_pay: '', insurance: {}, corporate: {} });
+  const [savingPrices, setSavingPrices] = useState(false);
+
+  const startEditPrices = (p: ClinicPricing) => {
+    const ins: Record<number, { price: string; excluded: boolean }> = {};
+    for (const x of p.insurance) ins[x.payer_id] = { price: x.price != null ? String(x.price) : '', excluded: x.excluded };
+    const corp: Record<number, { price: string; excluded: boolean }> = {};
+    for (const x of p.corporate) corp[x.payer_id] = { price: x.price != null ? String(x.price) : '', excluded: x.excluded };
+    setPriceForm({ self_pay: p.self_pay != null ? String(p.self_pay) : '', insurance: ins, corporate: corp });
+    setEditingPriceId(p.id);
+  };
+
+  const savePrices = async (clinicId: number) => {
+    setSavingPrices(true);
+    try {
+      const payers = [
+        ...Object.entries(priceForm.insurance).map(([pid, v]) => ({
+          payer_type: 'insurance' as const, payer_id: Number(pid),
+          price: v.price === '' ? null : Number(v.price), excluded: v.excluded,
+        })),
+        ...Object.entries(priceForm.corporate).map(([pid, v]) => ({
+          payer_type: 'corporate' as const, payer_id: Number(pid),
+          price: v.price === '' ? null : Number(v.price), excluded: v.excluded,
+        })),
+      ];
+      const { data } = await apiClient.put(`/clinics/${clinicId}/pricing`, {
+        self_pay: priceForm.self_pay === '' ? null : Number(priceForm.self_pay),
+        payers,
+      });
+      const n = (data.changes || []).length;
+      showToast(n > 0 ? `Prices updated (${n} change${n !== 1 ? 's' : ''}); admins notified` : 'No price changes', 'success');
+      setEditingPriceId(null);
+      loadClinics();
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to update prices', 'error');
+    } finally {
+      setSavingPrices(false);
+    }
+  };
 
   const loadClinics = async () => {
     try {
@@ -163,7 +215,7 @@ export default function ClinicManagement() {
                 ) : (
                   clinics.map((clinic) => {
                     const price = pricing[clinic.id];
-                    const hasBreakdown = !!price && (price.insurance.length > 0 || price.corporate.length > 0);
+                    const hasBreakdown = !!price && price.charge_master_id != null;
                     const isOpen = expanded === clinic.id;
                     return (
                     <Fragment key={clinic.id}>
@@ -221,51 +273,94 @@ export default function ClinicManagement() {
                         </div>
                       </td>
                     </tr>
-                    {isOpen && hasBreakdown && (
+                    {isOpen && hasBreakdown && (() => {
+                      const isEditing = editingPriceId === clinic.id;
+                      const renderPayerEdit = (kind: 'insurance' | 'corporate', list: PayerPrice[]) => (
+                        <div className="space-y-2">
+                          {list.map((p) => {
+                            const cur = priceForm[kind][p.payer_id] || { price: '', excluded: false };
+                            return (
+                              <div key={p.payer_id} className="flex items-center justify-between gap-2 text-sm">
+                                <span className="text-gray-700 flex-1 truncate">{p.name}</span>
+                                <input
+                                  type="number" min="0" step="0.01" value={cur.excluded ? '' : cur.price}
+                                  disabled={cur.excluded} placeholder="self-pay"
+                                  onChange={(e) => setPriceForm((f) => ({ ...f, [kind]: { ...f[kind], [p.payer_id]: { ...cur, price: e.target.value } } }))}
+                                  className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 disabled:bg-gray-100"
+                                />
+                                <label className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                                  <input
+                                    type="checkbox" checked={cur.excluded}
+                                    onChange={(e) => setPriceForm((f) => ({ ...f, [kind]: { ...f[kind], [p.payer_id]: { ...cur, excluded: e.target.checked } } }))}
+                                  />
+                                  Not covered
+                                </label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                      const renderPayerList = (list: PayerPrice[]) => {
+                        const shown = list.filter((p) => p.set);
+                        if (shown.length === 0) return <p className="text-sm text-gray-400">No special rates — billed at self-pay.</p>;
+                        return (
+                          <div className="space-y-1">
+                            {shown.map((p) => (
+                              <div key={p.payer_id} className="flex justify-between text-sm">
+                                <span className="text-gray-700">{p.name}</span>
+                                <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>{fmtPayer(p)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      };
+                      return (
                       <tr key={`${clinic.id}-detail`} className="bg-gray-50/60">
-                        <td colSpan={5} className="px-6 py-4">
+                        <td colSpan={5} className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm">
+                              <span className="text-gray-500">Self-pay: </span>
+                              {isEditing ? (
+                                <input
+                                  type="number" min="0" step="0.01" value={priceForm.self_pay}
+                                  onChange={(e) => setPriceForm((f) => ({ ...f, self_pay: e.target.value }))}
+                                  className="w-28 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                                />
+                              ) : (
+                                <span className="font-medium text-gray-700">{price.self_pay != null ? `GHS ${price.self_pay.toFixed(2)}` : '—'}</span>
+                              )}
+                            </div>
+                            {canEditPrices && (isEditing ? (
+                              <div className="flex gap-2">
+                                <button onClick={() => setEditingPriceId(null)} disabled={savingPrices}
+                                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-200 rounded-lg">Cancel</button>
+                                <button onClick={() => savePrices(clinic.id)} disabled={savingPrices}
+                                  className="px-4 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                                  {savingPrices ? 'Saving…' : 'Save prices'}</button>
+                              </div>
+                            ) : (
+                              <button onClick={() => startEditPrices(price)}
+                                className="px-3 py-1.5 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100">
+                                Edit prices</button>
+                            ))}
+                          </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Insurance</p>
-                              {price.insurance.length === 0 ? (
-                                <p className="text-sm text-gray-400">No special rates — billed at self-pay.</p>
-                              ) : (
-                                <div className="space-y-1">
-                                  {price.insurance.map((p) => (
-                                    <div key={p.name} className="flex justify-between text-sm">
-                                      <span className="text-gray-700">{p.name}</span>
-                                      <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>
-                                        {fmtPayer(p)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              {isEditing ? renderPayerEdit('insurance', price.insurance) : renderPayerList(price.insurance)}
                             </div>
                             <div>
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Corporate</p>
-                              {price.corporate.length === 0 ? (
-                                <p className="text-sm text-gray-400">No special rates — billed at self-pay.</p>
-                              ) : (
-                                <div className="space-y-1">
-                                  {price.corporate.map((p) => (
-                                    <div key={p.name} className="flex justify-between text-sm">
-                                      <span className="text-gray-700">{p.name}</span>
-                                      <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>
-                                        {fmtPayer(p)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                              {isEditing ? renderPayerEdit('corporate', price.corporate) : renderPayerList(price.corporate)}
                             </div>
                           </div>
                           <p className="text-xs text-gray-400 mt-3">
-                            Self-pay: <span className="font-medium text-gray-600">{price.self_pay != null ? `GHS ${price.self_pay.toFixed(2)}` : '—'}</span>. Payers not listed are billed the self-pay rate. The matching rate is applied automatically on the invoice based on the patient's payer source.
+                            Payers left blank are billed the self-pay rate. The matching rate applies automatically on the invoice based on the patient's payer source.{canEditPrices ? ' Admins are notified of any price change.' : ''}
                           </p>
                         </td>
                       </tr>
-                    )}
+                      );
+                    })()}
                     </Fragment>
                     );
                   })

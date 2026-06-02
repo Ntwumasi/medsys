@@ -669,9 +669,10 @@ router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin
 router.get('/receipts/:id', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getReceiptById);
 
 // Clinic routes
-import { getAllClinics, getClinicPricing, createClinic, updateClinic, deactivateClinic } from '../controllers/clinicController';
+import { getAllClinics, getClinicPricing, updateClinicPricing, createClinic, updateClinic, deactivateClinic } from '../controllers/clinicController';
 router.get('/clinics', authenticateToken, getAllClinics);
 router.get('/clinics/pricing', authenticateToken, getClinicPricing);
+router.put('/clinics/:id/pricing', authenticateToken, authorizeRoles('admin'), updateClinicPricing);
 router.post('/clinics', authenticateToken, authorizeRoles('admin', 'receptionist'), createClinic);
 router.put('/clinics/:id', authenticateToken, authorizeRoles('admin', 'receptionist'), updateClinic);
 router.delete('/clinics/:id', authenticateToken, authorizeRoles('admin'), deactivateClinic);
