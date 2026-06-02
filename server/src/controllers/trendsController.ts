@@ -388,7 +388,8 @@ export const getPharmacyTrends = async (req: Request, res: Response): Promise<vo
       [since],
     );
     const totalUnits = await pool.query(
-      `SELECT DATE(dispensed_date) AS day, COALESCE(SUM(quantity), 0)::int AS value
+      `SELECT DATE(dispensed_date) AS day,
+              COALESCE(SUM(NULLIF(regexp_replace(quantity::text, '[^0-9.]', '', 'g'), '')::numeric), 0)::int AS value
          FROM pharmacy_orders
         WHERE dispensed_date IS NOT NULL AND dispensed_date >= $1::date
         GROUP BY DATE(dispensed_date)

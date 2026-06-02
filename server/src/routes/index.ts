@@ -756,6 +756,7 @@ router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy'
 router.get('/inventory/search', authenticateToken, searchInventoryMedications);
 router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getLowStockAlerts);
 router.get('/inventory/expiring', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiringMedications);
+router.get('/inventory/expiry-calendar', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiryCalendar);
 // Static /inventory/* paths MUST come before /inventory/:id so Express
 // doesn't swallow "purchases", "dispense", etc. as an id parameter.
 router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPurchaseHistory);
@@ -783,7 +784,6 @@ router.post('/ai/voice-command', authenticateToken, authorizeRoles('pharmacy', '
 router.post('/ai/triage-suggest', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), suggestTriagePriority);
 router.post('/ai/test-suggest', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), suggestTestOrders);
 router.post('/ai/encounter-summary', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist', 'admin'), generateEncounterSummary);
-router.get('/inventory/expiry-calendar', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getExpiryCalendar);
 router.get('/patients/:patientId/medication-timeline', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor', 'nurse'), getPatientMedicationTimeline);
 
 // Payer Pricing routes

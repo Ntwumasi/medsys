@@ -1425,8 +1425,8 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         SUM(CAST(po.quantity AS INTEGER)) as total_units
       FROM pharmacy_orders po
       WHERE po.status = 'dispensed'
-        AND po.dispensed_date >= $1
-        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+        AND po.dispensed_date >= $1::date
+        AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY DATE(po.dispensed_date)
       ORDER BY date
     `, [fromDate, toDate]);
@@ -1439,8 +1439,8 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         SUM(CAST(po.quantity AS INTEGER)) as total_units
       FROM pharmacy_orders po
       WHERE po.status = 'dispensed'
-        AND po.dispensed_date >= $1
-        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+        AND po.dispensed_date >= $1::date
+        AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY po.medication_name
       ORDER BY total_units DESC
       LIMIT 10
@@ -1453,8 +1453,8 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         COUNT(*) as count
       FROM pharmacy_orders po
       WHERE po.status = 'dispensed'
-        AND po.dispensed_date >= $1
-        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+        AND po.dispensed_date >= $1::date
+        AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY po.priority
     `, [fromDate, toDate]);
 
@@ -1467,8 +1467,8 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         ROUND(AVG(EXTRACT(EPOCH FROM (po.dispensed_date - po.ordered_date)) / 60), 1) as avg_turnaround_minutes
       FROM pharmacy_orders po
       WHERE po.status = 'dispensed'
-        AND po.dispensed_date >= $1
-        AND po.dispensed_date <= $2 + INTERVAL '1 day'
+        AND po.dispensed_date >= $1::date
+        AND po.dispensed_date <= $2::date + INTERVAL '1 day'
     `, [fromDate, toDate]);
 
     res.json({
