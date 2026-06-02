@@ -1,6 +1,43 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { validateIntervalDays } from '../utils/sqlSecurity';
+import { auditService } from '../services/auditService';
+import { notificationService } from '../services/notificationService';
+
+// Audit a lab test price change and notify admins/super-admins (who + diff).
+const notifyLabPriceChange = async (
+  req: Request, testId: number, testName: string, oldPrice: number | null, newPrice: number | null
+): Promise<void> => {
+  if (oldPrice == null || newPrice == null || Number(oldPrice) === Number(newPrice)) return;
+  const actor = (req as any).user;
+  try {
+    await auditService.log({
+      userId: actor?.id,
+      action: 'update',
+      entityType: 'lab_test_catalog',
+      entityId: testId,
+      details: { test: testName, change: `GHS ${Number(oldPrice).toFixed(2)} → GHS ${Number(newPrice).toFixed(2)}` },
+      ipAddress: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket?.remoteAddress,
+      userAgent: req.headers['user-agent'] || undefined,
+    });
+    const admins = await pool.query(
+      'SELECT id FROM users WHERE (role = $1 OR is_super_admin = true) AND is_active = true AND id <> $2',
+      ['admin', actor?.id || 0]
+    );
+    for (const a of admins.rows) {
+      await notificationService.send({
+        userId: a.id,
+        type: 'price_change',
+        title: 'Lab price changed',
+        message: `${testName}: GHS ${Number(oldPrice).toFixed(2)} → GHS ${Number(newPrice).toFixed(2)} (by ${actor?.username || 'a user'})`,
+        entityType: 'lab_test_catalog',
+        entityId: testId,
+      });
+    }
+  } catch (e) {
+    console.error('Lab price-change notification failed (non-fatal):', e);
+  }
+};
 
 // Get all lab inventory items with optional filters
 export const getLabInventory = async (req: Request, res: Response): Promise<void> => {
@@ -794,6 +831,9 @@ export const updateLabTest = async (req: Request, res: Response): Promise<void> 
       is_active
     } = req.body;
 
+    const beforeRes = await pool.query('SELECT base_price, test_name FROM lab_test_catalog WHERE id = $1', [id]);
+    const oldPrice = beforeRes.rows[0] ? Number(beforeRes.rows[0].base_price) : null;
+
     const result = await pool.query(
       `UPDATE lab_test_catalog SET
         test_code = COALESCE($1, test_code),
@@ -821,9 +861,12 @@ export const updateLabTest = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    const updated = result.rows[0];
+    await notifyLabPriceChange(req, updated.id, updated.test_name, oldPrice, Number(updated.base_price));
+
     res.json({
       message: 'Lab test updated successfully',
-      test: result.rows[0]
+      test: updated
     });
   } catch (error) {
     console.error('Update lab test error:', error);

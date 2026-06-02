@@ -110,6 +110,39 @@ export const aiService = {
   },
 
   /**
+   * Map a free-typed lab test name to the best matching catalog test_code.
+   * Returns the test_code (string) or null if no confident match. Used to make
+   * lab billing exact without forcing doctors to pick from a list.
+   */
+  async mapTestNameToCatalog(
+    typedName: string,
+    candidates: Array<{ test_code: string; test_name: string }>
+  ): Promise<string | null> {
+    if (!openai || !typedName || candidates.length === 0) return null;
+    try {
+      const list = candidates.map((c) => `${c.test_code}: ${c.test_name}`).join('\n');
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You map a clinician\'s free-typed lab test name to the single best matching catalog test. Respond ONLY with JSON {"test_code": string|null, "confident": boolean}. Use null if no clear match.' },
+          { role: 'user', content: `Typed test: "${typedName}"\n\nCatalog (code: name):\n${list}\n\nReturn the test_code of the best match, with confident=true only if you are sure.` },
+        ],
+        temperature: 0,
+        max_tokens: 60,
+        response_format: { type: 'json_object' },
+      });
+      const r = JSON.parse(completion.choices[0].message.content || '{}');
+      if (r && r.confident && r.test_code && candidates.some((c) => c.test_code === r.test_code)) {
+        return r.test_code as string;
+      }
+      return null;
+    } catch (error) {
+      console.error('mapTestNameToCatalog AI error:', error);
+      return null;
+    }
+  },
+
+  /**
    * Get AI explanation for drug interaction
    */
   async explainDrugInteraction(request: DrugInteractionAIRequest, userId?: number): Promise<AIResponse> {

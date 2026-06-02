@@ -3,6 +3,7 @@ import pool from '../database/db';
 import notificationService from '../services/notificationService';
 import auditService from '../services/auditService';
 import drugInteractionService from '../services/drugInteractionService';
+import { aiService } from '../services/aiService';
 import { dispenseFromBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
@@ -99,12 +100,20 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     const parsedTime = scheduled_time ? new Date(scheduled_time) : null;
     const scheduledFor = (priority === 'scheduled' && parsedTime && !isNaN(parsedTime.getTime())) ? parsedTime : null;
 
+    // Capture the catalog test_code so billing is exact (no fuzzy match).
+    // Use the code the UI sent; else adopt a high-confidence (exact-name) catalog
+    // match. Lower-confidence free-text is resolved via AI in resolveLabTestCode.
+    let resolvedCode: string | null = test_code || null;
+    if (!resolvedCode && test_name) {
+      resolvedCode = await resolveLabTestCode(test_name);
+    }
+
     const result = await pool.query(
       `INSERT INTO lab_orders (
         patient_id, encounter_id, ordering_provider, entered_by, test_name, test_code, priority, notes, path_no, scheduled_for
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
-      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, test_code, priority || 'routine', notes, pathNo, scheduledFor]
+      [patient_id, encounter_id, orderingProvider, enteredBy, test_name, resolvedCode, priority || 'routine', notes, pathNo, scheduledFor]
     );
 
     const order = result.rows[0];
@@ -114,27 +123,23 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     // For doctor/nurse-ordered tests, billing still happens on completion.
     if (currentUserRole === 'lab') {
       try {
-        // Find or create invoice for this encounter
-        let invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
+        const invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
         if (invoiceRow.rows.length > 0) {
           const invoiceId = invoiceRow.rows[0].id;
-          // Look up the charge_master price for this test
-          const chargeResult = await pool.query(
-            "SELECT id, price FROM charge_master WHERE LOWER(service_name) = LOWER($1) AND category = 'lab' AND is_active = true LIMIT 1",
-            [test_name]
-          );
-          if (chargeResult.rows.length > 0) {
-            const charge = chargeResult.rows[0];
-            const { resolvePrice } = require('../services/priceResolutionService');
-            const resolved = await resolvePrice(charge.id, invoiceId);
-            const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
-            await pool.query(
-              'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, $2, $3, 1, $4, $4, $5)',
-              [invoiceId, charge.id, test_name, billingPrice, 'lab']
-            );
-            // Update invoice total
-            const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
-            await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
+          // Price from the lab catalog (single source of truth), by code then name.
+          const labItem = await resolveLabCatalogItem(resolvedCode, test_name);
+          if (labItem.match) {
+            const desc = `Lab: ${labItem.match.test_name}`;
+            const price = Number(labItem.match.base_price);
+            const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
+            if (exists.rows.length === 0) {
+              await pool.query(
+                'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, NULL, $2, 1, $3, $3, $4)',
+                [invoiceId, desc, price, 'lab']
+              );
+              const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
+              await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
+            }
           }
         }
       } catch (billingErr) {
@@ -398,6 +403,59 @@ const ensureLabResultAudit = async (): Promise<void> => {
 // critical-value alerts, automatic billing, doctor notification, and
 // auto-routing the patient back to the nurse when all labs are done.
 //
+// Resolve a typed lab test (and optional code) to a lab_test_catalog row.
+// Priority: exact test_code > exact (case-insensitive) name > fuzzy keyword.
+// Single source of truth for lab pricing — charge_master is no longer used.
+export async function resolveLabCatalogItem(
+  testCode: string | null | undefined,
+  testName: string | null | undefined
+): Promise<{ match: any | null; matchType: 'code' | 'name' | 'fuzzy' | 'none' }> {
+  const name = (testName || '').trim();
+  const keywords = name.split(/\s+/).filter((w) => w.length > 2).slice(0, 3).map((k) => k.replace(/s$/i, ''));
+  const keywordPattern = keywords.length > 0 ? keywords.map((k) => `(?=.*${k})`).join('') : name;
+  try {
+    const r = await pool.query(
+      `SELECT id, test_code, test_name, base_price,
+         CASE WHEN test_code = $1 THEN 'code'
+              WHEN test_name ILIKE $2 THEN 'name'
+              ELSE 'fuzzy' END AS match_type
+       FROM lab_test_catalog
+       WHERE is_active = true
+         AND ( test_code = $1 OR test_name ILIKE $2 OR test_name ILIKE $3 OR $2 ILIKE '%' || test_name || '%' OR test_name ~* $4 )
+       ORDER BY CASE WHEN test_code = $1 THEN 1 WHEN test_name ILIKE $2 THEN 2 ELSE 3 END
+       LIMIT 1`,
+      [testCode || ' ', name, `%${name}%`, keywordPattern]
+    );
+    const row = r.rows[0];
+    if (!row) return { match: null, matchType: 'none' };
+    return { match: row, matchType: row.match_type };
+  } catch {
+    return { match: null, matchType: 'none' };
+  }
+}
+
+// Resolve a free-typed lab test name to a catalog test_code at order time, so
+// billing is exact. Exact code/name match wins; otherwise an AI pass picks the
+// best catalog code (effortless for doctors). Returns null if nothing confident
+// — billing then falls back to fuzzy + flags for review.
+async function resolveLabTestCode(testName: string): Promise<string | null> {
+  const exact = await resolveLabCatalogItem(null, testName);
+  if (exact.match && (exact.matchType === 'code' || exact.matchType === 'name')) {
+    return exact.match.test_code;
+  }
+  try {
+    if (aiService.isAvailable && aiService.isAvailable()) {
+      const candidates = (await pool.query(
+        'SELECT test_code, test_name FROM lab_test_catalog WHERE is_active = true'
+      )).rows;
+      return await aiService.mapTestNameToCatalog(testName, candidates);
+    }
+  } catch (e) {
+    console.error('resolveLabTestCode AI mapping failed (non-fatal):', e);
+  }
+  return null;
+}
+
 // Pulled out into a helper so it can be invoked from both the legacy update
 // path (grandfathered results going straight to completed) and the new
 // verifyLabResult endpoint. Idempotent — uses ON CONFLICT DO NOTHING and a
@@ -509,63 +567,17 @@ const runLabCompletionSideEffects = async (
     }
   }
 
-  // 2. Billing — use resolvePrice for correct payer-aware pricing
+  // 2. Billing — lab_test_catalog is the single source of truth; bill by code.
   try {
-    // Lab pricing priority:
-    // 1. lab_test_catalog (authoritative — updated lab price list)
-    // 2. charge_master (fallback — general billing charges)
-    const testName = (order.test_name || '').trim();
-    const keywords = testName.split(/\s+/).filter((w: string) => w.length > 2).slice(0, 3)
-      .map((k: string) => k.replace(/s$/i, ''));
-    const keywordPattern = keywords.length > 0 ? keywords.map((k: string) => `(?=.*${k})`).join('') : testName;
+    const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
+    const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
+    const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
 
-    // Try lab_test_catalog first (the updated lab price list)
-    let catalogMatch: any = null;
-    try {
-      const catalogResult = await pool.query(
-        `SELECT id, test_code, test_name, base_price FROM lab_test_catalog
-         WHERE is_active = true
-         AND (
-           test_code = $1
-           OR test_name ILIKE $2
-           OR $3 ILIKE '%' || test_name || '%'
-           OR test_name ~* $4
-         )
-         ORDER BY
-           CASE WHEN test_code = $1 THEN 1
-                WHEN test_name ILIKE $2 THEN 2
-                ELSE 3 END
-         LIMIT 1`,
-        [order.test_code, `%${testName}%`, testName, keywordPattern]
-      );
-      catalogMatch = catalogResult.rows[0];
-    } catch { /* lab_test_catalog might not exist in all environments */ }
-
-    // Fall back to charge_master if not found in catalog
-    const chargeResult = catalogMatch ? { rows: [] } : await pool.query(
-      `SELECT id, service_name, service_code, price FROM charge_master
-       WHERE category = 'lab' AND is_active = true
-       AND (
-         service_code = $1
-         OR service_name ILIKE $2
-         OR $3 ILIKE '%' || service_name || '%'
-         OR service_name ~* $4
-       )
-       ORDER BY
-         CASE WHEN service_code = $1 THEN 1
-              WHEN service_name ILIKE $2 THEN 2
-              ELSE 3 END
-       LIMIT 1`,
-      [order.test_code, `%${testName}%`, testName, keywordPattern]
-    );
-
-    // Use catalog match (authoritative) or charge_master fallback
-    const charge = chargeResult.rows[0];
-    const labSource = catalogMatch || charge;
-    const chargeDescription = catalogMatch ? catalogMatch.test_name : (charge ? charge.service_name : order.test_name);
-    const chargeMasterId = charge ? charge.id : null;
-    // Price: catalog base_price takes priority over charge_master price
-    const directLabPrice = catalogMatch ? parseFloat(catalogMatch.base_price) : null;
+    if (labItem.matchType === 'fuzzy') {
+      console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
+    } else if (labItem.matchType === 'none') {
+      console.warn(`⚠️ Lab billing: NO catalog match for "${order.test_name}" (code ${order.test_code}). Billed 0 — needs review.`);
+    }
 
     const invoiceResult = await pool.query(
       `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
@@ -574,34 +586,18 @@ const runLabCompletionSideEffects = async (
 
     if (invoiceResult.rows.length > 0) {
       const invoiceId = invoiceResult.rows[0].id;
-
-      // Resolve price: catalog price > payer-resolved price > charge_master price
-      let labPrice: number;
-      if (directLabPrice != null) {
-        // Use lab_test_catalog price (the authoritative lab price list)
-        labPrice = directLabPrice;
-      } else if (charge) {
-        // Fall back to charge_master with payer-aware price resolution
-        const { resolvePrice } = require('../services/priceResolutionService');
-        const resolved = await resolvePrice(charge.id, invoiceId);
-        labPrice = resolved.unitPrice;
-      } else {
-        // No match anywhere — log warning
-        console.warn(`⚠️ Lab billing: No match for test "${order.test_name}" (code: ${order.test_code}) in lab_test_catalog or charge_master.`);
-        labPrice = 0;
-      }
-
+      // Dedup by the canonical catalog name so the same test can't be billed
+      // twice under different spellings.
       const existingItem = await pool.query(
-        `SELECT id FROM invoice_items
-         WHERE invoice_id = $1 AND description = $2`,
+        `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
         [invoiceId, `Lab: ${chargeDescription}`]
       );
 
       if (existingItem.rows.length === 0) {
         await pool.query(
           `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-           VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
-          [invoiceId, chargeMasterId, `Lab: ${chargeDescription}`, labPrice]
+           VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
+          [invoiceId, `Lab: ${chargeDescription}`, labPrice]
         );
         await pool.query(
           `UPDATE invoices

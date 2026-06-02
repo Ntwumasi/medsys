@@ -54,8 +54,23 @@ export default function PriceListManagement() {
 
   const loadCharges = async () => {
     try {
-      const res = await apiClient.get('/charge-master');
-      setCharges(res.data.charges);
+      // Lab prices live in lab_test_catalog (single source of truth, shared with
+      // the Lab Dashboard). Everything else comes from charge_master.
+      const [cmRes, labRes] = await Promise.all([
+        apiClient.get('/charge-master'),
+        apiClient.get('/lab/test-catalog'),
+      ]);
+      const nonLab = (cmRes.data.charges || []).filter((c: Charge) => c.category !== 'lab');
+      const labAsCharges: Charge[] = (labRes.data.tests || []).map((t: any) => ({
+        id: t.id,
+        service_name: t.test_name,
+        service_code: t.test_code,
+        category: 'lab',
+        price: String(t.base_price ?? 0),
+        description: t.category || null,
+        is_active: t.is_active,
+      }));
+      setCharges([...nonLab, ...labAsCharges]);
     } catch {
       showToast('Failed to load price list', 'error');
     } finally {
@@ -110,17 +125,36 @@ export default function PriceListManagement() {
     }
     setSaving(true);
     try {
+      const isLab = editingCharge ? editingCharge.category === 'lab' : form.category === 'lab';
       if (editingCharge) {
-        await apiClient.put(`/charge-master/${editingCharge.id}`, {
-          ...form,
-          price: parseFloat(form.price),
-        });
+        if (isLab) {
+          // Lab prices are stored in lab_test_catalog (reflects on the Lab Dashboard too)
+          await apiClient.put(`/lab/test-catalog/${editingCharge.id}`, {
+            test_name: form.service_name,
+            test_code: form.service_code,
+            base_price: parseFloat(form.price),
+          });
+        } else {
+          await apiClient.put(`/charge-master/${editingCharge.id}`, {
+            ...form,
+            price: parseFloat(form.price),
+          });
+        }
         showToast('Service updated successfully', 'success');
       } else {
-        await apiClient.post('/charge-master', {
-          ...form,
-          price: parseFloat(form.price),
-        });
+        if (isLab) {
+          await apiClient.post('/lab/test-catalog', {
+            test_name: form.service_name,
+            test_code: form.service_code,
+            base_price: parseFloat(form.price),
+            category: 'Lab',
+          });
+        } else {
+          await apiClient.post('/charge-master', {
+            ...form,
+            price: parseFloat(form.price),
+          });
+        }
         showToast('Service created successfully', 'success');
       }
       setModalOpen(false);
@@ -318,12 +352,14 @@ export default function PriceListManagement() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
-                          <button
-                            onClick={() => openPayerPricing(charge)}
-                            className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1.5 rounded-lg transition-colors"
-                          >
-                            Payer Prices
-                          </button>
+                          {charge.category !== 'lab' && (
+                            <button
+                              onClick={() => openPayerPricing(charge)}
+                              className="text-xs font-medium text-primary-600 hover:text-primary-700 hover:bg-primary-50 px-2.5 py-1.5 rounded-lg transition-colors"
+                            >
+                              Payer Prices
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
