@@ -26,6 +26,7 @@ const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const AppointmentsCalendar = lazy(() => import('./pages/AppointmentsCalendar'));
 const PatientRegistrationPage = lazy(() => import('./pages/PatientRegistrationPage'));
 const PatientPortal = lazy(() => import('./pages/PatientPortal'));
+const DuplicatePatients = lazy(() => import('./pages/DuplicatePatients'));
 const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
 const PortalVerify = lazy(() => import('./pages/portal/PortalVerify'));
 const PublicUpdates = lazy(() => import('./pages/PublicUpdates'));
@@ -183,6 +184,7 @@ const AppContent: React.FC = () => {
             top nav. Routes are now flat so only AppLayout's sidebar shows. */}
         <Route path="/" element={<Navigate to="/dashboard" />} />
         <Route path="/patients" element={<ProtectedRoute><PatientList /></ProtectedRoute>} />
+        <Route path="/duplicate-patients" element={<ProtectedRoute><ErrorBoundary><DuplicatePatients /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/patients/new" element={<ProtectedRoute><PatientRegistration /></ProtectedRoute>} />
         <Route path="/patients/:id" element={<ProtectedRoute><PatientDetails /></ProtectedRoute>} />
         <Route path="/register" element={<ProtectedRoute><PatientRegistrationPage /></ProtectedRoute>} />

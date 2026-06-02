@@ -409,6 +409,17 @@ const PatientDetails: React.FC = () => {
     <AppLayout title={`${patient.first_name} ${patient.last_name}`}>
       <div className="space-y-6">
 
+        {((patient as any).source === 'carecode' || patient.patient_number?.startsWith('CC-')) && (
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="text-sm text-amber-800">
+              <span className="font-semibold">Imported from CareCode (legacy system).</span> This record may duplicate a native MedSys record. Check for a matching patient and ask an admin to merge them under <span className="font-medium">Patients → Review Duplicates</span>.
+            </div>
+          </div>
+        )}
+
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex justify-end gap-2 mb-2">

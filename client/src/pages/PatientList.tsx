@@ -6,9 +6,11 @@ import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Table, EmptyState } from '../components/ui';
 import { SkeletonTable } from '../components/ui/Skeleton';
+import { useAuth } from '../context/AuthContext';
 
 const PatientList: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -126,15 +128,22 @@ const PatientList: React.FC = () => {
                 }
               />
             </div>
-            <Link to="/patients/new">
-              <Button variant="primary" leftIcon={
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              }>
-                New Patient
-              </Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              {(user?.role === 'admin' || user?.is_super_admin) && (
+                <Link to="/duplicate-patients">
+                  <Button variant="secondary">Review Duplicates</Button>
+                </Link>
+              )}
+              <Link to="/patients/new">
+                <Button variant="primary" leftIcon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                }>
+                  New Patient
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {loading ? (
