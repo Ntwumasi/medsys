@@ -2208,6 +2208,7 @@ const DoctorDashboard: React.FC = () => {
                         })()}
 
                         <HPAccordion
+                          key={selectedEncounter.id}
                           encounterId={selectedEncounter.id}
                           patientId={selectedEncounter.patient_id}
                           userRole="doctor"
