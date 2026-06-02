@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
@@ -263,6 +264,7 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
 );
 
 const PharmacyDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   useAuth(); // Ensure user is authenticated
@@ -1587,6 +1589,13 @@ const PharmacyDashboard: React.FC = () => {
                               <span className="font-bold text-lg text-gray-900">
                                 {group.patient_name}
                               </span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); navigate(`/patients/${group.patient_id}?tab=medications`); }}
+                                className="text-xs font-semibold text-primary-600 hover:text-primary-800 hover:underline"
+                                title="Open full medication history & drug-interaction screen"
+                              >
+                                Medication history →
+                              </button>
                               <span className="text-sm text-gray-500">{group.patient_number}</span>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                                 group.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :

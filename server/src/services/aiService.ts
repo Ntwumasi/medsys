@@ -238,6 +238,78 @@ Format your response as JSON with these fields:
   },
 
   /**
+   * Screen a full medication list for clinically significant drug–drug
+   * interactions. Used by the patient Medications view (doctor + pharmacy),
+   * combining prescribed/dispensed meds with home meds documented in the SOAP.
+   * Returns { available:false } when AI isn't configured so the UI can degrade
+   * gracefully. Tolerant of noisy free-text names (e.g. "TAB PREDNISOLONE 5MG").
+   */
+  async screenMedicationInteractions(
+    medications: string[],
+    context?: { patientAge?: number; conditions?: string[]; allergies?: string },
+    userId?: number
+  ): Promise<{
+    available: boolean;
+    interactions: Array<{ drug1: string; drug2: string; severity: string; description: string; recommendation: string }>;
+    summary?: string;
+    cached?: boolean;
+  }> {
+    const meds = Array.from(new Set(medications.map((m) => (m || '').trim()).filter(Boolean)));
+    if (!openai || meds.length < 2) {
+      return { available: !!openai, interactions: [] };
+    }
+
+    const request = { medications: meds.map((m) => m.toLowerCase()).sort(), context };
+    const hash = generateRequestHash('med_interaction_screen', request);
+    const cached = await checkCache('med_interaction_screen', hash);
+    if (cached) {
+      return { available: true, interactions: cached.interactions || [], summary: cached.summary, cached: true };
+    }
+
+    try {
+      const prompt = `You are a clinical pharmacist AI. Review this patient's current medication list and identify clinically significant drug–drug interactions.
+
+Medications (may include dosage/form noise — extract the active drug):
+${meds.map((m, i) => `${i + 1}. ${m}`).join('\n')}
+${context?.patientAge ? `\nPatient age: ${context.patientAge} years` : ''}
+${context?.conditions?.length ? `\nConditions: ${context.conditions.join(', ')}` : ''}
+${context?.allergies ? `\nAllergies: ${context.allergies}` : ''}
+
+Report ONLY real, clinically meaningful interactions between pairs that are actually on this list. Avoid false positives and trivial interactions. If there are none, return an empty interactions array.
+
+Respond as JSON:
+{
+  "interactions": [
+    { "drug1": "string", "drug2": "string", "severity": "minor|moderate|major|contraindicated", "description": "1-2 sentence clinical effect", "recommendation": "what the clinician should do" }
+  ],
+  "summary": "one-sentence overall assessment"
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a clinical pharmacist AI screening medication lists for drug-drug interactions. Always respond with valid JSON. Be precise and avoid false positives.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 1200,
+        response_format: { type: 'json_object' },
+      });
+
+      const parsed = JSON.parse(completion.choices[0].message.content || '{}');
+      const response = {
+        interactions: Array.isArray(parsed.interactions) ? parsed.interactions : [],
+        summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+      };
+      await saveToCache('med_interaction_screen', hash, request, response, userId);
+      return { available: true, ...response };
+    } catch (error: any) {
+      console.error('Medication interaction screen AI error:', error);
+      return { available: true, interactions: [], summary: '' };
+    }
+  },
+
+  /**
    * Verify medication dosage
    */
   async verifyDosage(request: DosageVerificationRequest, userId?: number): Promise<AIResponse> {
