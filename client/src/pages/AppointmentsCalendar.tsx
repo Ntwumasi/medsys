@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, parseISO } from 'date-fns';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -39,6 +40,7 @@ interface PatientSearchResult {
 }
 
 const AppointmentsCalendar: React.FC = () => {
+  const navigate = useNavigate();
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -412,7 +414,13 @@ const AppointmentsCalendar: React.FC = () => {
                           {apt.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <div className="text-lg font-semibold text-gray-900">{apt.patient_name}</div>
+                      <button
+                        onClick={() => navigate(`/patients/${apt.patient_id}`)}
+                        className="text-lg font-semibold text-primary-700 hover:text-primary-800 hover:underline text-left"
+                        title="Open patient record (add a SOAP addendum under Previous Visits)"
+                      >
+                        {apt.patient_name}
+                      </button>
                       <div className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Patient #:</span> {apt.patient_number}
                         {apt.patient_phone && (

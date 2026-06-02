@@ -193,6 +193,7 @@ const PatientDetails: React.FC = () => {
   const canSendPortalLink =
     user?.role === 'receptionist' || user?.role === 'admin' || user?.is_super_admin === true;
   const [sendingLink, setSendingLink] = useState(false);
+  const [expandedVisit, setExpandedVisit] = useState<number | null>(null);
 
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
@@ -841,11 +842,19 @@ const PatientDetails: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {recent_encounters.map((encounter) => (
+                    {recent_encounters.map((encounter) => {
+                      const isVisitOpen = expandedVisit === encounter.id;
+                      return (
                       <div key={encounter.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <div className="flex justify-between items-start mb-4">
+                        <div
+                          className="flex justify-between items-start mb-4 cursor-pointer"
+                          onClick={() => setExpandedVisit(isVisitOpen ? null : encounter.id)}
+                        >
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900">
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                              <svg className={`w-4 h-4 text-gray-400 transition-transform ${isVisitOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
                               {format(new Date(encounter.encounter_date), 'EEEE, MMMM d, yyyy')}
                             </h3>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
@@ -865,6 +874,7 @@ const PatientDetails: React.FC = () => {
                           </span>
                         </div>
 
+                        {isVisitOpen && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {encounter.chief_complaint && (
                             <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
@@ -1027,8 +1037,10 @@ const PatientDetails: React.FC = () => {
                           {/* Addenda — append-only follow-up notes for this visit */}
                           <EncounterAddenda encounterId={encounter.id} canAdd={canAddAddendum} />
                         </div>
+                        )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
