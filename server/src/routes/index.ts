@@ -257,6 +257,7 @@ import {
   getPatientMedicationTimeline,
   searchInventoryMedications,
 } from '../controllers/inventoryController';
+import { importInventory } from '../controllers/inventoryImportController';
 import {
   getSuppliers,
   getSupplierById,
@@ -750,6 +751,7 @@ router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRo
 
 // Pharmacy Inventory routes
 router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);
+router.post('/inventory/import', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), importInventory);
 router.get('/inventory/categories', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryCategories);
 router.get('/inventory/search', authenticateToken, searchInventoryMedications);
 router.get('/inventory/low-stock', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getLowStockAlerts);

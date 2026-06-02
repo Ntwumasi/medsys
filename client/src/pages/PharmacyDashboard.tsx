@@ -463,6 +463,15 @@ const PharmacyDashboard: React.FC = () => {
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
+  // Bulk inventory/price import from CSV/Excel
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFileName, setImportFileName] = useState('');
+  const [importBase64, setImportBase64] = useState('');
+  const [importPreview, setImportPreview] = useState<any | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importCommitting, setImportCommitting] = useState(false);
+  const [importUpdateStock, setImportUpdateStock] = useState(false);
+  const [importError, setImportError] = useState('');
   const [inventoryBatches, setInventoryBatches] = useState<any[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
   const [batchQuantityEdits, setBatchQuantityEdits] = useState<Record<number, number>>({});
@@ -660,6 +669,95 @@ const PharmacyDashboard: React.FC = () => {
     setWalkInMedSearch('');
     setWalkInPrescriptionFiles([]);
     setWalkInPrescriptionPreviews([]);
+  };
+
+  // ---- Bulk inventory/price import ----
+  const exportInventoryTemplate = () => {
+    const esc = (v: any) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Item Code', 'Item Name', 'QOH', 'Purchase Cost', 'Selling Price'];
+    const lines = [header.join(',')];
+    (inventory || []).forEach((it: any) => {
+      lines.push([
+        esc(it.item_code || ''),
+        esc(it.medication_name),
+        esc(it.quantity_on_hand ?? ''),
+        esc(it.unit_cost ?? ''),
+        esc(it.selling_price ?? ''),
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'medics-inventory-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const openImportModal = () => {
+    setImportFileName('');
+    setImportBase64('');
+    setImportPreview(null);
+    setImportError('');
+    setImportUpdateStock(false);
+    setShowImportModal(true);
+  };
+
+  const runImportPreview = async (base64: string, fileName: string, updateStock: boolean) => {
+    setImportLoading(true);
+    setImportError('');
+    setImportPreview(null);
+    try {
+      const { data } = await apiClient.post('/inventory/import', {
+        dataBase64: base64,
+        filename: fileName,
+        commit: false,
+        updateStock,
+      });
+      setImportPreview(data);
+    } catch (err: any) {
+      setImportError(err?.response?.data?.error || 'Could not read that file. Please upload a valid .csv or .xlsx.');
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      setImportFileName(file.name);
+      setImportBase64(base64);
+      runImportPreview(base64, file.name, importUpdateStock);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const applyImport = async () => {
+    if (!importBase64) return;
+    setImportCommitting(true);
+    try {
+      const { data } = await apiClient.post('/inventory/import', {
+        dataBase64: importBase64,
+        filename: importFileName,
+        commit: true,
+        updateStock: importUpdateStock,
+      });
+      const s = data.summary || {};
+      showToast(`Inventory updated: ${s.updated || 0} updated, ${s.created || 0} added`, 'success');
+      setShowImportModal(false);
+      fetchInventory();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Import failed', 'error');
+    } finally {
+      setImportCommitting(false);
+    }
   };
 
   const addWalkInMedication = (item: InventoryItem) => {
@@ -2276,6 +2374,16 @@ const PharmacyDashboard: React.FC = () => {
                 ]}
               />
               <button
+                onClick={openImportModal}
+                className="px-4 py-2 bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors font-medium flex items-center gap-2"
+                title="Bulk-update prices, costs and stock from a CSV or Excel file"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import from File
+              </button>
+              <button
                 onClick={() => setShowAddInventoryModal(true)}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
               >
@@ -3200,6 +3308,136 @@ const PharmacyDashboard: React.FC = () => {
               {editingSupplier ? 'Update' : 'Create'} Supplier
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Import Modal */}
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Inventory from File"
+        size="full"
+      >
+        <div className="space-y-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            Upload a <strong>CSV or Excel</strong> file. Columns are detected automatically — it looks for
+            <strong> Item Code</strong>, <strong>Item Name</strong>, a <strong>cost</strong> column (Purchase/Landed Cost),
+            and a <strong>Selling Price</strong> column. Rows are matched to existing items by Item Code (or name).
+            Nothing is saved until you review the preview and click <strong>Apply</strong>.
+            <button onClick={exportInventoryTemplate} className="ml-1 underline font-semibold hover:text-blue-900">
+              Download current inventory as a template
+            </button> — fill in the Selling Price column and re-upload.
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <label className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 cursor-pointer font-medium inline-flex items-center gap-2 w-fit">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Choose File
+              <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+            </label>
+            {importFileName && <span className="text-sm text-gray-600">{importFileName}</span>}
+            <label className="flex items-center gap-2 text-sm text-gray-700 sm:ml-auto">
+              <input
+                type="checkbox"
+                checked={importUpdateStock}
+                onChange={(e) => { setImportUpdateStock(e.target.checked); if (importBase64) runImportPreview(importBase64, importFileName, e.target.checked); }}
+                className="w-4 h-4"
+              />
+              Also update stock quantities (QOH) from this file
+            </label>
+          </div>
+
+          {importLoading && (
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
+              Reading file…
+            </div>
+          )}
+
+          {importError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{importError}</div>
+          )}
+
+          {importPreview && (
+            <>
+              {/* Detected columns + summary */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                {Object.entries(importPreview.detectedColumns || {}).map(([field, col]) => (
+                  <span key={field} className={`px-2 py-1 rounded-full border ${col ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                    {field}: {col ? String(col) : 'not found'}
+                  </span>
+                ))}
+              </div>
+              {!importPreview.detectedColumns?.selling && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                  ⚠️ No <strong>Selling Price</strong> column was found in this file, so existing selling prices will be
+                  kept unchanged (only cost{importUpdateStock ? ' and stock' : ''} will update). Add a "Selling Price" column to update prices.
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toUpdate}</div><div className="text-xs text-gray-500">to update</div></div>
+                <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toCreate}</div><div className="text-xs text-gray-500">new items</div></div>
+                <div className="bg-blue-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{importPreview.summary.priceChanges}</div><div className="text-xs text-blue-500">price changes</div></div>
+                <div className="bg-amber-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-amber-700">{importPreview.summary.warnings}</div><div className="text-xs text-amber-500">warnings</div></div>
+              </div>
+
+              {/* Preview table */}
+              <div className="border border-gray-200 rounded-lg overflow-auto max-h-[40vh]">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr className="text-left text-xs text-gray-500 uppercase">
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Code</th>
+                      <th className="px-3 py-2">Item</th>
+                      <th className="px-3 py-2 text-right">Cost</th>
+                      <th className="px-3 py-2 text-right">Selling</th>
+                      <th className="px-3 py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {importPreview.rows.map((r: any) => (
+                      <tr key={r.rowNum} className={r.action === 'skip' ? 'bg-red-50' : r.warnings.length ? 'bg-amber-50/40' : ''}>
+                        <td className="px-3 py-2">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            r.action === 'new' ? 'bg-blue-100 text-blue-700' : r.action === 'skip' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                          }`}>{r.action}</span>
+                        </td>
+                        <td className="px-3 py-2 text-gray-500">{r.code || '—'}</td>
+                        <td className="px-3 py-2 font-medium text-gray-900">{r.name}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {r.currentCost != null && r.cost != null && r.currentCost !== r.cost
+                            ? <span>{Number(r.currentCost).toFixed(2)} <span className="text-gray-400">→</span> <strong>{Number(r.cost).toFixed(2)}</strong></span>
+                            : (r.cost != null ? Number(r.cost).toFixed(2) : (r.currentCost != null ? Number(r.currentCost).toFixed(2) : '—'))}
+                        </td>
+                        <td className="px-3 py-2 text-right text-gray-600">
+                          {r.selling != null && r.selling > 0 && r.currentSelling != null && r.currentSelling !== r.selling
+                            ? <span>{Number(r.currentSelling).toFixed(2)} <span className="text-gray-400">→</span> <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong></span>
+                            : (r.selling != null && r.selling > 0 ? <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong> : (r.currentSelling != null ? <span className="text-gray-400">{Number(r.currentSelling).toFixed(2)} (kept)</span> : '—'))}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-amber-700">{r.warnings.join('; ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium">Cancel</button>
+                <button
+                  onClick={applyImport}
+                  disabled={importCommitting || (importPreview.summary.toUpdate + importPreview.summary.toCreate === 0)}
+                  className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                >
+                  {importCommitting ? 'Applying…' : `Apply ${importPreview.summary.toUpdate + importPreview.summary.toCreate} change(s)`}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
