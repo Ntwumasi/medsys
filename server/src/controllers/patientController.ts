@@ -555,7 +555,12 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       `SELECT po.id, po.medication_name, po.dosage, po.frequency, po.route, po.status,
               po.ordered_date::timestamp AS start_date, po.dispensed_date::timestamp AS dispensed_date,
               (u.first_name || ' ' || u.last_name)::text AS provider, po.notes,
-              'prescription'::text AS source, po.created_at
+              'prescription'::text AS source, po.created_at,
+              -- A prescription is "active" if it's not finished/cancelled and either
+              -- not yet dispensed, or still within its days-supply window.
+              (po.status NOT IN ('cancelled', 'rejected', 'returned', 'completed')
+               AND (po.dispensed_date IS NULL
+                    OR (po.dispensed_date + (COALESCE(po.days_supply, 30) || ' days')::interval)::date >= CURRENT_DATE)) AS is_active
          FROM pharmacy_orders po
          LEFT JOIN users u ON po.ordering_provider = u.id
         WHERE po.patient_id = $1 AND po.status NOT IN ('cancelled', 'rejected')
@@ -563,7 +568,8 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
        SELECT m.id, m.medication_name, m.dosage, m.frequency, m.route, m.status,
               m.start_date::timestamp AS start_date, NULL::timestamp AS dispensed_date,
               (mu.first_name || ' ' || mu.last_name)::text AS provider, m.notes,
-              'medication'::text AS source, m.created_at
+              'medication'::text AS source, m.created_at,
+              (m.status = 'active') AS is_active
          FROM medications m
          LEFT JOIN users mu ON m.prescribing_doctor = mu.id
         WHERE m.patient_id = $1 AND m.status = 'active'
