@@ -110,6 +110,35 @@ export const aiService = {
   },
 
   /**
+   * Summarize staff activity (from audit logs) into a short management narrative
+   * for the owners. Returns markdown, or null if AI isn't configured.
+   */
+  async summarizeStaffActivity(
+    period: string,
+    employees: Array<{ name: string; role: string; total_actions: number; logins: number; breakdown: Array<{ label: string; count: number }> }>
+  ): Promise<string | null> {
+    if (!openai || employees.length === 0) return null;
+    try {
+      const lines = employees.map((e) =>
+        `${e.name} (${e.role}): ${e.total_actions} actions, ${e.logins} logins — ${e.breakdown.slice(0, 6).map((b) => `${b.count} ${b.label}`).join(', ')}`
+      ).join('\n');
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are an operations analyst for a medical clinic. Given per-employee activity counts from the EMR audit log for a period, write a concise management summary for the clinic owner: a 1-2 sentence overall productivity overview, then a short bullet per employee describing what they focused on. Be factual, neutral, and specific to the data. Markdown.' },
+          { role: 'user', content: `Period: ${period}\n\nActivity:\n${lines}` },
+        ],
+        temperature: 0.3,
+        max_tokens: 700,
+      });
+      return completion.choices[0].message.content || null;
+    } catch (error) {
+      console.error('summarizeStaffActivity AI error:', error);
+      return null;
+    }
+  },
+
+  /**
    * Map a free-typed lab test name to the best matching catalog test_code.
    * Returns the test_code (string) or null if no confident match. Used to make
    * lab billing exact without forcing doctors to pick from a list.

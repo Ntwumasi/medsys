@@ -226,8 +226,31 @@ const Dashboard: React.FC = () => {
   const [pastAppointments, setPastAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPastAppointments, setLoadingPastAppointments] = useState(false);
-  type AdminTab = 'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'logins' | 'charges' | 'revenue' | 'tasks';
+  type AdminTab = 'appointments' | 'corporate' | 'insurance' | 'invoices' | 'staff' | 'updates' | 'pastPatients' | 'docs' | 'audit' | 'logins' | 'charges' | 'revenue' | 'tasks' | 'reports';
   const [activeTab, setActiveTab] = useState<AdminTab>('tasks');
+
+  // Staff activity report (super-admin only)
+  const [reportPeriod, setReportPeriod] = useState<'day' | 'week' | 'month'>('day');
+  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [reportData, setReportData] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportAiLoading, setReportAiLoading] = useState(false);
+
+  const fetchStaffReport = async (withAi = false) => {
+    if (withAi) setReportAiLoading(true); else setReportLoading(true);
+    try {
+      const res = await apiClient.get(`/admin/reports/staff-activity?period=${reportPeriod}&date=${reportDate}${withAi ? '&ai=1' : ''}`);
+      setReportData(res.data);
+    } catch (err: any) {
+      showToast(err.response?.data?.error || 'Failed to load report', 'error');
+    } finally {
+      setReportLoading(false); setReportAiLoading(false);
+    }
+  };
+
+  // Refetch the report when the period/date changes (while the tab is open)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (activeTab === 'reports') fetchStaffReport(false); }, [reportPeriod, reportDate]);
 
   // Sidebar nav items deep-link into a tab via /dashboard?view=<tab>.
   // Reacting here lets the left nav drive the activeTab without each
@@ -1478,6 +1501,21 @@ const Dashboard: React.FC = () => {
               </svg>
               Doctor Revenue
             </button>
+            {canImpersonate && (
+              <button
+                onClick={() => { setActiveTab('reports'); if (!reportData) fetchStaffReport(false); }}
+                className={`${
+                  activeTab === 'reports'
+                    ? 'border-primary-500 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                Reports
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('audit')}
               className={`${
@@ -3164,6 +3202,99 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* Audit Logs Tab */}
+        {activeTab === 'reports' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Staff Activity Report</h2>
+                  <p className="text-sm text-gray-500">What each employee did in the app — by day, week, or month.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex bg-gray-100 rounded-lg p-0.5">
+                    {(['day', 'week', 'month'] as const).map((p) => (
+                      <button key={p} onClick={() => setReportPeriod(p)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${reportPeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                  <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                </div>
+              </div>
+              {reportData && (
+                <p className="text-xs text-gray-400">
+                  {new Date(reportData.start).toLocaleDateString()} – {new Date(new Date(reportData.end).getTime() - 1).toLocaleDateString()} · {reportData.employees?.length || 0} active staff
+                </p>
+              )}
+            </div>
+
+            {/* AI summary */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  AI Summary
+                </h3>
+                <button onClick={() => fetchStaffReport(true)} disabled={reportAiLoading || !reportData?.ai_available}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  {reportAiLoading ? 'Generating…' : 'Generate AI summary'}
+                </button>
+              </div>
+              {reportData?.ai_summary ? (
+                <div className="text-sm text-gray-700 whitespace-pre-wrap">{reportData.ai_summary}</div>
+              ) : reportData && !reportData.ai_available ? (
+                <p className="text-sm text-gray-400">AI summaries need OpenAI configured (set OPENAI_API_KEY). The activity breakdown below is always available.</p>
+              ) : (
+                <p className="text-sm text-gray-400">Click “Generate AI summary” for a narrative of the period’s activity.</p>
+              )}
+            </div>
+
+            {/* Per-employee breakdown */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {reportLoading ? (
+                <div className="py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto" /></div>
+              ) : !reportData?.employees?.length ? (
+                <div className="py-12 text-center text-gray-500">No recorded activity for this period.</div>
+              ) : (
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Logins</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Top activity</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last active</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {reportData.employees.map((e: any) => (
+                      <tr key={e.user_id} className="hover:bg-gray-50">
+                        <td className="px-6 py-3">
+                          <div className="font-medium text-gray-900">{e.name}</div>
+                          <div className="text-xs text-gray-500 capitalize">{e.role?.replace('_', ' ')}</div>
+                        </td>
+                        <td className="px-6 py-3 text-center font-semibold text-gray-900">{e.total_actions}</td>
+                        <td className="px-6 py-3 text-center text-gray-600">{e.logins}</td>
+                        <td className="px-6 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {e.breakdown.slice(0, 5).map((b: any, i: number) => (
+                              <span key={i} className="text-xs bg-gray-100 text-gray-700 rounded px-2 py-0.5 capitalize">{b.count} {b.label}</span>
+                            ))}
+                            {e.breakdown.length > 5 && <span className="text-xs text-gray-400">+{e.breakdown.length - 5} more</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-3 text-sm text-gray-500">{e.last_at ? format(new Date(e.last_at), 'MMM d, h:mm a') : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'audit' && (
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">

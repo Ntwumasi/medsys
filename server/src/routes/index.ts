@@ -427,7 +427,8 @@ router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('rec
 router.get('/patient-portal/me', authenticateToken, portalGetMe);
 
 // Admin reports — also exposed to accountants for the financial dashboard.
-import { getDoctorRevenue, getDoctorRevenueLines } from '../controllers/adminReportsController';
+import { getDoctorRevenue, getDoctorRevenueLines, getStaffActivityReport } from '../controllers/adminReportsController';
+router.get('/admin/reports/staff-activity',       authenticateToken, getStaffActivityReport);
 router.get('/admin/reports/doctor-revenue',       authenticateToken, authorizeRoles('admin', 'accountant'), getDoctorRevenue);
 router.get('/admin/reports/doctor-revenue/lines', authenticateToken, authorizeRoles('admin', 'accountant'), getDoctorRevenueLines);
 
