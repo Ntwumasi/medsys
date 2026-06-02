@@ -53,3 +53,6 @@ synquery-prep/
 # Docs that aren't part of the codebase
 docs/MedSys-Deployment-Guide.md
 docs/MedSys-Website-Prompt.md
+
+# Raw payer rate spreadsheets (sensitive commercial pricing) — seeded into DB, not committed
+docs/pricing/
