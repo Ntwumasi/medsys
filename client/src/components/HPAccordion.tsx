@@ -230,6 +230,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedContentRef = useRef<string>('');
   const editingContentRef = useRef<string>(''); // Track latest content to avoid stale closures
+  const expandedSectionRef = useRef<string | null>(null); // Latest expanded section for flush-on-unmount
   const [showSmartDictation, setShowSmartDictation] = useState(false);
 
   // Auto-save debounce function
@@ -278,14 +279,31 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     }
   }, [expandedSection, debouncedSave]);
 
-  // Cleanup timer on unmount
+  // Keep the latest expanded section in a ref so the unmount flush can use it.
+  useEffect(() => { expandedSectionRef.current = expandedSection; }, [expandedSection]);
+
+  // On unmount (e.g. switching patient tabs), flush any pending auto-save to
+  // THIS encounter so the last keystrokes aren't lost. Combined with the
+  // key={encounterId} remount in the dashboards, this prevents one patient's
+  // draft from bleeding into another while still persisting in-progress text.
   useEffect(() => {
     return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      const sec = expandedSectionRef.current;
+      const content = editingContentRef.current;
+      if (sec && content && content !== lastSavedContentRef.current) {
+        apiClient.post('/hp/save', {
+          encounter_id: encounterId,
+          patient_id: patientId,
+          section_id: sec,
+          content,
+          completed: content.trim().length > 0,
+          role: userRole,
+        }).catch((e) => console.error('Flush-on-unmount HP save failed:', e));
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [encounterId, patientId, userRole]);
 
   // Completed orders for this encounter — used to auto-mark Lab Results /
   // Imaging Results sections as completed and to render their results

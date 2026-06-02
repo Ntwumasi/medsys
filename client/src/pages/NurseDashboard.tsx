@@ -2570,6 +2570,7 @@ const NurseDashboard: React.FC = () => {
                     {activeTab === 'hp' && selectedPatient && (
                       <div>
                         <HPAccordion
+                          key={selectedPatient.id}
                           encounterId={selectedPatient.id}
                           patientId={selectedPatient.patient_id}
                           userRole="nurse"
