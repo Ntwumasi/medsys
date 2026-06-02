@@ -174,6 +174,9 @@ const PatientDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editData, setEditData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [editingAllergies, setEditingAllergies] = useState(false);
+  const [allergyDraft, setAllergyDraft] = useState('');
+  const [savingAllergies, setSavingAllergies] = useState(false);
   const [editPayerType, setEditPayerType] = useState<string>('self_pay');
   const [editPayerId, setEditPayerId] = useState<number | null>(null);
   const [corporateClients, setCorporateClients] = useState<Array<{id: number; name: string}>>([]);
@@ -235,6 +238,26 @@ const PatientDetails: React.FC = () => {
       if (id) loadPatientSummary(parseInt(id));
     } catch (error) {
       showToast('Failed to discontinue medication', 'error');
+    }
+  };
+
+  const startEditAllergies = () => {
+    setAllergyDraft(summary?.patient.allergies || '');
+    setEditingAllergies(true);
+  };
+
+  const handleSaveAllergies = async () => {
+    if (!summary) return;
+    setSavingAllergies(true);
+    try {
+      await apiClient.put(`/patients/${summary.patient.id}`, { allergies: allergyDraft.trim() });
+      showToast('Allergies updated', 'success');
+      setEditingAllergies(false);
+      loadPatientSummary(summary.patient.id);
+    } catch (error) {
+      showToast('Failed to update allergies', 'error');
+    } finally {
+      setSavingAllergies(false);
     }
   };
 
@@ -420,6 +443,59 @@ const PatientDetails: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Allergies — prominent, inline-editable so any clinician can record allergies
+            discovered during the patient journey without opening the full edit modal */}
+        <div className={`rounded-xl border p-4 flex items-start gap-3 ${patient.allergies ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+          <svg className={`w-6 h-6 flex-shrink-0 mt-0.5 ${patient.allergies ? 'text-red-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold uppercase tracking-wider ${patient.allergies ? 'text-red-700' : 'text-gray-500'}`}>Allergies</span>
+              {!editingAllergies && (
+                <button
+                  onClick={startEditAllergies}
+                  className="text-xs font-semibold text-primary-600 hover:text-primary-800 hover:underline"
+                >
+                  {patient.allergies ? 'Edit' : '+ Add'}
+                </button>
+              )}
+            </div>
+            {editingAllergies ? (
+              <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={allergyDraft}
+                  onChange={(e) => setAllergyDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAllergies(); if (e.key === 'Escape') setEditingAllergies(false); }}
+                  placeholder="e.g., Penicillin, Peanuts, Sulfa drugs — separate with commas"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveAllergies}
+                    disabled={savingAllergies}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                  >
+                    {savingAllergies ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setEditingAllergies(false)}
+                    className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className={`mt-0.5 font-semibold ${patient.allergies ? 'text-red-900' : 'text-gray-400'}`}>
+                {patient.allergies || 'No known allergies'}
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
@@ -809,8 +885,8 @@ const PatientDetails: React.FC = () => {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {active_medications.map((medication) => (
-                        <div key={medication.id} className="bg-white rounded-lg p-4 border border-emerald-200 shadow-sm">
+                      {active_medications.map((medication, idx) => (
+                        <div key={`${medication.source}-${medication.id}-${idx}`} className="bg-white rounded-lg p-4 border border-emerald-200 shadow-sm">
                           <p className="font-bold text-gray-900">{medication.medication_name}</p>
                           <p className="text-sm text-gray-600 mt-1">
                             {medication.dosage} - {medication.frequency}
@@ -818,9 +894,15 @@ const PatientDetails: React.FC = () => {
                           {medication.route && (
                             <p className="text-xs text-gray-500 mt-1">Route: {medication.route}</p>
                           )}
-                          <p className="text-xs text-emerald-600 font-medium mt-2">
-                            Started: {format(new Date(medication.start_date), 'MMM d, yyyy')}
-                          </p>
+                          {medication.dispensed_date ? (
+                            <p className="text-xs text-green-600 font-medium mt-2">
+                              Dispensed: {format(new Date(medication.dispensed_date), 'MMM d, yyyy')}
+                            </p>
+                          ) : medication.start_date ? (
+                            <p className="text-xs text-emerald-600 font-medium mt-2">
+                              Ordered: {format(new Date(medication.start_date), 'MMM d, yyyy')}
+                            </p>
+                          ) : null}
                         </div>
                       ))}
                     </div>
@@ -1048,15 +1130,17 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'medications' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Active Medications</h2>
-                {active_medications.length === 0 ? (
+                <h2 className="text-xl font-bold text-gray-900 mb-6">Medications</h2>
+                {active_medications.length === 0 && !summary.documented_medications ? (
                   <div className="text-center py-12 text-gray-400">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
-                    <p className="text-lg font-medium">No active medications</p>
+                    <p className="text-lg font-medium">No medications on record</p>
                   </div>
                 ) : (
+                  <>
+                  {active_medications.length > 0 && (
                   <div className="overflow-hidden rounded-xl border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
@@ -1071,7 +1155,13 @@ const PatientDetails: React.FC = () => {
                             Frequency
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                            Start Date
+                            Status
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Ordered
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                            Dispensed
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                             Prescriber
@@ -1083,31 +1173,71 @@ const PatientDetails: React.FC = () => {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-100">
                         {active_medications.map((medication, index) => (
-                          <tr key={medication.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <tr key={`${medication.source}-${medication.id}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                             <td className="px-6 py-4">
                               <span className="font-semibold text-gray-900">{medication.medication_name}</span>
+                              {medication.route && <span className="ml-2 text-xs text-gray-400">{medication.route}</span>}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{medication.dosage}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{medication.frequency}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {format(new Date(medication.start_date), 'MMM d, yyyy')}
+                            <td className="px-6 py-4 text-sm text-gray-600">{medication.dosage || '—'}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">{medication.frequency || '—'}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2.5 py-1 text-xs font-bold rounded-full capitalize ${
+                                medication.status === 'dispensed' || medication.status === 'completed'
+                                  ? 'bg-green-100 text-green-700'
+                                  : medication.status === 'active'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}>
+                                {medication.status}
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
-                              {medication.prescribing_doctor_name}
+                              {medication.start_date ? format(new Date(medication.start_date), 'MMM d, yyyy') : '—'}
+                            </td>
+                            <td className="px-6 py-4 text-sm">
+                              {medication.dispensed_date ? (
+                                <span className="text-green-700 font-medium">{format(new Date(medication.dispensed_date), 'MMM d, yyyy')}</span>
+                              ) : (
+                                <span className="text-gray-400">Not dispensed</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-600">
+                              {medication.provider || medication.prescribing_doctor_name || '—'}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <button
-                                onClick={() => handleDiscontinueMedication(medication.id, medication.medication_name)}
-                                className="px-3 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
-                              >
-                                Discontinue
-                              </button>
+                              {medication.source === 'medication' ? (
+                                <button
+                                  onClick={() => handleDiscontinueMedication(medication.id, medication.medication_name)}
+                                  className="px-3 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                                >
+                                  Discontinue
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">Pharmacy</span>
+                              )}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  )}
+                  {summary.documented_medications && (
+                    <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <h3 className="font-bold text-blue-900">Home Medications (documented in notes)</h3>
+                        <span className="ml-auto text-xs text-blue-600">
+                          Recorded {format(new Date(summary.documented_medications.encounter_date), 'MMM d, yyyy')}
+                        </span>
+                      </div>
+                      <p className="text-sm text-blue-900 whitespace-pre-wrap">{summary.documented_medications.content}</p>
+                      <p className="text-xs text-blue-500 mt-2">These were entered as free text in the SOAP note and have not been prescribed/dispensed in the system.</p>
+                    </div>
+                  )}
+                  </>
                 )}
               </div>
             )}

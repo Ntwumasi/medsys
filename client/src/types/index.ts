@@ -99,10 +99,14 @@ export interface Medication {
   end_date?: string;
   prescribing_doctor?: number;
   prescribing_doctor_name?: string;
-  status: 'active' | 'discontinued' | 'completed';
+  status: string;
   notes?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  // Unified medication list (medications table + pharmacy prescriptions)
+  dispensed_date?: string | null;
+  provider?: string | null;
+  source?: 'medication' | 'prescription';
 }
 
 export interface Allergy {
@@ -137,6 +141,7 @@ export interface PatientSummary {
   patient: Patient;
   recent_encounters: Encounter[];
   active_medications: Medication[];
+  documented_medications?: { content: string; encounter_date: string } | null;
   allergies: Allergy[];
   upcoming_appointments: Appointment[];
   payer_sources?: Array<{

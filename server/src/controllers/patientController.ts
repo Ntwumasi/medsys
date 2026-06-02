@@ -546,11 +546,45 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       enc.hp_sections = hpSectionsMap[enc.id] || [];
     }
 
-    // Get active medications
+    // Get medications — merge the structured medications list with pharmacy
+    // prescriptions/dispenses so the tab reflects what was actually ordered and
+    // dispensed (with dispensed dates), not just the rarely-populated medications table.
     const medicationsResult = await pool.query(
-      `SELECT * FROM medications
-       WHERE patient_id = $1 AND status = 'active'
+      `SELECT po.id, po.medication_name, po.dosage, po.frequency, po.route, po.status,
+              po.ordered_date::timestamp AS start_date, po.dispensed_date::timestamp AS dispensed_date,
+              (u.first_name || ' ' || u.last_name)::text AS provider, po.notes,
+              'prescription'::text AS source, po.created_at
+         FROM pharmacy_orders po
+         LEFT JOIN users u ON po.ordering_provider = u.id
+        WHERE po.patient_id = $1 AND po.status NOT IN ('cancelled', 'rejected')
+       UNION ALL
+       SELECT m.id, m.medication_name, m.dosage, m.frequency, m.route, m.status,
+              m.start_date::timestamp AS start_date, NULL::timestamp AS dispensed_date,
+              (mu.first_name || ' ' || mu.last_name)::text AS provider, m.notes,
+              'medication'::text AS source, m.created_at
+         FROM medications m
+         LEFT JOIN users mu ON m.prescribing_doctor = mu.id
+        WHERE m.patient_id = $1 AND m.status = 'active'
+          AND NOT EXISTS (
+            SELECT 1 FROM pharmacy_orders po2
+             WHERE po2.patient_id = $1
+               AND LOWER(TRIM(po2.medication_name)) = LOWER(TRIM(m.medication_name))
+               AND po2.status NOT IN ('cancelled', 'rejected')
+          )
        ORDER BY created_at DESC`,
+      [id]
+    );
+
+    // Free-text "Home Medications" documented in the most recent SOAP note —
+    // surfaced when there are no structured/prescribed meds to show.
+    const documentedMedsResult = await pool.query(
+      `SELECT hp.content, e.encounter_date
+         FROM hp_sections hp
+         JOIN encounters e ON hp.encounter_id = e.id
+        WHERE e.patient_id = $1 AND hp.section_id = 'home_medications'
+          AND hp.content IS NOT NULL AND hp.content != ''
+        ORDER BY e.encounter_date DESC
+        LIMIT 1`,
       [id]
     );
 
@@ -598,6 +632,7 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
       patient: patientResult.rows[0],
       recent_encounters: encountersResult.rows,
       active_medications: medicationsResult.rows,
+      documented_medications: documentedMedsResult.rows[0] || null,
       allergies: allergiesResult.rows,
       upcoming_appointments: appointmentsResult.rows,
       payer_sources: payerSourcesResult.rows,
