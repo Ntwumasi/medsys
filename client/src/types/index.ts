@@ -107,6 +107,7 @@ export interface Medication {
   dispensed_date?: string | null;
   provider?: string | null;
   source?: 'medication' | 'prescription';
+  is_active?: boolean;
 }
 
 export interface Allergy {
