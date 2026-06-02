@@ -16,6 +16,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (credentials: LoginCredentials) => Promise<LoginResponse>;
+  loginWithSession: (user: User, token: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
   // Password change requirement
@@ -225,6 +226,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Establish a session from an already-issued token (e.g. patient portal
+  // SMS-link verification, which authenticates without a password).
+  const loginWithSession = (userData: User, authToken: string) => {
+    setUser(userData);
+    setToken(authToken);
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    setActiveToken(authToken);
+    setMustChangePassword(false);
+    localStorage.removeItem('mustChangePassword');
+    setImpersonation({ isImpersonating: false, originalUser: null, originalToken: null });
+    localStorage.removeItem('impersonation');
+    setActiveRoleState(null);
+    localStorage.removeItem('activeRole');
+  };
+
   const clearMustChangePassword = () => {
     setMustChangePassword(false);
     localStorage.removeItem('mustChangePassword');
@@ -324,6 +341,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token,
         loading,
         login,
+        loginWithSession,
         logout,
         isAuthenticated: !!token && !!user,
         mustChangePassword,

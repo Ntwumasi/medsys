@@ -26,6 +26,8 @@ const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const AppointmentsCalendar = lazy(() => import('./pages/AppointmentsCalendar'));
 const PatientRegistrationPage = lazy(() => import('./pages/PatientRegistrationPage'));
 const PatientPortal = lazy(() => import('./pages/PatientPortal'));
+const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'));
+const PortalVerify = lazy(() => import('./pages/portal/PortalVerify'));
 const PublicUpdates = lazy(() => import('./pages/PublicUpdates'));
 const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
 const ReceiptsPage = lazy(() => import('./pages/ReceiptsPage'));
@@ -126,10 +128,13 @@ const RoleDashboard: React.FC = () => {
 
 // Session timeout wrapper
 const SessionTimeoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { isWarningVisible, remainingSeconds, extendSession } = useSessionTimeout({
     timeoutMinutes: 30,    // Logout after 30 min inactivity
     warningMinutes: 5,     // Show warning 5 min before logout
+    // Patients keep a persistent session (they access from personal devices and
+    // should be able to return anytime); idle-logout is a staff security control.
+    disabled: user?.role === 'patient',
   });
 
   return (
@@ -153,6 +158,10 @@ const AppContent: React.FC = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/updates" element={<PublicUpdates />} />
 
+        {/* Public patient portal access (passwordless SMS link + DOB) */}
+        <Route path="/portal" element={<PortalLogin />} />
+        <Route path="/portal/verify" element={<PortalVerify />} />
+
         <Route path="/dashboard" element={<ProtectedRoute><RoleDashboard /></ProtectedRoute>} />
         <Route path="/nurse/inventory" element={<ProtectedRoute><NurseDashboard /></ProtectedRoute>} />
         <Route path="/nurse/follow-up-calls" element={<ProtectedRoute><NurseFollowUpCalls /></ProtectedRoute>} />
@@ -165,7 +174,7 @@ const AppContent: React.FC = () => {
         <Route path="/quickbooks" element={<ProtectedRoute><QuickBooksSettings /></ProtectedRoute>} />
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><ErrorBoundary><ProfilePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/clinics" element={<ProtectedRoute><ClinicManagement /></ProtectedRoute>} />
         <Route path="/price-list" element={<ProtectedRoute><PriceListManagement /></ProtectedRoute>} />
 

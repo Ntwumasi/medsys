@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
+import { patientPortalAPI } from '../api/patientPortal';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
@@ -187,6 +188,25 @@ const PatientDetails: React.FC = () => {
     user?.role === 'doctor' ||
     user?.is_super_admin === true ||
     impersonation.originalUser?.is_super_admin === true;
+
+  // Front desk / admins can SMS the patient a portal access link
+  const canSendPortalLink =
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.is_super_admin === true;
+  const [sendingLink, setSendingLink] = useState(false);
+
+  const handleSendPortalLink = async () => {
+    if (!summary?.patient?.id || sendingLink) return;
+    setSendingLink(true);
+    try {
+      const res = await patientPortalAPI.staffSend(summary.patient.id);
+      showToast(res.message || 'Portal link sent', 'success');
+    } catch (err) {
+      const apiErr = err as { response?: { data?: { error?: string } } };
+      showToast(apiErr?.response?.data?.error || 'Failed to send portal link', 'error');
+    } finally {
+      setSendingLink(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -391,7 +411,20 @@ const PatientDetails: React.FC = () => {
 
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
-          <div className="flex justify-end mb-2">
+          <div className="flex justify-end gap-2 mb-2">
+            {canSendPortalLink && (
+              <button
+                onClick={handleSendPortalLink}
+                disabled={sendingLink}
+                className="px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors flex items-center gap-2 disabled:opacity-50"
+                title="Text the patient a secure link to access their records"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 3v-3z" />
+                </svg>
+                {sendingLink ? 'Sending…' : 'Send Portal Link'}
+              </button>
+            )}
             <button
               onClick={openEditModal}
               className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors flex items-center gap-2"

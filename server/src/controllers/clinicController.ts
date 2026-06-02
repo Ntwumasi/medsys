@@ -14,19 +14,78 @@ export const getAllClinics = async (_req: Request, res: Response): Promise<void>
   }
 };
 
+// Get active clinics with their full payer price breakdown (self-pay + each
+// insurer + each corporate), for the Clinics pricing showcase.
+export const getClinicPricing = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const clinicsRes = await pool.query(
+      `SELECT c.id, c.name, c.charge_master_id, cm.service_code, cm.price AS self_pay
+       FROM clinics c
+       LEFT JOIN charge_master cm ON c.charge_master_id = cm.id
+       WHERE c.is_active = true
+       ORDER BY c.name`
+    );
+
+    const chargeIds = clinicsRes.rows.map((r: any) => r.charge_master_id).filter((x: any) => x != null);
+    let payerRows: any[] = [];
+    if (chargeIds.length > 0) {
+      const pr = await pool.query(
+        `SELECT pps.charge_master_id, pps.payer_type, pps.price, pps.is_excluded,
+                ip.name AS insurer, cc.name AS corporate
+         FROM payer_price_schedules pps
+         LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+         LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+         WHERE pps.charge_master_id = ANY($1)`,
+        [chargeIds]
+      );
+      payerRows = pr.rows;
+    }
+
+    const clinics = clinicsRes.rows.map((c: any) => {
+      const rows = payerRows.filter((p) => p.charge_master_id === c.charge_master_id);
+      const insurance = rows
+        .filter((p) => p.payer_type === 'insurance')
+        .map((p) => ({ name: p.insurer, price: p.is_excluded ? null : Number(p.price), excluded: p.is_excluded }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const corporate = rows
+        .filter((p) => p.payer_type === 'corporate')
+        .map((p) => ({ name: p.corporate, price: p.is_excluded ? null : Number(p.price), excluded: p.is_excluded }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return {
+        id: c.id,
+        name: c.name,
+        self_pay: c.self_pay != null ? Number(c.self_pay) : null,
+        insurance,
+        corporate,
+      };
+    });
+
+    res.json({ clinics });
+  } catch (error) {
+    console.error('Get clinic pricing error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Create a new clinic
 export const createClinic = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, description } = req.body;
+    const { name, description, consultation_price } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ error: 'Clinic name is required' });
       return;
     }
 
+    const price = consultation_price === '' || consultation_price == null ? null : Number(consultation_price);
+    if (price !== null && (isNaN(price) || price < 0)) {
+      res.status(400).json({ error: 'Consultation price must be a positive number' });
+      return;
+    }
+
     const result = await pool.query(
-      'INSERT INTO clinics (name, description) VALUES ($1, $2) RETURNING *',
-      [name.trim(), description?.trim() || null]
+      'INSERT INTO clinics (name, description, consultation_price) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), description?.trim() || null, price]
     );
 
     res.status(201).json({
@@ -47,19 +106,25 @@ export const createClinic = async (req: Request, res: Response): Promise<void> =
 export const updateClinic = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, consultation_price } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ error: 'Clinic name is required' });
       return;
     }
 
+    const price = consultation_price === '' || consultation_price == null ? null : Number(consultation_price);
+    if (price !== null && (isNaN(price) || price < 0)) {
+      res.status(400).json({ error: 'Consultation price must be a positive number' });
+      return;
+    }
+
     const result = await pool.query(
       `UPDATE clinics
-       SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
+       SET name = $1, description = $2, consultation_price = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4
        RETURNING *`,
-      [name.trim(), description?.trim() || null, id]
+      [name.trim(), description?.trim() || null, price, id]
     );
 
     if (result.rows.length === 0) {

@@ -133,6 +133,31 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
     if (!departmentClinics.includes(clinic)) {
+      // Prefer the assigned clinic's linked consultation charge. Billing the
+      // charge (not a flat price) means the invoice loop below runs it through
+      // resolvePrice, so the patient's payer source (self-pay / insurance /
+      // corporate) determines the amount — e.g. Cardiology bills 600 self-pay
+      // but the insurer's agreed rate when an insurance payer is selected.
+      let clinicCharge: { id: number; price: number } | null = null;
+      if (clinic) {
+        const cr = await client.query(
+          `SELECT cm.id, cm.price
+           FROM clinics c JOIN charge_master cm ON c.charge_master_id = cm.id
+           WHERE c.name = $1 AND cm.is_active = true LIMIT 1`,
+          [clinic]
+        );
+        if (cr.rows.length > 0) {
+          clinicCharge = { id: cr.rows[0].id, price: parseFloat(cr.rows[0].price) };
+        }
+      }
+
+      if (clinicCharge) {
+        checkInCharges.push({
+          chargeMasterId: clinicCharge.id,
+          description: `${clinic} Consultation`,
+          price: clinicCharge.price,
+        });
+      } else {
       // Try clinic-specific consultation charge first
       // The charge_master uses various naming patterns:
       //   "Cardiology" (SPEC-CARDIO), "Internal Medicine" (SPEC-INTMED),
@@ -168,6 +193,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : `${clinic || 'General'} Consultation`,
         price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 200,
       });
+      }
     }
 
     const initialTotal = checkInCharges.reduce((sum, c) => sum + c.price, 0);

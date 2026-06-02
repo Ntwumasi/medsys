@@ -9,7 +9,12 @@
  * - Hubtel (https://hubtel.com)
  * - Africa's Talking (https://africastalking.com)
  * - Twilio (https://twilio.com)
+ *
+ * Hubtel is wired up below: when HUBTEL_CLIENT_ID/SECRET are set, real SMS are
+ * sent; otherwise it falls back to the console stub (handy for local/dev).
  */
+
+import axios from 'axios';
 
 export interface SMSResult {
   success: boolean;
@@ -30,7 +35,41 @@ export interface SMSMessage {
  * Currently a stub that logs to console - replace with real provider
  */
 export const sendSMS = async (to: string, message: string): Promise<SMSResult> => {
-  // Log the SMS that would be sent
+  // Real provider: Hubtel (Ghana). Used when credentials are configured.
+  if (process.env.HUBTEL_CLIENT_ID && process.env.HUBTEL_CLIENT_SECRET) {
+    try {
+      const response = await axios.post(
+        'https://smsc.hubtel.com/v1/messages/send',
+        {
+          From: process.env.HUBTEL_SENDER_ID || 'Clinic',
+          To: to,
+          Content: message,
+        },
+        {
+          auth: {
+            username: process.env.HUBTEL_CLIENT_ID,
+            password: process.env.HUBTEL_CLIENT_SECRET,
+          },
+          timeout: 15000,
+        }
+      );
+      return {
+        success: true,
+        provider: 'hubtel',
+        messageId: response.data?.MessageId || response.data?.messageId || '',
+      };
+    } catch (error: any) {
+      console.error('Hubtel SMS send failed:', error?.response?.data || error?.message);
+      return {
+        success: false,
+        provider: 'hubtel',
+        messageId: '',
+        error: error?.response?.data?.Message || error?.message || 'SMS send failed',
+      };
+    }
+  }
+
+  // Fallback: log the SMS that would be sent (local/dev / no provider configured)
   console.log('========================================');
   console.log('[SMS SERVICE - STUB MODE]');
   console.log(`To: ${to}`);

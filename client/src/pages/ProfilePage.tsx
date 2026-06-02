@@ -58,6 +58,15 @@ function savePreferences(prefs: Preferences) {
   localStorage.setItem('medsys_preferences', JSON.stringify(prefs));
 }
 
+// date-fns format() throws a RangeError on an unparseable/invalid date, which
+// (on a route without an ErrorBoundary) blanks the whole app. Guard every
+// format call so a bad timestamp degrades to an em-dash instead of crashing.
+function safeFormat(value: string | null | undefined, pattern: string): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? '—' : format(d, pattern);
+}
+
 export default function ProfilePage() {
   const { user } = useAuth();
   const { showToast, unreadCount: notifUnreadCount } = useNotification();
@@ -371,7 +380,7 @@ export default function ProfilePage() {
               <div className="flex justify-between items-center py-2">
                 <span className="text-sm text-gray-500">Member since</span>
                 <span className="text-sm font-medium text-gray-900">
-                  {profile?.created_at ? format(new Date(profile.created_at), 'MMM d, yyyy') : '\u2014'}
+                  {safeFormat(profile?.created_at, 'MMM d, yyyy')}
                 </span>
               </div>
             </div>
@@ -456,7 +465,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm text-gray-900 font-medium">Last login</p>
                   <p className="text-xs text-gray-400">
-                    {profile?.last_login_at ? format(new Date(profile.last_login_at), 'MMM d, yyyy h:mm a') : '\u2014'}
+                    {safeFormat(profile?.last_login_at, 'MMM d, yyyy h:mm a')}
                   </p>
                 </div>
               </div>
@@ -586,7 +595,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-xs text-gray-500">Last login</p>
                   <p className="text-sm font-medium text-gray-900">
-                    {lastLogin ? format(new Date(lastLogin.attempted_at), 'MMM d, h:mm a') : '\u2014'}
+                    {safeFormat(lastLogin?.attempted_at, 'MMM d, h:mm a')}
                   </p>
                 </div>
               </div>
@@ -639,7 +648,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <span className="text-xs text-gray-400">
-                      {format(new Date(entry.attempted_at), 'MMM d, h:mm a')}
+                      {safeFormat(entry.attempted_at, 'MMM d, h:mm a')}
                     </span>
                   </div>
                 ))}

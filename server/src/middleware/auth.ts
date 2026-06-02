@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { isTokenRevoked } from '../services/tokenService';
+import pool from '../database/db';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -62,6 +63,60 @@ export const authenticateToken = async (
       return;
     }
     res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+/**
+ * Restrict patients to their OWN data on patient_id-scoped read endpoints.
+ *
+ * Staff/super-admins are unaffected (they may query any patient_id). For a
+ * 'patient' role caller, this resolves the patient record they own and forces
+ * the request to use it:
+ *  - query-param endpoints (?patient_id=...) -> overwrite req.query.patient_id
+ *  - path-param endpoints (/:patient_id)     -> 403 if it isn't their own
+ *
+ * Must run after authenticateToken.
+ */
+export const enforcePatientOwnership = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const user = (req as AuthRequest).user;
+
+  // Staff and super admins keep full access.
+  if (!user || (user.role !== 'patient' && !user.is_super_admin)) {
+    next();
+    return;
+  }
+  // A super admin impersonating staff shouldn't be scoped; only scope true patients.
+  if (user.role !== 'patient') {
+    next();
+    return;
+  }
+
+  try {
+    const result = await pool.query('SELECT id FROM patients WHERE user_id = $1', [user.id]);
+    if (result.rows.length === 0) {
+      res.status(403).json({ error: 'No patient record associated with this account' });
+      return;
+    }
+    const ownPatientId = String(result.rows[0].id);
+
+    // Path-param endpoints (e.g. /medications/patient/:patient_id)
+    if (req.params && req.params.patient_id !== undefined) {
+      if (String(req.params.patient_id) !== ownPatientId) {
+        res.status(403).json({ error: 'You can only view your own records' });
+        return;
+      }
+    }
+
+    // Query-param endpoints: force scoping to the caller's own record.
+    req.query.patient_id = ownPatientId;
+    next();
+  } catch (error) {
+    console.error('enforcePatientOwnership error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
