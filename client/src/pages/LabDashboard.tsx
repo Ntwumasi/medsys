@@ -3043,7 +3043,7 @@ const LabDashboard: React.FC = () => {
                           </span>
                         ) : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">${(Number(test.base_price) || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">GHS {(Number(test.base_price) || 0).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => openEditTest(test)}
@@ -3897,7 +3897,7 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Base Price ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Base Price (GHS)</label>
                   <input
                     type="number"
                     step="0.01"
