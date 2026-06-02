@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -12,9 +12,24 @@ interface Clinic {
   created_at: string;
 }
 
+interface PayerPrice {
+  name: string;
+  price: number | null;
+  excluded: boolean;
+}
+interface ClinicPricing {
+  id: number;
+  name: string;
+  self_pay: number | null;
+  insurance: PayerPrice[];
+  corporate: PayerPrice[];
+}
+
 export default function ClinicManagement() {
   const { showToast } = useNotification();
   const [clinics, setClinics] = useState<Clinic[]>([]);
+  const [pricing, setPricing] = useState<Record<number, ClinicPricing>>({});
+  const [expanded, setExpanded] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Clinic | null>(null);
@@ -23,8 +38,14 @@ export default function ClinicManagement() {
 
   const loadClinics = async () => {
     try {
-      const res = await apiClient.get('/clinics');
+      const [res, priceRes] = await Promise.all([
+        apiClient.get('/clinics'),
+        apiClient.get('/clinics/pricing'),
+      ]);
       setClinics(res.data.clinics);
+      const map: Record<number, ClinicPricing> = {};
+      for (const c of priceRes.data.clinics) map[c.id] = c;
+      setPricing(map);
     } catch {
       showToast('Failed to load clinics', 'error');
     } finally {
@@ -33,6 +54,9 @@ export default function ClinicManagement() {
   };
 
   useEffect(() => { loadClinics(); }, []);
+
+  const fmtPayer = (p: PayerPrice): string =>
+    p.excluded ? 'Not covered' : p.price === 0 ? 'Covered (free)' : `GHS ${Number(p.price).toFixed(2)}`;
 
   const openAdd = () => {
     setEditingClinic(null);
@@ -137,10 +161,25 @@ export default function ClinicManagement() {
                     </td>
                   </tr>
                 ) : (
-                  clinics.map((clinic) => (
-                    <tr key={clinic.id} className="hover:bg-gray-50 transition-colors">
+                  clinics.map((clinic) => {
+                    const price = pricing[clinic.id];
+                    const hasBreakdown = !!price && (price.insurance.length > 0 || price.corporate.length > 0);
+                    const isOpen = expanded === clinic.id;
+                    return (
+                    <Fragment key={clinic.id}>
+                    <tr
+                      className={`transition-colors ${hasBreakdown ? 'cursor-pointer hover:bg-gray-50' : 'hover:bg-gray-50'}`}
+                      onClick={hasBreakdown ? () => setExpanded(isOpen ? null : clinic.id) : undefined}
+                    >
                       <td className="px-6 py-3">
-                        <span className="font-medium text-gray-900">{clinic.name}</span>
+                        <span className="flex items-center gap-2 font-medium text-gray-900">
+                          {hasBreakdown && (
+                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          )}
+                          {clinic.name}
+                        </span>
                       </td>
                       <td className="px-6 py-3">
                         <span className="text-sm text-gray-500">{clinic.description || '—'}</span>
@@ -162,7 +201,7 @@ export default function ClinicManagement() {
                       <td className="px-6 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => openEdit(clinic)}
+                            onClick={(e) => { e.stopPropagation(); openEdit(clinic); }}
                             className="p-1.5 text-gray-500 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
                             title="Edit"
                           >
@@ -171,7 +210,7 @@ export default function ClinicManagement() {
                             </svg>
                           </button>
                           <button
-                            onClick={() => handleDeactivate(clinic)}
+                            onClick={(e) => { e.stopPropagation(); handleDeactivate(clinic); }}
                             className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Deactivate"
                           >
@@ -182,7 +221,54 @@ export default function ClinicManagement() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    {isOpen && hasBreakdown && (
+                      <tr key={`${clinic.id}-detail`} className="bg-gray-50/60">
+                        <td colSpan={5} className="px-6 py-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Insurance</p>
+                              {price.insurance.length === 0 ? (
+                                <p className="text-sm text-gray-400">No special rates — billed at self-pay.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {price.insurance.map((p) => (
+                                    <div key={p.name} className="flex justify-between text-sm">
+                                      <span className="text-gray-700">{p.name}</span>
+                                      <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>
+                                        {fmtPayer(p)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Corporate</p>
+                              {price.corporate.length === 0 ? (
+                                <p className="text-sm text-gray-400">No special rates — billed at self-pay.</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {price.corporate.map((p) => (
+                                    <div key={p.name} className="flex justify-between text-sm">
+                                      <span className="text-gray-700">{p.name}</span>
+                                      <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>
+                                        {fmtPayer(p)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-3">
+                            Self-pay: <span className="font-medium text-gray-600">{price.self_pay != null ? `GHS ${price.self_pay.toFixed(2)}` : '—'}</span>. Payers not listed are billed the self-pay rate. The matching rate is applied automatically on the invoice based on the patient's payer source.
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>

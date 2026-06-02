@@ -133,28 +133,29 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
     if (!departmentClinics.includes(clinic)) {
-      // Prefer the assigned clinic's own consultation price (managed in Clinic
-      // Management). This is authoritative — e.g. Family Medicine bills its set
-      // price, not a generic "General Practitioner Consult". When a clinic has
-      // no price set, fall back to the charge_master lookup below.
-      let clinicPrice: number | null = null;
+      // Prefer the assigned clinic's linked consultation charge. Billing the
+      // charge (not a flat price) means the invoice loop below runs it through
+      // resolvePrice, so the patient's payer source (self-pay / insurance /
+      // corporate) determines the amount — e.g. Cardiology bills 600 self-pay
+      // but the insurer's agreed rate when an insurance payer is selected.
+      let clinicCharge: { id: number; price: number } | null = null;
       if (clinic) {
-        const clinicRow = await client.query(
-          'SELECT consultation_price FROM clinics WHERE name = $1 LIMIT 1',
+        const cr = await client.query(
+          `SELECT cm.id, cm.price
+           FROM clinics c JOIN charge_master cm ON c.charge_master_id = cm.id
+           WHERE c.name = $1 AND cm.is_active = true LIMIT 1`,
           [clinic]
         );
-        if (clinicRow.rows.length > 0 && clinicRow.rows[0].consultation_price != null) {
-          clinicPrice = parseFloat(clinicRow.rows[0].consultation_price);
+        if (cr.rows.length > 0) {
+          clinicCharge = { id: cr.rows[0].id, price: parseFloat(cr.rows[0].price) };
         }
       }
 
-      if (clinicPrice != null) {
-        // chargeMasterId null → the loop below skips payer re-resolution, so the
-        // clinic's configured price is what lands on the invoice.
+      if (clinicCharge) {
         checkInCharges.push({
-          chargeMasterId: null,
+          chargeMasterId: clinicCharge.id,
           description: `${clinic} Consultation`,
-          price: clinicPrice,
+          price: clinicCharge.price,
         });
       } else {
       // Try clinic-specific consultation charge first
