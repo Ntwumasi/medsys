@@ -133,6 +133,30 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
     if (!departmentClinics.includes(clinic)) {
+      // Prefer the assigned clinic's own consultation price (managed in Clinic
+      // Management). This is authoritative — e.g. Family Medicine bills its set
+      // price, not a generic "General Practitioner Consult". When a clinic has
+      // no price set, fall back to the charge_master lookup below.
+      let clinicPrice: number | null = null;
+      if (clinic) {
+        const clinicRow = await client.query(
+          'SELECT consultation_price FROM clinics WHERE name = $1 LIMIT 1',
+          [clinic]
+        );
+        if (clinicRow.rows.length > 0 && clinicRow.rows[0].consultation_price != null) {
+          clinicPrice = parseFloat(clinicRow.rows[0].consultation_price);
+        }
+      }
+
+      if (clinicPrice != null) {
+        // chargeMasterId null → the loop below skips payer re-resolution, so the
+        // clinic's configured price is what lands on the invoice.
+        checkInCharges.push({
+          chargeMasterId: null,
+          description: `${clinic} Consultation`,
+          price: clinicPrice,
+        });
+      } else {
       // Try clinic-specific consultation charge first
       // The charge_master uses various naming patterns:
       //   "Cardiology" (SPEC-CARDIO), "Internal Medicine" (SPEC-INTMED),
@@ -168,6 +192,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : `${clinic || 'General'} Consultation`,
         price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 200,
       });
+      }
     }
 
     const initialTotal = checkInCharges.reduce((sum, c) => sum + c.price, 0);

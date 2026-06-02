@@ -17,16 +17,22 @@ export const getAllClinics = async (_req: Request, res: Response): Promise<void>
 // Create a new clinic
 export const createClinic = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, description } = req.body;
+    const { name, description, consultation_price } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ error: 'Clinic name is required' });
       return;
     }
 
+    const price = consultation_price === '' || consultation_price == null ? null : Number(consultation_price);
+    if (price !== null && (isNaN(price) || price < 0)) {
+      res.status(400).json({ error: 'Consultation price must be a positive number' });
+      return;
+    }
+
     const result = await pool.query(
-      'INSERT INTO clinics (name, description) VALUES ($1, $2) RETURNING *',
-      [name.trim(), description?.trim() || null]
+      'INSERT INTO clinics (name, description, consultation_price) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), description?.trim() || null, price]
     );
 
     res.status(201).json({
@@ -47,19 +53,25 @@ export const createClinic = async (req: Request, res: Response): Promise<void> =
 export const updateClinic = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const { name, description, consultation_price } = req.body;
 
     if (!name || !name.trim()) {
       res.status(400).json({ error: 'Clinic name is required' });
       return;
     }
 
+    const price = consultation_price === '' || consultation_price == null ? null : Number(consultation_price);
+    if (price !== null && (isNaN(price) || price < 0)) {
+      res.status(400).json({ error: 'Consultation price must be a positive number' });
+      return;
+    }
+
     const result = await pool.query(
       `UPDATE clinics
-       SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
+       SET name = $1, description = $2, consultation_price = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4
        RETURNING *`,
-      [name.trim(), description?.trim() || null, id]
+      [name.trim(), description?.trim() || null, price, id]
     );
 
     if (result.rows.length === 0) {

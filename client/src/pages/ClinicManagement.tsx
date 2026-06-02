@@ -7,6 +7,7 @@ interface Clinic {
   id: number;
   name: string;
   description: string | null;
+  consultation_price: number | string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -17,7 +18,7 @@ export default function ClinicManagement() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingClinic, setEditingClinic] = useState<Clinic | null>(null);
-  const [form, setForm] = useState({ name: '', description: '' });
+  const [form, setForm] = useState({ name: '', description: '', consultation_price: '' });
   const [saving, setSaving] = useState(false);
 
   const loadClinics = async () => {
@@ -35,13 +36,17 @@ export default function ClinicManagement() {
 
   const openAdd = () => {
     setEditingClinic(null);
-    setForm({ name: '', description: '' });
+    setForm({ name: '', description: '', consultation_price: '' });
     setModalOpen(true);
   };
 
   const openEdit = (clinic: Clinic) => {
     setEditingClinic(clinic);
-    setForm({ name: clinic.name, description: clinic.description || '' });
+    setForm({
+      name: clinic.name,
+      description: clinic.description || '',
+      consultation_price: clinic.consultation_price != null ? String(clinic.consultation_price) : '',
+    });
     setModalOpen(true);
   };
 
@@ -111,6 +116,7 @@ export default function ClinicManagement() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Clinic Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consultation Price</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -119,14 +125,14 @@ export default function ClinicManagement() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={4} className="px-6 py-4">
+                      <td colSpan={5} className="px-6 py-4">
                         <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${50 + Math.random() * 40}%` }}></div>
                       </td>
                     </tr>
                   ))
                 ) : clinics.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                       No clinics found. Click "Add Clinic" to create one.
                     </td>
                   </tr>
@@ -138,6 +144,11 @@ export default function ClinicManagement() {
                       </td>
                       <td className="px-6 py-3">
                         <span className="text-sm text-gray-500">{clinic.description || '—'}</span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className="text-sm font-medium text-gray-900">
+                          {clinic.consultation_price != null ? `GHS ${Number(clinic.consultation_price).toFixed(2)}` : '—'}
+                        </span>
                       </td>
                       <td className="px-6 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -199,6 +210,20 @@ export default function ClinicManagement() {
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     autoFocus
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Consultation Price (GHS)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.consultation_price}
+                    onChange={(e) => setForm({ ...form, consultation_price: e.target.value })}
+                    placeholder="e.g. 400.00"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Charged at check-in when this clinic is selected. Leave blank for none.</p>
                 </div>
 
                 <div>
