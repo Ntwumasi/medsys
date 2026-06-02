@@ -807,10 +807,14 @@ const PharmacyDashboard: React.FC = () => {
 
   // Filter inventory for walk-in medication search
   const filteredWalkInInventory = walkInMedSearch.length >= 2
-    ? inventory.filter(item =>
-        item.medication_name.toLowerCase().includes(walkInMedSearch.toLowerCase()) &&
-        item.quantity_on_hand > 0
-      ).slice(0, 10)
+    ? inventory.filter(item => {
+        const q = walkInMedSearch.toLowerCase();
+        return item.quantity_on_hand > 0 && (
+          item.medication_name?.toLowerCase().includes(q) ||
+          item.generic_name?.toLowerCase().includes(q) ||
+          item.category?.toLowerCase().includes(q)
+        );
+      }).slice(0, 10)
     : [];
 
   const saveSupplier = async () => {

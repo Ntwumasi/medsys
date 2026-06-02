@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -35,32 +35,37 @@ const Modal: React.FC<ModalProps> = ({
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = title ? 'modal-title' : undefined;
 
-  const handleEscape = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
+  // Keep the latest onClose without re-subscribing the listener every render.
+  // (onClose is almost always an inline function, so depending on it would
+  // re-run this effect on every render and steal focus from inputs.)
+  const onCloseRef = useRef(onClose);
   useEffect(() => {
-    if (isOpen) {
-      previousFocusRef.current = document.activeElement as HTMLElement;
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-      // Focus the modal container for screen readers
-      setTimeout(() => modalRef.current?.focus(), 0);
-    } else if (previousFocusRef.current) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Focus management + escape/scroll-lock — runs ONLY when open state changes,
+  // so typing inside the modal never re-triggers the focus() call.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    previousFocusRef.current = previouslyFocused;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
+    // Focus the modal container once (for screen readers)
+    const focusTimer = setTimeout(() => modalRef.current?.focus(), 0);
 
     return () => {
+      clearTimeout(focusTimer);
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = 'unset';
+      if (previouslyFocused) previouslyFocused.focus();
     };
-  }, [isOpen, handleEscape]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
