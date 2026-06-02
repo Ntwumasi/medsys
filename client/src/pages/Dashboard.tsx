@@ -1157,7 +1157,23 @@ const Dashboard: React.FC = () => {
         url += `?payer_type=${type}&payer_id=${id}`;
       }
       const response = await apiClient.get(url);
-      setCharges(response.data.charges || []);
+      // Lab prices live in lab_test_catalog (single source, shared with the Lab
+      // Dashboard). Everything else comes from charge_master.
+      const nonLab = (response.data.charges || []).filter((c: any) => c.category !== 'lab');
+      let labAsCharges: any[] = [];
+      try {
+        const labRes = await apiClient.get('/lab/test-catalog');
+        labAsCharges = (labRes.data.tests || []).map((t: any) => ({
+          id: t.id,
+          service_name: t.test_name,
+          service_code: t.test_code,
+          category: 'lab',
+          price: String(t.base_price ?? 0),
+          description: t.category || null,
+          is_active: t.is_active,
+        }));
+      } catch { /* lab catalog optional */ }
+      setCharges([...nonLab, ...labAsCharges]);
     } catch (error) {
       console.error('Error fetching charges:', error);
     } finally {
@@ -1237,11 +1253,30 @@ const Dashboard: React.FC = () => {
 
   const handleSaveCharge = async (charge: typeof newCharge, id?: number) => {
     try {
+      const isLab = charge.category === 'lab';
       if (id) {
-        await apiClient.put(`/charge-master/${id}`, charge);
+        if (isLab) {
+          // Lab prices are stored in lab_test_catalog (reflects on the Lab Dashboard too)
+          await apiClient.put(`/lab/test-catalog/${id}`, {
+            test_name: charge.service_name,
+            test_code: charge.service_code,
+            base_price: parseFloat(charge.price),
+          });
+        } else {
+          await apiClient.put(`/charge-master/${id}`, charge);
+        }
         showToast('Service charge updated', 'success');
       } else {
-        await apiClient.post('/charge-master', charge);
+        if (isLab) {
+          await apiClient.post('/lab/test-catalog', {
+            test_name: charge.service_name,
+            test_code: charge.service_code,
+            base_price: parseFloat(charge.price),
+            category: 'Lab',
+          });
+        } else {
+          await apiClient.post('/charge-master', charge);
+        }
         showToast('Service charge added', 'success');
       }
       setEditingCharge(null);
