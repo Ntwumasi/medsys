@@ -5,6 +5,7 @@ import billingService from '../services/billingService';
 import auditService from '../services/auditService';
 import notificationService from '../services/notificationService';
 import { getNextMonOrThu } from './nurseFollowUpTaskController';
+import { resolveLabCatalogItem } from './ordersController';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -1465,19 +1466,16 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
         );
 
         for (const lo of labs.rows) {
-          const chargeResult = await pool.query(
-            `SELECT id, service_name, price FROM charge_master
-              WHERE (service_code = $1 OR service_name ILIKE $2)
-                AND category = 'lab' AND is_active = true
-              LIMIT 1`,
-            [lo.test_code, `%${lo.test_name}%`]
-          );
-          const charge = chargeResult.rows[0];
-          const labPrice = charge ? parseFloat(charge.price) : 75.0;
-          const chargeDescription = charge ? charge.service_name : lo.test_name;
-          const chargeMasterId = charge ? charge.id : null;
+          // Price from the lab catalog (single source of truth): code → name → fuzzy.
+          const labItem = await resolveLabCatalogItem(lo.test_code, lo.test_name);
+          const chargeDescription = labItem.match ? labItem.match.test_name : lo.test_name;
+          const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
           const description = `Lab: ${chargeDescription}`;
+          if (!labItem.match) {
+            console.warn(`⚠️ Route-from-lab billing: no catalog match for "${lo.test_name}" (code ${lo.test_code}) — billed 0, review.`);
+          }
 
+          // Dedup by the canonical catalog name so the same test isn't billed twice.
           const existing = await pool.query(
             `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
             [invoiceId, description]
@@ -1487,8 +1485,8 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
           await pool.query(
             `INSERT INTO invoice_items
                (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-             VALUES ($1, $2, $3, 1, $4, $4, 'lab')`,
-            [invoiceId, chargeMasterId, description, labPrice]
+             VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
+            [invoiceId, description, labPrice]
           );
           await pool.query(
             `UPDATE invoices
