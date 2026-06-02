@@ -1,5 +1,82 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { aiService } from '../services/aiService';
+
+// GET /admin/reports/staff-activity?period=day|week|month&date=YYYY-MM-DD&ai=1
+//
+// Per-employee activity summary from audit_logs over a period. Super-admin only
+// (for the owners to review staff productivity). Optionally adds an AI narrative.
+export const getStaffActivityReport = async (req: Request, res: Response): Promise<void> => {
+  const authReq = req as any;
+  if (!authReq.user?.is_super_admin) {
+    res.status(403).json({ error: 'Super admins only' });
+    return;
+  }
+  try {
+    const period = (req.query.period as string) || 'day';
+    const baseStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+    const base = new Date(baseStr + 'T00:00:00');
+    if (isNaN(base.getTime())) { res.status(400).json({ error: 'Invalid date' }); return; }
+
+    const start = new Date(base);
+    const end = new Date(base);
+    if (period === 'week') { start.setDate(start.getDate() - 6); end.setDate(end.getDate() + 1); }
+    else if (period === 'month') { start.setDate(1); end.setMonth(end.getMonth() + 1); end.setDate(1); }
+    else { end.setDate(end.getDate() + 1); } // day
+
+    const rows = (await pool.query(
+      `SELECT al.user_id, u.first_name || ' ' || u.last_name AS name, u.role,
+              al.action, al.entity_type, COUNT(*)::int AS cnt,
+              MIN(al.created_at) AS first_at, MAX(al.created_at) AS last_at
+       FROM audit_logs al JOIN users u ON al.user_id = u.id
+       WHERE al.created_at >= $1 AND al.created_at < $2
+       GROUP BY al.user_id, name, u.role, al.action, al.entity_type`,
+      [start.toISOString(), end.toISOString()]
+    )).rows;
+
+    // Logins in range (successful), per user
+    const logins = (await pool.query(
+      `SELECT user_id, COUNT(*)::int AS cnt FROM login_attempts
+       WHERE success = true AND attempted_at >= $1 AND attempted_at < $2 AND user_id IS NOT NULL
+       GROUP BY user_id`,
+      [start.toISOString(), end.toISOString()]
+    ).catch(() => ({ rows: [] }))).rows;
+    const loginMap = new Map<number, number>(logins.map((r: any) => [r.user_id, r.cnt]));
+
+    const byUser = new Map<number, any>();
+    for (const r of rows) {
+      if (!byUser.has(r.user_id)) {
+        byUser.set(r.user_id, { user_id: r.user_id, name: r.name, role: r.role, total_actions: 0, logins: loginMap.get(r.user_id) || 0, breakdown: [] as any[], first_at: r.first_at, last_at: r.last_at });
+      }
+      const e = byUser.get(r.user_id);
+      e.total_actions += r.cnt;
+      const label = `${r.action} ${String(r.entity_type || '').replace(/_/g, ' ')}`.trim();
+      e.breakdown.push({ label, count: r.cnt });
+      if (new Date(r.first_at) < new Date(e.first_at)) e.first_at = r.first_at;
+      if (new Date(r.last_at) > new Date(e.last_at)) e.last_at = r.last_at;
+    }
+    const employees = Array.from(byUser.values())
+      .map((e) => ({ ...e, breakdown: e.breakdown.sort((a: any, b: any) => b.count - a.count) }))
+      .sort((a, b) => b.total_actions - a.total_actions);
+
+    let ai_summary: string | null = null;
+    if (req.query.ai && aiService.isAvailable && aiService.isAvailable() && (aiService as any).summarizeStaffActivity) {
+      ai_summary = await (aiService as any).summarizeStaffActivity(period, employees);
+    }
+
+    res.json({
+      period,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      employees,
+      ai_summary,
+      ai_available: !!(aiService.isAvailable && aiService.isAvailable()),
+    });
+  } catch (error) {
+    console.error('Staff activity report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
 
 // GET /admin/reports/doctor-revenue?start=YYYY-MM-DD&end=YYYY-MM-DD
 //
