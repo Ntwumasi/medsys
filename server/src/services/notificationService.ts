@@ -448,6 +448,39 @@ export const notificationService = {
   },
 
   /**
+   * Notify pharmacy that a prescription order was cancelled (e.g. by the ordering
+   * doctor after discovering an allergy) so they stop preparing it.
+   */
+  async notifyPharmacyOrderCancelled(orderId: number): Promise<void> {
+    try {
+      const result = await pool.query(
+        `SELECT po.medication_name, po.dosage,
+                u.first_name || ' ' || u.last_name as patient_name
+         FROM pharmacy_orders po
+         JOIN patients p ON po.patient_id = p.id
+         JOIN users u ON p.user_id = u.id
+         WHERE po.id = $1`,
+        [orderId]
+      );
+      if (result.rows.length > 0) {
+        const order = result.rows[0];
+        const notification = {
+          type: 'order_created' as const,
+          title: 'Prescription Cancelled',
+          message: `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''} for ${order.patient_name} was cancelled by the ordering provider — do not dispense.`,
+          entityType: 'pharmacy_order',
+          entityId: orderId,
+        };
+        await this.sendToRole('pharmacist', notification);
+        await this.sendToRole('pharmacy', notification);
+        await this.sendToRole('pharmacy_tech', notification);
+      }
+    } catch (error) {
+      console.error('Failed to notify pharmacy of cancelled order:', error);
+    }
+  },
+
+  /**
    * Notify about STAT orders
    */
   async notifyStatOrder(orderType: string, orderId: number, targetRole: string): Promise<void> {
