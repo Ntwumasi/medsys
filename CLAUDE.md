@@ -125,6 +125,11 @@ router.get('/protected', authenticateToken, authorizeRoles('admin', 'doctor'), h
 import apiClient from '../api/client';
 const { data } = await apiClient.get('/patients');
 ```
+`client/src/api/client.ts` is more than a thin wrapper — touch it carefully:
+- **Base URL**: `VITE_API_URL` → else `/api` in prod (same-origin) → else `http://localhost:5000/api` in dev.
+- **Auth**: request interceptor attaches `Bearer <token>` from `localStorage`. On login call `setActiveToken(token)`; on logout call `resetApiClientState()`.
+- **Resilient 401 handling**: it does NOT redirect on the first 401. It tolerates a configurable burst of consecutive 401s and a ~10s grace window after login before forcing `/login`, and distinguishes 401 (bad token) from 403 (permission denied). This is deliberate — it prevents the "logged out / must log in twice" glitch. Don't "simplify" it into an eager redirect.
+- **GET retries**: idempotent GETs auto-retry up to 2× with exponential backoff; 4xx and non-GET methods are never retried.
 
 ### Toast Notifications
 ```typescript
@@ -135,7 +140,7 @@ showToast('Error message', 'error');
 ```
 
 ### Type Imports (IMPORTANT)
-TypeScript has `verbatimModuleSyntax` enabled. Use:
+The **client** has `verbatimModuleSyntax` enabled (server does not), so type-only imports are mandatory there or `npm run build` fails:
 ```typescript
 import type { SomeType } from './types';  // For types
 import { someFunction } from './module';   // For values
@@ -147,8 +152,8 @@ import { someFunction } from './module';   // For values
 
 ### Adding a New API Endpoint
 1. Create/update controller in `server/src/controllers/`
-2. Add route in `server/src/routes/index.ts`
-3. Add auth middleware: `authenticateToken, authorizeRoles('role')`
+2. Add route in `server/src/routes/index.ts` — **all ~340 routes live in this one monolithic file**, grouped by feature; add yours to the matching group
+3. Add auth middleware: `authenticateToken, authorizeRoles('role')`. For patient-facing data, also chain `enforcePatientOwnership` (in `middleware/auth.ts`) so `patient`-role users can only reach their own records — it 403s on mismatched path `:patient_id` and force-rewrites `?patient_id=` query params
 4. Add API function in `client/src/api/`
 
 ### Adding a New Database Table
@@ -210,11 +215,17 @@ cd client && npm run dev     # Frontend on :5173
 ```bash
 npm run build                # Builds both
 ```
+**Serverless model**: `server/src/index.ts` `export default`s the Express `app`; Vercel wraps that export as the serverless function. `vercel.json` rewrites `/api/*` to it and everything else to the SPA (`client/dist/index.html`). There is no separate `api/` handler file — don't add `app.listen` assumptions to request-path code; the listen call only runs locally.
 
 ### Database Migrations
+Migrations live in `server/src/database/migrations/` and run through a **tracked runner** (`server/src/database/migrate.ts`). The runner records each applied migration in a `_migrations` table and executes pending files in **alphabetical order**, so name new files to sort after existing ones (e.g. date- or number-prefixed).
 ```bash
-cd server && npx ts-node src/database/migrations/<migration>.ts
+cd server && npm run db:migrate              # run all pending migrations
+cd server && npm run db:migrate:status       # show applied vs pending
+cd server && npm run db:migrate:dry-run      # preview without applying
+cd server && npm run db:migrate:seed         # mark all as applied (first-time setup)
 ```
+Each migration file is also independently runnable (`npx ts-node src/database/migrations/<file>.ts`), but prefer `db:migrate` so it gets tracked.
 
 ---
 
@@ -232,9 +243,9 @@ cd server && npx ts-node src/database/migrations/<migration>.ts
 ## Workflow Rules
 
 ### After completing each task:
-1. **Run migrations** — If you created or modified a migration, run it against the database immediately. Do not ask for permission.
+1. **Run migrations** — If you created or modified a migration, run it against the database immediately via the tracked runner. Do not ask for permission.
    ```bash
-   cd server && npx ts-node src/database/migrations/<migration>.ts
+   cd server && npm run db:migrate
    ```
 2. **Build check** — Verify both server and client build before committing.
 3. **Commit and push** — Commit the changes and push to `main`. Do not ask for permission.
@@ -242,11 +253,13 @@ cd server && npx ts-node src/database/migrations/<migration>.ts
 ### Testing Checklist
 
 Before committing:
-- [ ] `cd client && npm run build` passes
-- [ ] `cd server && npm run build` passes
+- [ ] `cd client && npm run build` passes (`tsc -b && vite build` — strictest checks: `verbatimModuleSyntax`, `noUnusedLocals/Parameters`)
+- [ ] `cd server && npm run build` passes (`tsc`)
 - [ ] Test the feature in browser
 - [ ] Check console for errors
 - [ ] Verify mobile responsiveness
+
+> **Tests:** Vitest is configured in both `client` and `server` (`npm run test` watch, `npm run test:run` single, `npm run test:coverage`) but **no test files exist yet**. There is no test suite to gate commits — manual browser testing is the norm. The client lint is `npm run lint` (ESLint); the server has no lint script.
 
 ---
 
@@ -287,4 +300,4 @@ Before committing:
 
 ---
 
-*Last updated: April 7, 2026*
+*Last updated: June 3, 2026*

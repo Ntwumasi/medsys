@@ -179,7 +179,11 @@ const DoctorDashboard: React.FC = () => {
   // Medication search state
   const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
   const [showMedSuggestions, setShowMedSuggestions] = useState(false);
+  // True once a search has completed with zero matches — drives a friendly
+  // "not in inventory, you can still prescribe" hint instead of a dead dropdown.
+  const [medSearchNoMatch, setMedSearchNoMatch] = useState(false);
   const medSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestMedQuery = useRef<string>('');
   const medContainerRef = useRef<HTMLDivElement>(null);
 
   // Drug interaction state
@@ -731,18 +735,26 @@ const DoctorDashboard: React.FC = () => {
     if (query.length < 2) {
       setMedSearchResults([]);
       setShowMedSuggestions(false);
+      setMedSearchNoMatch(false);
       return;
     }
 
+    const thisQuery = query;
+    latestMedQuery.current = thisQuery;
     medSearchTimeout.current = setTimeout(async () => {
       try {
         const res = await apiClient.get(`/inventory/search?q=${encodeURIComponent(query)}`);
-        setMedSearchResults(res.data.medications || []);
-        setShowMedSuggestions((res.data.medications || []).length > 0);
+        // Ignore stale responses: on a slow link an earlier request can resolve
+        // after a later one and wipe the dropdown. Only apply if still current.
+        if (latestMedQuery.current !== thisQuery) return;
+        const meds = res.data.medications || [];
+        setMedSearchResults(meds);
+        setShowMedSuggestions(meds.length > 0);
+        setMedSearchNoMatch(meds.length === 0);
       } catch (error) {
         console.error('Error searching medications:', error);
       }
-    }, 300);
+    }, 200);
   };
 
   const selectMedication = (med: { id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number }) => {
@@ -758,6 +770,7 @@ const DoctorDashboard: React.FC = () => {
     }));
     setShowMedSuggestions(false);
     setMedSearchResults([]);
+    setMedSearchNoMatch(false);
   };
 
   // Close medication suggestions on click outside
@@ -2819,6 +2832,15 @@ const DoctorDashboard: React.FC = () => {
                                 Unit price: GHS {Number(currentPharmacyOrder.selling_price || 0).toFixed(2)}
                               </span>
                             </div>
+                          )}
+                          {/* Not a dead end: a doctor may prescribe something the
+                              pharmacy stocks under a different name (or off-formulary).
+                              Make clear the free-text is accepted and pharmacy will
+                              match/substitute. */}
+                          {medSearchNoMatch && !currentPharmacyOrder.inventory_id && (
+                            <p className="mt-1 text-xs text-warning-700">
+                              Not found in inventory — you can still prescribe this; pharmacy will match or substitute it.
+                            </p>
                           )}
                         </div>
                         <div className="grid grid-cols-2 gap-2">

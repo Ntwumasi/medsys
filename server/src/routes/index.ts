@@ -116,6 +116,7 @@ import {
   updateImagingOrder,
   createPharmacyOrder,
   getPharmacyOrders,
+  getPharmacyOrderActivity,
   updatePharmacyOrder,
   processRefill,
   processReturn,
@@ -625,6 +626,7 @@ router.post('/webhooks/orthanc/study', authenticateBridge, orthancStudyWebhook);
 // Orders routes - Pharmacy
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor', 'admin'), createPharmacyOrder);
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
+router.get('/orders/pharmacy/:id/activity', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPharmacyOrderActivity);
 router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor'), updatePharmacyOrder);
 router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin', 'doctor'), processRefill);
 router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), processReturn);
