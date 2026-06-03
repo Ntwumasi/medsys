@@ -165,7 +165,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [fetchNotifications]);
 
-  const showToast = useCallback(async (message: string, type: ToastType = 'info', persist: boolean = true) => {
+  // `persist` defaults to FALSE: a toast is transient local feedback for the
+  // person who triggered an action ("Order moved to In Progress"). Real,
+  // cross-user notifications that belong in the bell feed are created by the
+  // backend notificationService (new order → pharmacist, results ready →
+  // doctor, etc.). Persisting every actor-side toast was flooding the feed
+  // (hundreds of unread self-confirmations). Opt in with persist=true only
+  // when a toast genuinely needs to live in the recipient's feed.
+  const showToast = useCallback(async (message: string, type: ToastType = 'info', persist: boolean = false) => {
     const notification: Notification = {
       id: Date.now().toString(),
       message,
@@ -177,8 +184,11 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     // Show toast immediately
     setActiveToast(notification);
 
-    // If user is logged in and persist is true, save to backend
-    if (isLoggedIn() && persist) {
+    // Transient toast: show it and stop — never touches the persistent feed.
+    if (!persist) return;
+
+    // If user is logged in, save to backend so it survives reloads.
+    if (isLoggedIn()) {
       try {
         const response = await apiClient.post('/notifications', { message, type });
         // Update the notification with the real ID from backend
