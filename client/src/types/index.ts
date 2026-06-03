@@ -10,6 +10,79 @@ export interface User {
   is_head_nurse?: boolean;
 }
 
+// ============ Social Layer ============
+
+export type PresenceStatus = 'online' | 'on_call' | 'away';
+export type KudosTag = 'Teamwork' | 'Lifesaver' | 'Mentor' | 'Kindness' | 'Reliability';
+
+export interface StaffProfile {
+  id: number;
+  name: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  username: string;
+  clinic: string | null;
+  created_at: string;
+  bio: string | null;
+  ask_me_about: string | null;
+  languages: string[];
+  interests: string[];
+  presence_status: PresenceStatus;
+  follower_count: number;
+  following_count: number;
+  kudos_received_count: number;
+  is_following: boolean;
+  is_self: boolean;
+}
+
+// Editable subset returned by PUT /profiles/me.
+export interface OwnProfileFields {
+  bio: string | null;
+  ask_me_about: string | null;
+  languages: string[];
+  interests: string[];
+  presence_status: PresenceStatus;
+}
+
+export interface DirectoryUser {
+  id: number;
+  name: string;
+  role: string;
+  username: string;
+  presence_status: PresenceStatus;
+  ask_me_about: string | null;
+  is_following: boolean;
+}
+
+export interface FollowUser {
+  id: number;
+  name: string;
+  role: string;
+  presence_status: PresenceStatus;
+  is_following: boolean;
+  is_self: boolean;
+}
+
+export interface Kudos {
+  id: number;
+  message: string;
+  tag: KudosTag | null;
+  created_at: string;
+  person: { id: number; name: string; role: string };
+}
+
+export interface FeedItem {
+  id: number;
+  activity_type: string; // 'kudos' | 'staff_joined' | 'milestone' (open for v2)
+  entity_type: string | null;
+  entity_id: number | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  actor: { id: number; name: string; role: string };
+  target: { id: number; name: string } | null;
+}
+
 export interface Patient {
   id: number;
   user_id?: number;

@@ -40,6 +40,9 @@ const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
 const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage'));
+const FeedPage = lazy(() => import('./pages/FeedPage'));
+const PeoplePage = lazy(() => import('./pages/PeoplePage'));
 const ClinicManagement = lazy(() => import('./pages/ClinicManagement'));
 const PriceListManagement = lazy(() => import('./pages/PriceListManagement'));
 
@@ -176,6 +179,9 @@ const AppContent: React.FC = () => {
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ErrorBoundary><ProfilePage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/profile/:userId" element={<ProtectedRoute><ErrorBoundary><StaffProfilePage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/feed" element={<ProtectedRoute><ErrorBoundary><FeedPage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/people" element={<ProtectedRoute><ErrorBoundary><PeoplePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/clinics" element={<ProtectedRoute><ClinicManagement /></ProtectedRoute>} />
         <Route path="/price-list" element={<ProtectedRoute><PriceListManagement /></ProtectedRoute>} />
 

@@ -324,6 +324,18 @@ import {
   deleteMessage,
 } from '../controllers/messageController';
 import {
+  getDirectory,
+  getProfile,
+  updateMyProfile,
+  followUser,
+  unfollowUser,
+  getFollowers,
+  getFollowing,
+  createKudos,
+  getKudos,
+  getFeed,
+} from '../controllers/socialController';
+import {
   getUnscheduledFollowUps,
   scheduleFollowUp,
   getFollowUpStats,
@@ -359,7 +371,7 @@ import {
   verify as portalVerify,
   getMe as portalGetMe,
 } from '../controllers/patientPortalController';
-import { authenticateToken, authorizeRoles, enforcePatientOwnership } from '../middleware/auth';
+import { authenticateToken, authorizeRoles, enforcePatientOwnership, STAFF_ROLES } from '../middleware/auth';
 import { authenticateBridge } from '../middleware/bridgeAuth';
 import {
   getPendingWorklist,
@@ -380,6 +392,8 @@ import {
   uploadDocumentSchema,
   createMessageSchema,
   clinicalNoteSchema,
+  updateProfileSchema,
+  createKudosSchema,
 } from '../utils/validation';
 import notificationRoutes from './notifications';
 import auditRoutes from './audit';
@@ -474,6 +488,20 @@ router.get('/messages/users', authenticateToken, getMessageableUsers);
 router.get('/messages/thread/:otherUserId', authenticateToken, getThread);
 router.put('/messages/:messageId/read', authenticateToken, markAsRead);
 router.delete('/messages/:messageId', authenticateToken, deleteMessage);
+
+// Social / Profile routes (staff-only engagement layer — patients excluded).
+// authorizeRoles(...STAFF_ROLES) keeps patients out; super admins bypass.
+router.get('/feed', authenticateToken, authorizeRoles(...STAFF_ROLES), getFeed);
+router.get('/profiles/directory', authenticateToken, authorizeRoles(...STAFF_ROLES), getDirectory);
+router.put('/profiles/me', authenticateToken, authorizeRoles(...STAFF_ROLES), validateBody(updateProfileSchema), updateMyProfile);
+router.post('/kudos', authenticateToken, authorizeRoles(...STAFF_ROLES), validateBody(createKudosSchema), createKudos);
+// Parameterized routes go last so 'directory'/'me' aren't captured as :userId.
+router.get('/profiles/:userId', authenticateToken, authorizeRoles(...STAFF_ROLES), getProfile);
+router.get('/profiles/:userId/followers', authenticateToken, authorizeRoles(...STAFF_ROLES), getFollowers);
+router.get('/profiles/:userId/following', authenticateToken, authorizeRoles(...STAFF_ROLES), getFollowing);
+router.get('/profiles/:userId/kudos', authenticateToken, authorizeRoles(...STAFF_ROLES), getKudos);
+router.post('/profiles/:userId/follow', authenticateToken, authorizeRoles(...STAFF_ROLES), followUser);
+router.delete('/profiles/:userId/follow', authenticateToken, authorizeRoles(...STAFF_ROLES), unfollowUser);
 
 // VoIP routes (internal voice calls between staff)
 import {
