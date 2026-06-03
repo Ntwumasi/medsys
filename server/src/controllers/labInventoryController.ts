@@ -664,8 +664,8 @@ const findTestTemplate = async (
 
   // 4. Chem panel sex routing
   const chemMap: Array<[RegExp, string, string]> = [
-    // Kidney/renal function: BUE&Cr, U&E, Kidney Function Test, KFT, RFT.
-    [/\b(bue|kft|rft|kidney function|renal function|urea.*electrolyte|electrolyte.*creatinine)\b/i, 'BUE_M', 'BUE_F'],
+    // Kidney/renal function: BUE&Cr, BUECR, U&E, Kidney Function Test, KFT, RFT.
+    [/\b(bue|buecr|kft|rft|kidney function|renal function|u\s*&\s*e)\b|bue\s*&?\s*cr|urea.*electrolyte|electrolyte.*creatinine/i, 'BUE_M', 'BUE_F'],
     [/\b(lipid)\b/i, 'LIPID_M', 'LIPID_F'],
     [/\b(lft|liver function)\b/i, 'LFT_M', 'LFT_F'],
   ];
@@ -674,6 +674,26 @@ const findTestTemplate = async (
       const code = sex === 'M' ? mCode : fCode;
       const r = await pool.query(
         `SELECT id, test_name FROM lab_test_catalog WHERE test_code = $1 LIMIT 1`,
+        [code],
+      );
+      if (r.rows.length > 0) return { testId: r.rows[0].id, matchedName: r.rows[0].test_name };
+    }
+  }
+
+  // 4b. Name aliases for single (non sex-specific) templates whose ordered
+  // names don't fuzzy-match the catalog name closely enough (hyphen/spacing/
+  // abbreviation differences the lab uses). hs-CRP is tested BEFORE CRP so
+  // "hs crp" doesn't resolve to plain CRP.
+  const aliasMap: Array<[RegExp, string]> = [
+    [/\b(hs[\s-]?crp|high[\s-]?sensitivity\s*(c[\s-]?reactive|crp))\b/i, 'HSCRP'],
+    [/\b(crp|c[\s-]?reactive\s*(protein|antigen))\b/i, 'CRP'],
+    [/\b(urinalysis|urine\s*r[\s./]*e|urine\s*routine)\b/i, 'URINE'],
+  ];
+  for (const [pattern, code] of aliasMap) {
+    if (pattern.test(lower)) {
+      const r = await pool.query(
+        `SELECT c.id, c.test_name FROM lab_test_catalog c
+          WHERE c.test_code = $1 ${HAS_PARAMS} LIMIT 1`,
         [code],
       );
       if (r.rows.length > 0) return { testId: r.rows[0].id, matchedName: r.rows[0].test_name };

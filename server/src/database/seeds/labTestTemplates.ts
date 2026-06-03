@@ -470,15 +470,17 @@ export const labTestTemplates: TestTemplateSeed[] = [
     ],
   },
 
-  // HbA1c — glycated haemoglobin (single value, % and mmol/mol).
+  // HbA1c — glycated haemoglobin. Per lab's HBA1C template: report both NGSP (%)
+  // and IFCC (mmol/mol), plus estimated average glucose (eAG) in mmol/L.
   {
     test_name: 'Hemoglobin A1C',
     test_code: 'HbA1c',
     category: 'chemistry',
     specimen_type: 'EDTA whole blood',
     parameters: [
-      { parameter_name: 'HbA1c',     parameter_code: 'HBA1C',     value_type: 'numeric', unit: '%',         normal_low: 4.0, normal_high: 5.6, reference_range_text: '<5.7% normal · 5.7–6.4% prediabetes · ≥6.5% diabetes', sort_order: 1 },
-      { parameter_name: 'eAG',       parameter_code: 'HBA1C_EAG', value_type: 'numeric', unit: 'mg/dL',     reference_range_text: 'Estimated average glucose', sort_order: 2 },
+      { parameter_name: 'HbA1c (NGSP)', parameter_code: 'HBA1C_NGSP', value_type: 'numeric', unit: '%',        normal_low: 4.0, normal_high: 6.4, reference_range_text: 'Non-diabetic 4.0–5.7% · Prediabetes 5.8–6.4% · Diabetes ≥6.5%', sort_order: 1 },
+      { parameter_name: 'HbA1c (IFCC)', parameter_code: 'HBA1C_IFCC', value_type: 'numeric', unit: 'mmol/mol', normal_low: 20,  normal_high: 46,  reference_range_text: 'Non-diabetic 20–39 · Prediabetes 40–46 · Diabetes >48', sort_order: 2 },
+      { parameter_name: 'Estimated Average Glucose (eAG)', parameter_code: 'HBA1C_EAG', value_type: 'numeric', unit: 'mmol/L', reference_range_text: 'Estimated average glucose', sort_order: 3 },
     ],
   },
 
@@ -565,15 +567,27 @@ export const labTestTemplates: TestTemplateSeed[] = [
     ],
   },
 
-  // C-Reactive Protein — common addition; flagged in audit as a frequent
-  // order with no catalog match.
+  // C-Reactive Protein — per lab's CRP template: routine Serum-CRP plus a
+  // high-sensitivity (hs-CRP) portion used for cardiovascular risk.
   {
     test_name: 'C-Reactive Protein',
     test_code: 'CRP',
     category: 'chemistry',
     specimen_type: 'Serum',
     parameters: [
-      { parameter_name: 'CRP', parameter_code: 'CRP', value_type: 'numeric', unit: 'mg/L', normal_low: 0, normal_high: 5, critical_high: 200, reference_range_text: '<5 normal · >10 inflammation', sort_order: 1 },
+      { parameter_name: 'Serum CRP', parameter_code: 'CRP',   value_type: 'numeric', unit: 'mg/L', normal_low: 0, normal_high: 10, critical_high: 200, reference_range_text: '0–10 mg/L', sort_order: 1 },
+      { parameter_name: 'hs-CRP',    parameter_code: 'HSCRP', value_type: 'numeric', unit: 'mg/L', normal_low: 0, normal_high: 1,  reference_range_text: 'CVD risk: <1 low · 1–3 moderate · >3 high', sort_order: 2 },
+    ],
+  },
+
+  // High-sensitivity CRP ordered on its own — loads just the hs-CRP portion.
+  {
+    test_name: 'High Sensitivity C-Reactive Protein',
+    test_code: 'HSCRP',
+    category: 'chemistry',
+    specimen_type: 'Serum',
+    parameters: [
+      { parameter_name: 'hs-CRP', parameter_code: 'HSCRP', value_type: 'numeric', unit: 'mg/L', normal_low: 0, normal_high: 1, reference_range_text: 'CVD risk: <1 low · 1–3 moderate · >3 high', sort_order: 1 },
     ],
   },
 ];
