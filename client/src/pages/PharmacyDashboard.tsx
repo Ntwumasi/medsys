@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
@@ -270,6 +270,7 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
 
 const PharmacyDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   useAuth(); // Ensure user is authenticated
@@ -279,17 +280,37 @@ const PharmacyDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
 
-  // Deep-link from a notification: ?tab=orders|inventory opens that section.
+  // Notification deep-link target: the order to scroll to / flash once loaded.
+  const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+
+  // Deep-link from a notification: ?tab=orders|inventory opens that section and
+  // ?highlight=<id> scrolls to + flashes that order. This reacts to EVERY
+  // query-string change (deps on location.search), not just mount: clicking a
+  // notification while already on /dashboard only mutates the search params and
+  // does not remount the dashboard, so a mount-only effect never fired — that
+  // was the "View does nothing" bug.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
+    const highlight = params.get('highlight');
     const valid = ['orders', 'otc', 'inventory', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
     if (tab && valid.includes(tab)) {
       setActiveTab(tab as typeof activeTab);
-      // Clear the param so it doesn't stick on refresh
-      window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+    if (highlight) {
+      const id = Number(highlight);
+      if (!Number.isNaN(id)) setHighlightOrderId(id);
+      // New-order notifications (the only pharmacy-order notification with a
+      // View link) land in the Pending queue — make sure that sub-tab is the
+      // one loaded so the highlighted order is actually present in the list.
+      setOrdersSubTab('pending');
+    }
+    if (tab || highlight) {
+      // Consume the params so they don't re-fire or stick on refresh.
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, navigate]);
   const [loading, setLoading] = useState(true);
 
   // Suppliers state
@@ -475,6 +496,18 @@ const PharmacyDashboard: React.FC = () => {
       new Date(a.ordered_date).getTime() - new Date(b.ordered_date).getTime()
     );
   }, [pharmacyOrders]);
+
+  // Once a notification deep-link target is loaded into the list, scroll to it,
+  // flash the highlight ring, then clear the highlight after a few seconds.
+  useEffect(() => {
+    if (highlightOrderId == null) return;
+    const el = highlightRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const t = setTimeout(() => setHighlightOrderId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightOrderId, pharmacyOrders]);
 
   // Inventory state
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -2014,8 +2047,11 @@ const PharmacyDashboard: React.FC = () => {
                           {group.orders.map((order) => (
                             <div
                               key={order.id}
+                              ref={order.id === highlightOrderId ? highlightRef : undefined}
                               className={`rounded-lg border transition-all ${
-                                selectedOrder?.id === order.id
+                                order.id === highlightOrderId
+                                  ? 'border-primary-500 ring-2 ring-primary-400 bg-primary-50'
+                                  : selectedOrder?.id === order.id
                                   ? 'border-success-400 bg-success-50'
                                   : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
                               }`}
@@ -2579,47 +2615,51 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 placeholder="Search medications..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
               />
-              <AppSelect
-                value={categoryFilter}
-                onChange={(val) => setCategoryFilter(val)}
-                options={[
-                  { value: '', label: 'All Categories' },
-                  ...inventoryCategories.map((cat) => ({ value: cat, label: cat })),
-                ]}
-              />
-              <AppSelect
-                value={inventoryFilter}
-                onChange={(val) => setInventoryFilter(val as 'all' | 'low_stock' | 'expiring' | 'expired')}
-                options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: 'low_stock', label: 'Low Stock' },
-                  { value: 'expiring', label: 'Expiring Soon' },
-                  { value: 'expired', label: 'Expired' },
-                ]}
-              />
+              <div className="w-44 flex-shrink-0">
+                <AppSelect
+                  value={categoryFilter}
+                  onChange={(val) => setCategoryFilter(val)}
+                  options={[
+                    { value: '', label: 'All Categories' },
+                    ...inventoryCategories.map((cat) => ({ value: cat, label: cat })),
+                  ]}
+                />
+              </div>
+              <div className="w-40 flex-shrink-0">
+                <AppSelect
+                  value={inventoryFilter}
+                  onChange={(val) => setInventoryFilter(val as 'all' | 'low_stock' | 'expiring' | 'expired')}
+                  options={[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'low_stock', label: 'Low Stock' },
+                    { value: 'expiring', label: 'Expiring Soon' },
+                    { value: 'expired', label: 'Expired' },
+                  ]}
+                />
+              </div>
               <button
                 onClick={openImportModal}
-                className="px-4 py-2 bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors font-medium flex items-center gap-2"
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors font-medium flex items-center gap-2"
                 title="Bulk-update prices, costs and stock from a CSV or Excel file"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
                 Import from File
               </button>
               <button
                 onClick={() => setShowAddInventoryModal(true)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
                 Add Item

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { imagingAPI } from '../api/imaging';
 import HPAccordion from '../components/HPAccordion';
@@ -134,7 +134,8 @@ interface DoctorAlert {
 
 const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
-  const _navigate = useNavigate(); void _navigate;
+  const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [roomEncounters, setRoomEncounters] = useState<RoomEncounter[]>([]);
@@ -220,6 +221,11 @@ const DoctorDashboard: React.FC = () => {
   // Doctor Alerts state
   const [labAlerts, setLabAlerts] = useState<DoctorAlert[]>([]);
   const [imagingAlerts, setImagingAlerts] = useState<DoctorAlert[]>([]);
+  // Notification deep-link: id to resolve against the alert lists once loaded,
+  // and the resolved alert to scroll to / flash.
+  const [pendingHighlightId, setPendingHighlightId] = useState<number | null>(null);
+  const [highlightAlertId, setHighlightAlertId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const [openedLabResult, setOpenedLabResult] = useState<LabResultAlert | null>(null);
 
   // 30-day personal trends for this doctor — patients seen, orders placed.
@@ -295,6 +301,68 @@ const DoctorDashboard: React.FC = () => {
     loadDelinquent();
     loadPendingClaims();
   }, 30_000, true);
+
+  // Deep-link from a notification (e.g. "Lab Results Ready"): ?highlight=<id>.
+  // Reacts to every query-string change, not just mount — clicking a
+  // notification while already on /dashboard only mutates the search params and
+  // does not remount, so a mount-only effect never fired.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const highlight = params.get('highlight');
+    if (highlight) {
+      const id = Number(highlight);
+      if (!Number.isNaN(id)) setPendingHighlightId(id);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, navigate]);
+
+  // Once the alerts are loaded, resolve the deep-link target: open the lab
+  // result modal (or switch to the imaging tab) and flash the matching alert.
+  useEffect(() => {
+    if (pendingHighlightId == null) return;
+    const lab = labAlerts.find((a) => a.id === pendingHighlightId);
+    if (lab) {
+      setAlertsTab('lab');
+      setHighlightAlertId(lab.id);
+      setOpenedLabResult({
+        id: lab.id,
+        test_name: lab.test_name,
+        test_code: lab.test_code,
+        path_no: lab.path_no,
+        patient_name: lab.patient_name,
+        patient_number: lab.patient_number,
+        priority: lab.priority,
+        status: lab.status,
+        ordered_date: lab.ordered_date,
+        result_date: lab.result_date || lab.completed_date,
+        result: lab.result || lab.results,
+        result_document_id: lab.result_document_id ?? null,
+        result_document_name: lab.result_document_name ?? null,
+        room_number: lab.room_number,
+      });
+      setPendingHighlightId(null);
+      return;
+    }
+    const img = imagingAlerts.find((a) => a.id === pendingHighlightId);
+    if (img) {
+      setAlertsTab('imaging');
+      setHighlightAlertId(img.id);
+      setPendingHighlightId(null);
+    }
+    // If not found yet, leave it pending — this effect re-runs when the alert
+    // lists update on the next poll.
+  }, [pendingHighlightId, labAlerts, imagingAlerts]);
+
+  // Scroll to + flash the highlighted alert, then clear after a few seconds.
+  useEffect(() => {
+    if (highlightAlertId == null) return;
+    const el = highlightRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const t = setTimeout(() => setHighlightAlertId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightAlertId]);
 
   useEffect(() => {
     if (selectedEncounter) {
@@ -1327,6 +1395,7 @@ const DoctorDashboard: React.FC = () => {
                         {labAlerts.map((alert) => (
                           <div
                             key={alert.id}
+                            ref={alert.id === highlightAlertId ? highlightRef : undefined}
                             onClick={() => setOpenedLabResult({
                               id: alert.id,
                               test_name: alert.test_name,
@@ -1343,7 +1412,9 @@ const DoctorDashboard: React.FC = () => {
                               result_document_name: alert.result_document_name ?? null,
                               room_number: alert.room_number,
                             })}
-                            className="px-4 py-3 transition-colors hover:bg-warning-50 cursor-pointer"
+                            className={`px-4 py-3 transition-colors cursor-pointer ${
+                              alert.id === highlightAlertId ? 'bg-warning-100 ring-2 ring-warning-400' : 'hover:bg-warning-50'
+                            }`}
                             title="Open lab result"
                           >
                             <div className="flex justify-between items-start">
@@ -1378,7 +1449,13 @@ const DoctorDashboard: React.FC = () => {
                     ) : (
                       <div className="divide-y divide-gray-100">
                         {imagingAlerts.map((alert) => (
-                          <div key={alert.id} className="px-4 py-3 hover:bg-warning-50 transition-colors">
+                          <div
+                            key={alert.id}
+                            ref={alert.id === highlightAlertId ? highlightRef : undefined}
+                            className={`px-4 py-3 transition-colors ${
+                              alert.id === highlightAlertId ? 'bg-warning-100 ring-2 ring-warning-400' : 'hover:bg-warning-50'
+                            }`}
+                          >
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="font-semibold text-gray-900 text-sm">

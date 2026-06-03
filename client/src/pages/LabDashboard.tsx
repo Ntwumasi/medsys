@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { useAuth } from '../context/AuthContext';
@@ -237,6 +238,8 @@ const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick
 };
 
 const LabDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useNotification();
   const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   const printRef = useRef<HTMLDivElement>(null);
@@ -245,16 +248,35 @@ const LabDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'analytics' | 'alerts' | 'catalog' | 'qc' | 'walkins' | 'verification'>('orders');
   const [walkIns, setWalkIns] = useState<any[]>([]);
 
-  // Deep-link from a notification: ?tab=orders|inventory|... opens that section.
+  // Notification deep-link target: the order to scroll to / flash once loaded.
+  const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+
+  // Deep-link from a notification: ?tab=... opens that section and
+  // ?highlight=<id> scrolls to + flashes that order. Reacts to EVERY
+  // query-string change (deps on location.search), not just mount — clicking a
+  // notification while already on /dashboard only mutates the search params and
+  // does not remount, so a mount-only effect never fired (the "View does
+  // nothing" bug).
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
+    const highlight = params.get('highlight');
     const valid = ['orders', 'inventory', 'analytics', 'alerts', 'catalog', 'qc', 'walkins', 'verification'];
     if (tab && valid.includes(tab)) {
       setActiveTab(tab as typeof activeTab);
-      window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+    if (highlight) {
+      const id = Number(highlight);
+      if (!Number.isNaN(id)) setHighlightOrderId(id);
+      // New-order notifications land in the Pending queue — make sure that
+      // sub-tab is loaded so the highlighted order is present.
+      setOrdersSubTab('pending');
+    }
+    if (tab || highlight) {
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, navigate]);
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
   const [statusFilter, setStatusFilter] = useState<string>(''); // '', 'pending', 'in_progress', 'stat'
 
@@ -278,6 +300,18 @@ const LabDashboard: React.FC = () => {
 
   // Orders state
   const [labOrders, setLabOrders] = useState<LabOrder[]>([]);
+
+  // Once a notification deep-link target is loaded into the list, scroll to it,
+  // flash the highlight ring, then clear the highlight after a few seconds.
+  useEffect(() => {
+    if (highlightOrderId == null) return;
+    const el = highlightRef.current;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    const t = setTimeout(() => setHighlightOrderId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightOrderId, labOrders]);
   const [searchTerm, setSearchTerm] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -2348,8 +2382,11 @@ const LabDashboard: React.FC = () => {
                       {group.orders.map((order) => (
                         <div
                           key={order.id}
+                          ref={order.id === highlightOrderId ? highlightRef : undefined}
                           className={`px-6 py-3 pl-10 hover:bg-gray-50 transition-colors cursor-pointer border-t border-gray-100 ${
-                            selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''
+                            order.id === highlightOrderId
+                              ? 'ring-2 ring-primary-400 bg-primary-50'
+                              : selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''
                           }`}
                           onClick={() => {
                             setSelectedOrderForDetails(order);
