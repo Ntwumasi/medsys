@@ -304,6 +304,14 @@ const PharmacyDashboard: React.FC = () => {
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [editingInventory, setEditingInventory] = useState<InventoryItem | null>(null);
 
+  // Stock adjustment (add/subtract with reason) — uses POST /inventory/:id/adjust
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
+  const [adjustType, setAdjustType] = useState<'add' | 'subtract'>('add');
+  const [adjustQty, setAdjustQty] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [submittingAdjust, setSubmittingAdjust] = useState(false);
+
   // Prescription edit modal
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<PharmacyOrder | null>(null);
@@ -1068,6 +1076,50 @@ const PharmacyDashboard: React.FC = () => {
     return 'bg-gray-300';
   };
 
+  const openAdjustStock = (item: InventoryItem) => {
+    setAdjustItem(item);
+    setAdjustType('add');
+    setAdjustQty('');
+    setAdjustReason('');
+    setShowAdjustModal(true);
+  };
+
+  const submitAdjustment = async () => {
+    if (!adjustItem) return;
+    const qty = parseInt(adjustQty, 10);
+    if (isNaN(qty) || qty <= 0) {
+      showToast('Enter a quantity greater than 0', 'error');
+      return;
+    }
+    if (!adjustReason.trim()) {
+      showToast('Enter a reason for the adjustment', 'error');
+      return;
+    }
+    // Signed adjustment: positive to add, negative to subtract.
+    const adjustment = adjustType === 'add' ? qty : -qty;
+    if (adjustType === 'subtract' && qty > adjustItem.quantity_on_hand) {
+      showToast(`Cannot subtract ${qty} — only ${adjustItem.quantity_on_hand} in stock`, 'error');
+      return;
+    }
+    setSubmittingAdjust(true);
+    try {
+      await apiClient.post(`/inventory/${adjustItem.id}/adjust`, {
+        adjustment,
+        transaction_type: 'adjustment',
+        notes: adjustReason.trim(),
+      });
+      showToast(`Stock ${adjustType === 'add' ? 'increased' : 'decreased'} by ${qty}`, 'success');
+      setShowAdjustModal(false);
+      setAdjustItem(null);
+      fetchInventory();
+    } catch (error: any) {
+      console.error('Error adjusting stock:', error);
+      showToast(error.response?.data?.error || 'Failed to adjust stock', 'error');
+    } finally {
+      setSubmittingAdjust(false);
+    }
+  };
+
   const openOrderActivity = async (order: PharmacyOrder) => {
     setActivityOrder(order);
     setActivityEvents([]);
@@ -1362,11 +1414,33 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // A procurement row is "complete" (countable) when a medication is selected,
+  // quantity > 0, and a unit cost is entered. Cost MAY be 0 (free sample /
+  // donation) but must not be blank — blank means "not filled yet", and a blank
+  // "0.00" placeholder previously made rows silently uncountable.
+  const isCompleteProcurementRow = (item: any) =>
+    !!item.inventory_id
+    && item.quantity !== '' && Number(item.quantity) > 0
+    && item.unit_cost !== '' && item.unit_cost != null
+    && !isNaN(Number(item.unit_cost)) && Number(item.unit_cost) >= 0;
+
   const submitProcurement = async () => {
-    // Validate all line items
-    const validItems = procurementItems.filter(item => item.inventory_id && item.quantity && item.unit_cost);
+    const validItems = procurementItems.filter(isCompleteProcurementRow);
     if (validItems.length === 0) {
-      showToast('Please add at least one medication with quantity and unit cost', 'error');
+      // Don't just say "0 items" — tell the pharmacist exactly what's missing on
+      // the row they've started. (Irene hit "Record 0 Items" because the Unit
+      // Cost field was blank — the "0.00" she saw was only a placeholder.)
+      const started = procurementItems.find(it => it.inventory_id);
+      if (started) {
+        const med = inventory.find(i => i.id === parseInt(started.inventory_id));
+        const name = med?.medication_name || 'This medication';
+        const missing: string[] = [];
+        if (!(started.quantity !== '' && Number(started.quantity) > 0)) missing.push('quantity');
+        if (!(started.unit_cost !== '' && !isNaN(Number(started.unit_cost)) && Number(started.unit_cost) >= 0)) missing.push('unit cost');
+        showToast(`${name}: enter ${missing.join(' and ')} before recording. (Use 0 if it's free.)`, 'error');
+      } else {
+        showToast('Select a medication, then enter quantity and unit cost.', 'error');
+      }
       return;
     }
 
@@ -1618,20 +1692,26 @@ const PharmacyDashboard: React.FC = () => {
         <div className="max-w-full mx-auto px-6">
           <nav className="flex space-x-8">
             {tabs.map((tab) => (
-              <button
+              // Rendered as a real link so right-click / ⌘-click / middle-click
+              // can open the section in a new browser tab (the dashboard reads
+              // ?tab= on load). Plain left-click still switches in place.
+              <a
                 key={tab.id}
-                onClick={() => {
+                href={`${window.location.pathname}?tab=${tab.id}`}
+                onClick={(e) => {
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return; // let the browser open a new tab/window
+                  e.preventDefault();
                   setActiveTab(tab.id);
                   if (tab.id === 'revenue') fetchRevenueSummary();
                 }}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors cursor-pointer no-underline ${
                   activeTab === tab.id
                     ? 'border-success-500 text-success-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
                 {tab.icon} {tab.label}
-              </button>
+              </a>
             ))}
           </nav>
         </div>
@@ -2552,6 +2632,15 @@ const PharmacyDashboard: React.FC = () => {
                             </svg>
                           </button>
                           <button
+                            onClick={() => openAdjustStock(item)}
+                            className="p-1 text-gray-600 hover:text-gray-900"
+                            title="Adjust stock (add / subtract with reason)"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h18M3 12h18M3 17h18M7 4v6m10 4v6" />
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => deleteInventoryItem(item.id)}
                             className="p-1 text-danger-600 hover:text-danger-800"
                             title="Delete"
@@ -2901,7 +2990,10 @@ const PharmacyDashboard: React.FC = () => {
                             min="1"
                             value={item.quantity}
                             onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                              item.inventory_id && !(item.quantity !== '' && Number(item.quantity) > 0)
+                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                            }`}
                             placeholder="0"
                           />
                         </div>
@@ -2913,8 +3005,11 @@ const PharmacyDashboard: React.FC = () => {
                             min="0"
                             value={item.unit_cost}
                             onChange={(e) => updateLineItem(idx, 'unit_cost', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="0.00"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                              item.inventory_id && item.unit_cost === ''
+                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                            }`}
+                            placeholder="0.00 (enter 0 if free)"
                           />
                         </div>
                         <div>
@@ -3001,7 +3096,7 @@ const PharmacyDashboard: React.FC = () => {
                   disabled={submittingProcurement}
                   className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submittingProcurement ? 'Recording...' : `Record ${procurementItems.filter(i => i.inventory_id && i.quantity && i.unit_cost).length} Item${procurementItems.filter(i => i.inventory_id && i.quantity && i.unit_cost).length !== 1 ? 's' : ''}`}
+                  {submittingProcurement ? 'Recording...' : `Record ${procurementItems.filter(isCompleteProcurementRow).length} Item${procurementItems.filter(isCompleteProcurementRow).length !== 1 ? 's' : ''}`}
                 </button>
                 <button
                   onClick={addLineItem}
@@ -4091,6 +4186,97 @@ const PharmacyDashboard: React.FC = () => {
                 })}
               </ol>
             )}
+          </div>
+        )}
+      </Modal>
+
+      {/* Stock Adjustment Modal — add/subtract with a reason (POST /inventory/:id/adjust) */}
+      <Modal
+        isOpen={showAdjustModal}
+        onClose={() => { setShowAdjustModal(false); setAdjustItem(null); }}
+        title="Adjust Stock"
+        size="md"
+      >
+        {adjustItem && (
+          <div className="space-y-4">
+            <div className="pb-3 border-b border-gray-200">
+              <p className="text-sm font-semibold text-gray-900">{adjustItem.medication_name}</p>
+              <p className="text-xs text-gray-500">
+                Current quantity: <span className="font-medium text-gray-700">{adjustItem.quantity_on_hand} {adjustItem.unit}s</span>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment type</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustType('add')}
+                  className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
+                    adjustType === 'add' ? 'bg-success-600 text-white border-success-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  + Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdjustType('subtract')}
+                  className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
+                    adjustType === 'subtract' ? 'bg-warning-600 text-white border-warning-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  − Subtract
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={adjustQty}
+                onChange={(e) => setAdjustQty(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                placeholder="0"
+              />
+              {adjustQty && !isNaN(parseInt(adjustQty)) && parseInt(adjustQty) > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  New quantity: <span className="font-medium">
+                    {adjustType === 'add'
+                      ? adjustItem.quantity_on_hand + parseInt(adjustQty)
+                      : adjustItem.quantity_on_hand - parseInt(adjustQty)}
+                  </span>
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for adjustment</label>
+              <textarea
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                rows={2}
+                placeholder="e.g. damaged stock, count correction, expired discard…"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => { setShowAdjustModal(false); setAdjustItem(null); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAdjustment}
+                disabled={submittingAdjust}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+              >
+                {submittingAdjust ? 'Saving…' : 'Apply Adjustment'}
+              </button>
+            </div>
           </div>
         )}
       </Modal>

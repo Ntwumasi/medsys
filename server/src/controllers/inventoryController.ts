@@ -218,13 +218,17 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
        unit_cost || 0, selling_price || 0, expiry_date, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
     );
 
-    // Log the initial stock as a purchase transaction
+    // Log the opening balance as an ADJUSTMENT, not a purchase. Creating an
+    // item just defines it + sets a starting count; an actual purchase (money
+    // spent, supplier invoice) is recorded separately on the Procurement page.
+    // Logging this as 'purchase' made new items show up as phantom purchases in
+    // Recent Purchases (Irene's report).
     const authReq = req as any;
     if (quantity_on_hand > 0) {
       await pool.query(
         `INSERT INTO inventory_transactions
          (inventory_id, transaction_type, quantity, notes, performed_by)
-         VALUES ($1, 'purchase', $2, 'Initial stock entry', $3)`,
+         VALUES ($1, 'adjustment', $2, 'Opening balance (item created)', $3)`,
         [result.rows[0].id, quantity_on_hand, authReq.user?.id]
       );
     }
