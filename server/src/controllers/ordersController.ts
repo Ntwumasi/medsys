@@ -69,11 +69,17 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     // Prevent duplicate: same test for the same encounter that isn't cancelled.
     // Scheduled orders are exempt — they represent repeated tests at different times.
     if (priority !== 'scheduled') {
+      // Normalise whitespace/case so "bue & cr", "bue  & cr" and "BUE & Cr" all
+      // collide — a plain LOWER()-equality missed these and let near-identical
+      // duplicates through (lab reported two "bue & cr" orders for one patient).
       const dupCheck = await pool.query(
         `SELECT id FROM lab_orders
          WHERE encounter_id = $1
-           AND (LOWER(test_name) = LOWER($2)
-                OR ($3::text IS NOT NULL AND test_code IS NOT NULL AND LOWER(test_code) = LOWER($3::text)))
+           AND (
+             LOWER(TRIM(REGEXP_REPLACE(test_name, '\\s+', ' ', 'g')))
+               = LOWER(TRIM(REGEXP_REPLACE($2, '\\s+', ' ', 'g')))
+             OR ($3::text IS NOT NULL AND test_code IS NOT NULL AND LOWER(test_code) = LOWER($3::text))
+           )
            AND status != 'cancelled'
          LIMIT 1`,
         [encounter_id, test_name, test_code || null]
@@ -1636,7 +1642,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
 
 export const getPharmacyOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status, start_date, end_date } = req.query;
+    const { patient_id, encounter_id, status, start_date, end_date, ordered_from, ordered_to } = req.query;
 
     let query = `
       SELECT po.*,
@@ -1753,6 +1759,21 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
     if (end_date) {
       query += ` AND po.dispensed_date::date <= $${paramCount}`;
       params.push(end_date);
+      paramCount++;
+    }
+
+    // Filter by ORDER date (inclusive, by calendar day). Drives the pharmacy
+    // queue's "today only" default + date-range search — pending orders have no
+    // dispensed_date, so the dispensed-date filter above can't scope them.
+    if (ordered_from) {
+      query += ` AND po.ordered_date::date >= $${paramCount}`;
+      params.push(ordered_from);
+      paramCount++;
+    }
+
+    if (ordered_to) {
+      query += ` AND po.ordered_date::date <= $${paramCount}`;
+      params.push(ordered_to);
       paramCount++;
     }
 

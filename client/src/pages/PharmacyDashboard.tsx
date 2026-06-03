@@ -513,6 +513,12 @@ const PharmacyDashboard: React.FC = () => {
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
 
+  // Date range for the active queue (Pending / In Progress / Ready) — defaults
+  // to today so unserved prescriptions from previous days drop off the day's
+  // list (Irene's request); widen the range to pull older orders back up.
+  const [queueStart, setQueueStart] = useState(today);
+  const [queueEnd, setQueueEnd] = useState(today);
+
   // Drug history modal
   const [showDrugHistory, setShowDrugHistory] = useState(false);
   const [drugHistoryPatientName, setDrugHistoryPatientName] = useState('');
@@ -571,6 +577,14 @@ const PharmacyDashboard: React.FC = () => {
       fetchOrderHistory();
     }
   }, [ordersSubTab, startDate, endDate]);
+
+  // Refetch the active queue when its date range changes.
+  useEffect(() => {
+    if (ordersSubTab === 'pending') fetchPendingOrders();
+    else if (ordersSubTab === 'in_progress') fetchInProgressOrders();
+    else if (ordersSubTab === 'ready') fetchReadyOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueStart, queueEnd]);
 
   useEffect(() => {
     if (activeTab === 'procurement') {
@@ -1172,10 +1186,12 @@ const PharmacyDashboard: React.FC = () => {
       // "Dispensed Today" means today — scope to today's dispense date, else the
       // card counts every order ever dispensed. (Ghana is GMT, so the local
       // calendar day matches the stored date.)
+      // All three stat cards summarise TODAY, matching the queue's today-default
+      // list — pending/in-progress scoped by order date, dispensed by dispense date.
       const today = format(new Date(), 'yyyy-MM-dd');
       const [pendingRes, inProgressRes, dispensedRes] = await Promise.all([
-        apiClient.get('/orders/pharmacy?status=ordered'),
-        apiClient.get('/orders/pharmacy?status=in_progress'),
+        apiClient.get(`/orders/pharmacy?status=ordered&ordered_from=${today}&ordered_to=${today}`),
+        apiClient.get(`/orders/pharmacy?status=in_progress&ordered_from=${today}&ordered_to=${today}`),
         apiClient.get(`/orders/pharmacy?status=dispensed&start_date=${today}&end_date=${today}`),
       ]);
       // Count distinct PATIENTS, not medication lines — a patient with 3
@@ -1193,9 +1209,17 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Date-range query for the active queue. Empty dates → no filter (show all).
+  const queueRangeQuery = () => {
+    let q = '';
+    if (queueStart) q += `&ordered_from=${queueStart}`;
+    if (queueEnd) q += `&ordered_to=${queueEnd}`;
+    return q;
+  };
+
   const fetchPendingOrders = async () => {
     try {
-      const response = await apiClient.get('/orders/pharmacy?status=ordered');
+      const response = await apiClient.get(`/orders/pharmacy?status=ordered${queueRangeQuery()}`);
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error fetching pharmacy orders:', error);
@@ -1204,7 +1228,7 @@ const PharmacyDashboard: React.FC = () => {
 
   const fetchInProgressOrders = async () => {
     try {
-      const response = await apiClient.get('/orders/pharmacy?status=in_progress');
+      const response = await apiClient.get(`/orders/pharmacy?status=in_progress${queueRangeQuery()}`);
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error fetching in-progress orders:', error);
@@ -1213,7 +1237,7 @@ const PharmacyDashboard: React.FC = () => {
 
   const fetchReadyOrders = async () => {
     try {
-      const response = await apiClient.get('/orders/pharmacy?status=ready');
+      const response = await apiClient.get(`/orders/pharmacy?status=ready${queueRangeQuery()}`);
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
       console.error('Error fetching ready orders:', error);
@@ -1806,6 +1830,47 @@ const PharmacyDashboard: React.FC = () => {
                 >
                   Clear
                 </button>
+              </div>
+            )}
+
+            {/* Date Range Filter for the active queue (Pending / In Progress / Ready) */}
+            {ordersSubTab !== 'history' && (
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-end gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={queueStart}
+                    onChange={(e) => setQueueStart(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={queueEnd}
+                    onChange={(e) => setQueueEnd(e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  />
+                </div>
+                <button
+                  onClick={() => { setQueueStart(today); setQueueEnd(today); }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => { setQueueStart(''); setQueueEnd(''); }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  All dates
+                </button>
+                <span className="text-xs text-gray-400 ml-auto self-center">
+                  {queueStart || queueEnd
+                    ? 'Older orders outside this range are hidden — widen to pull them up.'
+                    : 'Showing all dates.'}
+                </span>
               </div>
             )}
 
@@ -3784,20 +3849,19 @@ const PharmacyDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <input
-                  type="text"
+                {/* Clickable dropdown (with type-to-filter) instead of a datalist
+                    input — datalists wouldn't open on click, forcing the user to
+                    type the category before anything appeared (Irene's report). */}
+                <AppSelect
+                  label="Category"
                   value={editingInventory.category || ''}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, category: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Type to search categories..."
-                  list="edit-category-suggestions"
+                  onChange={(val) => setEditingInventory({ ...editingInventory, category: val })}
+                  placeholder="Select category"
+                  options={Array.from(new Set([
+                    ...(editingInventory.category ? [editingInventory.category] : []),
+                    ...inventoryCategories,
+                  ])).map((c) => ({ value: c, label: c }))}
                 />
-                <datalist id="edit-category-suggestions">
-                  {inventoryCategories.map((cat) => (
-                    <option key={cat} value={cat} />
-                  ))}
-                </datalist>
               </div>
               <div>
                 <AppSelect
