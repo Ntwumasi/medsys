@@ -68,6 +68,11 @@ interface PharmacyOrder {
   inventory_price?: number;
   inventory_medication_name?: string;
   inventory_unit?: string;
+  /** Best-effort inventory item matched by NAME when the doctor typed free-text
+   *  (no inventory_id). Lets the pharmacist one-click adopt it as a substitute. */
+  suggested_inventory_id?: number;
+  /** True when inventory_quantity/price came from a fuzzy name match, not a hard link. */
+  inventory_name_matched?: boolean;
   days_supply?: number;
   substitute_medication?: string;
   substitute_reason?: string;
@@ -302,6 +307,14 @@ const PharmacyDashboard: React.FC = () => {
   // Prescription edit modal
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<PharmacyOrder | null>(null);
+  // Autocomplete for the "Substitute Medication" field (filters already-loaded inventory)
+  const [showSubSuggestions, setShowSubSuggestions] = useState(false);
+
+  // Per-order activity drawer (who started/prepared/dispensed/substituted/returned)
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [activityOrder, setActivityOrder] = useState<PharmacyOrder | null>(null);
+  const [activityEvents, setActivityEvents] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   // Print label modal
   const [showLabelModal, setShowLabelModal] = useState(false);
@@ -1010,6 +1023,9 @@ const PharmacyDashboard: React.FC = () => {
         notes: editingOrder.notes,
         substitute_medication: editingOrder.substitute_medication || null,
         substitute_reason: editingOrder.substitute_reason || null,
+        // Persist the inventory link chosen via the substitute autocomplete so
+        // dispense deducts the right stock and bills the right price.
+        ...(editingOrder.inventory_id != null ? { inventory_id: editingOrder.inventory_id } : {}),
       });
       showToast('Prescription updated', 'success');
       setShowEditOrderModal(false);
@@ -1018,6 +1034,53 @@ const PharmacyDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error updating order:', error);
       showToast('Failed to update prescription', 'error');
+    }
+  };
+
+  // Turn a raw activity event into a human label. Audit events carry the new
+  // status in details.status; inventory events carry the transaction_type.
+  const formatActivityAction = (ev: any): string => {
+    if (ev.source === 'inventory') {
+      const map: Record<string, string> = {
+        dispense: 'Stock dispensed', return: 'Stock returned',
+        adjustment: 'Stock adjusted', purchase: 'Stock received',
+      };
+      return map[ev.action] || `Stock ${ev.action}`;
+    }
+    const status = ev.details && typeof ev.details === 'object' ? ev.details.status : null;
+    const statusMap: Record<string, string> = {
+      in_progress: 'Started preparing', ready: 'Marked ready for pickup',
+      dispensed: 'Dispensed', returned: 'Returned', cancelled: 'Cancelled',
+    };
+    if (status && statusMap[status]) return statusMap[status];
+    const actionMap: Record<string, string> = {
+      create: 'Order created', update: 'Order updated', dispense: 'Dispensed',
+      complete: 'Completed', cancel: 'Cancelled',
+    };
+    return actionMap[ev.action] || ev.action || 'Activity';
+  };
+
+  const activityDotColor = (ev: any): string => {
+    const a = ev.source === 'inventory' ? ev.action : (ev.details?.status || ev.action);
+    if (a === 'dispense' || a === 'dispensed' || a === 'complete') return 'bg-success-500';
+    if (a === 'return' || a === 'returned' || a === 'cancel' || a === 'cancelled') return 'bg-warning-500';
+    if (a === 'in_progress') return 'bg-primary-500';
+    return 'bg-gray-300';
+  };
+
+  const openOrderActivity = async (order: PharmacyOrder) => {
+    setActivityOrder(order);
+    setActivityEvents([]);
+    setShowActivityModal(true);
+    setActivityLoading(true);
+    try {
+      const res = await apiClient.get(`/orders/pharmacy/${order.id}/activity`);
+      setActivityEvents(res.data.activity || []);
+    } catch (error) {
+      console.error('Error loading order activity:', error);
+      showToast('Failed to load activity', 'error');
+    } finally {
+      setActivityLoading(false);
     }
   };
 
@@ -1059,10 +1122,15 @@ const PharmacyDashboard: React.FC = () => {
         apiClient.get('/orders/pharmacy?status=in_progress'),
         apiClient.get('/orders/pharmacy?status=dispensed'),
       ]);
+      // Count distinct PATIENTS, not medication lines — a patient with 3
+      // pending meds is one person in the queue, matching how the list below
+      // is grouped by patient. (Irene's request: "by people, not by medication".)
+      const distinctPatients = (orders: any[]) =>
+        new Set((orders || []).map((o: any) => o.patient_id)).size;
       setOrderStats({
-        pending: (pendingRes.data.orders || []).length,
-        in_progress: (inProgressRes.data.orders || []).length,
-        dispensed: (dispensedRes.data.orders || []).length,
+        pending: distinctPatients(pendingRes.data.orders),
+        in_progress: distinctPatients(inProgressRes.data.orders),
+        dispensed: distinctPatients(dispensedRes.data.orders),
       });
     } catch (error) {
       console.error('Error fetching order stats:', error);
@@ -1498,9 +1566,9 @@ const PharmacyDashboard: React.FC = () => {
         title={title}
         stats={(
           <>
-            <StatPill label="pending" value={orderStats.pending} tone={orderStats.pending > 0 ? 'warning' : 'neutral'} title="Pending prescriptions" />
-            <StatPill label="in progress" value={orderStats.in_progress} tone="primary" title="Being prepared" />
-            <StatPill label="dispensed today" value={orderStats.dispensed} tone="success" title="Dispensed today" />
+            <StatPill label="pending" value={orderStats.pending} tone={orderStats.pending > 0 ? 'warning' : 'neutral'} title="Patients with pending prescriptions" />
+            <StatPill label="in progress" value={orderStats.in_progress} tone="primary" title="Patients whose meds are being prepared" />
+            <StatPill label="dispensed today" value={orderStats.dispensed} tone="success" title="Patients dispensed" />
           </>
         )}
       />
@@ -1838,14 +1906,19 @@ const PharmacyDashboard: React.FC = () => {
                                     <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
                                   )}
                                   {order.inventory_quantity != null ? (
-                                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                      order.inventory_quantity >= parseInt(order.quantity)
-                                        ? 'bg-success-100 text-success-700'
-                                        : order.inventory_quantity > 0
-                                        ? 'bg-warning-100 text-warning-700'
-                                        : 'bg-danger-100 text-danger-700'
-                                    }`}>
-                                      {order.inventory_quantity} in stock
+                                    <span
+                                      className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                        order.inventory_quantity >= parseInt(order.quantity)
+                                          ? 'bg-success-100 text-success-700'
+                                          : order.inventory_quantity > 0
+                                          ? 'bg-warning-100 text-warning-700'
+                                          : 'bg-danger-100 text-danger-700'
+                                      }`}
+                                      title={order.inventory_name_matched
+                                        ? `Matched by name to "${order.inventory_medication_name}". Use Edit → Substitute to confirm the exact item.`
+                                        : undefined}
+                                    >
+                                      {order.inventory_name_matched && '≈ '}{order.inventory_quantity} in stock
                                     </span>
                                   ) : (
                                     <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
@@ -1947,6 +2020,16 @@ const PharmacyDashboard: React.FC = () => {
                                       className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
                                     >
                                       Label
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openOrderActivity(order);
+                                      }}
+                                      className="px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200"
+                                      title="View who started, prepared, dispensed, substituted or returned this order"
+                                    >
+                                      Activity
                                     </button>
                                   </div>
                                 </div>
@@ -3853,13 +3936,73 @@ const PharmacyDashboard: React.FC = () => {
             {/* Substitute Medication */}
             <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
               <h4 className="text-sm font-semibold text-warning-800 mb-2">Substitute Medication (if exact med is unavailable)</h4>
-              <input
-                type="text"
-                value={editingOrder.substitute_medication || ''}
-                onChange={(e) => setEditingOrder({ ...editingOrder, substitute_medication: e.target.value })}
-                className="w-full border border-warning-300 rounded-lg px-3 py-2 mb-2"
-                placeholder="Alternative medication name..."
-              />
+              <div className="relative mb-2">
+                <input
+                  type="text"
+                  value={editingOrder.substitute_medication || ''}
+                  onChange={(e) => { setEditingOrder({ ...editingOrder, substitute_medication: e.target.value }); setShowSubSuggestions(true); }}
+                  onFocus={() => setShowSubSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSubSuggestions(false), 150)}
+                  className="w-full border border-warning-300 rounded-lg px-3 py-2"
+                  placeholder="Start typing to search inventory…"
+                  autoComplete="off"
+                />
+                {showSubSuggestions && (editingOrder.substitute_medication || '').trim().length >= 2 && (() => {
+                  const q = (editingOrder.substitute_medication || '').toLowerCase();
+                  const matches = inventory.filter((it: any) =>
+                    it.quantity_on_hand > 0 && (
+                      it.medication_name?.toLowerCase().includes(q) ||
+                      it.generic_name?.toLowerCase().includes(q) ||
+                      it.category?.toLowerCase().includes(q)
+                    )
+                  ).slice(0, 8);
+                  if (matches.length === 0) {
+                    return (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
+                        No in-stock match — you can still type a free-text substitute.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                      {matches.map((it: any) => (
+                        <button
+                          key={it.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            // Re-link the order to the chosen in-stock item so that at
+                            // dispense time stock is actually deducted (FEFO) and the
+                            // invoice is priced from THIS item — not the doctor's
+                            // original free-text med. Without setting inventory_id the
+                            // substitution was cosmetic (no stock/billing effect).
+                            setEditingOrder({
+                              ...editingOrder,
+                              substitute_medication: it.medication_name,
+                              inventory_id: it.id,
+                              inventory_price: it.selling_price,
+                              inventory_quantity: it.quantity_on_hand,
+                            });
+                            setShowSubSuggestions(false);
+                          }}
+                          className="w-full px-3 py-2 text-left hover:bg-warning-50 border-b border-gray-100 last:border-0 flex justify-between items-center"
+                        >
+                          <div>
+                            <span className="font-medium text-gray-900">{it.medication_name}</span>
+                            {it.generic_name && it.generic_name !== it.medication_name && (
+                              <span className="text-xs text-gray-500 ml-2">({it.generic_name})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-xs flex-shrink-0">
+                            <span className="text-success-600 font-medium">{it.quantity_on_hand} in stock</span>
+                            <span className="text-gray-500">GH₵{Number(it.selling_price || 0).toFixed(2)}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
               <textarea
                 value={editingOrder.substitute_reason || ''}
                 onChange={(e) => setEditingOrder({ ...editingOrder, substitute_reason: e.target.value })}
@@ -3892,6 +4035,58 @@ const PharmacyDashboard: React.FC = () => {
                 Save Changes
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Order Activity Modal — chronological audit of who did what to this order */}
+      <Modal
+        isOpen={showActivityModal}
+        onClose={() => { setShowActivityModal(false); setActivityOrder(null); setActivityEvents([]); }}
+        title="Order Activity"
+        size="lg"
+      >
+        {activityOrder && (
+          <div>
+            <div className="mb-4 pb-3 border-b border-gray-200">
+              <p className="text-sm font-semibold text-gray-900">
+                {activityOrder.substitute_medication || activityOrder.medication_name}
+                {activityOrder.dosage ? <span className="text-gray-500 font-normal"> · {activityOrder.dosage}</span> : null}
+              </p>
+              <p className="text-xs text-gray-500">{activityOrder.patient_name} · Order #{activityOrder.id}</p>
+            </div>
+
+            {activityLoading ? (
+              <p className="text-sm text-gray-500 py-6 text-center">Loading activity…</p>
+            ) : activityEvents.length === 0 ? (
+              <EmptyState title="No recorded activity" description="Actions on this order will appear here once it is started, prepared, dispensed, substituted or returned." />
+            ) : (
+              <ol className="relative border-l border-gray-200 ml-2">
+                {activityEvents.map((ev) => {
+                  const label = formatActivityAction(ev);
+                  return (
+                    <li key={ev.id} className="mb-5 ml-4">
+                      <span className={`absolute -left-1.5 w-3 h-3 rounded-full ${activityDotColor(ev)}`} />
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-900">{label}</p>
+                        <time className="text-xs text-gray-400 flex-shrink-0">
+                          {ev.created_at ? format(new Date(ev.created_at), 'MMM d, h:mm a') : ''}
+                        </time>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {ev.user_name}{ev.user_role ? ` · ${ev.user_role.replace('_', ' ')}` : ''}
+                      </p>
+                      {ev.source === 'inventory' && ev.quantity != null && (
+                        <p className="text-xs text-gray-500">Stock change: {ev.quantity > 0 ? '+' : ''}{ev.quantity}</p>
+                      )}
+                      {typeof ev.details === 'string' && ev.details && (
+                        <p className="text-xs text-gray-400 mt-0.5">{ev.details}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </div>
         )}
       </Modal>

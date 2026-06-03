@@ -424,7 +424,7 @@ export async function resolveLabCatalogItem(
          AND ( test_code = $1 OR test_name ILIKE $2 OR test_name ILIKE $3 OR $2 ILIKE '%' || test_name || '%' OR test_name ~* $4 )
        ORDER BY CASE WHEN test_code = $1 THEN 1 WHEN test_name ILIKE $2 THEN 2 ELSE 3 END
        LIMIT 1`,
-      [testCode || ' ', name, `%${name}%`, keywordPattern]
+      [testCode || '', name, `%${name}%`, keywordPattern]
     );
     const row = r.rows[0];
     if (!row) return { match: null, matchType: 'none' };
@@ -1647,10 +1647,17 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         p.allergies as patient_allergies,
         pu.first_name || ' ' || pu.last_name as patient_name,
         du.first_name || ' ' || du.last_name as dispensed_by_name,
-        pi.quantity_on_hand as inventory_quantity,
-        pi.selling_price as inventory_price,
-        pi.medication_name as inventory_medication_name,
-        pi.unit as inventory_unit,
+        COALESCE(pi.quantity_on_hand, pim.quantity_on_hand) as inventory_quantity,
+        COALESCE(pi.selling_price, pim.selling_price) as inventory_price,
+        COALESCE(pi.medication_name, pim.medication_name) as inventory_medication_name,
+        COALESCE(pi.unit, pim.unit) as inventory_unit,
+        -- When the doctor typed free-text (no inventory_id), pim is a best-effort
+        -- name match so the queue can still show stock/price instead of "Not in
+        -- inventory". Surfaced separately so the pharmacist can one-click adopt it
+        -- as a substitute (which sets the real inventory_id). Dispense logic is
+        -- unchanged — it never auto-picks this fuzzy match.
+        pim.id as suggested_inventory_id,
+        (pi.id IS NULL AND pim.id IS NOT NULL) as inventory_name_matched,
         COALESCE(
           (SELECT pps.payer_type FROM patient_payer_sources pps
            WHERE pps.patient_id = p.id AND pps.is_primary = true LIMIT 1),
@@ -1692,6 +1699,23 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
       LEFT JOIN users pu ON p.user_id = pu.id
       LEFT JOIN users du ON po.dispensed_by = du.id
       LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
+      LEFT JOIN LATERAL (
+        SELECT pi2.id, pi2.quantity_on_hand, pi2.selling_price, pi2.medication_name, pi2.unit
+        FROM pharmacy_inventory pi2
+        WHERE po.inventory_id IS NULL
+          AND pi2.is_active = true
+          AND (
+            pi2.medication_name ILIKE '%' || po.medication_name || '%'
+            OR pi2.generic_name ILIKE '%' || po.medication_name || '%'
+            OR po.medication_name ILIKE '%' || pi2.medication_name || '%'
+          )
+        ORDER BY
+          CASE WHEN pi2.medication_name ILIKE po.medication_name THEN 0
+               WHEN pi2.medication_name ILIKE po.medication_name || '%' THEN 1
+               ELSE 2 END,
+          pi2.quantity_on_hand DESC
+        LIMIT 1
+      ) pim ON true
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -1727,6 +1751,69 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
     });
   } catch (error) {
     console.error('Get pharmacy orders error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Per-order activity timeline: who did what to a pharmacy order, and when.
+// Merges audit_logs (status changes, edits, substitutions, returns) with
+// inventory_transactions (the actual stock movements at dispense/return time)
+// into one chronological feed so pharmacists can "view the action".
+export const getPharmacyOrderActivity = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (!id || Number.isNaN(id)) {
+      res.status(400).json({ error: 'Invalid order id' });
+      return;
+    }
+
+    const [auditRes, txRes] = await Promise.all([
+      pool.query(
+        `SELECT al.id, al.action, al.new_values, al.old_values, al.created_at,
+                u.first_name || ' ' || u.last_name AS user_name, u.role AS user_role
+         FROM audit_logs al
+         LEFT JOIN users u ON al.user_id = u.id
+         WHERE al.entity_type = 'pharmacy_order' AND al.entity_id = $1
+         ORDER BY al.created_at ASC`,
+        [id]
+      ),
+      pool.query(
+        `SELECT it.id, it.transaction_type, it.quantity, it.notes, it.created_at,
+                u.first_name || ' ' || u.last_name AS user_name, u.role AS user_role
+         FROM inventory_transactions it
+         LEFT JOIN users u ON it.performed_by = u.id
+         WHERE it.reference_type = 'pharmacy_order' AND it.reference_id = $1
+         ORDER BY it.created_at ASC`,
+        [id]
+      ),
+    ]);
+
+    const events = [
+      ...auditRes.rows.map((r: any) => ({
+        source: 'audit' as const,
+        id: `a${r.id}`,
+        action: r.action,
+        // new_values carries the status/fields the actor set (see updatePharmacyOrder)
+        details: r.new_values || r.old_values || null,
+        user_name: r.user_name || 'System',
+        user_role: r.user_role || null,
+        created_at: r.created_at,
+      })),
+      ...txRes.rows.map((r: any) => ({
+        source: 'inventory' as const,
+        id: `t${r.id}`,
+        action: r.transaction_type, // 'dispense' | 'return' | 'adjustment' | ...
+        quantity: r.quantity,
+        details: r.notes || null,
+        user_name: r.user_name || 'System',
+        user_role: r.user_role || null,
+        created_at: r.created_at,
+      })),
+    ].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    res.json({ activity: events });
+  } catch (error) {
+    console.error('Get pharmacy order activity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
