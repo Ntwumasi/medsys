@@ -13,6 +13,16 @@ export interface AuthRequest extends Request {
   token?: string; // Store token for logout
 }
 
+/**
+ * All non-patient roles. Use with authorizeRoles(...STAFF_ROLES) for endpoints
+ * that should be open to any staff member but never to patients (e.g. the
+ * social layer). Super admins bypass authorizeRoles entirely.
+ */
+export const STAFF_ROLES = [
+  'doctor', 'nurse', 'admin', 'receptionist', 'lab',
+  'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant',
+] as const;
+
 const getJwtSecret = (): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {

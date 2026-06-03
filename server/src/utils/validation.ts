@@ -176,6 +176,24 @@ export const createMessageSchema = z.object({
   patient_id: z.number().int().positive().optional().nullable(),
 }).passthrough();
 
+// ============ Social Layer Schemas ============
+
+// Editing your own profile. All fields optional (partial update). Arrays are
+// capped to keep the UI/feed tidy; strings bounded to prevent abuse.
+export const updateProfileSchema = z.object({
+  bio: z.string().max(1000).optional().or(z.literal('')),
+  ask_me_about: z.string().max(280).optional().or(z.literal('')),
+  languages: z.array(z.string().min(1).max(40)).max(20).optional(),
+  interests: z.array(z.string().min(1).max(40)).max(30).optional(),
+  presence_status: z.enum(['online', 'on_call', 'away']).optional(),
+}).passthrough();
+
+export const createKudosSchema = z.object({
+  recipient_id: z.number().int().positive(),
+  message: z.string().min(1, 'Kudos message is required').max(500),
+  tag: z.enum(['Teamwork', 'Lifesaver', 'Mentor', 'Kindness', 'Reliability']).optional().nullable(),
+}).passthrough();
+
 // ============ Clinical Notes Schema ============
 
 export const clinicalNoteSchema = z.object({
@@ -304,6 +322,8 @@ export const schemas = {
   uploadDocument: uploadDocumentSchema,
   createMessage: createMessageSchema,
   clinicalNote: clinicalNoteSchema,
+  updateProfile: updateProfileSchema,
+  createKudos: createKudosSchema,
 };
 
 export default schemas;
