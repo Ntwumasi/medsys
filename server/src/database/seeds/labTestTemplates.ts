@@ -147,7 +147,8 @@ const fbcAdultFemaleRanges: Record<string, [number, number]> = {
 
 const fbcAdultMaleRanges: Record<string, [number, number]> = {
   ...fbcAdultFemaleRanges,
-  HGB: [13.0, 17.0], HCT: [40, 50], RBC: [4.3, 5.9],
+  // Per lab's male FBC template: RBC 4.5–6.5, Hgb 13.0–17.5, Hct 40–54.
+  HGB: [13.0, 17.5], HCT: [40, 54], RBC: [4.5, 6.5],
 };
 
 const fbcChild6_12Ranges: Record<string, [number, number]> = {
