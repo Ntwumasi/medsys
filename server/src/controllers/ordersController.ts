@@ -1636,7 +1636,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
 
 export const getPharmacyOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status } = req.query;
+    const { patient_id, encounter_id, status, start_date, end_date } = req.query;
 
     let query = `
       SELECT po.*,
@@ -1739,6 +1739,21 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
       query += ` AND po.status IN (${statuses.map((_, i) => `$${paramCount + i}`).join(', ')})`;
       params.push(...statuses);
       paramCount += statuses.length;
+    }
+
+    // Filter by dispense date (inclusive, by calendar day). Drives the
+    // "Dispensed Today" card and the Order History date range, both of which
+    // previously passed these params but were silently ignored here.
+    if (start_date) {
+      query += ` AND po.dispensed_date::date >= $${paramCount}`;
+      params.push(start_date);
+      paramCount++;
+    }
+
+    if (end_date) {
+      query += ` AND po.dispensed_date::date <= $${paramCount}`;
+      params.push(end_date);
+      paramCount++;
     }
 
     query += ` ORDER BY po.ordered_date DESC`;

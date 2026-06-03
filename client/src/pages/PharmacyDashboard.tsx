@@ -1117,10 +1117,14 @@ const PharmacyDashboard: React.FC = () => {
 
   const fetchOrderStats = async () => {
     try {
+      // "Dispensed Today" means today — scope to today's dispense date, else the
+      // card counts every order ever dispensed. (Ghana is GMT, so the local
+      // calendar day matches the stored date.)
+      const today = format(new Date(), 'yyyy-MM-dd');
       const [pendingRes, inProgressRes, dispensedRes] = await Promise.all([
         apiClient.get('/orders/pharmacy?status=ordered'),
         apiClient.get('/orders/pharmacy?status=in_progress'),
-        apiClient.get('/orders/pharmacy?status=dispensed'),
+        apiClient.get(`/orders/pharmacy?status=dispensed&start_date=${today}&end_date=${today}`),
       ]);
       // Count distinct PATIENTS, not medication lines — a patient with 3
       // pending meds is one person in the queue, matching how the list below
