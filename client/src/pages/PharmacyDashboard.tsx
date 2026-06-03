@@ -1362,11 +1362,33 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // A procurement row is "complete" (countable) when a medication is selected,
+  // quantity > 0, and a unit cost is entered. Cost MAY be 0 (free sample /
+  // donation) but must not be blank — blank means "not filled yet", and a blank
+  // "0.00" placeholder previously made rows silently uncountable.
+  const isCompleteProcurementRow = (item: any) =>
+    !!item.inventory_id
+    && item.quantity !== '' && Number(item.quantity) > 0
+    && item.unit_cost !== '' && item.unit_cost != null
+    && !isNaN(Number(item.unit_cost)) && Number(item.unit_cost) >= 0;
+
   const submitProcurement = async () => {
-    // Validate all line items
-    const validItems = procurementItems.filter(item => item.inventory_id && item.quantity && item.unit_cost);
+    const validItems = procurementItems.filter(isCompleteProcurementRow);
     if (validItems.length === 0) {
-      showToast('Please add at least one medication with quantity and unit cost', 'error');
+      // Don't just say "0 items" — tell the pharmacist exactly what's missing on
+      // the row they've started. (Irene hit "Record 0 Items" because the Unit
+      // Cost field was blank — the "0.00" she saw was only a placeholder.)
+      const started = procurementItems.find(it => it.inventory_id);
+      if (started) {
+        const med = inventory.find(i => i.id === parseInt(started.inventory_id));
+        const name = med?.medication_name || 'This medication';
+        const missing: string[] = [];
+        if (!(started.quantity !== '' && Number(started.quantity) > 0)) missing.push('quantity');
+        if (!(started.unit_cost !== '' && !isNaN(Number(started.unit_cost)) && Number(started.unit_cost) >= 0)) missing.push('unit cost');
+        showToast(`${name}: enter ${missing.join(' and ')} before recording. (Use 0 if it's free.)`, 'error');
+      } else {
+        showToast('Select a medication, then enter quantity and unit cost.', 'error');
+      }
       return;
     }
 
@@ -2901,7 +2923,10 @@ const PharmacyDashboard: React.FC = () => {
                             min="1"
                             value={item.quantity}
                             onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                              item.inventory_id && !(item.quantity !== '' && Number(item.quantity) > 0)
+                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                            }`}
                             placeholder="0"
                           />
                         </div>
@@ -2913,8 +2938,11 @@ const PharmacyDashboard: React.FC = () => {
                             min="0"
                             value={item.unit_cost}
                             onChange={(e) => updateLineItem(idx, 'unit_cost', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder="0.00"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${
+                              item.inventory_id && item.unit_cost === ''
+                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                            }`}
+                            placeholder="0.00 (enter 0 if free)"
                           />
                         </div>
                         <div>
@@ -3001,7 +3029,7 @@ const PharmacyDashboard: React.FC = () => {
                   disabled={submittingProcurement}
                   className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {submittingProcurement ? 'Recording...' : `Record ${procurementItems.filter(i => i.inventory_id && i.quantity && i.unit_cost).length} Item${procurementItems.filter(i => i.inventory_id && i.quantity && i.unit_cost).length !== 1 ? 's' : ''}`}
+                  {submittingProcurement ? 'Recording...' : `Record ${procurementItems.filter(isCompleteProcurementRow).length} Item${procurementItems.filter(isCompleteProcurementRow).length !== 1 ? 's' : ''}`}
                 </button>
                 <button
                   onClick={addLineItem}
