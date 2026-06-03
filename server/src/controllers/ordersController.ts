@@ -1893,8 +1893,10 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       );
     }
 
-    // Sync department_routing status with pharmacy order status
-    if (updateData.status) {
+    // Sync department_routing status with pharmacy order status. Skip 'cancelled'
+    // — a cancellation shouldn't drag the encounter's pharmacy routing back to
+    // 'pending' (other orders for the encounter may still be in progress).
+    if (updateData.status && updateData.status !== 'cancelled') {
       const routingStatus = updateData.status === 'dispensed' ? 'completed' :
                            updateData.status === 'ready' ? 'in-progress' :
                            updateData.status === 'in_progress' ? 'in-progress' : 'pending';
@@ -1905,6 +1907,15 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
          WHERE encounter_id = $2 AND department = 'pharmacy' AND status != 'completed'`,
         [routingStatus, updatedOrder.encounter_id]
       );
+    }
+
+    // Tell the pharmacy when an order is pulled so they stop preparing it.
+    if (updateData.status === 'cancelled') {
+      try {
+        await notificationService.notifyPharmacyOrderCancelled(parseInt(id));
+      } catch (notifyError) {
+        console.error('Error sending cancel notification (non-blocking):', notifyError);
+      }
     }
 
     // Notify nurses when medication is READY for pickup

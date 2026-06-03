@@ -3339,8 +3339,13 @@ const DoctorDashboard: React.FC = () => {
                                       </div>
                                     </div>
                                   )}
-                                  {/* Cancel button for ordered/processing medications */}
-                                  {(order.status === 'ordered' || order.status === 'approved') && (
+                                  {/* Cancel allowed any time before dispensing — including while
+                                      pharmacy is preparing it (in_progress/ready) — e.g. a newly
+                                      discovered allergy. ('approved' was a legacy status; once the
+                                      pharmacy picked the order up the button used to vanish, so
+                                      doctors couldn't pull an order mid-prep.) After dispensing,
+                                      use the return flow instead. */}
+                                  {(order.status === 'ordered' || order.status === 'in_progress' || order.status === 'ready') && (
                                     <button
                                       onClick={() => handleCancelPharmacyOrder(order.id)}
                                       className="mt-3 px-4 py-2 text-danger-600 bg-danger-50 border border-danger-200 text-sm rounded-lg hover:bg-danger-100 transition-colors flex items-center gap-2"
