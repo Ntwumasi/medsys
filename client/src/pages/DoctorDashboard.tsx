@@ -168,6 +168,8 @@ const DoctorDashboard: React.FC = () => {
 
   // Multi-order state - arrays to hold pending orders
   const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number, customFrequency?: string}>>([]);
+  // Guards against a double-click / double-submit creating duplicate orders.
+  const [submittingOrders, setSubmittingOrders] = useState(false);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
   const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
 
@@ -909,6 +911,7 @@ const DoctorDashboard: React.FC = () => {
   // Submit all pending orders
   const handleSubmitAllOrders = async () => {
     if (!selectedEncounter) return;
+    if (submittingOrders) return; // already in flight — ignore extra clicks
 
     const totalOrders = pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length;
 
@@ -921,6 +924,7 @@ const DoctorDashboard: React.FC = () => {
       return;
     }
 
+    setSubmittingOrders(true);
     try {
       const baseData = {
         patient_id: selectedEncounter.patient_id,
@@ -959,6 +963,8 @@ const DoctorDashboard: React.FC = () => {
       console.error('Error submitting orders:', error);
       const msg = error?.response?.data?.error || error?.message || 'Unknown error';
       showToast(`Failed to submit orders: ${msg}`, 'error');
+    } finally {
+      setSubmittingOrders(false);
     }
   };
 
@@ -2986,12 +2992,13 @@ const DoctorDashboard: React.FC = () => {
                     <div className="mt-6 pt-6 border-t border-gray-200">
                       <button
                         onClick={handleSubmitAllOrders}
-                        className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base flex items-center justify-center gap-2"
+                        disabled={submittingOrders}
+                        className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Submit All {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Order(s)
+                        {submittingOrders ? 'Submitting…' : `Submit All ${pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Order(s)`}
                       </button>
                     </div>
                   )}
