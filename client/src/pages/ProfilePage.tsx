@@ -103,8 +103,16 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProfile();
     loadMessageCount();
-    loadSocial();
   }, []);
+
+  // AuthContext hydrates `user` asynchronously, so on first render user?.id is
+  // undefined. Load social data once the id is available (and if it changes),
+  // otherwise the About/Kudos/presence section stays empty and the presence
+  // buttons do nothing.
+  useEffect(() => {
+    if (user?.id) loadSocial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const loadSocial = async () => {
     if (!user?.id) return;
@@ -156,9 +164,17 @@ export default function ProfilePage() {
 
   const changePresence = async (status: PresenceStatus) => {
     const prev = social;
-    setSocial((s) => (s ? { ...s, presence_status: status } : s)); // optimistic
+    // Optimistic update — works even before the profile has loaded (social null).
+    setSocial((s) => ({
+      bio: s?.bio ?? null,
+      ask_me_about: s?.ask_me_about ?? null,
+      languages: s?.languages ?? [],
+      interests: s?.interests ?? [],
+      presence_status: status,
+    }));
     try {
-      await socialAPI.updateMyProfile({ presence_status: status });
+      const { profile } = await socialAPI.updateMyProfile({ presence_status: status });
+      setSocial(profile);
     } catch {
       setSocial(prev);
       showToast('Failed to update status', 'error');
