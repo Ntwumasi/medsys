@@ -1642,7 +1642,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
 
 export const getPharmacyOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status, start_date, end_date } = req.query;
+    const { patient_id, encounter_id, status, start_date, end_date, ordered_from, ordered_to } = req.query;
 
     let query = `
       SELECT po.*,
@@ -1759,6 +1759,21 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
     if (end_date) {
       query += ` AND po.dispensed_date::date <= $${paramCount}`;
       params.push(end_date);
+      paramCount++;
+    }
+
+    // Filter by ORDER date (inclusive, by calendar day). Drives the pharmacy
+    // queue's "today only" default + date-range search — pending orders have no
+    // dispensed_date, so the dispensed-date filter above can't scope them.
+    if (ordered_from) {
+      query += ` AND po.ordered_date::date >= $${paramCount}`;
+      params.push(ordered_from);
+      paramCount++;
+    }
+
+    if (ordered_to) {
+      query += ` AND po.ordered_date::date <= $${paramCount}`;
+      params.push(ordered_to);
       paramCount++;
     }
 
