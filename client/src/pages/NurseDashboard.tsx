@@ -4212,8 +4212,23 @@ const NurseDashboard: React.FC = () => {
                     <p className="text-primary-100 text-sm">Manage supplies and equipment</p>
                   </div>
                 </div>
-                <div className="text-primary-100 text-sm">
-                  Total Value: <span className="font-bold text-white">GHS {nurseInventory.reduce((sum, i) => sum + Number(i.quantity || 0) * Number(i.unit_cost || 0), 0).toFixed(2)}</span>
+                <div className="flex items-center gap-4">
+                  <div className="text-primary-100 text-sm">
+                    Total Value: <span className="font-bold text-white">GHS {nurseInventory.reduce((sum, i) => sum + Number(i.quantity || 0) * Number(i.unit_cost || 0), 0).toFixed(2)}</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingInventoryItem(null);
+                      setInventoryForm({ name: '', category: 'Supplies', quantity: 0, unit: 'pcs', min_quantity: 0, location: '' });
+                      setShowInventoryModal(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-primary-700 rounded-lg font-semibold text-sm hover:bg-primary-50 transition-colors whitespace-nowrap flex-shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Item
+                  </button>
                 </div>
               </div>
             </div>
