@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import pool from '../database/db';
+import { emitActivity } from '../services/socialService';
 
 // Generate a one-time temporary password for new accounts / password
 // resets. Returned to the requesting admin/receptionist in the response
@@ -204,6 +205,17 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     );
 
     const user = result.rows[0];
+
+    // Social layer: announce the new staff member in the activity feed so
+    // colleagues can discover and welcome them. Best-effort, non-blocking.
+    await emitActivity({
+      actorId: user.id,
+      activityType: 'staff_joined',
+      targetUserId: user.id,
+      entityType: 'user',
+      entityId: user.id,
+      metadata: { role: user.role, name: `${user.first_name} ${user.last_name}` },
+    });
 
     res.status(201).json({
       message: 'User created successfully',

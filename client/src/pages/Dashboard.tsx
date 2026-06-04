@@ -21,6 +21,11 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { TableRowSkeleton } from '../components/Skeleton';
 import {
+  summarizeAudit,
+  buildAuditChangeSet,
+  auditChangePreview,
+} from '../utils/audit';
+import {
   Select,
   MenuItem,
   FormControl,
@@ -434,6 +439,8 @@ const Dashboard: React.FC = () => {
     old_values: any;
     new_values: any;
     created_at: string;
+    ip_address?: string | null;
+    user_agent?: string | null;
   }>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditPage, setAuditPage] = useState(1);
@@ -3429,13 +3436,23 @@ const Dashboard: React.FC = () => {
                           <div className="text-xs text-gray-500">ID: {log.entity_id}</div>
                         </td>
                         <td className="px-4 py-3">
-                          {log.new_values && (
+                          {(log.new_values || log.old_values) ? (
                             <button
                               onClick={() => setSelectedAuditLog(log)}
-                              className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                              className="text-left group"
                             >
-                              View Details
+                              {(() => {
+                                const preview = auditChangePreview(log.action, log.old_values, log.new_values);
+                                return preview ? (
+                                  <span className="block text-xs text-gray-600">{preview}</span>
+                                ) : null;
+                              })()}
+                              <span className="text-xs text-primary-600 group-hover:text-primary-800 font-medium">
+                                View Details
+                              </span>
                             </button>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
                           )}
                         </td>
                       </tr>
@@ -3511,35 +3528,75 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div className="p-6">
+                {/* Plain-English summary of what happened */}
+                <p className="mb-4 text-sm text-gray-800 leading-relaxed">
+                  {summarizeAudit(selectedAuditLog)}
+                  <span className="text-gray-500">
+                    {' '}on {format(new Date(selectedAuditLog.created_at), 'MMM dd, yyyy')} at {format(new Date(selectedAuditLog.created_at), 'h:mm:ss a')}.
+                  </span>
+                </p>
+
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium text-gray-500">Entity: </span>
+                  <span className="text-sm font-medium text-gray-500">Record: </span>
                   <span className="text-sm font-semibold text-gray-900 capitalize">{selectedAuditLog.entity_type?.replace(/_/g, ' ')}</span>
-                  <span className="text-sm text-gray-500"> (ID: {selectedAuditLog.entity_id})</span>
+                  <span className="text-sm text-gray-500"> (ID: {selectedAuditLog.entity_id ?? '—'})</span>
                 </div>
-                {selectedAuditLog.new_values && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">
-                      {selectedAuditLog.action === 'create' ? 'Created With' : 'Changes Made'}
-                    </h4>
-                    <div className="space-y-2">
-                      {Object.entries(
-                        typeof selectedAuditLog.new_values === 'string'
-                          ? JSON.parse(selectedAuditLog.new_values)
-                          : selectedAuditLog.new_values
-                      ).map(([key, value]) => (
-                        <div key={key} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-                          <span className="text-sm font-medium text-gray-500 capitalize min-w-[140px]">
-                            {key.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-sm text-gray-900 break-all">
-                            {value === null || value === undefined ? <span className="text-gray-400 italic">Not set</span> :
-                             typeof value === 'boolean' ? (value ? 'Yes' : 'No') :
-                             typeof value === 'object' ? JSON.stringify(value) :
-                             String(value)}
-                          </span>
+
+                {(() => {
+                  const changeSet = buildAuditChangeSet(
+                    selectedAuditLog.action,
+                    selectedAuditLog.old_values,
+                    selectedAuditLog.new_values
+                  );
+                  if (!changeSet) {
+                    return (
+                      <p className="text-sm text-gray-500 italic">No additional details were recorded for this action.</p>
+                    );
+                  }
+                  const isDiff = changeSet.kind === 'diff';
+                  return (
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3">{changeSet.heading}</h4>
+                      {changeSet.rows.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No field-level changes were captured.</p>
+                      ) : isDiff ? (
+                        <div className="space-y-2">
+                          {changeSet.rows.map((row) => (
+                            <div key={row.field} className="py-2 border-b border-gray-100 last:border-0">
+                              <div className="text-xs font-semibold text-gray-500 mb-1">{row.label}</div>
+                              <div className="flex items-center gap-2 flex-wrap text-sm">
+                                <span className="px-2 py-0.5 rounded bg-danger-50 text-danger-700 line-through break-all">
+                                  {row.before ?? 'Not set'}
+                                </span>
+                                <span className="text-gray-400">&rarr;</span>
+                                <span className="px-2 py-0.5 rounded bg-success-50 text-success-700 break-all">
+                                  {row.after ?? 'Not set'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : (
+                        <div className="space-y-2">
+                          {changeSet.rows.map((row) => (
+                            <div key={row.field} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
+                              <span className="text-sm font-medium text-gray-500 min-w-[140px]">{row.label}</span>
+                              <span className="text-sm text-gray-900 break-all">
+                                {row.after ?? <span className="text-gray-400 italic">Not set</span>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  );
+                })()}
+
+                {/* Forensic context: where the action came from */}
+                {(selectedAuditLog.ip_address || selectedAuditLog.user_agent) && (
+                  <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 space-y-1">
+                    {selectedAuditLog.ip_address && <div>IP address: {selectedAuditLog.ip_address}</div>}
+                    {selectedAuditLog.user_agent && <div className="break-all">Device: {selectedAuditLog.user_agent}</div>}
                   </div>
                 )}
               </div>

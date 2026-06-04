@@ -7,6 +7,10 @@ import { authAPI } from '../api/auth';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
 import { format } from 'date-fns';
+import { socialAPI } from '../api/social';
+import { KudosTagChip } from '../components/social';
+import { PRESENCE_OPTIONS, presenceLabel } from '../utils/social';
+import type { OwnProfileFields, Kudos, PresenceStatus } from '../types';
 
 interface ProfileData {
   id: number;
@@ -86,10 +90,96 @@ export default function ProfilePage() {
   const [messageUnread, setMessageUnread] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Social layer (own profile)
+  const [social, setSocial] = useState<OwnProfileFields | null>(null);
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [savingAbout, setSavingAbout] = useState(false);
+  const [bioDraft, setBioDraft] = useState('');
+  const [askDraft, setAskDraft] = useState('');
+  const [languagesDraft, setLanguagesDraft] = useState('');
+  const [interestsDraft, setInterestsDraft] = useState('');
+  const [kudos, setKudos] = useState<Kudos[]>([]);
+
   useEffect(() => {
     loadProfile();
     loadMessageCount();
   }, []);
+
+  // AuthContext hydrates `user` asynchronously, so on first render user?.id is
+  // undefined. Load social data once the id is available (and if it changes),
+  // otherwise the About/Kudos/presence section stays empty and the presence
+  // buttons do nothing.
+  useEffect(() => {
+    if (user?.id) loadSocial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const loadSocial = async () => {
+    if (!user?.id) return;
+    try {
+      const [{ profile: p }, k] = await Promise.all([
+        socialAPI.getProfile(user.id),
+        socialAPI.getKudos(user.id, 'received'),
+      ]);
+      setSocial({
+        bio: p.bio,
+        ask_me_about: p.ask_me_about,
+        languages: p.languages,
+        interests: p.interests,
+        presence_status: p.presence_status,
+      });
+      setKudos(k.kudos);
+    } catch { /* social is non-critical */ }
+  };
+
+  const beginEditAbout = () => {
+    setBioDraft(social?.bio ?? '');
+    setAskDraft(social?.ask_me_about ?? '');
+    setLanguagesDraft((social?.languages ?? []).join(', '));
+    setInterestsDraft((social?.interests ?? []).join(', '));
+    setEditingAbout(true);
+  };
+
+  const parseCsv = (s: string): string[] =>
+    s.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 30);
+
+  const saveAbout = async () => {
+    setSavingAbout(true);
+    try {
+      const { profile } = await socialAPI.updateMyProfile({
+        bio: bioDraft,
+        ask_me_about: askDraft,
+        languages: parseCsv(languagesDraft),
+        interests: parseCsv(interestsDraft),
+      });
+      setSocial(profile);
+      setEditingAbout(false);
+      showToast('Profile updated', 'success');
+    } catch {
+      showToast('Failed to update profile', 'error');
+    } finally {
+      setSavingAbout(false);
+    }
+  };
+
+  const changePresence = async (status: PresenceStatus) => {
+    const prev = social;
+    // Optimistic update — works even before the profile has loaded (social null).
+    setSocial((s) => ({
+      bio: s?.bio ?? null,
+      ask_me_about: s?.ask_me_about ?? null,
+      languages: s?.languages ?? [],
+      interests: s?.interests ?? [],
+      presence_status: status,
+    }));
+    try {
+      const { profile } = await socialAPI.updateMyProfile({ presence_status: status });
+      setSocial(profile);
+    } catch {
+      setSocial(prev);
+      showToast('Failed to update status', 'error');
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -277,6 +367,141 @@ export default function ProfilePage() {
 
               <p className="text-sm text-gray-400 pb-1">@{profile?.username || user?.email}</p>
             </div>
+          </div>
+        </div>
+
+        {/* About you (social) + Kudos */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* About you — editable */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                About you
+              </h2>
+              {!editingAbout && (
+                <button onClick={beginEditAbout} className="text-sm text-primary-600 font-medium hover:underline">Edit</button>
+              )}
+            </div>
+
+            {/* Presence */}
+            <div className="flex items-center justify-between py-2 mb-2 border-b border-gray-50">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Status</p>
+                <p className="text-xs text-gray-400">How you appear to colleagues</p>
+              </div>
+              <div className="flex bg-gray-100 rounded-lg p-0.5">
+                {PRESENCE_OPTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => changePresence(s)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      social?.presence_status === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    {presenceLabel(s)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {editingAbout ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Bio</label>
+                  <textarea
+                    value={bioDraft}
+                    onChange={(e) => setBioDraft(e.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    placeholder="A line or two about you"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Ask me about</label>
+                  <input
+                    value={askDraft}
+                    onChange={(e) => setAskDraft(e.target.value)}
+                    maxLength={280}
+                    placeholder="e.g. wound care, Epic tips, marathon training"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Interests <span className="text-gray-400">(comma-separated)</span></label>
+                  <input
+                    value={interestsDraft}
+                    onChange={(e) => setInterestsDraft(e.target.value)}
+                    placeholder="cycling, jollof, photography"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Languages <span className="text-gray-400">(comma-separated)</span></label>
+                  <input
+                    value={languagesDraft}
+                    onChange={(e) => setLanguagesDraft(e.target.value)}
+                    placeholder="English, Twi, French"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={saveAbout} disabled={savingAbout} className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                    {savingAbout ? 'Saving…' : 'Save'}
+                  </button>
+                  <button onClick={() => setEditingAbout(false)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-700 whitespace-pre-line">{social?.bio || <span className="text-gray-400">Add a short bio so colleagues get to know you.</span>}</p>
+                {social?.ask_me_about && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-500">Ask me about</p>
+                    <p className="text-sm text-gray-700">{social.ask_me_about}</p>
+                  </div>
+                )}
+                {(social?.interests?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {social!.interests.map((i) => (
+                      <span key={i} className="px-2.5 py-1 rounded-full text-xs bg-secondary-50 text-secondary-700">{i}</span>
+                    ))}
+                  </div>
+                )}
+                {(social?.languages?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {social!.languages.map((l) => (
+                      <span key={l} className="px-2.5 py-1 rounded-full text-xs bg-gray-100 text-gray-600">{l}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Kudos received */}
+          <div className="bg-white rounded-2xl shadow-card p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <span aria-hidden="true">🙌</span> Kudos
+            </h2>
+            {kudos.length === 0 ? (
+              <p className="text-sm text-gray-400">No kudos yet. Recognition from colleagues will show up here.</p>
+            ) : (
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {kudos.map((k) => (
+                  <div key={k.id} className="p-3 bg-gray-50 rounded-xl">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900">{k.person.name}</span>
+                      {k.tag && <KudosTagChip tag={k.tag} />}
+                    </div>
+                    <p className="text-sm text-gray-700">{k.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
