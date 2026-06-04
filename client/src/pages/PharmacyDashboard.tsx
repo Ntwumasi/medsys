@@ -679,6 +679,9 @@ const PharmacyDashboard: React.FC = () => {
         reorder_level: parseInt(String(reorder_level)) || 10,
         unit_cost: parseFloat(String(unit_cost)) || 0,
         selling_price: parseFloat(String(selling_price)) || 0,
+        // Send undefined (not '') for a blank expiry so the server stores NULL
+        // instead of trying to cast '' to a DATE.
+        expiry_date: newInventoryForm.expiry_date?.trim() ? newInventoryForm.expiry_date : undefined,
       });
       showToast('Inventory item created successfully', 'success');
       setShowAddInventoryModal(false);

@@ -1998,7 +1998,7 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         await client.query('BEGIN');
 
         // Get medication from inventory - prefer inventory_id FK, fallback to name match
-        let inventoryResult;
+        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number }> } = { rows: [] };
         if (updatedOrder.inventory_id) {
           inventoryResult = await client.query(
             `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
@@ -2006,12 +2006,22 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             [updatedOrder.inventory_id]
           );
         } else {
-          // Fallback: try matching by name (for legacy orders without inventory_id)
-          inventoryResult = await client.query(
-            `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
-             WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
-            [updatedOrder.medication_name]
-          );
+          // No inventory link (free-text order, or a free-text substitute the
+          // pharmacist typed instead of picking the autocomplete). Match by name,
+          // preferring the SUBSTITUTE actually dispensed over the doctor's
+          // original med — otherwise a substituted med is never found in
+          // inventory, so it's neither stock-deducted nor billed (Irene's report).
+          const nameCandidates = [updatedOrder.substitute_medication, updatedOrder.medication_name]
+            .map((n: unknown) => (n ? String(n).trim() : ''))
+            .filter((n: string) => n.length > 0);
+          for (const name of nameCandidates) {
+            inventoryResult = await client.query(
+              `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+               WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
+              [name]
+            );
+            if (inventoryResult.rows.length > 0) break;
+          }
         }
 
         if (inventoryResult.rows.length > 0) {
@@ -2045,34 +2055,49 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             ]
           );
 
-          // Get or create invoice for the encounter
+          // Get or create the invoice for the encounter. Previously billing was
+          // skipped entirely when no invoice existed yet (e.g. a med dispensed
+          // before reception opened billing), silently losing the charge. Mirror
+          // the nurse-procedure flow and create the invoice if it's missing so a
+          // dispensed med is ALWAYS billed.
           const invoiceResult = await client.query(
             `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
             [updatedOrder.encounter_id]
           );
 
+          let invoiceId: number;
           if (invoiceResult.rows.length > 0) {
-            const invoiceId = invoiceResult.rows[0].id;
-
-            // Add medication as invoice item (use substitute name if provided)
-            const medDescription = updatedOrder.substitute_medication
-              ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage}) [sub for: ${updatedOrder.medication_name}]`
-              : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
-            await client.query(
-              `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-               VALUES ($1, $2, $3, $4, $5, 'medication')`,
-              [invoiceId, medDescription, quantity, unitPrice, totalPrice]
+            invoiceId = invoiceResult.rows[0].id;
+          } else {
+            const countResult = await client.query('SELECT COUNT(*) FROM invoices');
+            const invoiceNumber = `INV${String(parseInt(countResult.rows[0].count) + 1).padStart(6, '0')}`;
+            const newInvoice = await client.query(
+              `INSERT INTO invoices (patient_id, encounter_id, invoice_number, invoice_date, subtotal, tax, total_amount, status)
+               VALUES ($1, $2, $3, CURRENT_DATE, 0, 0, 0, 'pending')
+               RETURNING id`,
+              [updatedOrder.patient_id, updatedOrder.encounter_id, invoiceNumber]
             );
-
-            // Update invoice total
-            await client.query(
-              `UPDATE invoices SET
-                total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
-                updated_at = CURRENT_TIMESTAMP
-               WHERE id = $1`,
-              [invoiceId]
-            );
+            invoiceId = newInvoice.rows[0].id;
           }
+
+          // Add medication as invoice item (use substitute name if provided)
+          const medDescription = updatedOrder.substitute_medication
+            ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage}) [sub for: ${updatedOrder.medication_name}]`
+            : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
+          await client.query(
+            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
+             VALUES ($1, $2, $3, $4, $5, 'medication')`,
+            [invoiceId, medDescription, quantity, unitPrice, totalPrice]
+          );
+
+          // Update invoice total
+          await client.query(
+            `UPDATE invoices SET
+              total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+              updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [invoiceId]
+          );
 
           // Insert into medications table so it appears in patient's Active Medications
           const daysSupply = parseInt(updatedOrder.days_supply) || 0;
