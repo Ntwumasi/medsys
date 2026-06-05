@@ -552,7 +552,13 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
     // prescriptions/dispenses so the tab reflects what was actually ordered and
     // dispensed (with dispensed dates), not just the rarely-populated medications table.
     const medicationsResult = await pool.query(
-      `SELECT po.id, po.medication_name, po.dosage, po.frequency, po.route, po.status,
+      `SELECT po.id,
+              -- When the pharmacist substituted, the dispensed drug is the
+              -- substitute — show THAT as the medication name, not the original
+              -- the doctor first ordered. (Otherwise the wrong drug showed as
+              -- "dispensed" and the substitute appeared as a separate line.)
+              COALESCE(NULLIF(TRIM(po.substitute_medication), ''), po.medication_name) AS medication_name,
+              po.dosage, po.frequency, po.route, po.status,
               po.ordered_date::timestamp AS start_date, po.dispensed_date::timestamp AS dispensed_date,
               (u.first_name || ' ' || u.last_name)::text AS provider, po.notes,
               'prescription'::text AS source, po.created_at,
@@ -574,10 +580,14 @@ export const getPatientSummary = async (req: Request, res: Response): Promise<vo
          LEFT JOIN users mu ON m.prescribing_doctor = mu.id
         WHERE m.patient_id = $1 AND m.status = 'active'
           AND NOT EXISTS (
+            -- Dedup against pharmacy orders by EITHER the original name or the
+            -- substitute, so a dispensed substitute (recorded in the medications
+            -- table under its substitute name) doesn't double up with its order.
             SELECT 1 FROM pharmacy_orders po2
              WHERE po2.patient_id = $1
-               AND LOWER(TRIM(po2.medication_name)) = LOWER(TRIM(m.medication_name))
                AND po2.status NOT IN ('cancelled', 'rejected')
+               AND (LOWER(TRIM(po2.medication_name)) = LOWER(TRIM(m.medication_name))
+                    OR LOWER(TRIM(COALESCE(po2.substitute_medication, ''))) = LOWER(TRIM(m.medication_name)))
           )
        ORDER BY created_at DESC`,
       [id]
