@@ -2237,7 +2237,10 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       );
     }
 
-    // Adjust invoice if possible
+    // Adjust the invoice. Previously this only decremented the invoice totals,
+    // leaving the line item showing the original quantity (the "front desk still
+    // shows x14 after returning 13" report). Reduce the matching line item's
+    // quantity/total, then recompute the invoice total from its items.
     try {
       const invoiceResult = await client.query(
         `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
@@ -2245,19 +2248,47 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
       );
       if (invoiceResult.rows.length > 0) {
         const invoiceId = invoiceResult.rows[0].id;
-        const unitPrice = order.inventory_id
-          ? (await client.query('SELECT selling_price FROM pharmacy_inventory WHERE id = $1', [order.inventory_id])).rows[0]?.selling_price || 0
-          : 0;
-        const refundAmount = parseFloat(unitPrice) * qty;
 
-        if (refundAmount > 0) {
-          await client.query(
-            `UPDATE invoices SET subtotal = GREATEST(0, subtotal - $2),
-             total_amount = GREATEST(0, total_amount - $2), updated_at = CURRENT_TIMESTAMP
-             WHERE id = $1`,
-            [invoiceId, refundAmount]
-          );
+        // Rebuild the exact description the dispense step wrote, so we update the
+        // right medication line (substitute-aware).
+        const medDescription = order.substitute_medication
+          ? `${order.substitute_medication} (${order.dosage}) [sub for: ${order.medication_name}]`
+          : `${order.medication_name} (${order.dosage})`;
+
+        const itemRes = await client.query(
+          `SELECT id, quantity, unit_price FROM invoice_items
+            WHERE invoice_id = $1 AND category = 'medication' AND description = $2
+            ORDER BY id DESC LIMIT 1`,
+          [invoiceId, medDescription]
+        );
+
+        if (itemRes.rows.length > 0) {
+          const item = itemRes.rows[0];
+          const newQty = parseInt(item.quantity) - qty;
+          if (newQty > 0) {
+            await client.query(
+              `UPDATE invoice_items
+                  SET quantity = $2, total_price = unit_price * $2
+                WHERE id = $1`,
+              [item.id, newQty]
+            );
+          } else {
+            // Whole line returned — drop it.
+            await client.query(`DELETE FROM invoice_items WHERE id = $1`, [item.id]);
+          }
+        } else {
+          console.warn(`Return: no matching invoice item for "${medDescription}" on invoice ${invoiceId}`);
         }
+
+        // Recompute the invoice total from its items (same approach as dispense).
+        await client.query(
+          `UPDATE invoices SET
+             subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+             total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+             updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [invoiceId]
+        );
       }
     } catch (invoiceError) {
       console.error('Error adjusting invoice for return:', invoiceError);

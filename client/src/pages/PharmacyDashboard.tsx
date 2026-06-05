@@ -2078,6 +2078,11 @@ const PharmacyDashboard: React.FC = () => {
                                     <span className="text-sm text-gray-500 ml-2">
                                       {order.dosage} | {order.frequency} | {order.route}
                                     </span>
+                                    {order.substitute_medication && (
+                                      <span className="block text-xs text-warning-600 font-medium mt-0.5">
+                                        → Substituted: {order.substitute_medication}
+                                      </span>
+                                    )}
                                   </div>
                                   <span className={`px-2 py-0.5 text-xs font-semibold rounded ${getPriorityColor(order.priority)}`}>
                                     {order.priority?.toUpperCase() || 'ROUTINE'}

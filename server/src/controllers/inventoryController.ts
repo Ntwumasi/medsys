@@ -1576,7 +1576,7 @@ export const getPatientMedicationTimeline = async (req: Request, res: Response):
     const result = await pool.query(`
       SELECT
         po.id,
-        po.medication_name,
+        COALESCE(NULLIF(TRIM(po.substitute_medication), ''), po.medication_name) AS medication_name,
         po.dosage,
         po.frequency,
         po.quantity,
