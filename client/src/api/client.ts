@@ -125,10 +125,17 @@ apiClient.interceptors.response.use(undefined, async (error) => {
   const config = error.config;
   if (!config) return Promise.reject(error);
 
-  // Don't retry POST/PUT/DELETE (not idempotent) or already-retried requests
+  // Don't retry POST/PUT/DELETE (not idempotent) or already-retried requests.
+  // EXCEPTION: the login POST is retried on transient errors. On this clinic's
+  // serverless Neon + Vercel setup the very first request after idle hits a cold
+  // start, so the login often failed once and only worked on the second try (the
+  // "always have to log in twice" glitch). Retrying is safe here — we only retry
+  // network/timeout/5xx below, never a 401 (bad credentials still fail fast).
+  const url = config.url || '';
+  const isLoginEndpoint = url.includes('/auth/login');
   const isIdempotent = !config.method || config.method === 'get';
   config.__retryCount = config.__retryCount || 0;
-  const maxRetries = isIdempotent ? 2 : 0;
+  const maxRetries = (isIdempotent || isLoginEndpoint) ? 2 : 0;
 
   const isNetworkError = !error.response; // timeout, DNS failure, network offline
   const isServerError = error.response?.status >= 500;

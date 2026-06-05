@@ -31,7 +31,11 @@ function deriveNotificationLink(entityType?: string, entityId?: number): string 
     case 'inventory_batch':
       return `/dashboard?tab=inventory${hl}`;
     case 'encounter':
-      return `/dashboard`;
+      // Receptionist "ready for checkout / discharge" notifications. Land on the
+      // dashboard and highlight the matching patient card in Today's Patients.
+      return `/dashboard?highlight=${entityId ?? ''}`;
+    case 'patient':
+      return `/dashboard?highlight=${entityId ?? ''}`;
     default:
       return undefined;
   }

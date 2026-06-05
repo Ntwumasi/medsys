@@ -3795,16 +3795,6 @@ const PharmacyDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
-              <input
-                type="number"
-                min="0"
-                value={newInventoryForm.quantity_on_hand}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, quantity_on_hand: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              />
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
               <input
                 type="number"

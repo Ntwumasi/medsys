@@ -506,7 +506,37 @@ export default function ProfilePage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Link
+            to="/feed"
+            className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-secondary-50 flex items-center justify-center text-secondary-600 group-hover:bg-secondary-100 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Feed</p>
+              <p className="text-xs text-gray-500">Activity from people you follow</p>
+            </div>
+          </Link>
+
+          <Link
+            to="/people"
+            className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
+          >
+            <div className="w-11 h-11 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a3 3 0 10-2.83-4" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">People</p>
+              <p className="text-xs text-gray-500">Staff directory</p>
+            </div>
+          </Link>
+
           <Link
             to="/messages"
             className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
