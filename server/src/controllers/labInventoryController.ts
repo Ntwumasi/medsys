@@ -609,10 +609,13 @@ export const getLabTestCatalog = async (req: Request, res: Response): Promise<vo
 // Returns null if no template matches; the result modal falls back to its
 // legacy single-field form.
 const findTestTemplate = async (
-  testNameOrCode: string,
+  testCode: string | null,
+  testName: string | null,
   patientGender: string | null,
   patientAgeYears: number | null,
 ): Promise<{ testId: number; matchedName: string } | null> => {
+  const code = (testCode || '').trim();
+  const name = (testName || '').trim();
   // Always require an exact / fuzzy match AND that the catalog row has at
   // least one parameter — otherwise the modal renders a blank "template".
   // The seed file leaves placeholder rows (LIPID, LFT, UA) that act as
@@ -623,30 +626,42 @@ const findTestTemplate = async (
   const HAS_PARAMS = 'AND EXISTS (SELECT 1 FROM lab_test_parameters p WHERE p.lab_test_id = c.id)';
 
   // 1. Exact code match
-  const byCode = await pool.query(
-    `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_code = $1 ${HAS_PARAMS} LIMIT 1`,
-    [testNameOrCode],
-  );
-  if (byCode.rows.length > 0) {
-    return { testId: byCode.rows[0].id, matchedName: byCode.rows[0].test_name };
+  if (code) {
+    const byCode = await pool.query(
+      `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_code = $1 ${HAS_PARAMS} LIMIT 1`,
+      [code],
+    );
+    if (byCode.rows.length > 0) {
+      return { testId: byCode.rows[0].id, matchedName: byCode.rows[0].test_name };
+    }
   }
 
   // 2. Exact name match
-  const byName = await pool.query(
-    `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_name = $1 ${HAS_PARAMS} LIMIT 1`,
-    [testNameOrCode],
-  );
-  if (byName.rows.length > 0) {
-    return { testId: byName.rows[0].id, matchedName: byName.rows[0].test_name };
+  if (name) {
+    const byName = await pool.query(
+      `SELECT c.id, c.test_name FROM lab_test_catalog c WHERE c.test_name = $1 ${HAS_PARAMS} LIMIT 1`,
+      [name],
+    );
+    if (byName.rows.length > 0) {
+      return { testId: byName.rows[0].id, matchedName: byName.rows[0].test_name };
+    }
   }
 
-  const lower = testNameOrCode.toLowerCase();
+  // Heuristic matching (FBC/chem/alias/fuzzy) runs on the human-readable test
+  // NAME, never the opaque external catalog code. Since the code-based lab
+  // billing change, orders carry the lab's price-list codes (e.g. "L148" for
+  // HbA1c, "HFBC" for full blood count). Those codes mean nothing to the regex
+  // and alias rules below, so matching on the code fell straight through to the
+  // blank "default" result form. Fall back to the code only when the order has
+  // no name at all.
+  const hint = name || code;
+  const lower = hint.toLowerCase();
   const sex = patientGender && /^M/i.test(patientGender) ? 'M' : patientGender && /^F/i.test(patientGender) ? 'F' : null;
 
   // 3. FBC variant routing. CBC ("Complete Blood Count") is functionally
   // the same panel as FBC at this clinic, so route it through the same
   // sex/age-aware FBC variants instead of hitting the empty CBC shell.
-  if (/\b(fbc|cbc|full blood count|complete blood count)\b/.test(lower)) {
+  if (/\b(h?fbc|cbc|full blood count|complete blood count)\b/.test(lower)) {
     let code = 'FBC_AF';
     if (patientAgeYears != null) {
       if (patientAgeYears < 6) code = 'FBC_CU';
@@ -688,6 +703,9 @@ const findTestTemplate = async (
     [/\b(hs[\s-]?crp|high[\s-]?sensitivity\s*(c[\s-]?reactive|crp))\b/i, 'HSCRP'],
     [/\b(crp|c[\s-]?reactive\s*(protein|antigen))\b/i, 'CRP'],
     [/\b(urinalysis|urine\s*r[\s./]*e|urine\s*routine)\b/i, 'URINE'],
+    // HbA1c / glycated haemoglobin. Catalog code is the opaque "L148"; the
+    // ordered name is "HbA1c" (also seen as "HBA1C" / the "hbaic" typo).
+    [/(hba1c|hb\s*a1c|hbaic|\ba1c\b|glyc\w*\s*h[ae]?moglobin)/i, 'HbA1c'],
   ];
   for (const [pattern, code] of aliasMap) {
     if (pattern.test(lower)) {
@@ -707,7 +725,7 @@ const findTestTemplate = async (
         AND EXISTS (SELECT 1 FROM lab_test_parameters p WHERE p.lab_test_id = c.id)
       ORDER BY LENGTH(c.test_name) ASC
       LIMIT 1`,
-    [`%${testNameOrCode}%`],
+    [`%${hint}%`],
   );
   if (fuzzy.rows.length > 0) {
     return { testId: fuzzy.rows[0].id, matchedName: fuzzy.rows[0].test_name };
@@ -766,7 +784,8 @@ export const getLabOrderParameters = async (req: Request, res: Response): Promis
       : null;
 
     const template = await findTestTemplate(
-      order.test_code || order.test_name,
+      order.test_code,
+      order.test_name,
       order.gender,
       ageYears,
     );
