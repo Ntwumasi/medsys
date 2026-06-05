@@ -219,9 +219,13 @@ const ReceptionistDashboard: React.FC = () => {
   useAuth(); // Ensure authenticated
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // initialView is also driven by ?view= so left-nav links (e.g. Staff) deep-link straight to a section.
   const viewParam = searchParams.get('view');
+  // ?highlight=<encounterId> — set when a notification's "View" deep-links to a
+  // patient (e.g. "ready for checkout"). We scroll to and flash that card.
+  const highlightParam = searchParams.get('highlight');
+  const [highlightId, setHighlightId] = useState<number | null>(null);
   const initialView: 'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff' =
     viewParam === 'special-invoice' ? 'special-invoice'
     : viewParam === 'staff' ? 'staff'
@@ -235,6 +239,30 @@ const ReceptionistDashboard: React.FC = () => {
     else if (viewParam === 'special-invoice' && activeView !== 'special-invoice') setActiveView('special-invoice');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewParam]);
+
+  // Consume ?highlight=<encounterId> from a notification deep-link: make sure
+  // the queue is showing, remember the id to flash, then strip it from the URL
+  // so a refresh doesn't re-trigger.
+  useEffect(() => {
+    if (!highlightParam) return;
+    const id = parseInt(highlightParam, 10);
+    if (Number.isNaN(id)) return;
+    setActiveView('queue');
+    setHighlightId(id);
+    const next = new URLSearchParams(searchParams);
+    next.delete('highlight');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightParam]);
+
+  // Auto-clear the flash after a few seconds. Scrolling happens via a ref
+  // callback on the card itself (fires when it renders), so we don't depend on
+  // the queue list here.
+  useEffect(() => {
+    if (highlightId == null) return;
+    const clear = setTimeout(() => setHighlightId(null), 4000);
+    return () => clearTimeout(clear);
+  }, [highlightId]);
 
   // Staff Directory (read-only list + Add) for the receptionist. Admin still
   // owns edit / reset-pw / deactivate / login-as via the admin dashboard.
@@ -1990,10 +2018,12 @@ const ReceptionistDashboard: React.FC = () => {
 
                 const statusConfig = getStatusConfig();
 
+                const isHighlighted = highlightId != null && item.id === highlightId;
                 return (
                   <div
                     key={item.id}
-                    className={`p-6 border-l-4 rounded-lg ${isCompleted ? 'bg-gray-50 border-gray-300' : getWaitTimeColor(waitTime, item.workflow_status)} ${isCompleted ? 'opacity-75' : ''}`}
+                    ref={isHighlighted ? (el) => el?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : undefined}
+                    className={`p-6 border-l-4 rounded-lg ${isCompleted ? 'bg-gray-50 border-gray-300' : getWaitTimeColor(waitTime, item.workflow_status)} ${isCompleted ? 'opacity-75' : ''} ${isHighlighted ? 'ring-4 ring-primary-400 ring-offset-2 transition-shadow' : ''}`}
                   >
                     <div className="flex justify-between items-start">
                       <div className="flex-1">

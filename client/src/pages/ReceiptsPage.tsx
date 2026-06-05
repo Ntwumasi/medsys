@@ -4,6 +4,7 @@ import AppLayout from '../components/AppLayout';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import AppSelect from '../components/ui/AppSelect';
+import { branding } from '../config/branding';
 
 interface Receipt {
   id: number;
@@ -346,9 +347,14 @@ const ReceiptsPage: React.FC = () => {
               <div className="border-b-2 border-primary-600 pb-4 mb-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h1 className="text-3xl font-bold text-primary-600">MedSys EMR</h1>
-                    <p className="text-gray-600 mt-1">Electronic Medical Records System</p>
-                    <p className="text-sm text-gray-500">123 Healthcare Avenue, Accra, Ghana</p>
+                    {branding.clinicLogo ? (
+                      <img src={branding.clinicLogo} alt={branding.clinicName} style={{ height: '64px', maxWidth: '220px', objectFit: 'contain' }} className="mb-2" />
+                    ) : (
+                      <h1 className="text-3xl font-bold text-primary-600">{branding.clinicName}</h1>
+                    )}
+                    {branding.clinicAddress && <p className="text-sm text-gray-500 mt-2">{branding.clinicAddress}</p>}
+                    {branding.clinicPhone && <p className="text-sm text-gray-500">Tel: {branding.clinicPhone}</p>}
+                    {branding.clinicEmail && <p className="text-sm text-gray-500">{branding.clinicEmail}</p>}
                   </div>
                   <div className="text-right">
                     <h2 className="text-2xl font-bold text-gray-900">RECEIPT</h2>
