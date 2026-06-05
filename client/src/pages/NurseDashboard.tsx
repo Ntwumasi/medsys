@@ -211,6 +211,11 @@ const safeFormatDate = (dateValue: string | Date | null | undefined, formatStrin
 const NurseDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  // Notification deep-link: ?highlight=<encounterId> selects + flashes that
+  // patient (e.g. "patient checked in / ready" notifications land the nurse on
+  // the right patient instead of doing nothing).
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
   const { showToast } = useNotification();
   const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
@@ -682,6 +687,33 @@ const NurseDashboard: React.FC = () => {
       }
     }
   };
+
+  // Parse ?highlight=<encounterId> from a notification deep-link (reacts to
+  // every query-string change, not just mount), then strip it from the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const highlight = params.get('highlight');
+    if (highlight) {
+      const id = Number(highlight);
+      if (!Number.isNaN(id)) setHighlightId(id);
+      navigate(location.pathname, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+
+  // Once the assigned-patients list is loaded, select + scroll to the
+  // highlighted patient, flash it, then clear.
+  useEffect(() => {
+    if (highlightId == null) return;
+    const match = assignedPatients.find((p) => p.id === highlightId);
+    if (match) {
+      handleSelectPatient(match);
+      setTimeout(() => highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+      const t = setTimeout(() => setHighlightId(null), 4000);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightId, assignedPatients]);
 
   // Apply a saved test set inside the nurse lab order modal — batch-creates
   // one lab_order per item using the doctor currently selected in the form.
@@ -1780,8 +1812,11 @@ const NurseDashboard: React.FC = () => {
                 {assignedPatients.map((patient) => (
                   <div
                     key={patient.id}
+                    ref={patient.id === highlightId ? highlightRef : undefined}
                     onClick={() => handleSelectPatient(patient)}
                     className={`px-4 py-2.5 grid grid-cols-12 gap-2 items-center cursor-pointer transition-all duration-150 group ${
+                      patient.id === highlightId ? 'ring-2 ring-primary-400 bg-primary-50 ' : ''
+                    }${
                       selectedPatient?.id === patient.id
                         ? 'bg-primary-100 border-l-4 border-primary-600'
                         : patient.is_checked_out

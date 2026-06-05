@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { imagingAPI } from '../api/imaging';
 import PatientQuickView from '../components/PatientQuickView';
@@ -54,6 +55,34 @@ const ImagingDashboard: React.FC = () => {
   const [walkIns, setWalkIns] = useState<RoutingRequest[]>([]);
   const [imagingOrders, setImagingOrders] = useState<ImagingOrder[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Notification deep-link: ?highlight=<imagingOrderId> (+ optional ?tab=orders)
+  // scrolls to + flashes that order. Reacts to every query-string change, not
+  // just mount, so clicking "View" while already on the dashboard still works.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
+  const highlightRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get('tab');
+    const highlight = params.get('highlight');
+    if (tab === 'orders') setActiveTab('orders');
+    if (highlight) {
+      const id = Number(highlight);
+      if (!Number.isNaN(id)) setHighlightOrderId(id);
+      setActiveTab('orders');
+      setOrdersSubTab('pending');
+    }
+    if (tab || highlight) navigate(location.pathname, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
+  useEffect(() => {
+    if (highlightOrderId == null) return;
+    highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightOrderId(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlightOrderId, imagingOrders]);
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'walkins' | 'orders'>('walkins');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'completed'>('pending');
@@ -614,9 +643,10 @@ const ImagingDashboard: React.FC = () => {
                   filteredOrders.map((order) => (
                     <div
                       key={order.id}
+                      ref={order.id === highlightOrderId ? highlightRef : undefined}
                       className={`px-6 py-4 hover:bg-gray-50 transition-colors cursor-pointer ${
                         order.priority === 'stat' ? 'bg-danger-50 border-l-4 border-danger-500' : ''
-                      } ${selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''}`}
+                      } ${order.id === highlightOrderId ? 'ring-2 ring-primary-400 bg-primary-50' : selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''}`}
                       onClick={() => {
                         setSelectedOrderForDetails(order);
                         fetchPatientDetailsForPanel(order.patient_id, order.encounter_id);
