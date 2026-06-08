@@ -201,6 +201,7 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
       reorder_level,
       unit_cost,
       selling_price,
+      pack_size,
       expiry_date,
       supplier,
       supplier_id,
@@ -212,15 +213,17 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
     // '' for a DATE column ("invalid input syntax for type date"). Coerce any
     // blank/whitespace value to NULL so creating an item without an expiry works.
     const expiry = expiry_date && String(expiry_date).trim() !== '' ? expiry_date : null;
+    // Units per pack (selling_price is per pack). Must be > 0; default 1.
+    const packSize = Number(pack_size) > 0 ? Number(pack_size) : 1;
 
     const result = await pool.query(
       `INSERT INTO pharmacy_inventory
        (medication_name, generic_name, category, unit, quantity_on_hand, reorder_level,
-        unit_cost, selling_price, expiry_date, supplier, supplier_id, location, requires_prescription)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        unit_cost, selling_price, pack_size, expiry_date, supplier, supplier_id, location, requires_prescription)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [medication_name, generic_name, category, unit, quantity_on_hand || 0, reorder_level || 10,
-       unit_cost || 0, selling_price || 0, expiry, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
+       unit_cost || 0, selling_price || 0, packSize, expiry, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
     );
 
     // Log the opening balance as an ADJUSTMENT, not a purchase. Creating an
@@ -260,6 +263,7 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
       reorder_level,
       unit_cost,
       selling_price,
+      pack_size,
       expiry_date,
       supplier,
       supplier_id,
@@ -271,6 +275,9 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
     // Coerce blank expiry_date ('') to NULL — COALESCE keeps '' (not NULL) and
     // the cast to DATE would fail. NULL means "leave existing value unchanged".
     const expiry = expiry_date && String(expiry_date).trim() !== '' ? expiry_date : null;
+    // Units per pack: only update when a valid (>0) value is sent; NULL leaves
+    // the existing pack_size unchanged (COALESCE).
+    const packSize = Number(pack_size) > 0 ? Number(pack_size) : null;
 
     const result = await pool.query(
       `UPDATE pharmacy_inventory SET
@@ -281,17 +288,18 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
         reorder_level = COALESCE($5, reorder_level),
         unit_cost = COALESCE($6, unit_cost),
         selling_price = COALESCE($7, selling_price),
-        expiry_date = COALESCE($8, expiry_date),
-        supplier = COALESCE($9, supplier),
-        supplier_id = COALESCE($10, supplier_id),
-        location = COALESCE($11, location),
-        requires_prescription = COALESCE($12, requires_prescription),
-        is_active = COALESCE($13, is_active),
+        pack_size = COALESCE($8, pack_size),
+        expiry_date = COALESCE($9, expiry_date),
+        supplier = COALESCE($10, supplier),
+        supplier_id = COALESCE($11, supplier_id),
+        location = COALESCE($12, location),
+        requires_prescription = COALESCE($13, requires_prescription),
+        is_active = COALESCE($14, is_active),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $14
+       WHERE id = $15
        RETURNING *`,
       [medication_name, generic_name, category, unit, reorder_level, unit_cost,
-       selling_price, expiry, supplier, supplier_id, location, requires_prescription, is_active, id]
+       selling_price, packSize, expiry, supplier, supplier_id, location, requires_prescription, is_active, id]
     );
 
     if (result.rows.length === 0) {

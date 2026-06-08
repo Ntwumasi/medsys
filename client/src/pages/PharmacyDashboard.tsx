@@ -91,6 +91,7 @@ interface InventoryItem {
   reorder_level: number;
   unit_cost: number;
   selling_price: number;
+  pack_size?: number;
   expiry_date: string;
   supplier: string;
   supplier_id?: number;
@@ -538,6 +539,7 @@ const PharmacyDashboard: React.FC = () => {
     reorder_level: 10,
     unit_cost: 0,
     selling_price: 0,
+    pack_size: 1,
     expiry_date: ''
   });
 
@@ -665,7 +667,7 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const createInventoryItem = async () => {
-    const { medication_name, category, unit, quantity_on_hand, reorder_level, unit_cost, selling_price } = newInventoryForm;
+    const { medication_name, category, unit, quantity_on_hand, reorder_level, unit_cost, selling_price, pack_size } = newInventoryForm;
 
     if (!medication_name || !category || !unit) {
       showToast('Please fill in medication name, category, and unit', 'error');
@@ -679,6 +681,7 @@ const PharmacyDashboard: React.FC = () => {
         reorder_level: parseInt(String(reorder_level)) || 10,
         unit_cost: parseFloat(String(unit_cost)) || 0,
         selling_price: parseFloat(String(selling_price)) || 0,
+        pack_size: parseFloat(String(pack_size)) > 0 ? parseFloat(String(pack_size)) : 1,
         // Send undefined (not '') for a blank expiry so the server stores NULL
         // instead of trying to cast '' to a DATE.
         expiry_date: newInventoryForm.expiry_date?.trim() ? newInventoryForm.expiry_date : undefined,
@@ -694,6 +697,7 @@ const PharmacyDashboard: React.FC = () => {
         reorder_level: 10,
         unit_cost: 0,
         selling_price: 0,
+        pack_size: 1,
         expiry_date: ''
       });
       fetchInventory();
@@ -1028,6 +1032,7 @@ const PharmacyDashboard: React.FC = () => {
         reorder_level: isNaN(item.reorder_level) ? undefined : item.reorder_level,
         unit_cost: isNaN(item.unit_cost) ? undefined : item.unit_cost,
         selling_price: isNaN(item.selling_price) ? undefined : item.selling_price,
+        pack_size: item.pack_size && item.pack_size > 0 ? item.pack_size : undefined,
         expiry_date: item.expiry_date || undefined,
         supplier_id: item.supplier_id || undefined,
       };
@@ -3832,6 +3837,20 @@ const PharmacyDashboard: React.FC = () => {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
+              <input
+                type="number"
+                step="1"
+                min="1"
+                value={newInventoryForm.pack_size}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, pack_size: parseFloat(e.target.value) || 1 })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Selling price is per pack. Set this to the number of tablets/units in a pack (e.g. 14) so dispensing bills the correct per-unit price. Leave as 1 if sold individually.
+              </p>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
               <input
                 type="date"
@@ -3953,6 +3972,19 @@ const PharmacyDashboard: React.FC = () => {
                   onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="1"
+                  value={editingInventory.pack_size || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, pack_size: e.target.value ? parseFloat(e.target.value) : 1 })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="1"
+                />
+                <p className="text-xs text-gray-500 mt-1">Selling price is per pack; set the number of units per pack so dispensing bills the correct per-unit price.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Earliest Expiry Date</label>

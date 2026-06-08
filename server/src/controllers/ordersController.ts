@@ -1998,10 +1998,10 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         await client.query('BEGIN');
 
         // Get medication from inventory - prefer inventory_id FK, fallback to name match
-        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number }> } = { rows: [] };
+        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number; pack_size: string }> } = { rows: [] };
         if (updatedOrder.inventory_id) {
           inventoryResult = await client.query(
-            `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+            `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
              WHERE id = $1`,
             [updatedOrder.inventory_id]
           );
@@ -2016,7 +2016,7 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             .filter((n: string) => n.length > 0);
           for (const name of nameCandidates) {
             inventoryResult = await client.query(
-              `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+              `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
                WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
               [name]
             );
@@ -2026,8 +2026,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
         if (inventoryResult.rows.length > 0) {
           const inventoryItem = inventoryResult.rows[0];
-          const unitPrice = parseFloat(inventoryItem.selling_price);
-          const totalPrice = unitPrice * quantity;
+          // selling_price is per PACK; quantity is in individual units. Convert
+          // to a per-unit price so a 14-tablet course of a pack-priced med
+          // isn't billed at 14× the pack price. pack_size defaults to 1, so
+          // per-unit-priced items are unaffected.
+          const packSize = parseFloat(inventoryItem.pack_size) || 1;
+          const unitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+          const totalPrice = Math.round((parseFloat(inventoryItem.selling_price) * quantity / packSize) * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -2893,7 +2898,7 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
     for (const med of medicationList) {
       // Verify stock availability
       const stockCheck = await client.query(
-        `SELECT id, medication_name, quantity_on_hand, selling_price
+        `SELECT id, medication_name, quantity_on_hand, selling_price, pack_size
          FROM pharmacy_inventory WHERE id = $1`,
         [med.inventory_id]
       );
@@ -2935,13 +2940,20 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
         ]
       );
 
+      // selling_price is per PACK; bill per individual unit so a multi-unit
+      // pack isn't charged at (pack price × unit count). pack_size defaults to
+      // 1, so per-unit-priced items are unaffected. Computed server-side from
+      // inventory rather than trusting the client's unit_price.
+      const packSize = parseFloat(inventoryItem.pack_size) || 1;
+      const perUnitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+      orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
       // Dispense from batches (FEFO)
       await dispenseFromBatches(client, med.inventory_id, med.quantity, dispensed_by);
 
       // Calculate amount
-      const itemTotal = (med.unit_price || inventoryItem.selling_price) * med.quantity;
+      const itemTotal = Math.round(perUnitPrice * med.quantity * 100) / 100;
       totalAmount += itemTotal;
     }
 
@@ -2970,10 +2982,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       // Match the original medication entry back to this order by name.
       // (Previously the || m.inventory_id always evaluated true, so every
       // line item got the first medication's price.)
+      // Use the per-unit price computed from inventory above (pack-size aware),
+      // falling back to the client value only if it's somehow missing.
       const med = medicationList.find((m: any) => m.medication_name === order.medication_name);
-      const unitPrice = med?.unit_price || 0;
+      const unitPrice = order._billUnitPrice ?? med?.unit_price ?? 0;
       const quantity = order.quantity;
-      const itemTotal = unitPrice * quantity;
+      const itemTotal = Math.round(unitPrice * quantity * 100) / 100;
 
       await client.query(
         `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
