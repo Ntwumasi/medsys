@@ -2778,6 +2778,26 @@ const PharmacyDashboard: React.FC = () => {
                                   >
                                     Complete
                                   </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!(await confirmDialog({
+                                        title: 'Clear this walk-in?',
+                                        message: `Remove ${patient.patient_name || 'this patient'} from the OTC / walk-in list?\n\nUse this for entries that won't be served. It does not dispense or bill anything.`,
+                                        confirmLabel: 'Clear',
+                                      }))) return;
+                                      try {
+                                        await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'cancelled' });
+                                        showToast('Walk-in cleared', 'success');
+                                        fetchWalkIns();
+                                      } catch {
+                                        showToast('Failed to clear walk-in', 'error');
+                                      }
+                                    }}
+                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    title="Remove this walk-in from the list without dispensing"
+                                  >
+                                    Clear
+                                  </button>
                                 </>
                               )}
                             </td>
