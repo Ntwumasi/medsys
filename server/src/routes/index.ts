@@ -169,6 +169,7 @@ import {
   getPayerPricesForCharge,
   upsertPayerPricesForCharge,
   getPayerSchedule,
+  upsertPayerSchedule,
   getAllPayers,
 } from '../controllers/chargeMasterController';
 import {
@@ -723,6 +724,7 @@ router.delete('/clinics/:id', authenticateToken, authorizeRoles('admin'), deacti
 router.get('/charge-master', authenticateToken, getAllCharges);
 router.get('/charge-master/payers', authenticateToken, getAllPayers);
 router.get('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin'), getPayerSchedule);
+router.put('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin'), upsertPayerSchedule);
 router.post('/charge-master', authenticateToken, authorizeRoles('admin'), createCharge);
 router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin'), updateCharge);
 router.get('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), getPayerPricesForCharge);
