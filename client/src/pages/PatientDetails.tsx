@@ -6,6 +6,7 @@ import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
 import { format } from 'date-fns';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
@@ -165,8 +166,8 @@ const PatientDetails: React.FC = () => {
   const [summary, setSummary] = useState<PatientSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
-  const initialTab = (searchParams.get('tab') as 'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging' | null) || 'overview';
-  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging'>(initialTab);
+  const initialTab = (searchParams.get('tab') as 'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging' | 'documents' | null) || 'overview';
+  const [activeTab, setActiveTab] = useState<'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging' | 'documents'>(initialTab);
   const [showVitalSignsHistory, setShowVitalSignsHistory] = useState(false);
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [labsLoading, setLabsLoading] = useState(false);
@@ -813,6 +814,19 @@ const PatientDetails: React.FC = () => {
                 {imagingResults.length > 0 && (
                   <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{imagingResults.length}</span>
                 )}
+              </button>
+              <button
+                onClick={() => setActiveTab('documents')}
+                className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
+                  activeTab === 'documents'
+                    ? 'border-blue-600 text-blue-600 bg-white'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Documents
               </button>
             </nav>
           </div>
@@ -1622,6 +1636,10 @@ const PatientDetails: React.FC = () => {
                   </div>
                 )}
               </div>
+            )}
+
+            {activeTab === 'documents' && id && (
+              <PatientDocumentsPanel patientId={Number(id)} />
             )}
           </div>
         </div>
