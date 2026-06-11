@@ -497,6 +497,17 @@ const PharmacyDashboard: React.FC = () => {
     );
   }, [pharmacyOrders]);
 
+  // ---- Add Item to an existing prescription order group (#5) ----
+  // Lets the pharmacist append a medication to a patient's pharmacy order
+  // (e.g. doctor phoned in an extra item) straight from the queue. It creates a
+  // normal pharmacy_order linked to inventory, so it bills correctly at dispense.
+  const [showAddOrderItemModal, setShowAddOrderItemModal] = useState(false);
+  const [addOrderItemGroup, setAddOrderItemGroup] = useState<GroupedPatientOrders | null>(null);
+  const [addOrderItemSearch, setAddOrderItemSearch] = useState('');
+  const [addOrderItemSelected, setAddOrderItemSelected] = useState<InventoryItem | null>(null);
+  const [addOrderItemForm, setAddOrderItemForm] = useState({ quantity: 1, dosage: '', frequency: '', route: 'oral', days_supply: '' });
+  const [addingOrderItem, setAddingOrderItem] = useState(false);
+
   // Once a notification deep-link target is loaded into the list, scroll to it,
   // flash the highlight ring, then clear the highlight after a few seconds.
   useEffect(() => {
@@ -985,6 +996,74 @@ const PharmacyDashboard: React.FC = () => {
         );
       }).slice(0, 10)
     : [];
+
+  // ---- Add Item to an existing order group (#5) ----
+  const filteredAddOrderItemInventory = addOrderItemSearch.length >= 2
+    ? inventory.filter(item => {
+        const q = addOrderItemSearch.toLowerCase();
+        return (
+          item.medication_name?.toLowerCase().includes(q) ||
+          item.generic_name?.toLowerCase().includes(q) ||
+          item.category?.toLowerCase().includes(q)
+        );
+      }).slice(0, 10)
+    : [];
+
+  const openAddOrderItemModal = (group: GroupedPatientOrders) => {
+    setAddOrderItemGroup(group);
+    setAddOrderItemSelected(null);
+    setAddOrderItemSearch('');
+    setAddOrderItemForm({ quantity: 1, dosage: '', frequency: '', route: 'oral', days_supply: '' });
+    setShowAddOrderItemModal(true);
+  };
+
+  const closeAddOrderItemModal = () => {
+    setShowAddOrderItemModal(false);
+    setAddOrderItemGroup(null);
+    setAddOrderItemSelected(null);
+    setAddOrderItemSearch('');
+  };
+
+  const selectAddOrderItem = (item: InventoryItem) => {
+    const parsed = parseMedicationName(item.medication_name);
+    setAddOrderItemSelected(item);
+    setAddOrderItemForm(f => ({ ...f, dosage: parsed.dosage || f.dosage }));
+    setAddOrderItemSearch('');
+  };
+
+  const submitAddOrderItem = async () => {
+    if (!addOrderItemGroup || !addOrderItemSelected) {
+      showToast('Select a medication first', 'error');
+      return;
+    }
+    const qty = Number(addOrderItemForm.quantity);
+    if (!qty || qty < 1) {
+      showToast('Enter a valid quantity', 'error');
+      return;
+    }
+    setAddingOrderItem(true);
+    try {
+      await apiClient.post('/orders/pharmacy', {
+        patient_id: addOrderItemGroup.patient_id,
+        encounter_id: addOrderItemGroup.encounter_id,
+        inventory_id: addOrderItemSelected.id,
+        medication_name: addOrderItemSelected.medication_name,
+        dosage: addOrderItemForm.dosage,
+        frequency: addOrderItemForm.frequency,
+        route: addOrderItemForm.route,
+        quantity: qty,
+        days_supply: addOrderItemForm.days_supply ? Number(addOrderItemForm.days_supply) : null,
+        priority: 'routine',
+      });
+      showToast(`${addOrderItemSelected.medication_name} added to ${addOrderItemGroup.patient_name}'s order`, 'success');
+      closeAddOrderItemModal();
+      refreshActiveOrdersTab();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to add item', 'error');
+    } finally {
+      setAddingOrderItem(false);
+    }
+  };
 
   const saveSupplier = async () => {
     try {
@@ -1968,6 +2047,22 @@ const PharmacyDashboard: React.FC = () => {
                             <div className="text-xs text-gray-400 mt-1">
                               Ordered: {format(new Date(group.ordered_date), 'MMM dd, yyyy HH:mm')}
                               <span className="ml-2 text-gray-500">• {group.orders.length} medication{group.orders.length > 1 ? 's' : ''}</span>
+                              {(() => {
+                                // Estimated medication total (unit price × qty across the group)
+                                // so the pharmacist can cross-check against reception's bill (#6).
+                                const total = group.orders.reduce(
+                                  (sum, o) => sum + (Number(o.inventory_price) || 0) * (parseInt(String(o.quantity)) || 0),
+                                  0
+                                );
+                                return total > 0 ? (
+                                  <span
+                                    className="ml-2 font-semibold text-gray-700"
+                                    title="Estimated medication total — cross-check with reception"
+                                  >
+                                    • Est. bill: GHS {total.toFixed(2)}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2003,6 +2098,15 @@ const PharmacyDashboard: React.FC = () => {
                                 className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
                               >
                                 Dispense All
+                              </button>
+                            )}
+                            {(ordersSubTab === 'pending' || ordersSubTab === 'in_progress') && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openAddOrderItemModal(group); }}
+                                className="px-3 py-1.5 bg-success-100 text-success-700 text-sm font-medium rounded-lg hover:bg-success-200"
+                                title="Add a medication to this patient's order"
+                              >
+                                + Add Item
                               </button>
                             )}
                             <button
@@ -5025,6 +5129,128 @@ const PharmacyDashboard: React.FC = () => {
                     Complete & Dispense
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Add Item to Order Modal (#5) */}
+      <Modal
+        isOpen={showAddOrderItemModal}
+        onClose={closeAddOrderItemModal}
+        title={`Add Item — ${addOrderItemGroup?.patient_name || ''}`}
+        size="lg"
+      >
+        {addOrderItemGroup && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Add a medication to <span className="font-semibold">{addOrderItemGroup.patient_name}</span>'s
+              current order ({addOrderItemGroup.patient_number}). It joins the pharmacy queue and bills at dispense.
+            </p>
+
+            {/* Search inventory */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Search inventory</label>
+              <input
+                type="text"
+                placeholder="Type medication name..."
+                value={addOrderItemSearch}
+                onChange={(e) => setAddOrderItemSearch(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                autoComplete="off"
+              />
+              {addOrderItemSearch.length >= 2 && (
+                <div className="mt-2 max-h-56 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 divide-y divide-gray-100">
+                  {filteredAddOrderItemInventory.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-gray-400">No medications found for "{addOrderItemSearch}"</div>
+                  ) : (
+                    filteredAddOrderItemInventory.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => selectAddOrderItem(item)}
+                        className="w-full px-4 py-2.5 text-left hover:bg-primary-50 flex justify-between items-center"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{item.medication_name}</p>
+                          <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
+                        </div>
+                        <div className="text-right ml-3 flex-shrink-0">
+                          <p className="text-sm font-bold text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
+                          <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-gray-400' : 'text-danger-500 font-medium'}`}>
+                            {item.quantity_on_hand > 0 ? `Stock: ${item.quantity_on_hand}` : 'Out of stock'}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Selected item + details */}
+            {addOrderItemSelected && (
+              <div className="border border-success-200 bg-success-50 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-gray-900">{addOrderItemSelected.medication_name}</p>
+                    <p className="text-xs text-gray-500">
+                      GH₵{parseFloat(String(addOrderItemSelected.selling_price || 0)).toFixed(2)} / {addOrderItemSelected.unit} • Stock: {addOrderItemSelected.quantity_on_hand}
+                    </p>
+                  </div>
+                  <button onClick={() => setAddOrderItemSelected(null)} className="text-xs text-gray-500 hover:text-gray-700 underline">Change</button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                    <input
+                      type="number" min={1} value={addOrderItemForm.quantity}
+                      onChange={(e) => setAddOrderItemForm(f => ({ ...f, quantity: Number(e.target.value) }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Days supply (optional)</label>
+                    <input
+                      type="number" min={0} value={addOrderItemForm.days_supply}
+                      onChange={(e) => setAddOrderItemForm(f => ({ ...f, days_supply: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Dosage</label>
+                    <input
+                      type="text" value={addOrderItemForm.dosage}
+                      onChange={(e) => setAddOrderItemForm(f => ({ ...f, dosage: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g. 500mg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+                    <input
+                      type="text" value={addOrderItemForm.frequency}
+                      onChange={(e) => setAddOrderItemForm(f => ({ ...f, frequency: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g. BD"
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-700">
+                  Line total:{' '}
+                  <span className="font-bold">
+                    GHS {((Number(addOrderItemSelected.selling_price) || 0) * (Number(addOrderItemForm.quantity) || 0)).toFixed(2)}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={closeAddOrderItemModal} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+              <button
+                onClick={submitAddOrderItem}
+                disabled={addingOrderItem || !addOrderItemSelected}
+                className="px-5 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                {addingOrderItem ? 'Adding...' : 'Add to Order'}
               </button>
             </div>
           </div>
