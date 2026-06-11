@@ -170,11 +170,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw new Error('No active session to switch from');
     }
 
-    // Real-identity branch: own role, or admin when the original user is a
-    // super admin. No demo session, no JWT swap — just flip the UI view.
+    // Real-identity branch: own role, or admin / office_manager when the
+    // original user is a super admin. office_manager is a curated view of the
+    // admin dashboard (super admin ⊇ admin), so no demo session / JWT swap —
+    // just flip the UI view.
     const ownRoleOrAdmin =
       role === originalUser.role ||
-      (originalUser.is_super_admin && role === 'admin');
+      (originalUser.is_super_admin && (role === 'admin' || role === 'office_manager'));
 
     if (ownRoleOrAdmin) {
       // If we were impersonating a demo, restore the original session first.
