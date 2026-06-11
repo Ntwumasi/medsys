@@ -1715,6 +1715,38 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
             OR pi2.generic_name ILIKE '%' || po.medication_name || '%'
             OR po.medication_name ILIKE '%' || pi2.medication_name || '%'
           )
+          -- Strength guard: never adopt a DIFFERENT strength's stock/price (a
+          -- 20mg order must not match the 40mg item). If both names carry a dose
+          -- token they must be equal; if either lacks one, fall back to the name
+          -- match above. Fixes "esomeprazole 20mg" showing the 40mg price when
+          -- only the 40mg pack is stocked.
+          AND (
+            (regexp_match(lower(po.medication_name),  '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+            OR (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+            OR (regexp_match(lower(po.medication_name),  '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+             = (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+          )
+          -- Ambiguity guard: if the order has NO strength but the stock carries
+          -- the same drug in MULTIPLE strengths (e.g. free-text "esomeprazole"
+          -- with 10/20/40mg on the shelf), don't silently guess the highest-stock
+          -- one — that's exactly how "esomeprazole" surfaced the 40mg price.
+          -- Suppress the suggestion so the queue reads "not in inventory" and the
+          -- pharmacist explicitly picks the right strength.
+          AND (
+            (regexp_match(lower(po.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NOT NULL
+            OR NOT EXISTS (
+              SELECT 1 FROM pharmacy_inventory pi3
+              WHERE pi3.is_active = true AND pi3.id <> pi2.id
+                AND (
+                  pi3.medication_name ILIKE '%' || po.medication_name || '%'
+                  OR pi3.generic_name ILIKE '%' || po.medication_name || '%'
+                  OR po.medication_name ILIKE '%' || pi3.medication_name || '%'
+                )
+                AND (regexp_match(lower(pi3.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+                    IS DISTINCT FROM
+                    (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+            )
+          )
         ORDER BY
           CASE WHEN pi2.medication_name ILIKE po.medication_name THEN 0
                WHEN pi2.medication_name ILIKE po.medication_name || '%' THEN 1
@@ -1723,6 +1755,10 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         LIMIT 1
       ) pim ON true
       WHERE 1=1
+        -- Manual refill reminders live in pharmacy_orders as status='dispensed'
+        -- only to drive the refills calendar; they are not real orders/dispenses
+        -- and must never surface in the pharmacy queues (incl. Dispensed).
+        AND po.is_manual_reminder IS NOT TRUE
     `;
     const params: any[] = [];
     let paramCount = 1;
@@ -2600,6 +2636,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
          LEFT JOIN rooms r ON e.room_id = r.id
         WHERE po.ordering_provider = $1
           AND po.status IN ('ready', 'dispensed')
+          AND po.is_manual_reminder IS NOT TRUE
           AND po.updated_at >= NOW() - INTERVAL '7 days'
         ORDER BY po.updated_at DESC
         LIMIT 20`,
@@ -2890,6 +2927,27 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
     }
 
     await client.query('BEGIN');
+
+    // Guard against double-billing from a retried/duplicated submit (common on a
+    // slow connection: the request times out client-side but still lands, and
+    // the pharmacist resubmits). Lock the pharmacy routing row; if it has already
+    // been served, bail before creating any orders/invoice items. A concurrent
+    // second request blocks on this lock until the first commits, then sees
+    // 'completed' and exits — so the OTC bill can never be pushed twice.
+    const routingLock = await client.query(
+      `SELECT status FROM department_routing WHERE id = $1 FOR UPDATE`,
+      [routing_id]
+    );
+    if (routingLock.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Walk-in routing not found' });
+      return;
+    }
+    if (routingLock.rows[0].status === 'completed') {
+      await client.query('ROLLBACK');
+      res.status(409).json({ error: 'This walk-in has already been served. Refresh the queue to see the latest status.' });
+      return;
+    }
 
     const createdOrders: any[] = [];
     let totalAmount = 0;
