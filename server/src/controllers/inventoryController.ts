@@ -52,33 +52,42 @@ export const createManualRefill = async (req: Request, res: Response): Promise<v
   }
 };
 
-// Clear a manually-added refill reminder once it has been fulfilled.
-// Only manual reminders (is_manual_reminder=true) can be cleared this way —
-// real dispensed-order refills are advanced via "Process Refill", not deleted.
+// Clear a refill from the calendar once it has been supplied. Works for BOTH
+// manually-added reminders and real dispensed-order refills (Irene: "for June
+// they've been supplied, let me clear it manually"). Sets reminder_cleared so the
+// calendar hides it; the order/dispense record is untouched. A manual reminder
+// (synthetic row) is deleted outright since it has no other purpose.
 export const deleteManualReminder = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
     const { id } = req.params;
-    const result = await pool.query(
-      `DELETE FROM pharmacy_orders
-       WHERE id = $1 AND is_manual_reminder = true
-       RETURNING id, patient_id, medication_name`,
+
+    const existing = await pool.query(
+      `SELECT id, patient_id, medication_name, is_manual_reminder FROM pharmacy_orders WHERE id = $1`,
       [id]
     );
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Reminder not found, or it is a real refill that must be processed rather than cleared' });
+    if (existing.rows.length === 0) {
+      res.status(404).json({ error: 'Refill not found' });
       return;
     }
+    const row = existing.rows[0];
+
+    if (row.is_manual_reminder) {
+      await pool.query(`DELETE FROM pharmacy_orders WHERE id = $1`, [id]);
+    } else {
+      await pool.query(`UPDATE pharmacy_orders SET reminder_cleared = true, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [id]);
+    }
+
     await auditService.log({
       userId: authReq.user?.id,
-      action: 'delete',
-      entityType: 'pharmacy_refill_manual',
+      action: 'update',
+      entityType: 'pharmacy_refill',
       entityId: Number(id),
-      details: result.rows[0],
+      details: { cleared: true, patient_id: row.patient_id, medication_name: row.medication_name, manual: row.is_manual_reminder },
     });
-    res.json({ message: 'Reminder cleared' });
+    res.json({ message: 'Refill cleared' });
   } catch (error) {
-    console.error('Clear manual reminder error:', error);
+    console.error('Clear refill error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -897,6 +906,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
              AND po.refills > 0
+             AND po.reminder_cleared IS NOT TRUE
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
            ORDER BY p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date, po.is_manual_reminder ASC, po.id DESC
@@ -930,6 +940,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
              AND po.refills > 0
+             AND po.reminder_cleared IS NOT TRUE
              AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
              AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2
            ORDER BY p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date, po.is_manual_reminder ASC, po.id DESC

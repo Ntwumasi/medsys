@@ -2034,10 +2034,10 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         await client.query('BEGIN');
 
         // Get medication from inventory - prefer inventory_id FK, fallback to name match
-        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number; pack_size: string }> } = { rows: [] };
+        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number; pack_size: string; medication_name?: string }> } = { rows: [] };
         if (updatedOrder.inventory_id) {
           inventoryResult = await client.query(
-            `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
+            `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
              WHERE id = $1`,
             [updatedOrder.inventory_id]
           );
@@ -2052,11 +2052,46 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             .filter((n: string) => n.length > 0);
           for (const name of nameCandidates) {
             inventoryResult = await client.query(
-              `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
+              `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
                WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
               [name]
             );
             if (inventoryResult.rows.length > 0) break;
+          }
+        }
+
+        // Substitute price guard: a free-text substitute leaves inventory_id on
+        // the doctor's ORIGINAL med, which billed the wrong price (Irene: Augmentin
+        // dispensed but billed at Amoksiklav's price). When a substitute is
+        // recorded and the linked item is a DIFFERENT medication, re-resolve (and
+        // re-price + re-deduct) from the substitute itself.
+        const subName = updatedOrder.substitute_medication ? String(updatedOrder.substitute_medication).trim() : '';
+        if (subName) {
+          const linkedName = (inventoryResult.rows[0]?.medication_name || '').trim().toLowerCase();
+          if (linkedName !== subName.toLowerCase()) {
+            let subMatch = await client.query(
+              `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
+               WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
+              [subName]
+            );
+            if (subMatch.rows.length === 0) {
+              // Looser contains match, but never across a different strength
+              // (a 20mg substitute must not adopt the 40mg item's price).
+              subMatch = await client.query(
+                `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
+                 WHERE is_active = true
+                   AND (medication_name ILIKE '%'||$1||'%' OR $1 ILIKE '%'||medication_name||'%')
+                   AND (
+                     (regexp_match(lower($1), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+                     OR (regexp_match(lower(medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+                     OR (regexp_match(lower($1), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+                      = (regexp_match(lower(medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+                   )
+                 LIMIT 1`,
+                [subName]
+              );
+            }
+            if (subMatch.rows.length > 0) inventoryResult = subMatch;
           }
         }
 
@@ -2121,9 +2156,12 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             invoiceId = newInvoice.rows[0].id;
           }
 
-          // Add medication as invoice item (use substitute name if provided)
+          // Add medication as invoice item. Show the med actually dispensed (the
+          // substitute when present); the "[sub for: …]" note is kept off the
+          // patient invoice per Irene — the substitution is still in the order
+          // activity log and audit trail.
           const medDescription = updatedOrder.substitute_medication
-            ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage}) [sub for: ${updatedOrder.medication_name}]`
+            ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage})`
             : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
           await client.query(
             `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
@@ -2291,9 +2329,10 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         const invoiceId = invoiceResult.rows[0].id;
 
         // Rebuild the exact description the dispense step wrote, so we update the
-        // right medication line (substitute-aware).
+        // right medication line (substitute-aware). Kept in sync with the dispense
+        // format above (no "[sub for: …]" suffix).
         const medDescription = order.substitute_medication
-          ? `${order.substitute_medication} (${order.dosage}) [sub for: ${order.medication_name}]`
+          ? `${order.substitute_medication} (${order.dosage})`
           : `${order.medication_name} (${order.dosage})`;
 
         const itemRes = await client.query(
