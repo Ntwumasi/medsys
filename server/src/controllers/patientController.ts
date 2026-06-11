@@ -84,30 +84,39 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
 
     // Normalize empty strings for date/optional fields
     // date_of_birth and gender are NOT NULL in the patients table
-    const dob = date_of_birth && date_of_birth.trim() !== '' ? date_of_birth : '1900-01-01';
+    const hasRealDob = !!(date_of_birth && date_of_birth.trim() !== '');
+    const dob = hasRealDob ? date_of_birth : '1900-01-01';
     const genderValue = gender && gender.trim() !== '' ? gender : 'other';
 
-    // Check for duplicate patient (same first name, last name, and date of birth)
-    const duplicateCheck = await client.query(
-      `SELECT p.id, p.patient_number, u.first_name, u.last_name
-       FROM patients p
-       JOIN users u ON p.user_id = u.id
-       WHERE LOWER(u.first_name) = LOWER($1)
-         AND LOWER(u.last_name) = LOWER($2)
-         AND p.date_of_birth = $3`,
-      [first_name, last_name, dob]
-    );
+    // Hard-block on an exact name + date-of-birth collision — but ONLY when a
+    // real DOB was supplied. OTC/walk-in intake captures no DOB, so every such
+    // patient shares the 1900-01-01 sentinel; blocking on name + sentinel would
+    // wrongly reject a second, unrelated person who happens to share a name
+    // (e.g. two different "Irene"s walking in). For the no-DOB case the
+    // receptionist's /patients/check-duplicates soft-warning + override flow is
+    // the right guard, not a hard 409 that the walk-in form can't get past.
+    if (hasRealDob) {
+      const duplicateCheck = await client.query(
+        `SELECT p.id, p.patient_number, u.first_name, u.last_name
+         FROM patients p
+         JOIN users u ON p.user_id = u.id
+         WHERE LOWER(u.first_name) = LOWER($1)
+           AND LOWER(u.last_name) = LOWER($2)
+           AND p.date_of_birth = $3`,
+        [first_name, last_name, dob]
+      );
 
-    if (duplicateCheck.rows.length > 0) {
-      const existingPatient = duplicateCheck.rows[0];
-      res.status(409).json({
-        error: 'Duplicate patient',
-        message: `A patient with the same name and date of birth already exists (Patient #${existingPatient.patient_number}: ${existingPatient.first_name} ${existingPatient.last_name}). Please search for the existing patient to check them in.`,
-        existingPatientId: existingPatient.id,
-        existingPatientNumber: existingPatient.patient_number
-      });
-      client.release();
-      return;
+      if (duplicateCheck.rows.length > 0) {
+        const existingPatient = duplicateCheck.rows[0];
+        res.status(409).json({
+          error: 'Duplicate patient',
+          message: `A patient with the same name and date of birth already exists (Patient #${existingPatient.patient_number}: ${existingPatient.first_name} ${existingPatient.last_name}). Please search for the existing patient to check them in.`,
+          existingPatientId: existingPatient.id,
+          existingPatientNumber: existingPatient.patient_number
+        });
+        client.release();
+        return;
+      }
     }
 
     await client.query('BEGIN');

@@ -6,8 +6,11 @@ import { auditService } from '../services/auditService';
 
 // Manually add a refill entry to the refills calendar. Refills are normally
 // computed from dispensed orders; this lets a pharmacist place one directly.
-// Implemented as a dispensed pharmacy_order with refills=1 and a days_supply
-// that lands the estimated refill date on the chosen date.
+// Stored as a pharmacy_order with refills=1 and a days_supply that lands the
+// estimated refill date on the chosen date. It carries status='dispensed' only
+// so the refills-calendar query (which keys off dispensed orders) picks it up —
+// the is_manual_reminder flag keeps it OUT of the Dispensed tab, revenue and
+// analytics so it never looks like a real dispense ("auto-dispensed" report).
 export const createManualRefill = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
@@ -27,8 +30,8 @@ export const createManualRefill = async (req: Request, res: Response): Promise<v
 
     const result = await pool.query(
       `INSERT INTO pharmacy_orders
-        (patient_id, encounter_id, ordering_provider, medication_name, dosage, frequency, quantity, refills, days_supply, priority, status, dispensed_date, notes)
-       VALUES ($1, NULL, $2, $3, $4, $5, $6, 1, $7, 'routine', 'dispensed', CURRENT_DATE, $8)
+        (patient_id, encounter_id, ordering_provider, medication_name, dosage, frequency, quantity, refills, days_supply, priority, status, dispensed_date, notes, is_manual_reminder)
+       VALUES ($1, NULL, $2, $3, $4, $5, $6, 1, $7, 'routine', 'dispensed', CURRENT_DATE, $8, true)
        RETURNING *`,
       [patient_id, authReq.user?.id || null, String(medication_name).trim(), dosage || null, frequency || null,
        quantity != null && quantity !== '' ? String(quantity) : null, ds, notes || 'Manually added refill']
@@ -201,6 +204,7 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
       reorder_level,
       unit_cost,
       selling_price,
+      pack_size,
       expiry_date,
       supplier,
       supplier_id,
@@ -212,15 +216,17 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
     // '' for a DATE column ("invalid input syntax for type date"). Coerce any
     // blank/whitespace value to NULL so creating an item without an expiry works.
     const expiry = expiry_date && String(expiry_date).trim() !== '' ? expiry_date : null;
+    // Units per pack (selling_price is per pack). Must be > 0; default 1.
+    const packSize = Number(pack_size) > 0 ? Number(pack_size) : 1;
 
     const result = await pool.query(
       `INSERT INTO pharmacy_inventory
        (medication_name, generic_name, category, unit, quantity_on_hand, reorder_level,
-        unit_cost, selling_price, expiry_date, supplier, supplier_id, location, requires_prescription)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        unit_cost, selling_price, pack_size, expiry_date, supplier, supplier_id, location, requires_prescription)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [medication_name, generic_name, category, unit, quantity_on_hand || 0, reorder_level || 10,
-       unit_cost || 0, selling_price || 0, expiry, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
+       unit_cost || 0, selling_price || 0, packSize, expiry, supplier, supplier_id || null, location || 'Main Pharmacy', requires_prescription ?? true]
     );
 
     // Log the opening balance as an ADJUSTMENT, not a purchase. Creating an
@@ -260,6 +266,7 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
       reorder_level,
       unit_cost,
       selling_price,
+      pack_size,
       expiry_date,
       supplier,
       supplier_id,
@@ -271,6 +278,9 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
     // Coerce blank expiry_date ('') to NULL — COALESCE keeps '' (not NULL) and
     // the cast to DATE would fail. NULL means "leave existing value unchanged".
     const expiry = expiry_date && String(expiry_date).trim() !== '' ? expiry_date : null;
+    // Units per pack: only update when a valid (>0) value is sent; NULL leaves
+    // the existing pack_size unchanged (COALESCE).
+    const packSize = Number(pack_size) > 0 ? Number(pack_size) : null;
 
     const result = await pool.query(
       `UPDATE pharmacy_inventory SET
@@ -281,17 +291,18 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
         reorder_level = COALESCE($5, reorder_level),
         unit_cost = COALESCE($6, unit_cost),
         selling_price = COALESCE($7, selling_price),
-        expiry_date = COALESCE($8, expiry_date),
-        supplier = COALESCE($9, supplier),
-        supplier_id = COALESCE($10, supplier_id),
-        location = COALESCE($11, location),
-        requires_prescription = COALESCE($12, requires_prescription),
-        is_active = COALESCE($13, is_active),
+        pack_size = COALESCE($8, pack_size),
+        expiry_date = COALESCE($9, expiry_date),
+        supplier = COALESCE($10, supplier),
+        supplier_id = COALESCE($11, supplier_id),
+        location = COALESCE($12, location),
+        requires_prescription = COALESCE($13, requires_prescription),
+        is_active = COALESCE($14, is_active),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $14
+       WHERE id = $15
        RETURNING *`,
       [medication_name, generic_name, category, unit, reorder_level, unit_cost,
-       selling_price, expiry, supplier, supplier_id, location, requires_prescription, is_active, id]
+       selling_price, packSize, expiry, supplier, supplier_id, location, requires_prescription, is_active, id]
     );
 
     if (result.rows.length === 0) {
@@ -674,7 +685,7 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
         COUNT(*) FILTER (WHERE status = 'ordered') as pending_orders,
         COUNT(DISTINCT patient_id) as unique_patients
        FROM pharmacy_orders
-       WHERE 1=1 ${dateFilter.replace(/po\./g, '')}`,
+       WHERE is_manual_reminder IS NOT TRUE ${dateFilter.replace(/po\./g, '')}`,
       params
     );
 
@@ -733,7 +744,7 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
          LEFT JOIN users pu ON p.user_id = pu.id
          LEFT JOIN users du ON po.dispensed_by = du.id
          LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
-        WHERE 1=1 ${dateFilter} ${ordersSearchClause}
+        WHERE po.is_manual_reminder IS NOT TRUE ${dateFilter} ${ordersSearchClause}
         ORDER BY COALESCE(po.dispensed_date, po.ordered_date) DESC
         LIMIT 200`,
       ordersParams
@@ -1423,7 +1434,7 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         COUNT(*) as count,
         SUM(CAST(po.quantity AS INTEGER)) as total_quantity
       FROM pharmacy_orders po
-      WHERE po.status = 'dispensed'
+      WHERE po.status = 'dispensed' AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= NOW() - INTERVAL '24 hours'
       GROUP BY EXTRACT(HOUR FROM po.dispensed_date)
       ORDER BY hour
@@ -1437,7 +1448,7 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         COUNT(DISTINCT po.patient_id) as unique_patients,
         SUM(CAST(po.quantity AS INTEGER)) as total_units
       FROM pharmacy_orders po
-      WHERE po.status = 'dispensed'
+      WHERE po.status = 'dispensed' AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= $1::date
         AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY DATE(po.dispensed_date)
@@ -1451,7 +1462,7 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         COUNT(*) as order_count,
         SUM(CAST(po.quantity AS INTEGER)) as total_units
       FROM pharmacy_orders po
-      WHERE po.status = 'dispensed'
+      WHERE po.status = 'dispensed' AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= $1::date
         AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY po.medication_name
@@ -1465,7 +1476,7 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         po.priority,
         COUNT(*) as count
       FROM pharmacy_orders po
-      WHERE po.status = 'dispensed'
+      WHERE po.status = 'dispensed' AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= $1::date
         AND po.dispensed_date <= $2::date + INTERVAL '1 day'
       GROUP BY po.priority
@@ -1479,7 +1490,7 @@ export const getDispensingAnalytics = async (req: Request, res: Response): Promi
         SUM(CAST(po.quantity AS INTEGER)) as total_units,
         ROUND(AVG(EXTRACT(EPOCH FROM (po.dispensed_date - po.ordered_date)) / 60), 1) as avg_turnaround_minutes
       FROM pharmacy_orders po
-      WHERE po.status = 'dispensed'
+      WHERE po.status = 'dispensed' AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= $1::date
         AND po.dispensed_date <= $2::date + INTERVAL '1 day'
     `, [fromDate, toDate]);
@@ -1588,6 +1599,7 @@ export const getPatientMedicationTimeline = async (req: Request, res: Response):
       FROM pharmacy_orders po
       LEFT JOIN users u ON po.ordering_provider = u.id
       WHERE po.patient_id = $1
+        AND po.is_manual_reminder IS NOT TRUE
       ORDER BY po.ordered_date DESC
       LIMIT 50
     `, [patientId]);
@@ -1602,6 +1614,7 @@ export const getPatientMedicationTimeline = async (req: Request, res: Response):
       FROM pharmacy_orders po
       WHERE po.patient_id = $1
         AND po.status = 'dispensed'
+        AND po.is_manual_reminder IS NOT TRUE
         AND po.dispensed_date >= NOW() - INTERVAL '30 days'
       ORDER BY po.medication_name, po.dispensed_date DESC
     `, [patientId]);

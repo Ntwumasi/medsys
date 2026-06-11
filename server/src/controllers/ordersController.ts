@@ -1715,6 +1715,38 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
             OR pi2.generic_name ILIKE '%' || po.medication_name || '%'
             OR po.medication_name ILIKE '%' || pi2.medication_name || '%'
           )
+          -- Strength guard: never adopt a DIFFERENT strength's stock/price (a
+          -- 20mg order must not match the 40mg item). If both names carry a dose
+          -- token they must be equal; if either lacks one, fall back to the name
+          -- match above. Fixes "esomeprazole 20mg" showing the 40mg price when
+          -- only the 40mg pack is stocked.
+          AND (
+            (regexp_match(lower(po.medication_name),  '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+            OR (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
+            OR (regexp_match(lower(po.medication_name),  '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+             = (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+          )
+          -- Ambiguity guard: if the order has NO strength but the stock carries
+          -- the same drug in MULTIPLE strengths (e.g. free-text "esomeprazole"
+          -- with 10/20/40mg on the shelf), don't silently guess the highest-stock
+          -- one — that's exactly how "esomeprazole" surfaced the 40mg price.
+          -- Suppress the suggestion so the queue reads "not in inventory" and the
+          -- pharmacist explicitly picks the right strength.
+          AND (
+            (regexp_match(lower(po.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NOT NULL
+            OR NOT EXISTS (
+              SELECT 1 FROM pharmacy_inventory pi3
+              WHERE pi3.is_active = true AND pi3.id <> pi2.id
+                AND (
+                  pi3.medication_name ILIKE '%' || po.medication_name || '%'
+                  OR pi3.generic_name ILIKE '%' || po.medication_name || '%'
+                  OR po.medication_name ILIKE '%' || pi3.medication_name || '%'
+                )
+                AND (regexp_match(lower(pi3.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+                    IS DISTINCT FROM
+                    (regexp_match(lower(pi2.medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
+            )
+          )
         ORDER BY
           CASE WHEN pi2.medication_name ILIKE po.medication_name THEN 0
                WHEN pi2.medication_name ILIKE po.medication_name || '%' THEN 1
@@ -1723,6 +1755,10 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         LIMIT 1
       ) pim ON true
       WHERE 1=1
+        -- Manual refill reminders live in pharmacy_orders as status='dispensed'
+        -- only to drive the refills calendar; they are not real orders/dispenses
+        -- and must never surface in the pharmacy queues (incl. Dispensed).
+        AND po.is_manual_reminder IS NOT TRUE
     `;
     const params: any[] = [];
     let paramCount = 1;
@@ -1998,10 +2034,10 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         await client.query('BEGIN');
 
         // Get medication from inventory - prefer inventory_id FK, fallback to name match
-        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number }> } = { rows: [] };
+        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number; pack_size: string }> } = { rows: [] };
         if (updatedOrder.inventory_id) {
           inventoryResult = await client.query(
-            `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+            `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
              WHERE id = $1`,
             [updatedOrder.inventory_id]
           );
@@ -2016,7 +2052,7 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             .filter((n: string) => n.length > 0);
           for (const name of nameCandidates) {
             inventoryResult = await client.query(
-              `SELECT id, selling_price, quantity_on_hand FROM pharmacy_inventory
+              `SELECT id, selling_price, quantity_on_hand, pack_size FROM pharmacy_inventory
                WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
               [name]
             );
@@ -2026,8 +2062,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
         if (inventoryResult.rows.length > 0) {
           const inventoryItem = inventoryResult.rows[0];
-          const unitPrice = parseFloat(inventoryItem.selling_price);
-          const totalPrice = unitPrice * quantity;
+          // selling_price is per PACK; quantity is in individual units. Convert
+          // to a per-unit price so a 14-tablet course of a pack-priced med
+          // isn't billed at 14× the pack price. pack_size defaults to 1, so
+          // per-unit-priced items are unaffected.
+          const packSize = parseFloat(inventoryItem.pack_size) || 1;
+          const unitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+          const totalPrice = Math.round((parseFloat(inventoryItem.selling_price) * quantity / packSize) * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -2595,6 +2636,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
          LEFT JOIN rooms r ON e.room_id = r.id
         WHERE po.ordering_provider = $1
           AND po.status IN ('ready', 'dispensed')
+          AND po.is_manual_reminder IS NOT TRUE
           AND po.updated_at >= NOW() - INTERVAL '7 days'
         ORDER BY po.updated_at DESC
         LIMIT 20`,
@@ -2886,6 +2928,27 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
 
     await client.query('BEGIN');
 
+    // Guard against double-billing from a retried/duplicated submit (common on a
+    // slow connection: the request times out client-side but still lands, and
+    // the pharmacist resubmits). Lock the pharmacy routing row; if it has already
+    // been served, bail before creating any orders/invoice items. A concurrent
+    // second request blocks on this lock until the first commits, then sees
+    // 'completed' and exits — so the OTC bill can never be pushed twice.
+    const routingLock = await client.query(
+      `SELECT status FROM department_routing WHERE id = $1 FOR UPDATE`,
+      [routing_id]
+    );
+    if (routingLock.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Walk-in routing not found' });
+      return;
+    }
+    if (routingLock.rows[0].status === 'completed') {
+      await client.query('ROLLBACK');
+      res.status(409).json({ error: 'This walk-in has already been served. Refresh the queue to see the latest status.' });
+      return;
+    }
+
     const createdOrders: any[] = [];
     let totalAmount = 0;
 
@@ -2893,7 +2956,7 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
     for (const med of medicationList) {
       // Verify stock availability
       const stockCheck = await client.query(
-        `SELECT id, medication_name, quantity_on_hand, selling_price
+        `SELECT id, medication_name, quantity_on_hand, selling_price, pack_size
          FROM pharmacy_inventory WHERE id = $1`,
         [med.inventory_id]
       );
@@ -2935,13 +2998,20 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
         ]
       );
 
+      // selling_price is per PACK; bill per individual unit so a multi-unit
+      // pack isn't charged at (pack price × unit count). pack_size defaults to
+      // 1, so per-unit-priced items are unaffected. Computed server-side from
+      // inventory rather than trusting the client's unit_price.
+      const packSize = parseFloat(inventoryItem.pack_size) || 1;
+      const perUnitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+      orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
       // Dispense from batches (FEFO)
       await dispenseFromBatches(client, med.inventory_id, med.quantity, dispensed_by);
 
       // Calculate amount
-      const itemTotal = (med.unit_price || inventoryItem.selling_price) * med.quantity;
+      const itemTotal = Math.round(perUnitPrice * med.quantity * 100) / 100;
       totalAmount += itemTotal;
     }
 
@@ -2970,10 +3040,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       // Match the original medication entry back to this order by name.
       // (Previously the || m.inventory_id always evaluated true, so every
       // line item got the first medication's price.)
+      // Use the per-unit price computed from inventory above (pack-size aware),
+      // falling back to the client value only if it's somehow missing.
       const med = medicationList.find((m: any) => m.medication_name === order.medication_name);
-      const unitPrice = med?.unit_price || 0;
+      const unitPrice = order._billUnitPrice ?? med?.unit_price ?? 0;
       const quantity = order.quantity;
-      const itemTotal = unitPrice * quantity;
+      const itemTotal = Math.round(unitPrice * quantity * 100) / 100;
 
       await client.query(
         `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
