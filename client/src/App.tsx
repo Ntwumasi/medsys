@@ -117,6 +117,7 @@ const RoleDashboard: React.FC = () => {
       case 'accountant':
         return <ErrorBoundary><AccountantDashboard /></ErrorBoundary>;
       case 'admin':
+      case 'office_manager': // curated admin view (oversight sections hidden)
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
       case 'patient':
         return <ErrorBoundary><PatientPortal /></ErrorBoundary>;

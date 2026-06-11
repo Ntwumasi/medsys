@@ -19,6 +19,13 @@ const roleOptions: RoleOption[] = [
     color: 'bg-purple-500',
   },
   {
+    role: 'office_manager',
+    label: 'Office Manager',
+    description: 'Front-office operations, billing and payers (no system/audit access)',
+    icon: 'M3 21v-2a4 4 0 014-4h4M21 21v-2a4 4 0 00-3-3.87M9 7a4 4 0 108 0 4 4 0 00-8 0zM17 11h4m-2-2v4',
+    color: 'bg-amber-500',
+  },
+  {
     role: 'receptionist',
     label: 'Receptionist',
     description: 'Patient registration, check-in, and scheduling',
