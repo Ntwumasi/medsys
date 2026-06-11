@@ -190,8 +190,11 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
 
     const newTotal = parseFloat(sumResult.rows[0].total) || 0;
 
+    // Recompute BOTH subtotal and total — previously only total_amount was
+    // updated, leaving a stale subtotal on the invoice (Irene: deleted the
+    // registration line but subtotal still showed 700 while total showed 600).
     await pool.query(
-      'UPDATE invoices SET total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      'UPDATE invoices SET subtotal = $1, total_amount = $1 + COALESCE(tax, 0), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [newTotal, invoiceId]
     );
 

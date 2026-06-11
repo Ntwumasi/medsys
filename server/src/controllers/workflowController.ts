@@ -106,7 +106,18 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id, encounter.id]
     );
     const hasPreviousVisits = parseInt(previousVisitResult.rows[0].count) > 0;
-    const isNewPatient = totalEncounters === 1 && !hasPreviousVisits;
+    // CareCode legacy patients (imported, cc- prefixed) already existed before
+    // MedSys, so their first MedSys encounter is NOT a first-ever visit — they
+    // must not be charged a registration fee (Irene: returning patients billed
+    // registration because the system saw cc- imports as new).
+    const sourceResult = await client.query(
+      `SELECT source, patient_number FROM patients WHERE id = $1`,
+      [patient_id]
+    );
+    const isLegacyPatient =
+      sourceResult.rows[0]?.source === 'carecode' ||
+      /^cc/i.test(String(sourceResult.rows[0]?.patient_number || ''));
+    const isNewPatient = totalEncounters === 1 && !hasPreviousVisits && !isLegacyPatient;
 
     // Create invoice with proper billing - use MAX(id) to avoid collisions
     const maxIdResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
