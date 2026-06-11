@@ -52,6 +52,37 @@ export const createManualRefill = async (req: Request, res: Response): Promise<v
   }
 };
 
+// Clear a manually-added refill reminder once it has been fulfilled.
+// Only manual reminders (is_manual_reminder=true) can be cleared this way —
+// real dispensed-order refills are advanced via "Process Refill", not deleted.
+export const deleteManualReminder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authReq = req as any;
+    const { id } = req.params;
+    const result = await pool.query(
+      `DELETE FROM pharmacy_orders
+       WHERE id = $1 AND is_manual_reminder = true
+       RETURNING id, patient_id, medication_name`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Reminder not found, or it is a real refill that must be processed rather than cleared' });
+      return;
+    }
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'delete',
+      entityType: 'pharmacy_refill_manual',
+      entityId: Number(id),
+      details: result.rows[0],
+    });
+    res.json({ message: 'Reminder cleared' });
+  } catch (error) {
+    console.error('Clear manual reminder error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Get all inventory items with optional filters
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -839,60 +870,71 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
 
     if (from_date && to_date) {
       // Date range query (for appointment calendar integration)
-      // Uses days_supply if set, otherwise falls back to quantity as days
+      // Uses days_supply if set, otherwise falls back to quantity as days.
+      // DISTINCT ON collapses duplicate rows for the same patient + medication
+      // landing on the same refill date (e.g. a manual reminder duplicating a
+      // real dispense) so each shows only once. When both exist we keep the
+      // real order (is_manual_reminder ASC → false first) so "Process Refill" works.
       result = await pool.query(
-        `SELECT
-          po.id,
-          po.medication_name,
-          po.quantity,
-          po.refills,
-          po.days_supply,
-          po.dispensed_date,
-          po.frequency,
-          p.id as patient_id,
-          p.patient_number,
-          u.first_name || ' ' || u.last_name as patient_name,
-          u.phone as patient_phone,
-          -- Estimate refill date: use days_supply if available, otherwise use quantity
-          (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
-          po.refills as refills_remaining
-         FROM pharmacy_orders po
-         JOIN patients p ON po.patient_id = p.id
-         JOIN users u ON p.user_id = u.id
-         WHERE po.status = 'dispensed'
-           AND po.refills > 0
-           AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
-           AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
-         ORDER BY estimated_refill_date ASC`,
+        `SELECT * FROM (
+          SELECT DISTINCT ON (p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date)
+            po.id,
+            po.medication_name,
+            po.quantity,
+            po.refills,
+            po.days_supply,
+            po.dispensed_date,
+            po.frequency,
+            po.is_manual_reminder,
+            p.id as patient_id,
+            p.patient_number,
+            u.first_name || ' ' || u.last_name as patient_name,
+            u.phone as patient_phone,
+            (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
+            po.refills as refills_remaining
+           FROM pharmacy_orders po
+           JOIN patients p ON po.patient_id = p.id
+           JOIN users u ON p.user_id = u.id
+           WHERE po.status = 'dispensed'
+             AND po.refills > 0
+             AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
+             AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
+           ORDER BY p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date, po.is_manual_reminder ASC, po.id DESC
+        ) sub
+        ORDER BY sub.estimated_refill_date ASC`,
         [from_date, to_date]
       );
     } else if (year && month) {
       // Year/month query (original behavior)
-      // Uses days_supply if set, otherwise falls back to quantity as days
+      // Uses days_supply if set, otherwise falls back to quantity as days.
+      // DISTINCT ON dedupes same patient + medication + refill date (see range branch above).
       result = await pool.query(
-        `SELECT
-          po.id,
-          po.medication_name,
-          po.quantity,
-          po.refills,
-          po.days_supply,
-          po.dispensed_date,
-          po.frequency,
-          p.id as patient_id,
-          p.patient_number,
-          u.first_name || ' ' || u.last_name as patient_name,
-          u.phone as patient_phone,
-          -- Estimate refill date: use days_supply if available, otherwise use quantity
-          (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
-          po.refills as refills_remaining
-         FROM pharmacy_orders po
-         JOIN patients p ON po.patient_id = p.id
-         JOIN users u ON p.user_id = u.id
-         WHERE po.status = 'dispensed'
-           AND po.refills > 0
-           AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
-           AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2
-         ORDER BY estimated_refill_date ASC`,
+        `SELECT * FROM (
+          SELECT DISTINCT ON (p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date)
+            po.id,
+            po.medication_name,
+            po.quantity,
+            po.refills,
+            po.days_supply,
+            po.dispensed_date,
+            po.frequency,
+            po.is_manual_reminder,
+            p.id as patient_id,
+            p.patient_number,
+            u.first_name || ' ' || u.last_name as patient_name,
+            u.phone as patient_phone,
+            (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date as estimated_refill_date,
+            po.refills as refills_remaining
+           FROM pharmacy_orders po
+           JOIN patients p ON po.patient_id = p.id
+           JOIN users u ON p.user_id = u.id
+           WHERE po.status = 'dispensed'
+             AND po.refills > 0
+             AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
+             AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2
+           ORDER BY p.id, LOWER(po.medication_name), (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date, po.is_manual_reminder ASC, po.id DESC
+        ) sub
+        ORDER BY sub.estimated_refill_date ASC`,
         [year, month]
       );
     } else {
@@ -1335,9 +1377,10 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
     const updatedBatches: any[] = [];
 
     for (const batchUpdate of batches) {
-      const { batchId, quantity } = batchUpdate;
+      const { batchId, quantity, expiry_date } = batchUpdate;
+      const hasExpiry = expiry_date !== undefined; // allow null to clear
 
-      if (quantity === undefined || quantity < 0) continue;
+      if ((quantity === undefined || quantity < 0) && !hasExpiry) continue;
 
       // Get current batch info
       const batchResult = await client.query(
@@ -1351,22 +1394,29 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
       if (batchResult.rows.length === 0) continue;
 
       const batch = batchResult.rows[0];
-      const quantityDiff = quantity - batch.quantity;
+      const newQty = (quantity === undefined || quantity < 0) ? batch.quantity : quantity;
+      const quantityDiff = newQty - batch.quantity;
+      const prevExpiry = batch.expiry_date ? new Date(batch.expiry_date).toISOString().split('T')[0] : null;
+      const expiryChanged = hasExpiry && (expiry_date || null) !== prevExpiry;
 
-      if (quantityDiff === 0) continue; // No change
+      if (quantityDiff === 0 && !expiryChanged) continue; // No change
 
-      // Update batch quantity
+      // Update batch quantity and/or expiry
       await client.query(
         `UPDATE inventory_batches
-         SET quantity = $1, updated_at = CURRENT_TIMESTAMP
+         SET quantity = $1,
+             expiry_date = CASE WHEN $3::boolean THEN $4::date ELSE expiry_date END,
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = $2`,
-        [quantity, batchId]
+        [newQty, batchId, hasExpiry, expiry_date || null]
       );
 
       totalQuantityDiff += quantityDiff;
 
       // Log individual batch adjustment
-      const adjustmentDirection = quantityDiff > 0 ? 'increased' : 'decreased';
+      const parts: string[] = [];
+      if (quantityDiff !== 0) parts.push(`${quantityDiff > 0 ? 'increased' : 'decreased'}: ${batch.quantity} → ${newQty}`);
+      if (expiryChanged) parts.push(`expiry ${prevExpiry || 'none'} → ${expiry_date || 'none'}`);
       await client.query(
         `INSERT INTO inventory_transactions
          (inventory_id, transaction_type, quantity, notes, performed_by)
@@ -1374,7 +1424,7 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
         [
           id,
           Math.abs(quantityDiff),
-          `Batch ${batch.batch_number} ${adjustmentDirection}: ${batch.quantity} → ${quantity}. ${reason || 'Stock adjustment'}`,
+          `Batch ${batch.batch_number} ${parts.join(', ')}. ${reason || 'Stock adjustment'}`,
           authReq.user?.id
         ]
       );
@@ -1383,13 +1433,14 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
         batchId,
         batch_number: batch.batch_number,
         previous_quantity: batch.quantity,
-        new_quantity: quantity,
+        new_quantity: newQty,
         difference: quantityDiff
       });
     }
 
-    // Update main inventory quantity
-    if (totalQuantityDiff !== 0) {
+    // Resync main inventory quantity + earliest expiry whenever any batch changed
+    // (covers expiry-only edits too, which leave totalQuantityDiff at 0).
+    if (updatedBatches.length > 0) {
       await client.query(
         `UPDATE pharmacy_inventory
          SET quantity_on_hand = quantity_on_hand + $1,
@@ -1415,6 +1466,231 @@ export const updateBatchQuantities = async (req: Request, res: Response): Promis
     await client.query('ROLLBACK');
     console.error('Update batch quantities error:', error);
     res.status(500).json({ error: 'Failed to update batch quantities' });
+  } finally {
+    client.release();
+  }
+};
+
+// Helper: generate a batch number from a med name + reference date, unique per
+// medication + expiry-month, matching the scheme used by recordPurchase.
+const generateBatchNumber = async (client: any, inventoryId: string | number, medicationName: string, refDateStr?: string | null): Promise<string> => {
+  const abbrev = (medicationName || 'MED').split(' ')[0].substring(0, 3).toUpperCase();
+  const dateRef = refDateStr ? new Date(refDateStr) : new Date();
+  const yearMonth = `${dateRef.getFullYear()}${String(dateRef.getMonth() + 1).padStart(2, '0')}`;
+  const seq = await client.query(
+    `SELECT COUNT(*) + 1 AS next_seq FROM inventory_batches WHERE inventory_id = $1 AND batch_number LIKE $2`,
+    [inventoryId, `${abbrev}-${yearMonth}%`]
+  );
+  return `${abbrev}-${yearMonth}-${String(seq.rows[0].next_seq).padStart(3, '0')}`;
+};
+
+// Add a single batch to an item manually (stock received outside procurement,
+// or recording a new expiry/lot). Quantity adds to on-hand; earliest expiry resyncs.
+export const addBatch = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { batch_number, quantity, expiry_date, unit_cost, supplier_id, notes } = req.body;
+    const authReq = req as any;
+    const qty = parseInt(String(quantity));
+
+    if (!qty || qty <= 0) {
+      res.status(400).json({ error: 'Quantity must be greater than 0' });
+      return;
+    }
+
+    await client.query('BEGIN');
+
+    const med = await client.query(`SELECT medication_name FROM pharmacy_inventory WHERE id = $1`, [id]);
+    if (med.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Inventory item not found' });
+      return;
+    }
+
+    const bn = (batch_number && String(batch_number).trim())
+      ? String(batch_number).trim()
+      : await generateBatchNumber(client, String(id), med.rows[0].medication_name, expiry_date);
+
+    const batchIns = await client.query(
+      `INSERT INTO inventory_batches
+        (inventory_id, batch_number, quantity, unit_cost, expiry_date, supplier_id, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [id, bn, qty, unit_cost || null, expiry_date || null, supplier_id || null, notes || 'Manually added batch']
+    );
+
+    await client.query(
+      `INSERT INTO inventory_transactions
+        (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
+       VALUES ($1, 'adjustment', $2, 'batch', $3, $4, $5)`,
+      [id, qty, batchIns.rows[0].id, `Batch ${bn} added: +${qty}${expiry_date ? `, exp ${expiry_date}` : ''}`, authReq.user?.id]
+    );
+
+    await client.query(
+      `UPDATE pharmacy_inventory
+       SET quantity_on_hand = quantity_on_hand + $1,
+           expiry_date = (
+             SELECT MIN(expiry_date) FROM inventory_batches
+             WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+           ),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [qty, id]
+    );
+
+    await client.query('COMMIT');
+    res.status(201).json({ message: 'Batch added', batch_number: bn });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Add batch error:', error);
+    res.status(500).json({ error: 'Failed to add batch' });
+  } finally {
+    client.release();
+  }
+};
+
+// Stock-take: reconcile counted quantities (and expiry) after a physical count.
+// Two modes:
+//  - Batch-level: body.batches = [{ batchId, counted_quantity, expiry_date? }]
+//    (used when an item has multiple batches and each is counted separately)
+//  - Item-level: body.counted_total + body.expiry_date
+//    (single number for the whole item; for a batchless item we open one batch
+//     so FEFO keeps working, for a single-batch item we update that batch)
+export const stockTakeItem = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { counted_total, expiry_date, batches, reason } = req.body;
+    const authReq = req as any;
+    const note = reason && String(reason).trim() ? String(reason).trim() : 'Stock-take';
+
+    await client.query('BEGIN');
+
+    const itemRes = await client.query(
+      `SELECT id, medication_name, quantity_on_hand FROM pharmacy_inventory WHERE id = $1`,
+      [id]
+    );
+    if (itemRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Inventory item not found' });
+      return;
+    }
+
+    // ---- Batch-level mode ----
+    if (Array.isArray(batches) && batches.length > 0) {
+      for (const b of batches) {
+        if (b.counted_quantity === undefined || b.counted_quantity === null || b.counted_quantity === '' || Number(b.counted_quantity) < 0) continue;
+        const q = parseInt(String(b.counted_quantity));
+        const cur = await client.query(
+          `SELECT quantity, batch_number, expiry_date FROM inventory_batches WHERE id = $1 AND inventory_id = $2`,
+          [b.batchId, id]
+        );
+        if (cur.rows.length === 0) continue;
+        const prev = cur.rows[0].quantity;
+        const diff = q - prev;
+        const hasExpiry = b.expiry_date !== undefined;
+        const prevExpiry = cur.rows[0].expiry_date ? new Date(cur.rows[0].expiry_date).toISOString().split('T')[0] : null;
+        const expiryChanged = hasExpiry && (b.expiry_date || null) !== prevExpiry;
+        if (diff === 0 && !expiryChanged) continue;
+
+        await client.query(
+          `UPDATE inventory_batches
+           SET quantity = $1,
+               expiry_date = CASE WHEN $3::boolean THEN $4::date ELSE expiry_date END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [q, b.batchId, hasExpiry, b.expiry_date || null]
+        );
+
+        const parts: string[] = [];
+        if (diff !== 0) parts.push(`${diff > 0 ? 'increased' : 'decreased'} ${prev} → ${q}`);
+        if (expiryChanged) parts.push(`expiry ${prevExpiry || 'none'} → ${b.expiry_date || 'none'}`);
+        await client.query(
+          `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
+           VALUES ($1, 'adjustment', $2, $3, $4)`,
+          [id, Math.abs(diff), `Stock-take: batch ${cur.rows[0].batch_number} ${parts.join(', ')}. ${note}`, authReq.user?.id]
+        );
+      }
+    } else {
+      // ---- Item-level mode ----
+      if (counted_total === undefined || counted_total === null || counted_total === '' || Number(counted_total) < 0) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: 'Counted quantity is required' });
+        return;
+      }
+      const counted = parseInt(String(counted_total));
+
+      const activeBatches = await client.query(
+        `SELECT id, quantity, batch_number FROM inventory_batches
+         WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+         ORDER BY expiry_date ASC NULLS LAST, received_date ASC`,
+        [id]
+      );
+
+      if (activeBatches.rows.length > 1) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: 'This item has multiple batches — expand it to count each batch separately.' });
+        return;
+      }
+
+      if (activeBatches.rows.length === 1) {
+        const batch = activeBatches.rows[0];
+        const diff = counted - batch.quantity;
+        const hasExpiry = expiry_date !== undefined;
+        await client.query(
+          `UPDATE inventory_batches
+           SET quantity = $1,
+               expiry_date = CASE WHEN $3::boolean THEN $4::date ELSE expiry_date END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2`,
+          [counted, batch.id, hasExpiry, expiry_date || null]
+        );
+        await client.query(
+          `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
+           VALUES ($1, 'adjustment', $2, $3, $4)`,
+          [id, Math.abs(diff), `Stock-take: batch ${batch.batch_number} counted ${batch.quantity} → ${counted}. ${note}`, authReq.user?.id]
+        );
+      } else {
+        // No batches yet — open one so FEFO dispensing has something to draw from.
+        const bn = await generateBatchNumber(client, String(id), itemRes.rows[0].medication_name, expiry_date);
+        await client.query(
+          `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, bn, counted, expiry_date || null, 'Opened via stock-take']
+        );
+        const prevOnHand = parseInt(String(itemRes.rows[0].quantity_on_hand)) || 0;
+        const diff = counted - prevOnHand;
+        await client.query(
+          `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
+           VALUES ($1, 'adjustment', $2, $3, $4)`,
+          [id, Math.abs(diff), `Stock-take: counted ${counted} (was ${prevOnHand}); opened batch ${bn}. ${note}`, authReq.user?.id]
+        );
+      }
+    }
+
+    // Resync the item's on-hand to the sum of its active batches + earliest expiry.
+    await client.query(
+      `UPDATE pharmacy_inventory
+       SET quantity_on_hand = COALESCE((
+             SELECT SUM(quantity) FROM inventory_batches
+             WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+           ), 0),
+           expiry_date = (
+             SELECT MIN(expiry_date) FROM inventory_batches
+             WHERE inventory_id = $1 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+           ),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+    res.json({ message: 'Stock-take saved' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Stock-take error:', error);
+    res.status(500).json({ error: 'Failed to save stock-take' });
   } finally {
     client.release();
   }

@@ -278,7 +278,7 @@ const PharmacyDashboard: React.FC = () => {
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
   const title = 'Pharmacy Dashboard';
-  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'otc' | 'inventory' | 'stocktake' | 'procurement' | 'suppliers' | 'pricing' | 'revenue' | 'analytics'>('orders');
   const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'in_progress' | 'ready' | 'history'>('pending');
 
   // Notification deep-link target: the order to scroll to / flash once loaded.
@@ -295,7 +295,7 @@ const PharmacyDashboard: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const tab = params.get('tab');
     const highlight = params.get('highlight');
-    const valid = ['orders', 'otc', 'inventory', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
+    const valid = ['orders', 'otc', 'inventory', 'stocktake', 'procurement', 'suppliers', 'pricing', 'revenue', 'analytics'];
     if (tab && valid.includes(tab)) {
       setActiveTab(tab as typeof activeTab);
     }
@@ -541,6 +541,19 @@ const PharmacyDashboard: React.FC = () => {
   const [inventoryBatches, setInventoryBatches] = useState<any[]>([]);
   const [loadingBatches, setLoadingBatches] = useState(false);
   const [batchQuantityEdits, setBatchQuantityEdits] = useState<Record<number, number>>({});
+  const [batchExpiryEdits, setBatchExpiryEdits] = useState<Record<number, string>>({});
+  // Inline "add batch" form inside the Edit Item modal
+  const [showAddBatch, setShowAddBatch] = useState(false);
+  const [addingBatch, setAddingBatch] = useState(false);
+  const [newBatchForm, setNewBatchForm] = useState({ batch_number: '', quantity: '', expiry_date: '' });
+  // --- Stock-take tab state ---
+  const [stockCounts, setStockCounts] = useState<Record<number, string>>({});   // itemId -> counted qty
+  const [stockExpiry, setStockExpiry] = useState<Record<number, string>>({});    // itemId -> expiry
+  const [stockSaving, setStockSaving] = useState<number | null>(null);
+  const [stockSaved, setStockSaved] = useState<Record<number, boolean>>({});
+  const [stockExpandedId, setStockExpandedId] = useState<number | null>(null);
+  const [stockExpandBatches, setStockExpandBatches] = useState<any[]>([]);
+  const [stockExpandEdits, setStockExpandEdits] = useState<Record<number, { counted_quantity: string; expiry_date: string }>>({});
   const [newInventoryForm, setNewInventoryForm] = useState({
     medication_name: '',
     generic_name: '',
@@ -1117,13 +1130,27 @@ const PharmacyDashboard: React.FC = () => {
       };
       await apiClient.put(`/inventory/${item.id}`, updateData);
 
-      // Save batch quantity changes if any
-      const batchChanges = Object.entries(batchQuantityEdits)
-        .filter(([batchId, qty]) => {
-          const batch = inventoryBatches.find(b => b.id === parseInt(batchId));
-          return batch && batch.quantity !== qty;
+      // Save batch quantity / expiry changes if any. A batch is included when
+      // either its quantity or its expiry date was edited.
+      const touchedBatchIds = new Set<number>([
+        ...Object.keys(batchQuantityEdits).map(Number),
+        ...Object.keys(batchExpiryEdits).map(Number),
+      ]);
+      const batchChanges = Array.from(touchedBatchIds)
+        .map((batchId) => {
+          const batch = inventoryBatches.find(b => b.id === batchId);
+          if (!batch) return null;
+          const qtyEdited = batchQuantityEdits[batchId];
+          const expEdited = batchExpiryEdits[batchId];
+          const prevExp = batch.expiry_date ? String(batch.expiry_date).split('T')[0] : '';
+          const change: any = { batchId };
+          if (qtyEdited !== undefined && qtyEdited !== batch.quantity) change.quantity = qtyEdited;
+          if (expEdited !== undefined && expEdited !== prevExp) change.expiry_date = expEdited || null;
+          // Skip no-ops
+          if (change.quantity === undefined && change.expiry_date === undefined) return null;
+          return change;
         })
-        .map(([batchId, quantity]) => ({ batchId: parseInt(batchId), quantity }));
+        .filter(Boolean);
 
       if (batchChanges.length > 0) {
         await apiClient.put(`/inventory/${item.id}/batches`, {
@@ -1136,6 +1163,7 @@ const PharmacyDashboard: React.FC = () => {
       setShowInventoryModal(false);
       setEditingInventory(null);
       setBatchQuantityEdits({});
+      setBatchExpiryEdits({});
       fetchInventory();
     } catch (error: any) {
       console.error('Error updating inventory:', error);
@@ -1479,6 +1507,98 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Add a new batch (lot + expiry) to the item currently open in the Edit modal.
+  const addBatchToItem = async () => {
+    if (!editingInventory) return;
+    const qty = parseInt(newBatchForm.quantity);
+    if (!qty || qty <= 0) { showToast('Enter a quantity greater than 0', 'error'); return; }
+    setAddingBatch(true);
+    try {
+      await apiClient.post(`/inventory/${editingInventory.id}/batches`, {
+        batch_number: newBatchForm.batch_number.trim() || undefined,
+        quantity: qty,
+        expiry_date: newBatchForm.expiry_date || undefined,
+      });
+      showToast('Batch added', 'success');
+      setNewBatchForm({ batch_number: '', quantity: '', expiry_date: '' });
+      setShowAddBatch(false);
+      await fetchInventoryBatches(editingInventory.id);
+      fetchInventory();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to add batch', 'error');
+    } finally {
+      setAddingBatch(false);
+    }
+  };
+
+  // --- Stock-take handlers ---
+  const flashStockSaved = (itemId: number) => {
+    setStockSaved(prev => ({ ...prev, [itemId]: true }));
+    setTimeout(() => setStockSaved(prev => { const n = { ...prev }; delete n[itemId]; return n; }), 2500);
+  };
+
+  const toggleStockExpand = async (item: InventoryItem) => {
+    if (stockExpandedId === item.id) { setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({}); return; }
+    try {
+      const res = await apiClient.get(`/inventory/${item.id}/batches`);
+      const batches = res.data.batches || [];
+      setStockExpandBatches(batches);
+      const seed: Record<number, { counted_quantity: string; expiry_date: string }> = {};
+      batches.forEach((b: any) => {
+        seed[b.id] = { counted_quantity: String(b.quantity ?? ''), expiry_date: b.expiry_date ? String(b.expiry_date).split('T')[0] : '' };
+      });
+      setStockExpandEdits(seed);
+      setStockExpandedId(item.id);
+    } catch {
+      showToast('Failed to load batches', 'error');
+    }
+  };
+
+  const saveStockTakeItem = async (item: InventoryItem) => {
+    const counted = stockCounts[item.id];
+    if (counted === undefined || counted === '') { showToast('Enter the counted quantity first', 'error'); return; }
+    setStockSaving(item.id);
+    try {
+      await apiClient.post(`/inventory/${item.id}/stock-take`, {
+        counted_total: parseInt(counted),
+        expiry_date: stockExpiry[item.id] !== undefined ? (stockExpiry[item.id] || null) : undefined,
+      });
+      flashStockSaved(item.id);
+      setStockCounts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      setStockExpiry(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      fetchInventory();
+    } catch (error: any) {
+      if (error.response?.status === 409) {
+        // Multiple batches — open the per-batch counter for this item
+        showToast('This item has multiple batches — count each batch below', 'warning');
+        toggleStockExpand(item);
+      } else {
+        showToast(error.response?.data?.error || 'Failed to save count', 'error');
+      }
+    } finally {
+      setStockSaving(null);
+    }
+  };
+
+  const saveStockTakeBatches = async (item: InventoryItem) => {
+    const batches = Object.entries(stockExpandEdits).map(([batchId, v]) => ({
+      batchId: parseInt(batchId),
+      counted_quantity: v.counted_quantity === '' ? undefined : parseInt(v.counted_quantity),
+      expiry_date: v.expiry_date || null,
+    }));
+    setStockSaving(item.id);
+    try {
+      await apiClient.post(`/inventory/${item.id}/stock-take`, { batches });
+      flashStockSaved(item.id);
+      setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({});
+      fetchInventory();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to save counts', 'error');
+    } finally {
+      setStockSaving(null);
+    }
+  };
+
   const fetchPatientDetails = async (patientId: number, encounterId: number) => {
     try {
       // Fetch diagnoses
@@ -1748,6 +1868,11 @@ const PharmacyDashboard: React.FC = () => {
     { id: 'inventory' as const, label: 'Inventory', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+      </svg>
+    )},
+    { id: 'stocktake' as const, label: 'Stock-take', icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
     )},
     { id: 'procurement' as const, label: 'Procurement', icon: (
@@ -2602,12 +2727,34 @@ const PharmacyDashboard: React.FC = () => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                               {patient.status === 'pending' && (
-                                <button
-                                  onClick={() => openServeWalkInModal(patient)}
-                                  className="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                                >
-                                  Serve
-                                </button>
+                                <>
+                                  <button
+                                    onClick={() => openServeWalkInModal(patient)}
+                                    className="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                  >
+                                    Serve
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!(await confirmDialog({
+                                        title: 'Clear this walk-in?',
+                                        message: `Remove ${patient.patient_name || 'this patient'} from the OTC / walk-in list?\n\nUse this for entries that were never served. It does not dispense or bill anything.`,
+                                        confirmLabel: 'Clear',
+                                      }))) return;
+                                      try {
+                                        await apiClient.put(`/department-routing/${patient.id}/status`, { status: 'cancelled' });
+                                        showToast('Walk-in cleared', 'success');
+                                        fetchWalkIns();
+                                      } catch {
+                                        showToast('Failed to clear walk-in', 'error');
+                                      }
+                                    }}
+                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    title="Remove this unserved walk-in from the list"
+                                  >
+                                    Clear
+                                  </button>
+                                </>
                               )}
                               {patient.status === 'in-progress' && (
                                 <>
@@ -2875,6 +3022,193 @@ const PharmacyDashboard: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+              {inventory.filter(item => {
+                if (categoryFilter && item.category !== categoryFilter) return false;
+                if (inventorySearch && !item.medication_name.toLowerCase().includes(inventorySearch.toLowerCase()) &&
+                    !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
+                return true;
+              }).length === 0 && (
+                <div className="py-12 text-center text-gray-500">
+                  {inventory.length === 0 ? 'No inventory items found' : 'No items match your filters'}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STOCK-TAKE TAB */}
+        {activeTab === 'stocktake' && (
+          <div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+              <h2 className="text-base font-semibold text-blue-900">Stock-take</h2>
+              <p className="text-sm text-blue-800 mt-1">
+                Count the shelf, type the quantity you physically have, set the expiry, and Save — the system reconciles the difference and logs it.
+                Items with more than one batch show a <span className="font-medium">Count batches</span> action so each lot is counted with its own expiry (closest-expiry dispenses first).
+              </p>
+            </div>
+
+            {/* Search + filter (reuses the inventory filters) */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-4 flex flex-wrap items-center gap-3">
+              <input
+                type="text"
+                placeholder="Search medications..."
+                value={inventorySearch}
+                onChange={(e) => setInventorySearch(e.target.value)}
+                className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <div className="w-44 flex-shrink-0">
+                <AppSelect
+                  value={categoryFilter}
+                  onChange={(val) => setCategoryFilter(val)}
+                  options={[
+                    { value: '', label: 'All Categories' },
+                    ...inventoryCategories.map((cat) => ({ value: cat, label: cat })),
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">System Qty</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Counted</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Expiry</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {inventory
+                    .filter(item => {
+                      if (categoryFilter && item.category !== categoryFilter) return false;
+                      if (inventorySearch && !item.medication_name.toLowerCase().includes(inventorySearch.toLowerCase()) &&
+                          !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
+                      return true;
+                    })
+                    .map((item) => {
+                      const isExpanded = stockExpandedId === item.id;
+                      const saving = stockSaving === item.id;
+                      const saved = stockSaved[item.id];
+                      return (
+                        <React.Fragment key={item.id}>
+                          <tr className="hover:bg-gray-50">
+                            <td className="px-6 py-3">
+                              <div className="font-medium text-gray-900">{item.medication_name}</div>
+                              <div className="text-sm text-gray-500">{item.generic_name || item.category}</div>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <span className={`font-bold ${item.is_low_stock ? 'text-danger-600' : 'text-gray-900'}`}>{item.quantity_on_hand}</span>
+                              <span className="text-xs text-gray-500 ml-1">{item.unit}s</span>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                disabled={isExpanded}
+                                value={stockCounts[item.id] ?? ''}
+                                onChange={(e) => setStockCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="—"
+                                className="w-24 px-2 py-1.5 text-center border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="date"
+                                disabled={isExpanded}
+                                value={stockExpiry[item.id] ?? (item.expiry_date ? String(item.expiry_date).split('T')[0] : '')}
+                                onChange={(e) => setStockExpiry(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              {saved ? (
+                                <span className="inline-flex items-center gap-1 text-success-700 text-sm font-medium">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                  Saved
+                                </span>
+                              ) : (
+                                <div className="flex items-center justify-end gap-2">
+                                  {!isExpanded && (
+                                    <button
+                                      onClick={() => saveStockTakeItem(item)}
+                                      disabled={saving}
+                                      className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                    >
+                                      {saving ? 'Saving…' : 'Save'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => toggleStockExpand(item)}
+                                    className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                                  >
+                                    {isExpanded ? 'Close' : 'Count batches'}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="bg-blue-50/40">
+                              <td colSpan={5} className="px-6 py-3">
+                                {stockExpandBatches.length === 0 ? (
+                                  <p className="text-sm text-gray-500">No batches yet — close this and use the item-level Counted field to open the first batch.</p>
+                                ) : (
+                                  <div>
+                                    <table className="w-full text-sm mb-3">
+                                      <thead>
+                                        <tr className="text-left text-xs text-gray-500">
+                                          <th className="px-2 py-1">Batch #</th>
+                                          <th className="px-2 py-1 text-right">System</th>
+                                          <th className="px-2 py-1 text-center">Counted</th>
+                                          <th className="px-2 py-1 text-center">Expiry</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {stockExpandBatches.map((b) => (
+                                          <tr key={b.id}>
+                                            <td className="px-2 py-1 text-gray-900">{b.batch_number || '-'}</td>
+                                            <td className="px-2 py-1 text-right text-gray-600">{b.quantity}</td>
+                                            <td className="px-2 py-1 text-center">
+                                              <input
+                                                type="number" min="0"
+                                                value={stockExpandEdits[b.id]?.counted_quantity ?? ''}
+                                                onChange={(e) => setStockExpandEdits(prev => ({ ...prev, [b.id]: { ...prev[b.id], counted_quantity: e.target.value } }))}
+                                                className="w-20 px-2 py-1 text-center border border-gray-300 rounded"
+                                              />
+                                            </td>
+                                            <td className="px-2 py-1 text-center">
+                                              <input
+                                                type="date"
+                                                value={stockExpandEdits[b.id]?.expiry_date ?? ''}
+                                                onChange={(e) => setStockExpandEdits(prev => ({ ...prev, [b.id]: { ...prev[b.id], expiry_date: e.target.value } }))}
+                                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                              />
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                    <div className="flex justify-end">
+                                      <button
+                                        onClick={() => saveStockTakeBatches(item)}
+                                        disabled={saving}
+                                        className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                      >
+                                        {saving ? 'Saving…' : 'Save batch counts'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                 </tbody>
               </table>
               {inventory.filter(item => {
@@ -3984,7 +4318,7 @@ const PharmacyDashboard: React.FC = () => {
       {/* Inventory Edit Modal */}
       <Modal
         isOpen={showInventoryModal}
-        onClose={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); }}
+        onClose={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
         title="Edit Inventory Item"
         size="xl"
       >
@@ -4104,13 +4438,56 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Batch Inventory Section */}
             <div className="mt-6 border-t pt-4">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3">Batch Inventory (FEFO - First Expired, First Out)</h4>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-700">Batch Inventory (FEFO - First Expired, First Out)</h4>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddBatch(v => !v); setNewBatchForm({ batch_number: '', quantity: '', expiry_date: '' }); }}
+                  className="text-xs px-2.5 py-1 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-100 font-medium"
+                >
+                  {showAddBatch ? 'Cancel' : '+ Add Batch'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mb-3">Qty and expiry are editable per batch — changes save with this form. Each batch keeps its own expiry; dispensing draws from the earliest-expiring batch first.</p>
+
+              {showAddBatch && (
+                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="grid grid-cols-12 gap-2 items-end">
+                    <div className="col-span-4">
+                      <label className="block text-xs text-gray-500 mb-1">Batch # (optional)</label>
+                      <input type="text" value={newBatchForm.batch_number}
+                        onChange={(e) => setNewBatchForm({ ...newBatchForm, batch_number: e.target.value })}
+                        placeholder="auto"
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs text-gray-500 mb-1">Quantity *</label>
+                      <input type="number" min="1" value={newBatchForm.quantity}
+                        onChange={(e) => setNewBatchForm({ ...newBatchForm, quantity: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                    </div>
+                    <div className="col-span-3">
+                      <label className="block text-xs text-gray-500 mb-1">Expiry</label>
+                      <input type="date" value={newBatchForm.expiry_date}
+                        onChange={(e) => setNewBatchForm({ ...newBatchForm, expiry_date: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                    </div>
+                    <div className="col-span-2">
+                      <button type="button" onClick={addBatchToItem} disabled={addingBatch}
+                        className="w-full px-2 py-1.5 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50">
+                        {addingBatch ? 'Adding…' : 'Add'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {loadingBatches ? (
                 <p className="text-sm text-gray-500">Loading batches...</p>
               ) : inventoryBatches.length === 0 ? (
-                <p className="text-sm text-gray-500">No batches recorded yet. Use procurement to add stock with batch tracking.</p>
+                <p className="text-sm text-gray-500">No batches recorded yet. Use “+ Add Batch” above (or procurement) to record stock with its expiry.</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto">
+                <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
@@ -4128,6 +4505,10 @@ const PharmacyDashboard: React.FC = () => {
                         const editedQty = batchQuantityEdits[batch.id];
                         const currentQty = editedQty !== undefined ? editedQty : batch.quantity;
                         const hasChanged = editedQty !== undefined && editedQty !== batch.quantity;
+                        const prevExp = batch.expiry_date ? String(batch.expiry_date).split('T')[0] : '';
+                        const editedExp = batchExpiryEdits[batch.id];
+                        const currentExp = editedExp !== undefined ? editedExp : prevExp;
+                        const expChanged = editedExp !== undefined && editedExp !== prevExp;
                         return (
                           <tr key={batch.id || idx} className={isExpired ? 'bg-red-50' : isExpiringSoon ? 'bg-yellow-50' : ''}>
                             <td className="px-2 py-1 text-gray-900">{batch.batch_number || '-'}</td>
@@ -4149,11 +4530,16 @@ const PharmacyDashboard: React.FC = () => {
                               />
                             </td>
                             <td className="px-2 py-1 text-center">
-                              {batch.expiry_date ? (
-                                <span className={isExpired ? 'text-red-600 font-semibold' : isExpiringSoon ? 'text-yellow-600' : ''}>
-                                  {new Date(batch.expiry_date).toLocaleDateString()}
-                                </span>
-                              ) : '-'}
+                              <input
+                                type="date"
+                                value={currentExp}
+                                onChange={(e) => setBatchExpiryEdits(prev => ({ ...prev, [batch.id]: e.target.value }))}
+                                className={`px-1 py-0.5 border rounded text-sm ${
+                                  expChanged ? 'border-blue-500 bg-blue-50' :
+                                  isExpired ? 'border-red-300 text-red-600 font-semibold' :
+                                  isExpiringSoon ? 'border-yellow-300 text-yellow-700' : 'border-gray-300'
+                                }`}
+                              />
                             </td>
                             <td className="px-2 py-1 text-right">
                               {batch.unit_cost ? `GH₵${parseFloat(batch.unit_cost).toFixed(2)}` : '-'}
@@ -4181,7 +4567,7 @@ const PharmacyDashboard: React.FC = () => {
 
             <div className="flex justify-end gap-3 pt-4">
               <button
-                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); }}
+                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel

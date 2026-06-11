@@ -8,6 +8,9 @@ export interface User {
   is_active?: boolean;
   is_super_admin?: boolean;
   is_head_nurse?: boolean;
+  // Optional per-user label that overrides the role's default dashboard/role
+  // name in the UI without changing permissions (e.g. admin → "Office Manager").
+  display_title?: string | null;
 }
 
 // ============ Social Layer ============

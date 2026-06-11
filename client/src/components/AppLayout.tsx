@@ -646,7 +646,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                   {user?.first_name} {user?.last_name}
                 </p>
                 <p className="text-xs text-gray-500 capitalize leading-tight mt-0.5">
-                  {user?.role?.replace('_', ' ')}
+                  {user?.display_title || user?.role?.replace('_', ' ')}
                 </p>
               </div>
               <svg className="w-4 h-4 text-gray-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -670,7 +670,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                           {user?.first_name} {user?.last_name}
                         </p>
                         <p className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getRoleColor(user?.role || '')}`}>
-                          {user?.role?.replace('_', ' ')}
+                          {user?.display_title || user?.role?.replace('_', ' ')}
                         </p>
                       </div>
                     </div>

@@ -79,7 +79,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
 
     let query = `
       SELECT id, username, email, role, first_name, last_name, phone, clinic, is_active,
-             must_change_password, last_login_at, created_at, updated_at
+             display_title, must_change_password, last_login_at, created_at, updated_at
       FROM users
       WHERE role != 'patient'
     `;
@@ -246,7 +246,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   await ensureUsersClinic();
   const { id } = req.params;
-  const { email, role, first_name, last_name, phone, is_active, clinic } = req.body;
+  const { email, role, first_name, last_name, phone, is_active, clinic, display_title } = req.body;
 
   try {
     // Check if user exists
@@ -311,6 +311,11 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       updateFields.push(`is_active = $${paramIndex++}`);
       updateValues.push(is_active);
     }
+    if (display_title !== undefined) {
+      // Empty string clears the override (falls back to the role's default label)
+      updateFields.push(`display_title = $${paramIndex++}`);
+      updateValues.push(display_title && String(display_title).trim() ? String(display_title).trim() : null);
+    }
     if (clinic !== undefined) {
       // Clinic only stored for doctors; clear it for non-doctors.
       const newRole = role !== undefined ? role : null;
@@ -331,7 +336,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       UPDATE users
       SET ${updateFields.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING id, username, email, role, first_name, last_name, phone, clinic, is_active, updated_at
+      RETURNING id, username, email, role, first_name, last_name, phone, clinic, is_active, display_title, updated_at
     `;
 
     const result = await pool.query(query, updateValues);

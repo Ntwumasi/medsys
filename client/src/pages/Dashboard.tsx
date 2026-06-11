@@ -491,6 +491,7 @@ const Dashboard: React.FC = () => {
     last_name: '',
     phone: '',
     clinic: '', // only relevant when role === 'doctor'
+    display_title: '', // optional per-user dashboard/role label override
   });
 
   // Staff filtering, sorting, and pagination state
@@ -735,7 +736,7 @@ const Dashboard: React.FC = () => {
         showToast('Staff member created successfully!', 'success');
       }
 
-      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
+      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '', display_title: '' });
       setShowStaffForm(false);
       setEditingStaff(null);
       loadStaff();
@@ -756,6 +757,7 @@ const Dashboard: React.FC = () => {
       last_name: staffMember.last_name,
       phone: staffMember.phone || '',
       clinic: (staffMember as any).clinic || '',
+      display_title: (staffMember as any).display_title || '',
     });
     setShowStaffForm(true);
     // Scroll to form so the user sees it
@@ -1338,7 +1340,7 @@ const Dashboard: React.FC = () => {
 
   return (
     <AppLayout>
-      <DashboardHeader title="Admin Dashboard" />
+      <DashboardHeader title={user?.display_title ? `${user.display_title} Dashboard` : 'Admin Dashboard'} />
       {/* Summary cards — refined number-first style. Color carries signal,
           not decoration. NumberTicker gives a subtle count-up on load. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
@@ -2253,7 +2255,7 @@ const Dashboard: React.FC = () => {
                     setShowStaffForm(!showStaffForm);
                     if (showStaffForm) {
                       setEditingStaff(null);
-                      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
+                      setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '', display_title: '' });
                     }
                   }}
                   className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
@@ -2407,6 +2409,19 @@ const Dashboard: React.FC = () => {
                       ]}
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Display Title
+                    </label>
+                    <input
+                      type="text"
+                      value={staffForm.display_title}
+                      onChange={(e) => setStaffForm({ ...staffForm, display_title: e.target.value })}
+                      placeholder="e.g. Office Manager (leave blank for role default)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Optional label shown on their dashboard instead of the role name. Does not change permissions.</p>
+                  </div>
                   {staffForm.role === 'doctor' && (
                     <div>
                       <AppSelect
@@ -2461,7 +2476,7 @@ const Dashboard: React.FC = () => {
                       type="button"
                       onClick={() => {
                         setEditingStaff(null);
-                        setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '' });
+                        setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '', display_title: '' });
                         setShowStaffForm(false);
                       }}
                       className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
