@@ -247,10 +247,13 @@ import {
   getPatientDrugHistory,
   getRefillsCalendar,
   createManualRefill,
+  deleteManualReminder,
   recordPurchase,
   getPurchaseHistory,
   deletePurchase,
   getInventoryBatches,
+  addBatch,
+  stockTakeItem,
   updateBatchQuantity,
   updateBatchQuantities,
   getDispensingAnalytics,
@@ -798,6 +801,8 @@ router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmac
 router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateInventoryItem);
 router.post('/inventory/:id/adjust', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), adjustStock);
 router.get('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryBatches);
+router.post('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), addBatch);
+router.post('/inventory/:id/stock-take', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), stockTakeItem);
 router.put('/inventory/:id/batches', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantities);
 router.put('/inventory/:id/batches/:batchId', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateBatchQuantity);
 
@@ -825,6 +830,7 @@ router.get('/pharmacy/revenue', authenticateToken, authorizeRoles('pharmacy', 'p
 router.get('/pharmacy/drug-history/:patient_id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse'), getPatientDrugHistory);
 router.get('/pharmacy/refills', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin'), getRefillsCalendar);
 router.post('/pharmacy/refills/manual', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), createManualRefill);
+router.delete('/pharmacy/refills/manual/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), deleteManualReminder);
 
 // Supplier routes
 router.get('/suppliers', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), getSuppliers);

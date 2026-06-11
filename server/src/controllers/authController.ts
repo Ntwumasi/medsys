@@ -239,7 +239,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Find user by username (case-insensitive) with security fields
     const result = await pool.query(
       `SELECT id, username, email, password_hash, role, first_name, last_name, is_active,
-              is_breakglass, is_super_admin, is_head_nurse, must_change_password, password_changed_at,
+              is_breakglass, is_super_admin, is_head_nurse, display_title, must_change_password, password_changed_at,
               failed_login_attempts, locked_until
        FROM users WHERE LOWER(username) = $1`,
       [username]
@@ -366,6 +366,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         is_breakglass: user.is_breakglass,
         is_super_admin: user.is_super_admin,
         is_head_nurse: user.is_head_nurse || false,
+        display_title: user.display_title || null,
       },
       token, // Still include for backward compatibility with frontend
       must_change_password: mustChangePassword,
@@ -615,7 +616,7 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
 
     const result = await pool.query(
       `SELECT id, email, role, first_name, last_name, phone, employee_id,
-              is_breakglass, is_super_admin, must_change_password, password_changed_at, last_login_at, created_at
+              is_breakglass, is_super_admin, display_title, must_change_password, password_changed_at, last_login_at, created_at
        FROM users WHERE id = $1`,
       [userId]
     );

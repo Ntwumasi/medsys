@@ -17,6 +17,7 @@ interface RefillData {
   quantity: number;
   days_supply?: number;
   frequency: string;
+  is_manual_reminder?: boolean;
 }
 
 const RefillsCalendar: React.FC = () => {
@@ -26,6 +27,7 @@ const RefillsCalendar: React.FC = () => {
   const [refillsMonth, setRefillsMonth] = useState(new Date());
   const [loading, setLoading] = useState(false);
   const [processingRefill, setProcessingRefill] = useState<number | null>(null);
+  const [clearingReminder, setClearingReminder] = useState<number | null>(null);
 
   // Manual "Add Refill" modal
   const [showAdd, setShowAdd] = useState(false);
@@ -94,6 +96,26 @@ const RefillsCalendar: React.FC = () => {
       setRefillsData([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClearReminder = async (orderId: number, medicationName: string, patientName: string) => {
+    if (!(await confirmDialog({
+      title: 'Clear this reminder?',
+      message: `Remove the reminder for ${medicationName} (${patientName}) from the calendar?\n\nUse this once the refill has been fulfilled. This only clears manually-added reminders.`,
+      confirmLabel: 'Clear reminder',
+    }))) {
+      return;
+    }
+    setClearingReminder(orderId);
+    try {
+      await apiClient.delete(`/pharmacy/refills/manual/${orderId}`);
+      showToast('Reminder cleared', 'success');
+      fetchRefillsCalendar();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to clear reminder', 'error');
+    } finally {
+      setClearingReminder(null);
     }
   };
 
@@ -210,7 +232,15 @@ const RefillsCalendar: React.FC = () => {
                 // Days of the month
                 for (let day = 1; day <= daysInMonth; day++) {
                   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  const dayRefills = refillsData.filter(r => r.refill_date?.startsWith(dateStr));
+                  // One chip per patient per day — a person with several refills
+                  // due the same day shows once (the table below still lists each med).
+                  const dayRefills = Array.from(
+                    new Map(
+                      refillsData
+                        .filter(r => r.refill_date?.startsWith(dateStr))
+                        .map(r => [r.patient_number || r.patient_name, r])
+                    ).values()
+                  );
                   const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
                   const isPast = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
@@ -343,28 +373,48 @@ const RefillsCalendar: React.FC = () => {
                               )}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => handleProcessRefill(refill.id, refill.medication_name, refill.patient_name)}
-                                disabled={processingRefill === refill.id}
-                                className="px-3 py-1.5 bg-success-600 text-white text-xs font-medium rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 mx-auto"
-                              >
-                                {processingRefill === refill.id ? (
-                                  <>
-                                    <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Processing...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    Process Refill
-                                  </>
-                                )}
-                              </button>
+                              {refill.is_manual_reminder ? (
+                                <button
+                                  onClick={() => handleClearReminder(refill.id, refill.medication_name, refill.patient_name)}
+                                  disabled={clearingReminder === refill.id}
+                                  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 mx-auto"
+                                  title="Clear this reminder once the refill has been fulfilled"
+                                >
+                                  {clearingReminder === refill.id ? (
+                                    'Clearing…'
+                                  ) : (
+                                    <>
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Clear
+                                    </>
+                                  )}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleProcessRefill(refill.id, refill.medication_name, refill.patient_name)}
+                                  disabled={processingRefill === refill.id}
+                                  className="px-3 py-1.5 bg-success-600 text-white text-xs font-medium rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 mx-auto"
+                                >
+                                  {processingRefill === refill.id ? (
+                                    <>
+                                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                      Processing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                      Process Refill
+                                    </>
+                                  )}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
