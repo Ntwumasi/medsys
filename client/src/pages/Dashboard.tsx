@@ -499,6 +499,16 @@ const Dashboard: React.FC = () => {
   const [loadingInsuranceProviders, setLoadingInsuranceProviders] = useState(true);
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+  // --- Per-insurer tariff editor ---
+  interface TariffRow { id: number; service_name: string; service_code: string; category: string; cash_price: string | number; payer_price: string | number | null; is_excluded: boolean; }
+  const [tariffPayer, setTariffPayer] = useState<{ id: number; name: string; payer_type: 'insurance' | 'corporate' } | null>(null);
+  const [tariffRows, setTariffRows] = useState<TariffRow[]>([]);
+  const [tariffEdits, setTariffEdits] = useState<Record<number, { price: string; is_excluded: boolean }>>({});
+  const [tariffLoading, setTariffLoading] = useState(false);
+  const [tariffSaving, setTariffSaving] = useState(false);
+  const [tariffSearch, setTariffSearch] = useState('');
+  const [tariffCategory, setTariffCategory] = useState('');
+  const [tariffImportMsg, setTariffImportMsg] = useState('');
 
   // Staff management state
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -1008,6 +1018,92 @@ const Dashboard: React.FC = () => {
       const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to deactivate corporate client';
       showToast(errorMessage, 'error');
+    }
+  };
+
+  // Open the tariff editor for one payer: load every service + this payer's
+  // current override price, seed the editable grid.
+  const openTariffEditor = async (payer: { id: number; name: string }, payerType: 'insurance' | 'corporate' = 'insurance') => {
+    setTariffPayer({ id: payer.id, name: payer.name, payer_type: payerType });
+    setTariffRows([]); setTariffEdits({}); setTariffSearch(''); setTariffCategory(''); setTariffImportMsg('');
+    setTariffLoading(true);
+    try {
+      const res = await apiClient.get(`/charge-master/payer-schedule/${payerType}/${payer.id}`);
+      const rows: TariffRow[] = res.data.schedule || [];
+      setTariffRows(rows);
+      const seed: Record<number, { price: string; is_excluded: boolean }> = {};
+      rows.forEach(r => {
+        seed[r.id] = {
+          price: r.payer_price !== null && r.payer_price !== undefined ? String(r.payer_price) : '',
+          is_excluded: !!r.is_excluded,
+        };
+      });
+      setTariffEdits(seed);
+    } catch {
+      showToast('Failed to load tariff', 'error');
+      setTariffPayer(null);
+    } finally {
+      setTariffLoading(false);
+    }
+  };
+
+  const saveTariff = async () => {
+    if (!tariffPayer) return;
+    setTariffSaving(true);
+    try {
+      const items = tariffRows.map(r => ({
+        charge_master_id: r.id,
+        price: tariffEdits[r.id]?.price ?? '',
+        is_excluded: tariffEdits[r.id]?.is_excluded ?? false,
+      }));
+      const res = await apiClient.put(`/charge-master/payer-schedule/${tariffPayer.payer_type}/${tariffPayer.id}`, { items });
+      showToast(`Tariff saved — ${res.data.updated} priced${res.data.cleared ? `, ${res.data.cleared} cleared` : ''}`, 'success');
+      setTariffPayer(null);
+    } catch (err) {
+      const error = err as ApiError;
+      showToast(error.response?.data?.error || 'Failed to save tariff', 'error');
+    } finally {
+      setTariffSaving(false);
+    }
+  };
+
+  // CSV upload: simple format with a service_code (or service_name) column, a
+  // price column, and optional excluded column. Matches rows into the grid for
+  // review before saving; reports anything it couldn't match.
+  const handleTariffCsv = async (file: File) => {
+    setTariffImportMsg('');
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { setTariffImportMsg('File looks empty.'); return; }
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const codeIdx = headers.findIndex(h => h.includes('code'));
+      const nameIdx = headers.findIndex(h => h.includes('service') || h.includes('name') || h.includes('description'));
+      const priceIdx = headers.findIndex(h => h.includes('price') || h.includes('tariff') || h.includes('rate') || h.includes('amount'));
+      const exclIdx = headers.findIndex(h => h.includes('exclud') || h.includes('not covered'));
+      if (priceIdx === -1 || (codeIdx === -1 && nameIdx === -1)) {
+        setTariffImportMsg('Need a price column and a service code or name column. Headers found: ' + headers.join(', '));
+        return;
+      }
+      const byCode = new Map(tariffRows.map(r => [String(r.service_code).toLowerCase(), r.id]));
+      const byName = new Map(tariffRows.map(r => [String(r.service_name).toLowerCase().trim(), r.id]));
+      let matched = 0; const unmatched: string[] = [];
+      const next = { ...tariffEdits };
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        const key = codeIdx !== -1 ? cols[codeIdx]?.toLowerCase() : '';
+        const nameKey = nameIdx !== -1 ? cols[nameIdx]?.toLowerCase().trim() : '';
+        const id = (key && byCode.get(key)) || (nameKey && byName.get(nameKey));
+        if (!id) { unmatched.push(cols[codeIdx] || cols[nameIdx] || `row ${i + 1}`); continue; }
+        const rawPrice = (cols[priceIdx] || '').replace(/[^0-9.]/g, '');
+        const excluded = exclIdx !== -1 ? /^(y|yes|true|1|x)$/i.test(cols[exclIdx] || '') : false;
+        next[id] = { price: excluded ? '' : rawPrice, is_excluded: excluded };
+        matched++;
+      }
+      setTariffEdits(next);
+      setTariffImportMsg(`Matched ${matched} service${matched === 1 ? '' : 's'}.` + (unmatched.length ? ` Couldn't match ${unmatched.length}: ${unmatched.slice(0, 8).join(', ')}${unmatched.length > 8 ? '…' : ''}. Review then Save.` : ' Review then Save.'));
+    } catch {
+      setTariffImportMsg('Could not read that file. Use a CSV with headers.');
     }
   };
 
@@ -2225,7 +2321,13 @@ const Dashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {provider.contact_phone || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
+                        <button
+                          onClick={() => openTariffEditor(provider)}
+                          className="text-primary-600 hover:text-primary-900"
+                        >
+                          Tariffs
+                        </button>
                         <button
                           onClick={() => handleDeleteInsuranceProvider(provider.id)}
                           className="text-danger-600 hover:text-danger-900"
@@ -2240,6 +2342,126 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Per-insurer Tariff editor modal */}
+        {tariffPayer && (() => {
+          const categories = Array.from(new Set(tariffRows.map(r => r.category).filter(Boolean)));
+          const visible = tariffRows.filter(r => {
+            if (tariffCategory && r.category !== tariffCategory) return false;
+            if (tariffSearch) {
+              const q = tariffSearch.toLowerCase();
+              if (!r.service_name?.toLowerCase().includes(q) && !r.service_code?.toLowerCase().includes(q)) return false;
+            }
+            return true;
+          });
+          const pricedCount = tariffRows.filter(r => {
+            const e = tariffEdits[r.id];
+            return e && (e.is_excluded || (e.price !== '' && !isNaN(Number(e.price))));
+          }).length;
+          return (
+            <div className="fixed inset-0 z-50 overflow-y-auto">
+              <div className="flex items-start justify-center min-h-screen pt-10 px-4 pb-10">
+                <div className="fixed inset-0 bg-black/50" onClick={() => setTariffPayer(null)} />
+                <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full z-10 flex flex-col max-h-[85vh]">
+                  <div className="px-6 py-4 border-b flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">Tariffs — {tariffPayer.name}</h3>
+                      <p className="text-xs text-gray-500">Set this insurer's negotiated price per service. Leave blank to use the cash price; tick Excluded if the service isn't covered. {pricedCount} of {tariffRows.length} set.</p>
+                    </div>
+                    <button onClick={() => setTariffPayer(null)} className="text-gray-400 hover:text-gray-600">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+
+                  <div className="px-6 py-3 border-b flex flex-wrap items-center gap-3">
+                    <input
+                      type="text" placeholder="Search service…" value={tariffSearch}
+                      onChange={(e) => setTariffSearch(e.target.value)}
+                      className="flex-1 min-w-[180px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+                    />
+                    <div className="w-44">
+                      <AppSelect
+                        value={tariffCategory}
+                        onChange={(val) => setTariffCategory(val)}
+                        options={[{ value: '', label: 'All Categories' }, ...categories.map(c => ({ value: c, label: c }))]}
+                      />
+                    </div>
+                    <label className="px-3 py-2 text-sm bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 cursor-pointer font-medium">
+                      Upload CSV
+                      <input type="file" accept=".csv,text/csv" className="hidden"
+                        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTariffCsv(f); e.target.value = ''; }} />
+                    </label>
+                  </div>
+                  {tariffImportMsg && (
+                    <div className="px-6 py-2 bg-blue-50 text-blue-800 text-xs border-b border-blue-100">{tariffImportMsg}</div>
+                  )}
+
+                  <div className="overflow-y-auto flex-1">
+                    {tariffLoading ? (
+                      <div className="py-12 text-center text-gray-500">Loading services…</div>
+                    ) : (
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cash</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tariff (GH₵)</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Excluded</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {visible.map(r => {
+                            const e = tariffEdits[r.id] || { price: '', is_excluded: false };
+                            return (
+                              <tr key={r.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-2">
+                                  <div className="font-medium text-gray-900">{r.service_name}</div>
+                                  <div className="text-xs text-gray-400">{r.service_code}</div>
+                                </td>
+                                <td className="px-4 py-2 text-gray-600 capitalize">{r.category}</td>
+                                <td className="px-4 py-2 text-right text-gray-500">{Number(r.cash_price).toFixed(2)}</td>
+                                <td className="px-4 py-2 text-center">
+                                  <input
+                                    type="number" min="0" step="0.01"
+                                    disabled={e.is_excluded}
+                                    value={e.price}
+                                    onChange={(ev) => setTariffEdits(prev => ({ ...prev, [r.id]: { price: ev.target.value, is_excluded: prev[r.id]?.is_excluded || false } }))}
+                                    placeholder="cash"
+                                    className="w-24 px-2 py-1 text-right border border-gray-300 rounded disabled:bg-gray-100 disabled:text-gray-400"
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={e.is_excluded}
+                                    onChange={(ev) => setTariffEdits(prev => ({ ...prev, [r.id]: { price: prev[r.id]?.price || '', is_excluded: ev.target.checked } }))}
+                                    className="w-4 h-4"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {visible.length === 0 && (
+                            <tr><td colSpan={5} className="py-8 text-center text-gray-400">No services match.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  <div className="px-6 py-4 border-t flex justify-end gap-3">
+                    <button onClick={() => setTariffPayer(null)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={saveTariff} disabled={tariffSaving || tariffLoading}
+                      className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 font-medium">
+                      {tariffSaving ? 'Saving…' : 'Save Tariff'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Staff Management Tab */}
         {activeTab === 'staff' && (

@@ -467,6 +467,85 @@ export const getPayerSchedule = async (req: Request, res: Response): Promise<voi
   }
 };
 
+// Bulk upsert a whole tariff for ONE payer (admin/office-manager).
+// Body: { items: [{ charge_master_id, price, is_excluded }] }. Lets the office
+// manager enter/upload an insurer's full price list in one save instead of
+// editing service-by-service. An item with price '' / null and not excluded is
+// treated as "no override" and its row (if any) is removed (falls back to cash).
+export const upsertPayerSchedule = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { payer_type, payer_id } = req.params;
+    const { items } = req.body;
+    const authReq = req as any;
+
+    if (payer_type !== 'insurance' && payer_type !== 'corporate') {
+      res.status(400).json({ error: 'payer_type must be insurance or corporate' });
+      return;
+    }
+    if (!Array.isArray(items)) {
+      res.status(400).json({ error: 'items must be an array' });
+      return;
+    }
+    const payerColumn = payer_type === 'insurance' ? 'insurance_provider_id' : 'corporate_client_id';
+    const conflictColumn = payer_type === 'insurance' ? 'insurance_provider_id' : 'corporate_client_id';
+
+    await client.query('BEGIN');
+
+    let updated = 0;
+    let cleared = 0;
+    for (const it of items) {
+      const chargeId = it.charge_master_id;
+      if (!chargeId) continue;
+      const isExcluded = !!it.is_excluded;
+      const hasPrice = it.price !== undefined && it.price !== null && it.price !== '' && !isNaN(Number(it.price));
+
+      // Nothing set (no price, not excluded) → remove any existing override.
+      if (!hasPrice && !isExcluded) {
+        const del = await client.query(
+          `DELETE FROM payer_price_schedules
+           WHERE charge_master_id = $1 AND payer_type = $2 AND ${payerColumn} = $3`,
+          [chargeId, payer_type, payer_id]
+        );
+        if (del.rowCount) cleared += del.rowCount;
+        continue;
+      }
+
+      await client.query(
+        `INSERT INTO payer_price_schedules
+          (charge_master_id, payer_type, ${payerColumn}, price, is_excluded)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (charge_master_id, ${conflictColumn}) WHERE payer_type = '${payer_type}'
+         DO UPDATE SET price = EXCLUDED.price, is_excluded = EXCLUDED.is_excluded, updated_at = CURRENT_TIMESTAMP`,
+        [chargeId, payer_type, payer_id, isExcluded ? null : Number(it.price), isExcluded]
+      );
+      updated++;
+    }
+
+    await client.query('COMMIT');
+
+    if (auditService && authReq.user?.id) {
+      try {
+        await auditService.log({
+          userId: authReq.user.id,
+          action: 'update',
+          entityType: 'payer_tariff',
+          entityId: Number(payer_id),
+          details: { payer_type, payer_id: Number(payer_id), updated, cleared },
+        });
+      } catch { /* non-fatal */ }
+    }
+
+    res.json({ message: 'Tariff saved', updated, cleared });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Upsert payer schedule error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
 // Get all payers (insurance + corporate) for dropdown
 export const getAllPayers = async (_req: Request, res: Response): Promise<void> => {
   try {
