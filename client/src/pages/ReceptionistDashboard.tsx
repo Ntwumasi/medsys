@@ -423,6 +423,11 @@ const ReceptionistDashboard: React.FC = () => {
   // Check-in form state
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHighlightIndex, setSearchHighlightIndex] = useState(-1);
+  // Returning-patient search hits the server (same source as the global bar) so
+  // it finds ALL patients incl. CareCode/imported legacy records — the old local
+  // filter only saw the first page of /patients, missing legacy patients (Irene).
+  const [returningResults, setReturningResults] = useState<Patient[]>([]);
+  const [returningSearching, setReturningSearching] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [chiefComplaint, setChiefComplaint] = useState('');
   const [encounterType, setEncounterType] = useState('walk-in');
@@ -1528,11 +1533,24 @@ const ReceptionistDashboard: React.FC = () => {
     return Math.floor(diffMs / (1000 * 60)); // Convert to minutes
   };
 
-  const filteredPatients = patients.filter(
-    (p) =>
-      p.patient_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Debounced server-side search for the returning-patient check-in (full DB,
+  // includes CareCode/imported legacy patients — unlike the capped /patients list).
+  useEffect(() => {
+    const q = searchTerm.trim();
+    if (q.length < 2 || selectedPatient) { setReturningResults([]); setReturningSearching(false); return; }
+    setReturningSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/search/patients?q=${encodeURIComponent(q)}`);
+        setReturningResults(res.data.patients || []);
+      } catch {
+        setReturningResults([]);
+      } finally {
+        setReturningSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [searchTerm, selectedPatient]);
 
   // Filter queue based on search, clinic, and status filters
   const handleRefreshQueue = async () => {
@@ -2403,7 +2421,7 @@ const ReceptionistDashboard: React.FC = () => {
                     onChange={(e) => { setSearchTerm(e.target.value); setSearchHighlightIndex(-1); }}
                     onKeyDown={(e) => {
                       if (!searchTerm || selectedPatient) return;
-                      const list = filteredPatients;
+                      const list = returningResults;
                       if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         setSearchHighlightIndex(prev => Math.min(prev + 1, list.length - 1));
@@ -2424,7 +2442,7 @@ const ReceptionistDashboard: React.FC = () => {
                   />
                   {searchTerm && !selectedPatient && (
                     <div className="mt-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg">
-                      {filteredPatients.map((patient, idx) => (
+                      {returningResults.map((patient, idx) => (
                         <div
                           key={patient.id}
                           onClick={() => handlePatientSelect(patient)}
@@ -2450,9 +2468,9 @@ const ReceptionistDashboard: React.FC = () => {
                           </div>
                         </div>
                       ))}
-                      {filteredPatients.length === 0 && (
+                      {returningResults.length === 0 && (
                         <div className="p-4 text-center text-gray-500">
-                          No patients found
+                          {returningSearching ? 'Searching…' : searchTerm.trim().length < 2 ? 'Type at least 2 characters' : 'No patients found'}
                         </div>
                       )}
                     </div>
