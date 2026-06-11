@@ -4112,14 +4112,22 @@ const LabDashboard: React.FC = () => {
                                     <td className="px-3 py-2">{p.parameter_name}</td>
                                     <td className="px-3 py-2">
                                       {p.value_type === 'qualitative' && p.qualitative_options ? (
-                                        <AppSelect
+                                        // Native <select> on purpose: the structured-entry table sits inside
+                                        // overflow-hidden / overflow-y-auto containers that clip a custom
+                                        // dropdown's option panel, which made it impossible to pick anything
+                                        // but the default value (esp. on tablets). The OS picker can't be clipped.
+                                        <select
                                           value={value}
-                                          onChange={(val) =>
-                                            setTemplateValues({ ...templateValues, [key]: val })
+                                          onChange={(e) =>
+                                            setTemplateValues({ ...templateValues, [key]: e.target.value })
                                           }
-                                          options={p.qualitative_options.split('|').map((opt) => ({ value: opt, label: opt }))}
-                                          placeholder="—"
-                                        />
+                                          className="w-full px-2 py-1.5 border border-gray-300 rounded bg-white text-sm"
+                                        >
+                                          <option value="">—</option>
+                                          {p.qualitative_options.split('|').map((opt) => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                          ))}
+                                        </select>
                                       ) : (
                                         <input
                                           type={p.value_type === 'numeric' ? 'text' : 'text'}
