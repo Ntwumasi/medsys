@@ -723,12 +723,12 @@ router.delete('/clinics/:id', authenticateToken, authorizeRoles('admin'), deacti
 // Charge Master routes
 router.get('/charge-master', authenticateToken, getAllCharges);
 router.get('/charge-master/payers', authenticateToken, getAllPayers);
-router.get('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin'), getPayerSchedule);
-router.put('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin'), upsertPayerSchedule);
-router.post('/charge-master', authenticateToken, authorizeRoles('admin'), createCharge);
-router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin'), updateCharge);
-router.get('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), getPayerPricesForCharge);
-router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin'), upsertPayerPricesForCharge);
+router.get('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), getPayerSchedule);
+router.put('/charge-master/payer-schedule/:payer_type/:payer_id', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), upsertPayerSchedule);
+router.post('/charge-master', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), createCharge);
+router.put('/charge-master/:id', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), updateCharge);
+router.get('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), getPayerPricesForCharge);
+router.put('/charge-master/:id/payer-prices', authenticateToken, authorizeRoles('admin', 'receptionist', 'office_manager'), upsertPayerPricesForCharge);
 
 // Invoice Items routes
 router.get('/invoice-items/:invoice_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceItems);
@@ -857,8 +857,8 @@ router.post('/lab-inventory/use', authenticateToken, authorizeRoles('lab'), useL
 
 // Lab Test Catalog routes
 router.get('/lab/test-catalog', authenticateToken, getLabTestCatalog);
-router.post('/lab/test-catalog', authenticateToken, authorizeRoles('lab', 'admin'), createLabTest);
-router.put('/lab/test-catalog/:id', authenticateToken, authorizeRoles('lab', 'admin'), updateLabTest);
+router.post('/lab/test-catalog', authenticateToken, authorizeRoles('lab', 'admin', 'receptionist', 'office_manager'), createLabTest);
+router.put('/lab/test-catalog/:id', authenticateToken, authorizeRoles('lab', 'admin', 'receptionist', 'office_manager'), updateLabTest);
 // Structured-result template for a specific lab order. Picks the right
 // variant (FBC by sex/age, chem by sex) based on the patient on the order.
 router.get('/lab/orders/:order_id/parameters', authenticateToken, authorizeRoles('lab', 'admin', 'doctor', 'nurse'), getLabOrderParameters);
