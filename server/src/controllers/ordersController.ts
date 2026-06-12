@@ -1915,15 +1915,27 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
     const { setClause, values } = buildSafeUpdateClause('pharmacy_orders', updateData, 2);
 
+    // Idempotency guard: when dispensing, make the ready→dispensed flip atomic so
+    // ONLY the request that actually performs it proceeds to bill + deduct stock.
+    // A concurrent double-submit (slow connection) or a re-dispense finds 0 rows
+    // and returns without billing again — this is what produced phantom/duplicate
+    // medication lines on the invoice (patient charged for meds never dispensed).
+    const dispensingNow = updateData.status === 'dispensed';
     const result = await pool.query(
       `UPDATE pharmacy_orders SET ${setClause}, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1
+       WHERE id = $1${dispensingNow ? " AND status <> 'dispensed'" : ''}
        RETURNING *`,
       [id, ...values]
     );
 
     if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Pharmacy order not found' });
+      const existing = await pool.query('SELECT * FROM pharmacy_orders WHERE id = $1', [id]);
+      if (existing.rows.length === 0) {
+        res.status(404).json({ error: 'Pharmacy order not found' });
+        return;
+      }
+      // Already dispensed (concurrent/duplicate dispense) — do NOT re-bill.
+      res.json({ message: 'Order already dispensed', order: existing.rows[0] });
       return;
     }
 
