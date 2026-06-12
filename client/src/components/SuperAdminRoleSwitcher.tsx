@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrator',
+  office_manager: 'Office Manager',
   receptionist: 'Receptionist',
   nurse: 'Nurse',
   doctor: 'Doctor',
