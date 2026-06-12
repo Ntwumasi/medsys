@@ -240,7 +240,7 @@ const navItems: NavItem[] = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     ),
-    roles: ['admin'],
+    roles: ['admin', 'receptionist'],
   },
   // Admin-only deep-links into the Dashboard's secondary tabs. Moved out
   // of the in-page tab bar to keep its row short and put navigation in
