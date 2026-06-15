@@ -1593,6 +1593,26 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
       for (const b of batches) {
         if (b.counted_quantity === undefined || b.counted_quantity === null || b.counted_quantity === '' || Number(b.counted_quantity) < 0) continue;
         const q = parseInt(String(b.counted_quantity));
+
+        // New batch (no batchId) — pharmacist is adding a fresh lot during the count.
+        if (b.batchId === undefined || b.batchId === null || b.batchId === '') {
+          if (q <= 0) continue; // don't create empty batches
+          const bn = (b.batch_number && String(b.batch_number).trim())
+            ? String(b.batch_number).trim()
+            : await generateBatchNumber(client, String(id), itemRes.rows[0].medication_name, b.expiry_date);
+          await client.query(
+            `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [id, bn, q, b.expiry_date || null, 'Added via stock-take']
+          );
+          await client.query(
+            `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, notes, performed_by)
+             VALUES ($1, 'adjustment', $2, $3, $4)`,
+            [id, q, `Stock-take: added batch ${bn} with ${q}. ${note}`, authReq.user?.id]
+          );
+          continue;
+        }
+
         const cur = await client.query(
           `SELECT quantity, batch_number, expiry_date FROM inventory_batches WHERE id = $1 AND inventory_id = $2`,
           [b.batchId, id]
