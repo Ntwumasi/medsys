@@ -554,6 +554,8 @@ const PharmacyDashboard: React.FC = () => {
   const [stockExpandedId, setStockExpandedId] = useState<number | null>(null);
   const [stockExpandBatches, setStockExpandBatches] = useState<any[]>([]);
   const [stockExpandEdits, setStockExpandEdits] = useState<Record<number, { counted_quantity: string; expiry_date: string }>>({});
+  // New batches the pharmacist is adding to the expanded item during stock-take (itemId -> rows)
+  const [stockNewBatches, setStockNewBatches] = useState<Record<number, Array<{ batch_number: string; counted_quantity: string; expiry_date: string }>>>({});
   const [newInventoryForm, setNewInventoryForm] = useState({
     medication_name: '',
     generic_name: '',
@@ -794,6 +796,37 @@ const PharmacyDashboard: React.FC = () => {
     a.download = 'medics-inventory-template.csv';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Download the current inventory as a CSV so it can be referenced offline
+  // (e.g. during power/internet outages). Fields: medication, quantity, cost, selling price.
+  const downloadInventoryOffline = () => {
+    if (!inventory || inventory.length === 0) { showToast('No inventory loaded to download', 'error'); return; }
+    const esc = (v: any) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Medication', 'Category', 'Quantity', 'Unit', 'Cost (GHS)', 'Selling Price (GHS)'];
+    const lines = [header.join(',')];
+    (inventory || []).forEach((it: any) => {
+      lines.push([
+        esc(it.medication_name),
+        esc(it.category || ''),
+        esc(it.quantity_on_hand ?? ''),
+        esc(it.unit || ''),
+        esc(it.unit_cost ?? ''),
+        esc(it.selling_price ?? ''),
+      ].join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const stamp = new Date().toISOString().split('T')[0];
+    a.download = `medics-inventory-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${inventory.length} items for offline use`, 'success');
   };
 
   const openImportModal = () => {
@@ -1538,7 +1571,7 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const toggleStockExpand = async (item: InventoryItem) => {
-    if (stockExpandedId === item.id) { setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({}); return; }
+    if (stockExpandedId === item.id) { setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({}); setStockNewBatches(prev => { const n = { ...prev }; delete n[item.id]; return n; }); return; }
     try {
       const res = await apiClient.get(`/inventory/${item.id}/batches`);
       const batches = res.data.batches || [];
@@ -1548,10 +1581,26 @@ const PharmacyDashboard: React.FC = () => {
         seed[b.id] = { counted_quantity: String(b.quantity ?? ''), expiry_date: b.expiry_date ? String(b.expiry_date).split('T')[0] : '' };
       });
       setStockExpandEdits(seed);
+      // If the item has no batches yet, open one blank row ready to fill in.
+      setStockNewBatches(prev => ({ ...prev, [item.id]: batches.length === 0 ? [{ batch_number: '', counted_quantity: '', expiry_date: '' }] : [] }));
       setStockExpandedId(item.id);
     } catch {
       showToast('Failed to load batches', 'error');
     }
+  };
+
+  const addStockNewBatchRow = (itemId: number) => {
+    setStockNewBatches(prev => ({ ...prev, [itemId]: [...(prev[itemId] || []), { batch_number: '', counted_quantity: '', expiry_date: '' }] }));
+  };
+  const updateStockNewBatchRow = (itemId: number, idx: number, field: 'batch_number' | 'counted_quantity' | 'expiry_date', value: string) => {
+    setStockNewBatches(prev => {
+      const rows = [...(prev[itemId] || [])];
+      rows[idx] = { ...rows[idx], [field]: value };
+      return { ...prev, [itemId]: rows };
+    });
+  };
+  const removeStockNewBatchRow = (itemId: number, idx: number) => {
+    setStockNewBatches(prev => ({ ...prev, [itemId]: (prev[itemId] || []).filter((_, i) => i !== idx) }));
   };
 
   const saveStockTakeItem = async (item: InventoryItem) => {
@@ -1581,16 +1630,27 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const saveStockTakeBatches = async (item: InventoryItem) => {
-    const batches = Object.entries(stockExpandEdits).map(([batchId, v]) => ({
+    const existing = Object.entries(stockExpandEdits).map(([batchId, v]) => ({
       batchId: parseInt(batchId),
       counted_quantity: v.counted_quantity === '' ? undefined : parseInt(v.counted_quantity),
       expiry_date: v.expiry_date || null,
     }));
+    // New batches the pharmacist added during the count (skip blank rows).
+    const added = (stockNewBatches[item.id] || [])
+      .filter(r => r.counted_quantity !== '' && Number(r.counted_quantity) > 0)
+      .map(r => ({
+        batch_number: r.batch_number.trim() || undefined,
+        counted_quantity: parseInt(r.counted_quantity),
+        expiry_date: r.expiry_date || null,
+      }));
+    const batches = [...existing, ...added];
+    if (batches.length === 0) { showToast('Enter a counted quantity for at least one batch', 'error'); return; }
     setStockSaving(item.id);
     try {
       await apiClient.post(`/inventory/${item.id}/stock-take`, { batches });
       flashStockSaved(item.id);
       setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({});
+      setStockNewBatches(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       fetchInventory();
     } catch (error: any) {
       showToast(error.response?.data?.error || 'Failed to save counts', 'error');
@@ -2940,6 +3000,16 @@ const PharmacyDashboard: React.FC = () => {
                 Import from File
               </button>
               <button
+                onClick={downloadInventoryOffline}
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+                title="Download the inventory list (medication, quantity, cost, selling price) as a CSV to keep offline for power/internet outages"
+              >
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
+              <button
                 onClick={() => setShowAddInventoryModal(true)}
                 className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
               >
@@ -3065,7 +3135,7 @@ const PharmacyDashboard: React.FC = () => {
               <h2 className="text-base font-semibold text-blue-900">Stock-take</h2>
               <p className="text-sm text-blue-800 mt-1">
                 Count the shelf, type the quantity you physically have, set the expiry, and Save — the system reconciles the difference and logs it.
-                Items with more than one batch show a <span className="font-medium">Count batches</span> action so each lot is counted with its own expiry (closest-expiry dispenses first).
+                Use <span className="font-medium">Count batches</span> when an item has more than one lot, or to <span className="font-medium">add new batches</span> with their own expiry dates (closest-expiry dispenses first).
               </p>
             </div>
 
@@ -3088,6 +3158,16 @@ const PharmacyDashboard: React.FC = () => {
                   ]}
                 />
               </div>
+              <button
+                onClick={downloadInventoryOffline}
+                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+                title="Download the inventory list (medication, quantity, cost, selling price) as a CSV to keep offline for power/internet outages"
+              >
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download
+              </button>
             </div>
 
             <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
@@ -3174,10 +3254,12 @@ const PharmacyDashboard: React.FC = () => {
                           {isExpanded && (
                             <tr className="bg-blue-50/40">
                               <td colSpan={5} className="px-6 py-3">
-                                {stockExpandBatches.length === 0 ? (
-                                  <p className="text-sm text-gray-500">No batches yet — close this and use the item-level Counted field to open the first batch.</p>
-                                ) : (
-                                  <div>
+                                <div>
+                                  {stockExpandBatches.length === 0 ? (
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      No batches on record yet. Add each lot you have on the shelf below — give it the quantity counted and its own expiry date (closest-expiry dispenses first).
+                                    </p>
+                                  ) : (
                                     <table className="w-full text-sm mb-3">
                                       <thead>
                                         <tr className="text-left text-xs text-gray-500">
@@ -3212,17 +3294,78 @@ const PharmacyDashboard: React.FC = () => {
                                         ))}
                                       </tbody>
                                     </table>
-                                    <div className="flex justify-end">
-                                      <button
-                                        onClick={() => saveStockTakeBatches(item)}
-                                        disabled={saving}
-                                        className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                                      >
-                                        {saving ? 'Saving…' : 'Save batch counts'}
-                                      </button>
-                                    </div>
+                                  )}
+
+                                  {/* Add new batches/lots for this item */}
+                                  {(stockNewBatches[item.id] || []).length > 0 && (
+                                    <table className="w-full text-sm mb-2">
+                                      <thead>
+                                        <tr className="text-left text-xs text-gray-500">
+                                          <th className="px-2 py-1">New batch # <span className="font-normal normal-case">(optional)</span></th>
+                                          <th className="px-2 py-1 text-center">Counted</th>
+                                          <th className="px-2 py-1 text-center">Expiry</th>
+                                          <th className="px-2 py-1"></th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {(stockNewBatches[item.id] || []).map((row, idx) => (
+                                          <tr key={idx}>
+                                            <td className="px-2 py-1">
+                                              <input
+                                                type="text"
+                                                placeholder="auto"
+                                                value={row.batch_number}
+                                                onChange={(e) => updateStockNewBatchRow(item.id, idx, 'batch_number', e.target.value)}
+                                                className="w-36 px-2 py-1 border border-gray-300 rounded"
+                                              />
+                                            </td>
+                                            <td className="px-2 py-1 text-center">
+                                              <input
+                                                type="number" min="0"
+                                                value={row.counted_quantity}
+                                                onChange={(e) => updateStockNewBatchRow(item.id, idx, 'counted_quantity', e.target.value)}
+                                                className="w-20 px-2 py-1 text-center border border-gray-300 rounded"
+                                              />
+                                            </td>
+                                            <td className="px-2 py-1 text-center">
+                                              <input
+                                                type="date"
+                                                value={row.expiry_date}
+                                                onChange={(e) => updateStockNewBatchRow(item.id, idx, 'expiry_date', e.target.value)}
+                                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                              />
+                                            </td>
+                                            <td className="px-2 py-1 text-right">
+                                              <button
+                                                onClick={() => removeStockNewBatchRow(item.id, idx)}
+                                                className="text-danger-600 hover:text-danger-800 text-sm"
+                                                aria-label="Remove batch row"
+                                              >
+                                                Remove
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      onClick={() => addStockNewBatchRow(item.id)}
+                                      className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                                    >
+                                      + Add batch
+                                    </button>
+                                    <button
+                                      onClick={() => saveStockTakeBatches(item)}
+                                      disabled={saving}
+                                      className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                    >
+                                      {saving ? 'Saving…' : 'Save batch counts'}
+                                    </button>
                                   </div>
-                                )}
+                                </div>
                               </td>
                             </tr>
                           )}
