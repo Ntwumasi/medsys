@@ -654,6 +654,11 @@ const PharmacyDashboard: React.FC = () => {
     if (activeTab === 'revenue') {
       fetchRevenueSummary();
     }
+    // Stock-take searches client-side, so always (re)load the COMPLETE inventory
+    // when entering it — never a filtered subset left over from the Inventory tab.
+    if (activeTab === 'stocktake') {
+      fetchInventory(true);
+    }
     // Clear selected order when switching main tabs
     setSelectedOrder(null);
   }, [activeTab]);
@@ -1511,13 +1516,19 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  const fetchInventory = async () => {
+  // full=true loads the entire inventory ignoring the status filter + search.
+  // The Stock-take tab needs the COMPLETE list because it searches client-side;
+  // otherwise it inherits a server-filtered subset from the Inventory tab and
+  // can't find items after backspacing a search until a full page reload (Irene).
+  const fetchInventory = async (full = false) => {
     try {
       let url = '/inventory';
-      if (inventoryFilter === 'low_stock') url += '?low_stock=true';
-      else if (inventoryFilter === 'expiring') url += '?expiring_soon=true';
-      else if (inventoryFilter === 'expired') url += '?expired=true';
-      if (inventorySearch) url += `${url.includes('?') ? '&' : '?'}search=${inventorySearch}`;
+      if (!full) {
+        if (inventoryFilter === 'low_stock') url += '?low_stock=true';
+        else if (inventoryFilter === 'expiring') url += '?expiring_soon=true';
+        else if (inventoryFilter === 'expired') url += '?expired=true';
+        if (inventorySearch) url += `${url.includes('?') ? '&' : '?'}search=${inventorySearch}`;
+      }
 
       const response = await apiClient.get(url);
       setInventory(response.data.inventory || []);
@@ -1581,8 +1592,14 @@ const PharmacyDashboard: React.FC = () => {
         seed[b.id] = { counted_quantity: String(b.quantity ?? ''), expiry_date: b.expiry_date ? String(b.expiry_date).split('T')[0] : '' };
       });
       setStockExpandEdits(seed);
-      // If the item has no batches yet, open one blank row ready to fill in.
-      setStockNewBatches(prev => ({ ...prev, [item.id]: batches.length === 0 ? [{ batch_number: '', counted_quantity: '', expiry_date: '' }] : [] }));
+      // If the item has no batches yet, open one row PRE-FILLED with the current
+      // on-hand quantity. Legacy/imported items carry a quantity but no batch
+      // rows; starting from blank made the first saved lot REPLACE that quantity
+      // (Irene: "it clears the initial quantity"). Seeding the existing on-hand
+      // as the first lot preserves it — she just sets its expiry, splits it into
+      // lots, or adds more lots on top.
+      const onHand = (item.quantity_on_hand && item.quantity_on_hand > 0) ? String(item.quantity_on_hand) : '';
+      setStockNewBatches(prev => ({ ...prev, [item.id]: batches.length === 0 ? [{ batch_number: '', counted_quantity: onHand, expiry_date: '' }] : [] }));
       setStockExpandedId(item.id);
     } catch {
       showToast('Failed to load batches', 'error');
@@ -1615,7 +1632,7 @@ const PharmacyDashboard: React.FC = () => {
       flashStockSaved(item.id);
       setStockCounts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       setStockExpiry(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      fetchInventory();
+      fetchInventory(true);
     } catch (error: any) {
       if (error.response?.status === 409) {
         // Multiple batches — open the per-batch counter for this item
@@ -1651,7 +1668,7 @@ const PharmacyDashboard: React.FC = () => {
       flashStockSaved(item.id);
       setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({});
       setStockNewBatches(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      fetchInventory();
+      fetchInventory(true);
     } catch (error: any) {
       showToast(error.response?.data?.error || 'Failed to save counts', 'error');
     } finally {
@@ -3257,7 +3274,7 @@ const PharmacyDashboard: React.FC = () => {
                                 <div>
                                   {stockExpandBatches.length === 0 ? (
                                     <p className="text-sm text-gray-600 mb-3">
-                                      No batches on record yet. Add each lot you have on the shelf below — give it the quantity counted and its own expiry date (closest-expiry dispenses first).
+                                      No batches on record yet — we've pre-filled your current on-hand as the first lot. Set its expiry, adjust the count, or split it into separate lots with "+ Add batch" (each with its own expiry; closest-expiry dispenses first).
                                     </p>
                                   ) : (
                                     <table className="w-full text-sm mb-3">
