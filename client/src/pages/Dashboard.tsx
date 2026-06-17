@@ -221,10 +221,9 @@ const Dashboard: React.FC = () => {
   // (audit, login records, system updates, docs). Triggered by the super-admin
   // "Office Manager" switcher or a real admin-role user labelled Office Manager.
   const effectiveRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
-  const isOfficeManager =
-    effectiveRole === 'office_manager' ||
-    (effectiveRole === 'admin' && user?.display_title === 'Office Manager');
-  const officeManagerHiddenTabs = ['audit', 'logins', 'updates', 'docs'];
+  // Office Manager is now a real role with the SAME permissions and view as admin —
+  // only the label differs. (It used to be a curated subset; that's been dropped.)
+  const isOfficeManager = effectiveRole === 'office_manager';
   // A super admin viewing the admin role is technically logged in as the
   // demo admin user, so user.is_super_admin is false here. Fall back to the
   // original session's flag so the "Login As" affordance still appears
@@ -276,23 +275,9 @@ const Dashboard: React.FC = () => {
       'revenue', 'tasks',
     ];
     if (view && (validTabs as string[]).includes(view)) {
-      // Office Manager can't open the hidden oversight sections via deep link.
-      if (isOfficeManager && officeManagerHiddenTabs.includes(view)) {
-        setActiveTab('appointments');
-      } else {
-        setActiveTab(view as AdminTab);
-      }
+      setActiveTab(view as AdminTab);
     }
-  }, [searchParams, isOfficeManager]);
-
-  // Belt-and-suspenders: if an Office Manager ever lands on a hidden tab
-  // (default state, programmatic switch), bounce to a visible one.
-  useEffect(() => {
-    if (isOfficeManager && (officeManagerHiddenTabs as string[]).includes(activeTab)) {
-      setActiveTab('appointments');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOfficeManager, activeTab]);
+  }, [searchParams]);
 
   // ---- Admin clinic-ops Tasks state ----
   interface AdminTask {
@@ -1653,8 +1638,6 @@ const Dashboard: React.FC = () => {
                 Reports
               </button>
             )}
-            {!isOfficeManager && (
-              <>
                 <button
                   onClick={() => setActiveTab('audit')}
                   className={`${
@@ -1682,8 +1665,6 @@ const Dashboard: React.FC = () => {
                   </svg>
                   Login Records
                 </button>
-              </>
-            )}
           </nav>
         </div>
 
@@ -2664,6 +2645,7 @@ const Dashboard: React.FC = () => {
                         { value: 'pharmacy', label: 'Pharmacy' },
                         { value: 'imaging', label: 'Imaging/Radiology' },
                         { value: 'admin', label: 'Administrator' },
+                        { value: 'office_manager', label: 'Office Manager' },
                       ]}
                     />
                   </div>

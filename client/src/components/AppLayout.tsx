@@ -466,16 +466,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   // Use activeRole for super admins, otherwise use user's actual role
   const effectiveRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
 
-  // Office Manager = a curated admin view. It shows the admin nav minus the
-  // system/oversight items (audit, login records, system updates, docs).
-  // Triggered by the super-admin "Office Manager" switcher OR a real user whose
-  // role is admin with display_title 'Office Manager' (e.g. Angela).
-  const isOfficeManager =
-    effectiveRole === 'office_manager' ||
-    (effectiveRole === 'admin' && user?.display_title === 'Office Manager');
-  // For nav matching, office_manager borrows the admin nav set.
+  // Office Manager is a real role with the SAME permissions and nav as admin —
+  // it borrows the full admin nav set (no curation; only the label differs).
   const navRole = effectiveRole === 'office_manager' ? 'admin' : effectiveRole;
-  const officeManagerHiddenPaths = ['view=audit', 'view=logins', 'view=updates', 'view=docs'];
 
   const isSuperAdminSession =
     user?.is_super_admin || impersonation.originalUser?.is_super_admin;
@@ -484,7 +477,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
     if (item.roles && !item.roles.includes(navRole || '')) return false;
     if (item.headNurseOnly && !user?.is_head_nurse && !isSuperAdminSession) return false;
     if (item.conditional === 'has-guide' && !hasGuide) return false;
-    if (isOfficeManager && item.path && officeManagerHiddenPaths.some(p => item.path!.includes(p))) return false;
     return true;
   });
 

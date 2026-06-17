@@ -142,7 +142,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     }
 
     // Validate role
-    const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
+    const validRoles = ['doctor', 'nurse', 'admin', 'office_manager', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
     if (!validRoles.includes(role)) {
       res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
       return;
@@ -262,7 +262,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
     // Validate role if provided
     if (role) {
-      const validRoles = ['doctor', 'nurse', 'admin', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
+      const validRoles = ['doctor', 'nurse', 'admin', 'office_manager', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant'];
       if (!validRoles.includes(role)) {
         res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
         return;
