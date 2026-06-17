@@ -269,6 +269,10 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
   </div>
 );
 
+// Common inventory units offered in the Unit picker (free-text custom values
+// are also allowed via AppSelect's allowCustom).
+const MED_UNIT_OPTIONS = ['Tablet', 'Capsule', 'Bottle', 'Vial', 'Ampoule', 'Tube', 'Sachet', 'Box', 'Pack', 'Piece', 'Strip', 'Nebule', 'Respule', 'Inhaler', 'Drops', 'Cream', 'Ointment', 'Suppository', 'Patch', 'Suspension', 'Syrup', 'mL', 'Gram', 'Unit'].map(u => ({ value: u, label: u }));
+
 const PharmacyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1986,10 +1990,6 @@ const PharmacyDashboard: React.FC = () => {
 
   return (
     <AppLayout>
-      {/* Shared unit suggestions for the Add/Edit inventory Unit fields (free-text + datalist) */}
-      <datalist id="med-unit-options">
-        {['Tablet','Capsule','Bottle','Vial','Ampoule','Tube','Sachet','Box','Pack','Piece','Strip','Nebule','Respule','Inhaler','Drops','Cream','Ointment','Suppository','Patch','Suspension','Syrup','mL','Gram','Unit'].map(u => <option key={u} value={u} />)}
-      </datalist>
       <DashboardHeader
         title={title}
         stats={(
@@ -4409,16 +4409,15 @@ const PharmacyDashboard: React.FC = () => {
               </datalist>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
-              <input
-                type="text"
-                list="med-unit-options"
+              <AppSelect
+                label="Unit *"
                 value={newInventoryForm.unit}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit: e.target.value })}
-                placeholder="e.g. Tablet, Nebule, Sachet…"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                onChange={(val) => setNewInventoryForm({ ...newInventoryForm, unit: val })}
+                allowCustom
+                required
+                options={MED_UNIT_OPTIONS}
               />
-              <p className="text-xs text-gray-500 mt-1">Pick a suggestion or type any unit.</p>
+              <p className="text-xs text-gray-500 mt-1">Pick from the list or type a custom unit.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
@@ -4537,16 +4536,14 @@ const PharmacyDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                <input
-                  type="text"
-                  list="med-unit-options"
+                <AppSelect
+                  label="Unit"
                   value={editingInventory.unit || ''}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, unit: e.target.value })}
-                  placeholder="e.g. Tablet, Nebule, Sachet…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  onChange={(val) => setEditingInventory({ ...editingInventory, unit: val })}
+                  allowCustom
+                  options={MED_UNIT_OPTIONS}
                 />
-                <p className="text-xs text-gray-500 mt-1">Pick a suggestion or type any unit.</p>
+                <p className="text-xs text-gray-500 mt-1">Pick from the list or type a custom unit.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
