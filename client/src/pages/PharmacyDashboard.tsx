@@ -1986,6 +1986,10 @@ const PharmacyDashboard: React.FC = () => {
 
   return (
     <AppLayout>
+      {/* Shared unit suggestions for the Add/Edit inventory Unit fields (free-text + datalist) */}
+      <datalist id="med-unit-options">
+        {['Tablet','Capsule','Bottle','Vial','Ampoule','Tube','Sachet','Box','Pack','Piece','Strip','Nebule','Respule','Inhaler','Drops','Cream','Ointment','Suppository','Patch','Suspension','Syrup','mL','Gram','Unit'].map(u => <option key={u} value={u} />)}
+      </datalist>
       <DashboardHeader
         title={title}
         stats={(
@@ -4405,22 +4409,16 @@ const PharmacyDashboard: React.FC = () => {
               </datalist>
             </div>
             <div>
-              <AppSelect
-                label="Unit *"
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+              <input
+                type="text"
+                list="med-unit-options"
                 value={newInventoryForm.unit}
-                onChange={(val) => setNewInventoryForm({ ...newInventoryForm, unit: val })}
-                options={[
-                  { value: 'tablet', label: 'Tablet' },
-                  { value: 'capsule', label: 'Capsule' },
-                  { value: 'bottle', label: 'Bottle' },
-                  { value: 'vial', label: 'Vial' },
-                  { value: 'ampoule', label: 'Ampoule' },
-                  { value: 'pack', label: 'Pack' },
-                  { value: 'tube', label: 'Tube' },
-                  { value: 'sachet', label: 'Sachet' },
-                  { value: 'box', label: 'Box' },
-                ]}
+                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit: e.target.value })}
+                placeholder="e.g. Tablet, Nebule, Sachet…"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
+              <p className="text-xs text-gray-500 mt-1">Pick a suggestion or type any unit.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
@@ -4539,25 +4537,16 @@ const PharmacyDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <AppSelect
-                  label="Unit"
-                  value={editingInventory.unit}
-                  onChange={(val) => setEditingInventory({ ...editingInventory, unit: val })}
-                  options={[
-                    { value: 'tablet', label: 'Tablet' },
-                    { value: 'capsule', label: 'Capsule' },
-                    { value: 'bottle', label: 'Bottle' },
-                    { value: 'vial', label: 'Vial' },
-                    { value: 'ampoule', label: 'Ampoule' },
-                    { value: 'tube', label: 'Tube' },
-                    { value: 'sachet', label: 'Sachet' },
-                    { value: 'box', label: 'Box' },
-                    { value: 'pack', label: 'Pack' },
-                    { value: 'piece', label: 'Piece' },
-                    { value: 'ml', label: 'mL' },
-                    { value: 'strip', label: 'Strip' },
-                  ]}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <input
+                  type="text"
+                  list="med-unit-options"
+                  value={editingInventory.unit || ''}
+                  onChange={(e) => setEditingInventory({ ...editingInventory, unit: e.target.value })}
+                  placeholder="e.g. Tablet, Nebule, Sachet…"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
+                <p className="text-xs text-gray-500 mt-1">Pick a suggestion or type any unit.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
