@@ -16,6 +16,9 @@ interface AppSelectProps {
   error?: string;
   className?: string;
   searchable?: boolean;
+  // When true, the user can type a value that isn't in the list and select it
+  // (e.g. a custom inventory unit). The typed value shows even if not an option.
+  allowCustom?: boolean;
 }
 
 const AppSelect: React.FC<AppSelectProps> = ({
@@ -29,14 +32,20 @@ const AppSelect: React.FC<AppSelectProps> = ({
   error,
   className = '',
   searchable,
+  allowCustom,
 }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Auto-enable search for lists > 6 items
-  const showSearch = searchable ?? options.length > 6;
+  // Auto-enable search for lists > 6 items, or always when custom values are allowed.
+  const showSearch = searchable ?? (allowCustom || options.length > 6);
+
+  const commitCustom = () => {
+    const v = search.trim();
+    if (v) { onChange(v); setOpen(false); }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -59,7 +68,10 @@ const AppSelect: React.FC<AppSelectProps> = ({
     ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
     : options;
 
-  const selectedLabel = options.find(o => String(o.value) === String(value))?.label;
+  // Show the option's label, or the raw value itself when it's a custom entry.
+  const selectedLabel = options.find(o => String(o.value) === String(value))?.label
+    ?? (allowCustom && value != null && String(value) !== '' ? String(value) : undefined);
+  const hasExactMatch = options.some(o => o.label.toLowerCase() === search.trim().toLowerCase());
 
   return (
     <div className={`w-full ${className}`}>
@@ -96,7 +108,8 @@ const AppSelect: React.FC<AppSelectProps> = ({
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search..."
+                  onKeyDown={(e) => { if (allowCustom && e.key === 'Enter') { e.preventDefault(); commitCustom(); } }}
+                  placeholder={allowCustom ? 'Search or type a custom unit…' : 'Search...'}
                   className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
                 />
               </div>
@@ -122,7 +135,16 @@ const AppSelect: React.FC<AppSelectProps> = ({
                   </div>
                 );
               })}
-              {filtered.length === 0 && (
+              {allowCustom && search.trim() && !hasExactMatch && (
+                <div
+                  onClick={commitCustom}
+                  className="px-4 py-2 text-sm cursor-pointer text-primary-700 hover:bg-primary-50 flex items-center gap-2 border-t border-gray-100"
+                >
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  <span className="truncate">Use “{search.trim()}”</span>
+                </div>
+              )}
+              {filtered.length === 0 && !(allowCustom && search.trim()) && (
                 <div className="px-4 py-3 text-sm text-gray-400 text-center">No results</div>
               )}
             </div>
