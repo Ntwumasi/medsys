@@ -297,7 +297,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [resettingPwId, setResettingPwId] = useState<number | null>(null);
 
   const handleResetPassword = async (s: StaffMember) => {
-    if (s.role === 'admin') return; // belt + suspenders; server also rejects
+    if (s.role === 'admin' || s.role === 'office_manager') return; // belt + suspenders; server also rejects
     const fullName = `${s.first_name} ${s.last_name}`;
     if (!(await confirmDialog({ title: 'Reset Password', message: `Reset password for ${fullName}? They will be forced to change it on next login.`, confirmLabel: 'Reset', variant: 'warning' }))) return;
     setResettingPwId(s.id);

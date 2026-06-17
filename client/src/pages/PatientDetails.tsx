@@ -198,7 +198,7 @@ const PatientDetails: React.FC = () => {
 
   // Front desk / admins can SMS the patient a portal access link
   const canSendPortalLink =
-    user?.role === 'receptionist' || user?.role === 'admin' || user?.is_super_admin === true;
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'office_manager' || user?.is_super_admin === true;
   const [sendingLink, setSendingLink] = useState(false);
   const [expandedVisit, setExpandedVisit] = useState<number | null>(null);
 

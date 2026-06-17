@@ -230,7 +230,7 @@ export const deleteLabTestSet = async (req: Request, res: Response): Promise<voi
     }
 
     const isCreator = existing.rows[0].created_by === userId;
-    const isAdmin = authReq.user?.role === 'admin' || authReq.user?.is_super_admin === true;
+    const isAdmin = authReq.user?.role === 'admin' || authReq.user?.role === 'office_manager' || authReq.user?.is_super_admin === true;
     if (!isCreator && !isAdmin) {
       res.status(403).json({ error: 'Only the creator or an admin can delete this set' });
       return;

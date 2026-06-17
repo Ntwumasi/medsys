@@ -25,6 +25,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
   // Nurses can read and apply but not modify.
   const isAdminLike =
     user?.role === 'admin' ||
+    user?.role === 'office_manager' ||
     user?.is_super_admin === true ||
     impersonation.originalUser?.is_super_admin === true;
   const canAuthorSets = user?.role === 'doctor' || isAdminLike;

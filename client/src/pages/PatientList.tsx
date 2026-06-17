@@ -129,7 +129,7 @@ const PatientList: React.FC = () => {
               />
             </div>
             <div className="flex items-center gap-3">
-              {(user?.role === 'admin' || user?.is_super_admin) && (
+              {(user?.role === 'admin' || user?.role === 'office_manager' || user?.is_super_admin) && (
                 <Link to="/duplicate-patients">
                   <Button variant="secondary">Review Duplicates</Button>
                 </Link>

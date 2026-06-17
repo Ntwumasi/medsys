@@ -32,7 +32,7 @@ interface ClinicPricing {
 export default function ClinicManagement() {
   const { showToast } = useNotification();
   const { user } = useAuth();
-  const canEditPrices = user?.role === 'admin' || user?.is_super_admin === true;
+  const canEditPrices = user?.role === 'admin' || user?.role === 'office_manager' || user?.is_super_admin === true;
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [pricing, setPricing] = useState<Record<number, ClinicPricing>>({});
   const [expanded, setExpanded] = useState<number | null>(null);

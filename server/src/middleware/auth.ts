@@ -19,7 +19,7 @@ export interface AuthRequest extends Request {
  * social layer). Super admins bypass authorizeRoles entirely.
  */
 export const STAFF_ROLES = [
-  'doctor', 'nurse', 'admin', 'receptionist', 'lab',
+  'doctor', 'nurse', 'admin', 'office_manager', 'receptionist', 'lab',
   'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant',
 ] as const;
 
@@ -141,6 +141,14 @@ export const authorizeRoles = (...roles: string[]) => {
 
     // Super admins can access any role's endpoints
     if (user.is_super_admin) {
+      next();
+      return;
+    }
+
+    // Office Manager has the same permissions as Admin — any admin-gated route is
+    // open to it. It's a distinct role (so it can be labelled, impersonated and
+    // audited separately) but functionally mirrors admin everywhere.
+    if (user.role === 'office_manager' && roles.includes('admin')) {
       next();
       return;
     }
