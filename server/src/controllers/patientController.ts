@@ -369,10 +369,33 @@ export const getPatientById = async (req: Request, res: Response): Promise<void>
       [id]
     );
 
+    // Does a *live* duplicate of this patient exist (same name + DOB, not merged)?
+    // Drives the "possible duplicate — ask an admin to merge" warning on the
+    // patient card, so it only fires when there's actually something to merge —
+    // not on every CareCode import. Skipped when DOB is unknown.
+    const patient = result.rows[0];
+    let has_duplicate = false;
+    if (patient.date_of_birth) {
+      const dupResult = await pool.query(
+        `SELECT 1
+         FROM patients p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.id <> $1
+           AND p.merged_into IS NULL
+           AND p.date_of_birth = $2
+           AND LOWER(u.first_name) = LOWER($3)
+           AND LOWER(u.last_name) = LOWER($4)
+         LIMIT 1`,
+        [id, patient.date_of_birth, patient.first_name, patient.last_name]
+      );
+      has_duplicate = dupResult.rows.length > 0;
+    }
+
     res.json({
       patient: {
-        ...result.rows[0],
-        allergies: allergiesResult.rows // Return allergies as array of objects
+        ...patient,
+        allergies: allergiesResult.rows, // Return allergies as array of objects
+        has_duplicate,
       }
     });
   } catch (error) {
