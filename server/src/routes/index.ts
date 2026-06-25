@@ -546,7 +546,7 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admi
 // Static /patients/* paths MUST come before /patients/:id so Express
 // doesn't swallow "check-duplicates" as an id parameter.
 router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse'), checkDuplicates);
-router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech'), validateBody(createPatientSchema), createPatient);
+router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging'), validateBody(createPatientSchema), createPatient);
 router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
 // Duplicate-patient cleanup (registered before /patients/:id so "duplicates"/"merge" aren't treated as an id)
 router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin'), getDuplicateCandidates);
@@ -585,7 +585,7 @@ router.post('/medications/:id/discontinue', authenticateToken, authorizeRoles('d
 router.post('/medications/check-allergies', authenticateToken, authorizeRoles('doctor', 'nurse'), checkAllergies);
 
 // Workflow routes - Receptionist
-router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging'), checkInPatient);
+router.post('/workflow/check-in', authenticateToken, authorizeRoles('receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging', 'admin'), checkInPatient);
 router.post('/workflow/assign-room', authenticateToken, authorizeRoles('receptionist', 'nurse'), assignRoom);
 router.post('/workflow/assign-nurse', authenticateToken, authorizeRoles('receptionist'), assignNurse);
 router.post('/workflow/assign-doctor', authenticateToken, authorizeRoles('receptionist'), assignDoctor);
