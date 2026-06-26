@@ -2298,14 +2298,19 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
     const qty = parseInt(return_quantity);
     const originalQty = parseInt(order.quantity);
-    if (!qty || qty <= 0 || qty > originalQty) {
+    // Cap against what's still outstanding, not the original — partial returns
+    // are cumulative (return_quantity accrues, quantity never changes), so a
+    // second return must only allow the remaining amount.
+    const alreadyReturned = parseInt(order.return_quantity) || 0;
+    const remaining = originalQty - alreadyReturned;
+    if (!qty || qty <= 0 || qty > remaining) {
       await client.query('ROLLBACK');
-      res.status(400).json({ error: `Return quantity must be between 1 and ${originalQty}` });
+      res.status(400).json({ error: `Return quantity must be between 1 and ${remaining}` });
       return;
     }
 
-    // Full return → 'returned', partial return → stays 'dispensed'
-    const newStatus = qty === originalQty ? 'returned' : 'dispensed';
+    // Returning everything still outstanding → 'returned', otherwise stays 'dispensed'
+    const newStatus = qty === remaining ? 'returned' : 'dispensed';
 
     await client.query(
       `UPDATE pharmacy_orders SET status = $2, return_quantity = COALESCE(return_quantity, 0) + $3,
