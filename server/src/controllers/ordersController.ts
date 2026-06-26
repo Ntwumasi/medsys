@@ -2337,58 +2337,65 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     // leaving the line item showing the original quantity (the "front desk still
     // shows x14 after returning 13" report). Reduce the matching line item's
     // quantity/total, then recompute the invoice total from its items.
-    try {
-      const invoiceResult = await client.query(
-        `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-        [order.encounter_id]
+    //
+    // NOTE: this block must NOT be wrapped in a swallowing try/catch. Any query
+    // error here aborts the surrounding transaction, after which COMMIT silently
+    // performs a ROLLBACK — so catching+ignoring an error would unwind the whole
+    // return (status, return_quantity, inventory restore) while still returning
+    // "success" to the client. That false-success masked a broken UPDATE for two
+    // weeks. Let errors propagate to the outer catch (ROLLBACK + 500) instead.
+    const invoiceResult = await client.query(
+      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      [order.encounter_id]
+    );
+    if (invoiceResult.rows.length > 0) {
+      const invoiceId = invoiceResult.rows[0].id;
+
+      // Rebuild the exact description the dispense step wrote, so we update the
+      // right medication line (substitute-aware). Kept in sync with the dispense
+      // format above (no "[sub for: …]" suffix).
+      const medDescription = order.substitute_medication
+        ? `${order.substitute_medication} (${order.dosage})`
+        : `${order.medication_name} (${order.dosage})`;
+
+      const itemRes = await client.query(
+        `SELECT id, quantity, unit_price FROM invoice_items
+          WHERE invoice_id = $1 AND category = 'medication' AND description = $2
+          ORDER BY id DESC LIMIT 1`,
+        [invoiceId, medDescription]
       );
-      if (invoiceResult.rows.length > 0) {
-        const invoiceId = invoiceResult.rows[0].id;
 
-        // Rebuild the exact description the dispense step wrote, so we update the
-        // right medication line (substitute-aware). Kept in sync with the dispense
-        // format above (no "[sub for: …]" suffix).
-        const medDescription = order.substitute_medication
-          ? `${order.substitute_medication} (${order.dosage})`
-          : `${order.medication_name} (${order.dosage})`;
-
-        const itemRes = await client.query(
-          `SELECT id, quantity, unit_price FROM invoice_items
-            WHERE invoice_id = $1 AND category = 'medication' AND description = $2
-            ORDER BY id DESC LIMIT 1`,
-          [invoiceId, medDescription]
-        );
-
-        if (itemRes.rows.length > 0) {
-          const item = itemRes.rows[0];
-          const newQty = parseInt(item.quantity) - qty;
-          if (newQty > 0) {
-            await client.query(
-              `UPDATE invoice_items
-                  SET quantity = $2, total_price = unit_price * $2
-                WHERE id = $1`,
-              [item.id, newQty]
-            );
-          } else {
-            // Whole line returned — drop it.
-            await client.query(`DELETE FROM invoice_items WHERE id = $1`, [item.id]);
-          }
+      if (itemRes.rows.length > 0) {
+        const item = itemRes.rows[0];
+        const newQty = parseInt(item.quantity) - qty;
+        if (newQty > 0) {
+          // $2 is cast to int explicitly: it's used both in `quantity = $2`
+          // (integer column) and `unit_price * $2` (numeric). Without the cast
+          // Postgres deduces conflicting types for the one parameter and throws
+          // 42P08 "inconsistent types deduced for parameter $2".
+          await client.query(
+            `UPDATE invoice_items
+                SET quantity = $2::int, total_price = unit_price * $2::int
+              WHERE id = $1`,
+            [item.id, newQty]
+          );
         } else {
-          console.warn(`Return: no matching invoice item for "${medDescription}" on invoice ${invoiceId}`);
+          // Whole line returned — drop it.
+          await client.query(`DELETE FROM invoice_items WHERE id = $1`, [item.id]);
         }
-
-        // Recompute the invoice total from its items (same approach as dispense).
-        await client.query(
-          `UPDATE invoices SET
-             subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
-             total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
-             updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [invoiceId]
-        );
+      } else {
+        console.warn(`Return: no matching invoice item for "${medDescription}" on invoice ${invoiceId}`);
       }
-    } catch (invoiceError) {
-      console.error('Error adjusting invoice for return:', invoiceError);
+
+      // Recompute the invoice total from its items (same approach as dispense).
+      await client.query(
+        `UPDATE invoices SET
+           subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+           total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [invoiceId]
+      );
     }
 
     await client.query('COMMIT');
