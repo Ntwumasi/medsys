@@ -225,6 +225,25 @@ const NurseDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
   const [availableProcedures, setAvailableProcedures] = useState<AvailableProcedure[]>([]);
+
+  // ---- Nurse walk-ins (wound dressing / on-the-spot procedures) ----
+  // Mirrors the lab/pharmacy walk-in flow: a nurse can check in a patient
+  // directly, perform & bill procedures, then send them to reception for
+  // checkout — no doctor encounter required.
+  const [showNurseWalkins, setShowNurseWalkins] = useState(false);
+  const [nurseWalkIns, setNurseWalkIns] = useState<any[]>([]);
+  const [showNewNurseWalkin, setShowNewNurseWalkin] = useState(false);
+  const [nurseWalkinSearch, setNurseWalkinSearch] = useState('');
+  const [nurseWalkinSearchResults, setNurseWalkinSearchResults] = useState<any[]>([]);
+  const [creatingNurseWalkin, setCreatingNurseWalkin] = useState(false);
+  const [showNurseQuickRegister, setShowNurseQuickRegister] = useState(false);
+  const [nurseQuickRegForm, setNurseQuickRegForm] = useState({ first_name: '', last_name: '', phone: '', gender: '' });
+  const [addProcWalkin, setAddProcWalkin] = useState<any | null>(null);
+  const [walkinProcedureId, setWalkinProcedureId] = useState<number | ''>('');
+  const [walkinProcNotes, setWalkinProcNotes] = useState('');
+  const [walkinProcList, setWalkinProcList] = useState<Array<{ charge_master_id: number; procedure_name: string; price: number; notes: string }>>([]);
+  const [submittingWalkinProcs, setSubmittingWalkinProcs] = useState(false);
+
   const [showAddProcedure, setShowAddProcedure] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<number | null>(null);
   const [procedureNotes, setProcedureNotes] = useState('');
@@ -386,6 +405,7 @@ const NurseDashboard: React.FC = () => {
     loadAssignedPatients();
     loadNurseProcedures();
     loadAvailableProcedures();
+    loadNurseWalkIns();
     loadRooms();
     loadShortStayBeds();
     loadDoctorNotifications();
@@ -408,6 +428,7 @@ const NurseDashboard: React.FC = () => {
     loadAssignedPatients();
     loadNurseProcedures();
     loadAvailableProcedures();
+    loadNurseWalkIns();
     loadRooms();
     loadShortStayBeds();
     loadDoctorNotifications();
@@ -512,6 +533,156 @@ const NurseDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading procedure history:', error);
       showToast('Failed to load procedure history', 'error');
+    }
+  };
+
+  // ---- Nurse walk-in handlers ----
+  const loadNurseWalkIns = async () => {
+    try {
+      const res = await apiClient.get('/department-routing/nurse/queue');
+      setNurseWalkIns(res.data.queue || res.data.walk_ins || []);
+    } catch (error) {
+      console.error('Error loading nurse walk-ins:', error);
+    }
+  };
+
+  const searchNurseWalkinPatients = async (query: string) => {
+    setNurseWalkinSearch(query);
+    if (query.length < 2) { setNurseWalkinSearchResults([]); return; }
+    try {
+      const res = await apiClient.get(`/patients?search=${encodeURIComponent(query)}&limit=5`);
+      setNurseWalkinSearchResults(res.data.patients || []);
+    } catch { setNurseWalkinSearchResults([]); }
+  };
+
+  const handleNewNurseWalkin = async (patient: any) => {
+    setCreatingNurseWalkin(true);
+    try {
+      await apiClient.post('/workflow/check-in', {
+        patient_id: patient.id,
+        encounter_type: 'walk-in',
+        chief_complaint: 'Nurse walk-in',
+        clinic: 'Nurse (Procedures/Walk-in)',
+      });
+      showToast(`${patient.first_name} ${patient.last_name} checked in for nurse procedures`, 'success');
+      setShowNewNurseWalkin(false);
+      setNurseWalkinSearch('');
+      setNurseWalkinSearchResults([]);
+      loadNurseWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || err?.response?.data?.error || 'Failed to check in patient', 'error');
+    } finally {
+      setCreatingNurseWalkin(false);
+    }
+  };
+
+  const handleNurseQuickRegister = async () => {
+    if (!nurseQuickRegForm.first_name || !nurseQuickRegForm.last_name || !nurseQuickRegForm.phone) {
+      showToast('First name, last name, and phone are required', 'warning');
+      return;
+    }
+    setCreatingNurseWalkin(true);
+    try {
+      const patientRes = await apiClient.post('/patients', {
+        first_name: nurseQuickRegForm.first_name,
+        last_name: nurseQuickRegForm.last_name,
+        phone: nurseQuickRegForm.phone,
+        gender: nurseQuickRegForm.gender || undefined,
+      });
+      const newPatient = patientRes.data.patient;
+      await apiClient.post('/workflow/check-in', {
+        patient_id: newPatient.id,
+        encounter_type: 'walk-in',
+        chief_complaint: 'Nurse walk-in',
+        clinic: 'Nurse (Procedures/Walk-in)',
+      });
+      showToast(`${nurseQuickRegForm.first_name} ${nurseQuickRegForm.last_name} registered and checked in`, 'success');
+      setShowNewNurseWalkin(false);
+      setShowNurseQuickRegister(false);
+      setNurseQuickRegForm({ first_name: '', last_name: '', phone: '', gender: '' });
+      loadNurseWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || err?.response?.data?.message || 'Failed to register patient', 'error');
+    } finally {
+      setCreatingNurseWalkin(false);
+    }
+  };
+
+  const addWalkinProcedureToList = () => {
+    if (!walkinProcedureId) return;
+    const proc = availableProcedures.find(p => p.id === Number(walkinProcedureId));
+    if (!proc) return;
+    setWalkinProcList(prev => [...prev, {
+      charge_master_id: proc.id,
+      procedure_name: proc.service_name,
+      price: Number(proc.price) || 0,
+      notes: walkinProcNotes,
+    }]);
+    setWalkinProcedureId('');
+    setWalkinProcNotes('');
+  };
+
+  // Order each procedure then immediately complete it so the charge lands on
+  // the walk-in invoice — reception can then collect payment at checkout.
+  const handleSubmitWalkinProcedures = async () => {
+    if (!addProcWalkin || walkinProcList.length === 0) return;
+    setSubmittingWalkinProcs(true);
+    try {
+      for (const p of walkinProcList) {
+        const res = await apiClient.post('/nurse-procedures', {
+          encounter_id: addProcWalkin.encounter_id,
+          patient_id: addProcWalkin.patient_id,
+          charge_master_id: p.charge_master_id,
+          procedure_name: p.procedure_name,
+          notes: p.notes || null,
+        });
+        await apiClient.post(`/nurse-procedures/${res.data.procedure.id}/complete`, {});
+      }
+      showToast(`${walkinProcList.length} procedure(s) recorded & billed for ${addProcWalkin.patient_name}`, 'success');
+      setAddProcWalkin(null);
+      setWalkinProcList([]);
+      setWalkinProcedureId('');
+      setWalkinProcNotes('');
+      loadNurseWalkIns();
+      loadNurseProcedures();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to record procedures', 'error');
+    } finally {
+      setSubmittingWalkinProcs(false);
+    }
+  };
+
+  const handleNurseWalkinCheckout = async (walkin: any) => {
+    const ok = await confirmDialog({
+      title: 'Send to checkout?',
+      message: `Send ${walkin.patient_name} to reception for checkout? Make sure every procedure has been added — they are billed on the walk-in invoice.`,
+      variant: 'success',
+      confirmLabel: 'Send to checkout',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.post('/workflow/release-to-nurse', { encounter_id: walkin.encounter_id, from_department: 'nurse' });
+      showToast(`${walkin.patient_name} sent to reception for checkout`, 'success');
+      loadNurseWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to send to checkout', 'error');
+    }
+  };
+
+  const removeNurseWalkin = async (walkin: any) => {
+    const ok = await confirmDialog({
+      title: 'Remove from queue?',
+      message: `Remove ${walkin.patient_name} from the walk-in queue? Use this if they were checked in by mistake.`,
+      variant: 'warning',
+      confirmLabel: 'Remove',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.put(`/department-routing/${walkin.id}/status`, { status: 'cancelled' });
+      showToast(`${walkin.patient_name} removed from queue`, 'success');
+      loadNurseWalkIns();
+    } catch (err: any) {
+      showToast(err?.response?.data?.error || 'Failed to remove', 'error');
     }
   };
 
@@ -1535,8 +1706,35 @@ const NurseDashboard: React.FC = () => {
         )}
       />
 
-      {/* Quick Stats Row — matches Doctor Dashboard stat card pattern */}
+      {/* Sub-view toggle: My Patients vs Walk-ins (wound dressing / procedures) */}
       {mainView === 'patients' && (
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => setShowNurseWalkins(false)}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors ${
+              !showNurseWalkins ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            My Patients
+          </button>
+          <button
+            onClick={() => { setShowNurseWalkins(true); loadNurseWalkIns(); }}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg border transition-colors flex items-center gap-2 ${
+              showNurseWalkins ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Walk-ins
+            {nurseWalkIns.length > 0 && (
+              <span className={`px-1.5 py-0.5 text-xs font-bold rounded-full ${showNurseWalkins ? 'bg-white/25 text-white' : 'bg-primary-100 text-primary-700'}`}>
+                {nurseWalkIns.length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Quick Stats Row — matches Doctor Dashboard stat card pattern */}
+      {mainView === 'patients' && !showNurseWalkins && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col items-center">
             <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Active Patients</p>
@@ -1563,7 +1761,7 @@ const NurseDashboard: React.FC = () => {
 
       {/* Room Status — refined card grid. Color reserved for state
           accent (left stripe + tiny dot), surface stays neutral. */}
-      {mainView === 'patients' && (() => {
+      {mainView === 'patients' && !showNurseWalkins && (() => {
         const availableRooms = rooms.filter((r) => r.is_available).length;
         const occupiedRooms = rooms.length - availableRooms;
         return (
@@ -1645,8 +1843,255 @@ const NurseDashboard: React.FC = () => {
         );
       })()}
 
+        {/* Walk-ins View — nurse-initiated walk-ins (wound dressing, dressings,
+            injections, etc.). Same flow as lab/pharmacy walk-ins. */}
+        {mainView === 'patients' && showNurseWalkins && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold">Walk-in Patients</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Check in a patient for a procedure (e.g. wound dressing), record &amp; bill it, then send them to reception for checkout.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowNewNurseWalkin(true)}
+                  className="px-3 py-1.5 text-sm bg-primary-600 text-white hover:bg-primary-700 rounded-lg flex items-center gap-1 font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Walk-in
+                </button>
+                <button
+                  onClick={loadNurseWalkIns}
+                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* New Walk-in Search */}
+            {showNewNurseWalkin && (
+              <div className="p-4 bg-primary-50 border-b border-primary-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-sm font-semibold text-primary-800">Check in a walk-in patient</h3>
+                  <button onClick={() => { setShowNewNurseWalkin(false); setNurseWalkinSearch(''); setNurseWalkinSearchResults([]); setShowNurseQuickRegister(false); }} className="text-gray-400 hover:text-gray-600 ml-auto">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={nurseWalkinSearch}
+                  onChange={(e) => searchNurseWalkinPatients(e.target.value)}
+                  placeholder="Search patient by name or number..."
+                  className="w-full px-3 py-2 border border-primary-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
+                  autoFocus
+                />
+                {nurseWalkinSearchResults.length > 0 && (
+                  <div className="mt-2 bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                    {nurseWalkinSearchResults.map((p: any) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleNewNurseWalkin(p)}
+                        disabled={creatingNurseWalkin}
+                        className="w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-primary-50 transition-colors disabled:opacity-50"
+                      >
+                        <div>
+                          <span className="font-medium text-gray-900 text-sm">{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-gray-500 ml-2">{p.patient_number}</span>
+                        </div>
+                        <span className="text-xs text-primary-600 font-medium">Check in →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {nurseWalkinSearch.length >= 2 && nurseWalkinSearchResults.length === 0 && !showNurseQuickRegister && (
+                  <div className="mt-2 text-center py-3">
+                    <p className="text-sm text-gray-500 mb-2">No patients found</p>
+                    <button
+                      onClick={() => {
+                        const parts = nurseWalkinSearch.trim().split(/\s+/);
+                        setNurseQuickRegForm({ first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '', phone: '', gender: '' });
+                        setShowNurseQuickRegister(true);
+                      }}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                    >
+                      + Register New Patient
+                    </button>
+                  </div>
+                )}
+                {showNurseQuickRegister && (
+                  <div className="mt-3 bg-white border border-primary-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-gray-900">Quick Registration</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="text" value={nurseQuickRegForm.first_name} onChange={(e) => setNurseQuickRegForm({ ...nurseQuickRegForm, first_name: e.target.value })} placeholder="First Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={nurseQuickRegForm.last_name} onChange={(e) => setNurseQuickRegForm({ ...nurseQuickRegForm, last_name: e.target.value })} placeholder="Last Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="text" value={nurseQuickRegForm.phone} onChange={(e) => setNurseQuickRegForm({ ...nurseQuickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <AppSelect
+                        value={nurseQuickRegForm.gender}
+                        onChange={(val) => setNurseQuickRegForm({ ...nurseQuickRegForm, gender: val })}
+                        options={[
+                          { value: 'male', label: 'Male' },
+                          { value: 'female', label: 'Female' },
+                        ]}
+                        placeholder="Gender"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowNurseQuickRegister(false)} className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleNurseQuickRegister} disabled={creatingNurseWalkin} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 flex-1">
+                        {creatingNurseWalkin ? 'Registering...' : 'Register & Check In'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {nurseWalkIns.length === 0 ? (
+              <div className="p-12 text-center text-gray-500">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <p className="text-lg font-medium">No walk-in patients</p>
+                <p className="text-sm mt-1">Click “New Walk-in” to check a patient in for a procedure.</p>
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Encounter</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Arrived</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {nurseWalkIns.map((walkin) => (
+                    <tr key={walkin.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-900">{walkin.patient_name}</div>
+                        <div className="text-sm text-gray-500">{walkin.patient_number}</div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.encounter_number}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.notes || walkin.chief_complaint || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {walkin.routed_at ? new Date(walkin.routed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '-'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          walkin.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          walkin.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {walkin.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3 text-sm">
+                          <button
+                            onClick={() => { setAddProcWalkin(walkin); setWalkinProcList([]); setWalkinProcedureId(''); setWalkinProcNotes(''); }}
+                            className="px-2 py-1 bg-primary-600 text-white rounded text-xs font-semibold hover:bg-primary-700"
+                          >
+                            + Add Procedure
+                          </button>
+                          <button
+                            onClick={() => navigate(`/patients/${walkin.patient_id}`)}
+                            className="text-primary-600 hover:text-primary-800 font-medium"
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleNurseWalkinCheckout(walkin)}
+                            className="text-success-600 hover:text-success-800 font-medium"
+                            title="Send to reception for checkout"
+                          >
+                            Checkout
+                          </button>
+                          <button
+                            onClick={() => removeNurseWalkin(walkin)}
+                            className="text-danger-600 hover:text-danger-800 font-medium"
+                            title="Remove from queue (checked in by mistake)"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Add Procedure modal for a nurse walk-in */}
+        {addProcWalkin && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Add Procedure</h3>
+                  <p className="text-sm text-gray-500">{addProcWalkin.patient_name} · {addProcWalkin.patient_number}</p>
+                </div>
+                <button onClick={() => { setAddProcWalkin(null); setWalkinProcList([]); }} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+              </div>
+              <div className="p-6 overflow-y-auto space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Procedure</label>
+                  <AppSelect
+                    value={walkinProcedureId === '' ? '' : String(walkinProcedureId)}
+                    onChange={(val) => setWalkinProcedureId(val ? Number(val) : '')}
+                    options={availableProcedures.map(p => ({ value: String(p.id), label: `${p.service_name} — GHS ${Number(p.price || 0).toFixed(2)}` }))}
+                    placeholder="Select a procedure (e.g. wound dressing)..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Notes (optional)</label>
+                  <input type="text" value={walkinProcNotes} onChange={(e) => setWalkinProcNotes(e.target.value)} placeholder="e.g. dressing change, left leg" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <button onClick={addWalkinProcedureToList} disabled={!walkinProcedureId} className="px-3 py-2 bg-gray-100 text-gray-800 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50">
+                  + Add to list
+                </button>
+
+                {walkinProcList.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {walkinProcList.map((p, idx) => (
+                      <div key={idx} className="flex items-center justify-between px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <span className="font-medium text-gray-900">{p.procedure_name}</span>
+                          {p.notes && <span className="text-gray-500 ml-2">— {p.notes}</span>}
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span className="text-gray-700">GHS {p.price.toFixed(2)}</span>
+                          <button onClick={() => setWalkinProcList(prev => prev.filter((_, i) => i !== idx))} className="text-danger-600 hover:text-danger-800 text-xs">Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between px-3 py-2 text-sm font-semibold bg-gray-50">
+                      <span>Total</span>
+                      <span>GHS {walkinProcList.reduce((s, p) => s + p.price, 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2">
+                <button onClick={() => { setAddProcWalkin(null); setWalkinProcList([]); }} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button onClick={handleSubmitWalkinProcedures} disabled={walkinProcList.length === 0 || submittingWalkinProcs} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  {submittingWalkinProcs ? 'Saving...' : `Record & Bill ${walkinProcList.length || ''} Procedure${walkinProcList.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Patients View */}
-        {mainView === 'patients' && (
+        {mainView === 'patients' && !showNurseWalkins && (
         <>
         {/* Row 1: Three info cards side by side */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">

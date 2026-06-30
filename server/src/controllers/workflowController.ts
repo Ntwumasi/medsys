@@ -277,6 +277,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       'Pharmacy (OTC/Walk-in)': 'pharmacy',
       'Lab (Walk-in)': 'lab',
       'Imaging (Walk-in)': 'imaging',
+      'Nurse (Procedures/Walk-in)': 'nurse',
     };
 
     const walkInDepartment = departmentWalkIns[clinic];
@@ -1391,9 +1392,9 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'encounter_id is required' });
       return;
     }
-    const validDepartments = ['lab', 'pharmacy', 'imaging'];
+    const validDepartments = ['lab', 'pharmacy', 'imaging', 'nurse'];
     if (!validDepartments.includes(from_department)) {
-      res.status(400).json({ error: 'from_department must be lab, pharmacy, or imaging' });
+      res.status(400).json({ error: 'from_department must be lab, pharmacy, imaging, or nurse' });
       return;
     }
 
@@ -1415,7 +1416,7 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       return;
     }
     const { patient_id, patient_name, patient_number, clinic: encounterClinic } = ctx.rows[0];
-    const isWalkIn = ['Lab (Walk-in)', 'Imaging (Walk-in)', 'Pharmacy (OTC/Walk-in)'].includes(encounterClinic);
+    const isWalkIn = ['Lab (Walk-in)', 'Imaging (Walk-in)', 'Pharmacy (OTC/Walk-in)', 'Nurse (Procedures/Walk-in)'].includes(encounterClinic);
 
     // Mark all open routing entries for this department + encounter as done.
     const updateResult = await pool.query(
@@ -1516,6 +1517,7 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       lab: 'lab',
       pharmacy: 'pharmacy',
       imaging: 'imaging',
+      nurse: 'nurse procedures',
     };
 
     if (isWalkIn) {
