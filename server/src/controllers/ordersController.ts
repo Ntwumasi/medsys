@@ -6,6 +6,7 @@ import drugInteractionService from '../services/drugInteractionService';
 import { aiService } from '../services/aiService';
 import { dispenseFromBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+import { resolveEncounterInvoiceId, getOrCreateEncounterInvoice } from '../services/invoiceResolver';
 
 // Allocate the next Path No for today. Format is DDMM###, daily sequence,
 // matching the lab's existing convention (e.g. "2205001" = 22nd May, #001).
@@ -129,9 +130,8 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     // For doctor/nurse-ordered tests, billing still happens on completion.
     if (currentUserRole === 'lab') {
       try {
-        const invoiceRow = await pool.query('SELECT id FROM invoices WHERE encounter_id = $1', [encounter_id]);
-        if (invoiceRow.rows.length > 0) {
-          const invoiceId = invoiceRow.rows[0].id;
+        const invoiceId = await resolveEncounterInvoiceId(encounter_id, pool);
+        if (invoiceId) {
           // Price from the lab catalog (single source of truth), by code then name.
           const labItem = await resolveLabCatalogItem(resolvedCode, test_name);
           if (labItem.match) {
@@ -585,13 +585,9 @@ const runLabCompletionSideEffects = async (
       console.warn(`⚠️ Lab billing: NO catalog match for "${order.test_name}" (code ${order.test_code}). Billed 0 — needs review.`);
     }
 
-    const invoiceResult = await pool.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-      [order.encounter_id]
-    );
+    const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);
 
-    if (invoiceResult.rows.length > 0) {
-      const invoiceId = invoiceResult.rows[0].id;
+    if (invoiceId) {
       // Dedup by the canonical catalog name so the same test can't be billed
       // twice under different spellings.
       const existingItem = await pool.query(
@@ -1223,12 +1219,8 @@ export const getPendingVerificationQueue = async (
 // Returns silently if there's no invoice for the encounter yet (completion path will bill later).
 const billImagingOrderToInvoice = async (order: any): Promise<void> => {
   try {
-    const invoiceResult = await pool.query(
-      'SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1',
-      [order.encounter_id]
-    );
-    if (invoiceResult.rows.length === 0) return;
-    const invoiceId = invoiceResult.rows[0].id;
+    const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);
+    if (!invoiceId) return;
 
     const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
     const description = `Imaging: ${label}`;
@@ -1310,12 +1302,8 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
 // Remove a previously-billed imaging study from the encounter's invoice (e.g. on cancellation).
 const removeImagingOrderFromInvoice = async (order: any): Promise<void> => {
   try {
-    const invoiceResult = await pool.query(
-      'SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1',
-      [order.encounter_id]
-    );
-    if (invoiceResult.rows.length === 0) return;
-    const invoiceId = invoiceResult.rows[0].id;
+    const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);
+    if (!invoiceId) return;
 
     const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
     const description = `Imaging: ${label}`;
@@ -2159,25 +2147,7 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           // before reception opened billing), silently losing the charge. Mirror
           // the nurse-procedure flow and create the invoice if it's missing so a
           // dispensed med is ALWAYS billed.
-          const invoiceResult = await client.query(
-            `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-            [updatedOrder.encounter_id]
-          );
-
-          let invoiceId: number;
-          if (invoiceResult.rows.length > 0) {
-            invoiceId = invoiceResult.rows[0].id;
-          } else {
-            const countResult = await client.query('SELECT COUNT(*) FROM invoices');
-            const invoiceNumber = `INV${String(parseInt(countResult.rows[0].count) + 1).padStart(6, '0')}`;
-            const newInvoice = await client.query(
-              `INSERT INTO invoices (patient_id, encounter_id, invoice_number, invoice_date, subtotal, tax, total_amount, status)
-               VALUES ($1, $2, $3, CURRENT_DATE, 0, 0, 0, 'pending')
-               RETURNING id`,
-              [updatedOrder.patient_id, updatedOrder.encounter_id, invoiceNumber]
-            );
-            invoiceId = newInvoice.rows[0].id;
-          }
+          const invoiceId = await getOrCreateEncounterInvoice(updatedOrder.encounter_id, client);
 
           // Add medication as invoice item. Show the med actually dispensed (the
           // substitute when present); the "[sub for: …]" note is kept off the
@@ -2355,13 +2325,8 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     // return (status, return_quantity, inventory restore) while still returning
     // "success" to the client. That false-success masked a broken UPDATE for two
     // weeks. Let errors propagate to the outer catch (ROLLBACK + 500) instead.
-    const invoiceResult = await client.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-      [order.encounter_id]
-    );
-    if (invoiceResult.rows.length > 0) {
-      const invoiceId = invoiceResult.rows[0].id;
-
+    const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, client);
+    if (invoiceId) {
       // Rebuild the exact description the dispense step wrote, so we update the
       // right medication line (substitute-aware). Kept in sync with the dispense
       // format above (no "[sub for: …]" suffix).
@@ -3089,25 +3054,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       totalAmount += itemTotal;
     }
 
-    // Get or create invoice for this encounter
-    let invoiceId: number;
-    const invoiceCheck = await client.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1`,
-      [encounter_id]
-    );
-
-    if (invoiceCheck.rows.length === 0) {
-      // Create invoice for OTC purchase
-      const invoiceResult = await client.query(
-        `INSERT INTO invoices (encounter_id, patient_id, subtotal, total_amount, status)
-         VALUES ($1, $2, 0, 0, 'pending')
-         RETURNING id`,
-        [encounter_id, patient_id]
-      );
-      invoiceId = invoiceResult.rows[0].id;
-    } else {
-      invoiceId = invoiceCheck.rows[0].id;
-    }
+    // Get or create the encounter's (possibly shared) invoice for this OTC sale.
+    const invoiceId = await getOrCreateEncounterInvoice(encounter_id, client);
 
     // Add each medication as an invoice line item
     for (const order of createdOrders) {

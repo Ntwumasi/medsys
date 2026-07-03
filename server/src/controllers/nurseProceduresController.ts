@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { getOrCreateEncounterInvoice } from '../services/invoiceResolver';
 
 // Doctor: Order a nurse procedure
 export const orderNurseProcedure = async (req: Request, res: Response): Promise<void> => {
@@ -172,31 +173,8 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
 
     const procedure = procedureResult.rows[0];
 
-    // Get or create invoice for this encounter
-    let invoiceResult = await client.query(
-      'SELECT * FROM invoices WHERE encounter_id = $1',
-      [procedure.encounter_id]
-    );
-
-    let invoice;
-    if (invoiceResult.rows.length === 0) {
-      // Create invoice if doesn't exist
-      const countResult = await client.query('SELECT COUNT(*) FROM invoices');
-      const invoiceCount = parseInt(countResult.rows[0].count) + 1;
-      const invoiceNumber = `INV${String(invoiceCount).padStart(6, '0')}`;
-
-      const newInvoiceResult = await client.query(
-        `INSERT INTO invoices (
-          patient_id, encounter_id, invoice_number, invoice_date,
-          subtotal, tax, total_amount, status
-        ) VALUES ($1, $2, $3, CURRENT_DATE, 0, 0, 0, 'pending')
-        RETURNING *`,
-        [procedure.patient_id, procedure.encounter_id, invoiceNumber]
-      );
-      invoice = newInvoiceResult.rows[0];
-    } else {
-      invoice = invoiceResult.rows[0];
-    }
+    // Get or create the encounter's (possibly shared) invoice for this procedure.
+    const invoice = { id: await getOrCreateEncounterInvoice(procedure.encounter_id, client) };
 
     // Get charge details
     const chargeResult = await client.query(

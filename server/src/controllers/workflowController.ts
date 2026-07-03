@@ -6,6 +6,7 @@ import auditService from '../services/auditService';
 import notificationService from '../services/notificationService';
 import { getNextMonOrThu } from './nurseFollowUpTaskController';
 import { resolveLabCatalogItem } from './ordersController';
+import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -215,16 +216,40 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     const initialTotal = checkInCharges.reduce((sum, c) => sum + c.price, 0);
 
-    const invoiceResult = await client.query(
-      `INSERT INTO invoices (
-        patient_id, encounter_id, invoice_number, invoice_date,
-        subtotal, tax, total_amount, status
-      ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
-      RETURNING *`,
-      [patient_id, encounter.id, invoiceNumber, initialTotal]
-    );
+    // Multi-specialist single invoice: a patient seeing several doctors the
+    // same day should get ONE invoice with all the consult fees, not a new
+    // invoice per check-in. If they already have an OPEN (unpaid) invoice today,
+    // bill this visit's charges onto it. Department walk-ins keep their own
+    // invoice (they run their own quick billing/checkout).
+    let invoiceId: number | undefined;
+    if (!departmentClinics.includes(clinic)) {
+      const openInv = await client.query(
+        `SELECT id FROM invoices
+          WHERE patient_id = $1 AND invoice_date = CURRENT_DATE
+            AND status IN ('pending', 'partial')
+          ORDER BY id DESC LIMIT 1`,
+        [patient_id]
+      );
+      if (openInv.rows.length > 0) {
+        invoiceId = openInv.rows[0].id;
+      }
+    }
 
-    const invoiceId = invoiceResult.rows[0].id;
+    if (invoiceId === undefined) {
+      const invoiceResult = await client.query(
+        `INSERT INTO invoices (
+          patient_id, encounter_id, invoice_number, invoice_date,
+          subtotal, tax, total_amount, status
+        ) VALUES ($1, $2, $3, CURRENT_DATE, $4, 0, $4, 'pending')
+        RETURNING *`,
+        [patient_id, encounter.id, invoiceNumber, initialTotal]
+      );
+      invoiceId = invoiceResult.rows[0].id;
+    }
+
+    // Link this encounter to its (possibly shared) invoice so all billing and
+    // queue/lookup joins resolve through encounters.invoice_id.
+    await client.query(`UPDATE encounters SET invoice_id = $1 WHERE id = $2`, [invoiceId, encounter.id]);
 
     // Insert all charge items and resolve payer-specific prices
     let resolvedTotal = 0;
@@ -256,15 +281,25 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       resolvedTotal += finalPrice;
     }
 
-    // Update invoice total if payer-resolved prices differ
-    if (resolvedTotal !== initialTotal) {
-      await client.query(
-        `UPDATE invoices SET subtotal = $1, total_amount = $1 WHERE id = $2`,
-        [resolvedTotal, invoiceId]
-      );
-    }
+    // Recompute the invoice total from ALL its items. For a reused (shared)
+    // invoice this ADDS this visit's charges to what's already there; for a new
+    // invoice it reconciles any payer-resolved price differences.
+    await client.query(
+      `UPDATE invoices
+         SET subtotal = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0),
+             total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0) + COALESCE(tax, 0),
+             updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [invoiceId]
+    );
 
     const registrationFee = resolvedTotal;
+
+    // Canonical invoice row for the responses below (works whether the invoice
+    // was newly created or reused for a multi-specialist visit).
+    const invoiceRecord = (
+      await client.query('SELECT * FROM invoices WHERE id = $1', [invoiceId])
+    ).rows[0];
 
     // Get patient info for appointment and notification
     const patientInfoResult = await client.query(
@@ -312,7 +347,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         message: `Patient checked in and routed to ${walkInDepartment}`,
         encounter_id: encounter.id,
         encounter_number: encounter.encounter_number,
-        invoice_number: invoiceResult.rows[0].invoice_number,
+        invoice_number: invoiceRecord.invoice_number,
         billing_amount: registrationFee,
         routed_to: walkInDepartment
       });
@@ -375,7 +410,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     res.status(201).json({
       message: 'Patient checked in successfully',
       encounter: encounter,
-      invoice: invoiceResult.rows[0],
+      invoice: invoiceRecord,
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -1144,7 +1179,13 @@ export const getPatientQueue = async (req: Request, res: Response): Promise<void
       LEFT JOIN users u_patient ON p.user_id = u_patient.id
       LEFT JOIN users u_nurse ON e.nurse_id = u_nurse.id
       LEFT JOIN users u_doctor ON e.provider_id = u_doctor.id
-      LEFT JOIN invoices i ON i.encounter_id = e.id
+      -- Resolve billing through the encounter's (possibly shared) invoice link,
+      -- falling back to the legacy invoices.encounter_id for any encounter not
+      -- yet linked.
+      LEFT JOIN invoices i ON i.id = COALESCE(
+        e.invoice_id,
+        (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+      )
       WHERE DATE(e.checked_in_at) = CURRENT_DATE
         AND e.status != 'cancelled'
       ORDER BY
@@ -1467,12 +1508,8 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
     // invoice_items.description prevents double-billing on repeat clicks.
     let labsBilled = 0;
     if (from_department === 'lab') {
-      const invoiceRow = await pool.query(
-        `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-        [encounter_id]
-      );
-      if (invoiceRow.rows.length > 0) {
-        const invoiceId = invoiceRow.rows[0].id;
+      const invoiceId = await resolveEncounterInvoiceId(encounter_id, pool);
+      if (invoiceId) {
 
         const labs = await pool.query(
           `SELECT id, test_code, test_name, status

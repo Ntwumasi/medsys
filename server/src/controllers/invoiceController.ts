@@ -196,11 +196,14 @@ export const getInvoiceByEncounter = async (req: Request, res: Response): Promis
               p.state as patient_state,
               e.chief_complaint,
               e.encounter_date
-       FROM invoices i
-       JOIN encounters e ON i.encounter_id = e.id
+       FROM encounters e
+       JOIN invoices i ON i.id = COALESCE(
+         e.invoice_id,
+         (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+       )
        JOIN patients p ON i.patient_id = p.id
        JOIN users u ON p.user_id = u.id
-       WHERE i.encounter_id = $1`,
+       WHERE e.id = $1`,
       [encounter_id]
     );
 
@@ -256,9 +259,16 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
 
     await client.query('BEGIN');
 
-    // Check if invoice already exists for this encounter
+    // Check if an invoice already exists for this encounter — resolving the
+    // (possibly shared) invoice via the encounter's link, so a second same-day
+    // encounter reuses the shared invoice instead of creating another.
     let invoiceResult = await client.query(
-      `SELECT * FROM invoices WHERE encounter_id = $1`,
+      `SELECT i.* FROM encounters e
+         JOIN invoices i ON i.id = COALESCE(
+           e.invoice_id,
+           (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+         )
+        WHERE e.id = $1`,
       [encounter_id]
     );
 
@@ -289,6 +299,9 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
       );
 
       invoice_id = invoiceResult.rows[0].id;
+
+      // Link the encounter to its new invoice for shared-invoice resolution.
+      await client.query(`UPDATE encounters SET invoice_id = $1 WHERE id = $2`, [invoice_id, encounter_id]);
 
       // Insert invoice items
       for (const item of items) {
