@@ -70,12 +70,21 @@ export const billingService = {
         invoiceId = invoiceResult.rows[0].id;
       }
 
-      // Get existing invoice items to avoid duplicates
+      // Get existing invoice items to avoid duplicates. Dedup on the SOURCE
+      // reference (reference_type:reference_id) for order-derived lines so a
+      // lab/med/imaging/procedure can't be billed twice under different names
+      // (catalog vs charge_master, dispensed vs substitute), and keep the
+      // description key as a fallback for reference-less lines (consult/manual).
       const existingItems = await client.query(
-        `SELECT description, category FROM invoice_items WHERE invoice_id = $1`,
+        `SELECT description, category, reference_type, reference_id FROM invoice_items WHERE invoice_id = $1`,
         [invoiceId]
       );
       const existingDescriptions = new Set(existingItems.rows.map(r => `${r.category}:${r.description}`));
+      const billedReferences = new Set(
+        existingItems.rows
+          .filter(r => r.reference_type && r.reference_id != null)
+          .map(r => `${r.reference_type}:${r.reference_id}`)
+      );
 
       const newItems: BillingItem[] = [];
 
@@ -120,7 +129,8 @@ export const billingService = {
       for (const lab of labResult.rows) {
         const desc = `Lab: ${lab.service_name || lab.test_name}`;
         const key = `lab:${desc}`;
-        if (!existingDescriptions.has(key)) {
+        const refKey = `lab_order:${lab.id}`;
+        if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
           newItems.push({
             description: desc,
             quantity: 1,
@@ -130,6 +140,7 @@ export const billingService = {
             referenceType: 'lab_order',
             referenceId: lab.id,
           });
+          billedReferences.add(refKey); // also collapse multiple charge_master matches for one order
         }
       }
 
@@ -147,7 +158,8 @@ export const billingService = {
       for (const imaging of imagingResult.rows) {
         const desc = `Imaging: ${imaging.service_name || `${imaging.imaging_type} - ${imaging.body_part}`}`;
         const key = `imaging:${desc}`;
-        if (!existingDescriptions.has(key)) {
+        const refKey = `imaging_order:${imaging.id}`;
+        if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
           const defaultPrices: Record<string, number> = {
             'X-Ray': 80, 'CT Scan': 350, 'MRI': 800, 'Ultrasound': 150
           };
@@ -160,6 +172,7 @@ export const billingService = {
             referenceType: 'imaging_order',
             referenceId: imaging.id,
           });
+          billedReferences.add(refKey);
         }
       }
 
@@ -178,7 +191,8 @@ export const billingService = {
       for (const med of pharmacyResult.rows) {
         const desc = `${med.medication_name} (${med.dosage})`;
         const key = `medication:${desc}`;
-        if (!existingDescriptions.has(key)) {
+        const refKey = `pharmacy_order:${med.id}`;
+        if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
           const unitPrice = med.selling_price ? parseFloat(med.selling_price) : 10.00;
           newItems.push({
             description: desc,
@@ -188,6 +202,7 @@ export const billingService = {
             referenceType: 'pharmacy_order',
             referenceId: med.id,
           });
+          billedReferences.add(refKey);
         }
       }
 
@@ -204,7 +219,8 @@ export const billingService = {
       for (const proc of procedureResult.rows) {
         const desc = `Procedure: ${proc.service_name || proc.procedure_name}`;
         const key = `procedure:${desc}`;
-        if (!existingDescriptions.has(key)) {
+        const refKey = `nurse_procedure:${proc.id}`;
+        if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
           newItems.push({
             description: desc,
             quantity: 1,
@@ -214,15 +230,16 @@ export const billingService = {
             referenceType: 'nurse_procedure',
             referenceId: proc.id,
           });
+          billedReferences.add(refKey);
         }
       }
 
       // Insert new items
       for (const item of newItems) {
         await client.query(
-          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [invoiceId, item.chargeMasterId, item.description, item.quantity, item.unitPrice, item.quantity * item.unitPrice, item.category]
+          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [invoiceId, item.chargeMasterId, item.description, item.quantity, item.unitPrice, item.quantity * item.unitPrice, item.category, item.referenceType || null, item.referenceId || null]
         );
       }
 
