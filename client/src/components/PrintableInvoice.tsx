@@ -5,6 +5,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { branding } from '../config/branding';
 import AppSelect from './ui/AppSelect';
+import { stripLabSex } from '../utils/labDisplay';
 import type { ApiError } from '../types';
 
 interface InvoiceItem {
@@ -84,7 +85,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const [otherPrice, setOtherPrice] = useState('');
   const [isAddingOther, setIsAddingOther] = useState(false);
 
-  const isEditable = !!encounterId;
+  // Paid invoices are locked — line items, prices and payer can't be changed
+  // once the bill is settled (receptionist policy: paid invoices are final).
+  const isPaid = invoice.status === 'paid'
+    || (Number(invoice.amount_paid || 0) > 0 && Number(invoice.amount_paid || 0) >= Number(invoice.total_amount || 0));
+  const isEditable = !!encounterId && !isPaid;
   const items = editableItems;
 
   // Payer editing state
@@ -817,6 +822,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
           {/* Invoice Items Table */}
           <div className="mb-8">
+            {isPaid && (
+              <div className="mb-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 print:hidden print-hidden">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span>This invoice is paid and locked. Line items and prices can no longer be edited.</span>
+              </div>
+            )}
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-100 border-b-2 border-gray-300">
@@ -830,7 +843,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
               <tbody>
                 {items.map((item, index) => (
                   <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-3 px-4 text-gray-700">{item.description}</td>
+                    <td className="py-3 px-4 text-gray-700">{stripLabSex(item.description)}</td>
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
                       {isEditable && editingItemId === item.id ? (

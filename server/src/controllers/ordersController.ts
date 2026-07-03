@@ -140,8 +140,8 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
             const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
             if (exists.rows.length === 0) {
               await pool.query(
-                'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, NULL, $2, 1, $3, $3, $4)',
-                [invoiceId, desc, price, 'lab']
+                'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id) VALUES ($1, NULL, $2, 1, $3, $3, $4, $5, $6)',
+                [invoiceId, desc, price, 'lab', 'lab_order', order.id]
               );
               const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
               await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
@@ -601,9 +601,9 @@ const runLabCompletionSideEffects = async (
 
       if (existingItem.rows.length === 0) {
         await pool.query(
-          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-           VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
-          [invoiceId, `Lab: ${chargeDescription}`, labPrice]
+          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+           VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+          [invoiceId, `Lab: ${chargeDescription}`, labPrice, orderId]
         );
         await pool.query(
           `UPDATE invoices
@@ -1280,17 +1280,28 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
       billingPrice = fallbackPrices[order.imaging_type] || 150.00;
     }
 
-    await pool.query(
-      `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-       VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
-      [invoiceId, chargeMasterId, description, billingPrice]
+    // Guard: an imaging study is billed at order time AND again on completion,
+    // so dedup on the source order to avoid a duplicate line (this makes the
+    // "no-op if already billed" behaviour real).
+    const alreadyBilled = await pool.query(
+      `SELECT id FROM invoice_items
+        WHERE invoice_id = $1 AND reference_type = 'imaging_order' AND reference_id = $2
+        LIMIT 1`,
+      [invoiceId, order.id]
     );
-    await pool.query(
-      `UPDATE invoices
-       SET subtotal = subtotal + $2, total_amount = total_amount + $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [invoiceId, billingPrice]
-    );
+    if (alreadyBilled.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+         VALUES ($1, $2, $3, 1, $4, $4, 'imaging', 'imaging_order', $5)`,
+        [invoiceId, chargeMasterId, description, billingPrice, order.id]
+      );
+      await pool.query(
+        `UPDATE invoices
+         SET subtotal = subtotal + $2, total_amount = total_amount + $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [invoiceId, billingPrice]
+      );
+    }
   } catch (err) {
     console.error('Imaging billing failed (non-fatal):', err);
   }
@@ -2109,13 +2120,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
         if (inventoryResult.rows.length > 0) {
           const inventoryItem = inventoryResult.rows[0];
-          // selling_price is per PACK; quantity is in individual units. Convert
-          // to a per-unit price so a 14-tablet course of a pack-priced med
-          // isn't billed at 14× the pack price. pack_size defaults to 1, so
-          // per-unit-priced items are unaffected.
-          const packSize = parseFloat(inventoryItem.pack_size) || 1;
-          const unitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
-          const totalPrice = Math.round((parseFloat(inventoryItem.selling_price) * quantity / packSize) * 100) / 100;
+          // selling_price is the price of the unit the item is stocked and sold
+          // in (pack / tablet / bottle — the same unit as `unit` and
+          // quantity_on_hand). Bill it straight: unit price = selling_price,
+          // line total = selling_price × quantity. Selling a partial pack ("per
+          // tab") is rare and handled as a manual price edit on the invoice.
+          const unitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
+          const totalPrice = Math.round(parseFloat(inventoryItem.selling_price) * quantity * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -2176,9 +2187,9 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage})`
             : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
           await client.query(
-            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-             VALUES ($1, $2, $3, $4, $5, 'medication')`,
-            [invoiceId, medDescription, quantity, unitPrice, totalPrice]
+            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6)`,
+            [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id)]
           );
 
           // Update invoice total
@@ -2298,14 +2309,19 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
 
     const qty = parseInt(return_quantity);
     const originalQty = parseInt(order.quantity);
-    if (!qty || qty <= 0 || qty > originalQty) {
+    // Cap against what's still outstanding, not the original — partial returns
+    // are cumulative (return_quantity accrues, quantity never changes), so a
+    // second return must only allow the remaining amount.
+    const alreadyReturned = parseInt(order.return_quantity) || 0;
+    const remaining = originalQty - alreadyReturned;
+    if (!qty || qty <= 0 || qty > remaining) {
       await client.query('ROLLBACK');
-      res.status(400).json({ error: `Return quantity must be between 1 and ${originalQty}` });
+      res.status(400).json({ error: `Return quantity must be between 1 and ${remaining}` });
       return;
     }
 
-    // Full return → 'returned', partial return → stays 'dispensed'
-    const newStatus = qty === originalQty ? 'returned' : 'dispensed';
+    // Returning everything still outstanding → 'returned', otherwise stays 'dispensed'
+    const newStatus = qty === remaining ? 'returned' : 'dispensed';
 
     await client.query(
       `UPDATE pharmacy_orders SET status = $2, return_quantity = COALESCE(return_quantity, 0) + $3,
@@ -2332,58 +2348,65 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
     // leaving the line item showing the original quantity (the "front desk still
     // shows x14 after returning 13" report). Reduce the matching line item's
     // quantity/total, then recompute the invoice total from its items.
-    try {
-      const invoiceResult = await client.query(
-        `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
-        [order.encounter_id]
+    //
+    // NOTE: this block must NOT be wrapped in a swallowing try/catch. Any query
+    // error here aborts the surrounding transaction, after which COMMIT silently
+    // performs a ROLLBACK — so catching+ignoring an error would unwind the whole
+    // return (status, return_quantity, inventory restore) while still returning
+    // "success" to the client. That false-success masked a broken UPDATE for two
+    // weeks. Let errors propagate to the outer catch (ROLLBACK + 500) instead.
+    const invoiceResult = await client.query(
+      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      [order.encounter_id]
+    );
+    if (invoiceResult.rows.length > 0) {
+      const invoiceId = invoiceResult.rows[0].id;
+
+      // Rebuild the exact description the dispense step wrote, so we update the
+      // right medication line (substitute-aware). Kept in sync with the dispense
+      // format above (no "[sub for: …]" suffix).
+      const medDescription = order.substitute_medication
+        ? `${order.substitute_medication} (${order.dosage})`
+        : `${order.medication_name} (${order.dosage})`;
+
+      const itemRes = await client.query(
+        `SELECT id, quantity, unit_price FROM invoice_items
+          WHERE invoice_id = $1 AND category = 'medication' AND description = $2
+          ORDER BY id DESC LIMIT 1`,
+        [invoiceId, medDescription]
       );
-      if (invoiceResult.rows.length > 0) {
-        const invoiceId = invoiceResult.rows[0].id;
 
-        // Rebuild the exact description the dispense step wrote, so we update the
-        // right medication line (substitute-aware). Kept in sync with the dispense
-        // format above (no "[sub for: …]" suffix).
-        const medDescription = order.substitute_medication
-          ? `${order.substitute_medication} (${order.dosage})`
-          : `${order.medication_name} (${order.dosage})`;
-
-        const itemRes = await client.query(
-          `SELECT id, quantity, unit_price FROM invoice_items
-            WHERE invoice_id = $1 AND category = 'medication' AND description = $2
-            ORDER BY id DESC LIMIT 1`,
-          [invoiceId, medDescription]
-        );
-
-        if (itemRes.rows.length > 0) {
-          const item = itemRes.rows[0];
-          const newQty = parseInt(item.quantity) - qty;
-          if (newQty > 0) {
-            await client.query(
-              `UPDATE invoice_items
-                  SET quantity = $2, total_price = unit_price * $2
-                WHERE id = $1`,
-              [item.id, newQty]
-            );
-          } else {
-            // Whole line returned — drop it.
-            await client.query(`DELETE FROM invoice_items WHERE id = $1`, [item.id]);
-          }
+      if (itemRes.rows.length > 0) {
+        const item = itemRes.rows[0];
+        const newQty = parseInt(item.quantity) - qty;
+        if (newQty > 0) {
+          // $2 is cast to int explicitly: it's used both in `quantity = $2`
+          // (integer column) and `unit_price * $2` (numeric). Without the cast
+          // Postgres deduces conflicting types for the one parameter and throws
+          // 42P08 "inconsistent types deduced for parameter $2".
+          await client.query(
+            `UPDATE invoice_items
+                SET quantity = $2::int, total_price = unit_price * $2::int
+              WHERE id = $1`,
+            [item.id, newQty]
+          );
         } else {
-          console.warn(`Return: no matching invoice item for "${medDescription}" on invoice ${invoiceId}`);
+          // Whole line returned — drop it.
+          await client.query(`DELETE FROM invoice_items WHERE id = $1`, [item.id]);
         }
-
-        // Recompute the invoice total from its items (same approach as dispense).
-        await client.query(
-          `UPDATE invoices SET
-             subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
-             total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
-             updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [invoiceId]
-        );
+      } else {
+        console.warn(`Return: no matching invoice item for "${medDescription}" on invoice ${invoiceId}`);
       }
-    } catch (invoiceError) {
-      console.error('Error adjusting invoice for return:', invoiceError);
+
+      // Recompute the invoice total from its items (same approach as dispense).
+      await client.query(
+        `UPDATE invoices SET
+           subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+           total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [invoiceId]
+      );
     }
 
     await client.query('COMMIT');
@@ -3049,12 +3072,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
         ]
       );
 
-      // selling_price is per PACK; bill per individual unit so a multi-unit
-      // pack isn't charged at (pack price × unit count). pack_size defaults to
-      // 1, so per-unit-priced items are unaffected. Computed server-side from
-      // inventory rather than trusting the client's unit_price.
-      const packSize = parseFloat(inventoryItem.pack_size) || 1;
-      const perUnitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+      // selling_price is the price of the unit the item is stocked and sold in
+      // (pack / tablet / bottle); bill it as-is × quantity — the clinic sells
+      // by the pack it stocks. Per-tab sales are a rare manual invoice
+      // adjustment. Computed server-side from inventory rather than trusting
+      // the client's unit_price.
+      const perUnitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
       orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
@@ -3099,9 +3122,9 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       const itemTotal = Math.round(unitPrice * quantity * 100) / 100;
 
       await client.query(
-        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, $2, $3, $4, $5, 'medication')`,
-        [invoiceId, `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''}`, quantity, unitPrice, itemTotal]
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+         VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6)`,
+        [invoiceId, `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''}`, quantity, unitPrice, itemTotal, order.id]
       );
     }
 

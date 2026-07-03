@@ -76,6 +76,12 @@ interface PharmacyOrder {
   days_supply?: number;
   substitute_medication?: string;
   substitute_reason?: string;
+  /** Cumulative quantity returned so far. The original `quantity` is never
+   *  decremented on a return, so the still-dispensed amount is
+   *  quantity - return_quantity. */
+  return_quantity?: number;
+  return_reason?: string;
+  returned_at?: string;
   /** True when this encounter has already been routed back to nurse from pharmacy.
    *  Server-derived from department_routing — persists across refresh. */
   routed_back_to_nurse?: boolean;
@@ -2404,7 +2410,10 @@ const PharmacyDashboard: React.FC = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="font-bold text-primary-700 bg-primary-50 border-2 border-primary-300 px-2 py-0.5 rounded-lg">Qty: {order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
+                                  <span className="font-bold text-primary-700 bg-primary-50 border-2 border-primary-300 px-2 py-0.5 rounded-lg">Qty: {(order.return_quantity || 0) > 0 ? Math.max(0, (parseInt(order.quantity) || 0) - (order.return_quantity || 0)) : order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
+                                  {(order.return_quantity || 0) > 0 && (
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-warning-100 text-warning-700">{order.return_quantity} of {order.quantity} returned</span>
+                                  )}
                                   {order.days_supply && (
                                     <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
                                       {order.days_supply}-day supply
@@ -2511,7 +2520,7 @@ const PharmacyDashboard: React.FC = () => {
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setReturningOrder(order);
-                                          setReturnQuantity(order.quantity);
+                                          setReturnQuantity(String(Math.max(0, (parseInt(order.quantity) || 0) - (order.return_quantity || 0))));
                                           setReturnReason('');
                                           setShowReturnModal(true);
                                         }}
@@ -4452,20 +4461,6 @@ const PharmacyDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
-              <input
-                type="number"
-                step="1"
-                min="1"
-                value={newInventoryForm.pack_size}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, pack_size: parseFloat(e.target.value) || 1 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Selling price is per pack. Set this to the number of tablets/units in a pack (e.g. 14) so dispensing bills the correct per-unit price. Leave as 1 if sold individually.
-              </p>
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
               <input
                 type="date"
@@ -4576,19 +4571,6 @@ const PharmacyDashboard: React.FC = () => {
                   onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="1"
-                  value={editingInventory.pack_size || ''}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, pack_size: e.target.value ? parseFloat(e.target.value) : 1 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="1"
-                />
-                <p className="text-xs text-gray-500 mt-1">Selling price is per pack; set the number of units per pack so dispensing bills the correct per-unit price.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Earliest Expiry Date</label>
@@ -5192,6 +5174,11 @@ const PharmacyDashboard: React.FC = () => {
               <div className="text-sm text-gray-600 mt-1">
                 Dispensed quantity: {returningOrder.quantity}{returningOrder.inventory_unit ? ` ${returningOrder.inventory_unit}` : ''}
               </div>
+              {(returningOrder.return_quantity || 0) > 0 && (
+                <div className="text-sm text-warning-700 mt-1">
+                  Already returned: {returningOrder.return_quantity} • Remaining: {Math.max(0, (parseInt(returningOrder.quantity) || 0) - (returningOrder.return_quantity || 0))}{returningOrder.inventory_unit ? ` ${returningOrder.inventory_unit}` : ''}
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -5200,7 +5187,7 @@ const PharmacyDashboard: React.FC = () => {
                 <input
                   type="number"
                   min="1"
-                  max={parseInt(returningOrder.quantity)}
+                  max={Math.max(0, (parseInt(returningOrder.quantity) || 0) - (returningOrder.return_quantity || 0))}
                   value={returnQuantity}
                   onChange={(e) => setReturnQuantity(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
@@ -5373,7 +5360,7 @@ const PharmacyDashboard: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                          <span>Qty: <span className="font-medium">{order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span> {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
+                          <span>Qty: <span className="font-medium">{order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span> {(order.return_quantity || 0) > 0 && <span className="text-warning-600">• {order.return_quantity} returned</span>} {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
                           <span>{format(new Date(order.ordered_date), 'MMM dd, yyyy')}</span>
                         </div>
                         <div className="text-xs text-gray-400 mt-1 flex justify-between">

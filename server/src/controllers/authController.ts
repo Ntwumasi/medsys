@@ -76,6 +76,24 @@ const logLoginAttempt = async (
     if (geo && geo.latitude !== undefined && geo.longitude !== undefined) {
       distance = haversineDistanceM(geo.latitude, geo.longitude, CLINIC_LATITUDE, CLINIC_LONGITUDE);
     }
+    // Dedupe retried logins. The client retries the login POST on a cold-start
+    // timeout (see client.ts), so a single sign-in can reach the server twice:
+    // the first request succeeds server-side but the response is slow, the
+    // client gives up and resends, and we'd otherwise record two identical
+    // "success" rows seconds apart. Skip the second if an identical success
+    // for this user already landed in the last 30s.
+    if (success && userId !== null) {
+      const recent = await pool.query(
+        `SELECT 1 FROM login_attempts
+           WHERE user_id = $1 AND success = true
+             AND created_at > NOW() - INTERVAL '30 seconds'
+           LIMIT 1`,
+        [userId],
+      );
+      if ((recent.rowCount ?? 0) > 0) {
+        return;
+      }
+    }
     await pool.query(
       `INSERT INTO login_attempts
          (email, user_id, ip_address, user_agent, success, failure_reason,

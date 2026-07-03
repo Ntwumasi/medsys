@@ -15,7 +15,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     let receptionist_id = authReq.user?.id || null;
 
-    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id, force } = req.body;
 
     // Verify receptionist_id exists in users table (to avoid FK constraint violation)
     if (receptionist_id) {
@@ -27,8 +27,13 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
-    // Check if patient already has an active encounter today (prevent duplicate check-ins)
-    const activeEncounterCheck = await client.query(
+    // Check if patient already has an active encounter today (prevent duplicate
+    // check-ins). `force` lets reception intentionally start a SECOND same-day
+    // visit while the first is still open — e.g. the patient needs to see a
+    // different doctor and pays for everything at the end of the day.
+    const activeEncounterCheck = force
+      ? { rows: [] as any[] }
+      : await client.query(
       `SELECT e.id, e.encounter_number, e.checked_in_at,
               u.first_name || ' ' || u.last_name as patient_name
        FROM encounters e
@@ -277,6 +282,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       'Pharmacy (OTC/Walk-in)': 'pharmacy',
       'Lab (Walk-in)': 'lab',
       'Imaging (Walk-in)': 'imaging',
+      'Nurse (Procedures/Walk-in)': 'nurse',
     };
 
     const walkInDepartment = departmentWalkIns[clinic];
@@ -1391,9 +1397,9 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'encounter_id is required' });
       return;
     }
-    const validDepartments = ['lab', 'pharmacy', 'imaging'];
+    const validDepartments = ['lab', 'pharmacy', 'imaging', 'nurse'];
     if (!validDepartments.includes(from_department)) {
-      res.status(400).json({ error: 'from_department must be lab, pharmacy, or imaging' });
+      res.status(400).json({ error: 'from_department must be lab, pharmacy, imaging, or nurse' });
       return;
     }
 
@@ -1415,7 +1421,7 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       return;
     }
     const { patient_id, patient_name, patient_number, clinic: encounterClinic } = ctx.rows[0];
-    const isWalkIn = ['Lab (Walk-in)', 'Imaging (Walk-in)', 'Pharmacy (OTC/Walk-in)'].includes(encounterClinic);
+    const isWalkIn = ['Lab (Walk-in)', 'Imaging (Walk-in)', 'Pharmacy (OTC/Walk-in)', 'Nurse (Procedures/Walk-in)'].includes(encounterClinic);
 
     // Mark all open routing entries for this department + encounter as done.
     const updateResult = await pool.query(
@@ -1495,9 +1501,9 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
 
           await pool.query(
             `INSERT INTO invoice_items
-               (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-             VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
-            [invoiceId, description, labPrice]
+               (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+            [invoiceId, description, labPrice, lo.id]
           );
           await pool.query(
             `UPDATE invoices
@@ -1516,6 +1522,7 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
       lab: 'lab',
       pharmacy: 'pharmacy',
       imaging: 'imaging',
+      nurse: 'nurse procedures',
     };
 
     if (isWalkIn) {

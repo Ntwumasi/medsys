@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Appointment, ApiError } from '../types';
@@ -420,6 +420,69 @@ const Dashboard: React.FC = () => {
       loadAdminTasks();
     } catch (_) { /* ignore */ }
   };
+
+  // ---- Single flat list: per-column filters + sortable headers ----
+  // Tasks render as one big list (no category sections). Default ordering puts
+  // the soonest deadline on top; completed tasks always sink to the bottom.
+  type TaskSortKey = 'task' | 'category' | 'contact_person' | 'responsibility' | 'status' | 'cost' | 'due_date' | 'remarks';
+  const blankTaskFilters = { task: '', category: '', contact_person: '', responsibility: '', status: '', cost: '', remarks: '' };
+  const [taskFilters, setTaskFilters] = useState<typeof blankTaskFilters>(blankTaskFilters);
+  // null sort = default smart ordering (deadline asc, completed last)
+  const [taskSort, setTaskSort] = useState<{ key: TaskSortKey; dir: 'asc' | 'desc' } | null>(null);
+
+  const cycleTaskSort = (key: TaskSortKey) => {
+    setTaskSort(prev => {
+      if (!prev || prev.key !== key) return { key, dir: 'asc' };
+      if (prev.dir === 'asc') return { key, dir: 'desc' };
+      return null; // third click clears back to default
+    });
+  };
+
+  const displayedTasks = useMemo(() => {
+    const f = taskFilters;
+    const matches = (val: string | null, q: string) => (val || '').toLowerCase().includes(q.toLowerCase());
+    const list = adminTasks.filter(t => (
+      (!f.task || matches(t.task, f.task)) &&
+      (!f.category || matches(t.category, f.category)) &&
+      (!f.contact_person || matches(t.contact_person, f.contact_person)) &&
+      (!f.responsibility || matches(t.responsibility, f.responsibility)) &&
+      (!f.cost || matches(t.cost, f.cost)) &&
+      (!f.remarks || matches(t.remarks, f.remarks)) &&
+      (!f.status || t.status === f.status)
+    ));
+    const dateKey = (t: AdminTask) => (t.due_date ? t.due_date.slice(0, 10) : '');
+    return [...list].sort((a, b) => {
+      // Completed always sinks to the bottom, regardless of sort.
+      const ac = a.status === 'complete' ? 1 : 0;
+      const bc = b.status === 'complete' ? 1 : 0;
+      if (ac !== bc) return ac - bc;
+
+      if (taskSort) {
+        const { key, dir } = taskSort;
+        const mul = dir === 'asc' ? 1 : -1;
+        if (key === 'due_date') {
+          const ad = dateKey(a), bd = dateKey(b);
+          if (!ad && bd) return 1;        // blanks always last
+          if (ad && !bd) return -1;
+          if (ad !== bd) return ad.localeCompare(bd) * mul;
+        } else {
+          const av = (a[key] || '').toString().toLowerCase();
+          const bv = (b[key] || '').toString().toLowerCase();
+          if (av !== bv) return av.localeCompare(bv) * mul;
+        }
+        return a.id - b.id;
+      }
+
+      // Default: soonest deadline first, blanks last, then by id.
+      const ad = dateKey(a), bd = dateKey(b);
+      if (!ad && bd) return 1;
+      if (ad && !bd) return -1;
+      if (ad !== bd) return ad.localeCompare(bd);
+      return a.id - b.id;
+    });
+  }, [adminTasks, taskFilters, taskSort]);
+
+  const taskFiltersActive = Object.values(taskFilters).some(Boolean);
 
   const [charges, setCharges] = useState<Array<{ id: number; service_name: string; service_code: string; category: string; price: string; description: string; is_active: boolean; payer_price?: string | null; payer_excluded?: boolean }>>([]);
   const [chargesLoading, setChargesLoading] = useState(false);
@@ -2962,7 +3025,7 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">Tasks</h2>
-                <p className="text-sm text-gray-600 mt-1">Clinic operations — facility, registrations, marketing, IT, vendors.</p>
+                <p className="text-sm text-gray-600 mt-1">Clinic operations — one list, soonest deadline first. Click a column to sort, use the row below the headers to filter.</p>
               </div>
               <button
                 onClick={openCreateTask}
@@ -2997,80 +3060,139 @@ const Dashboard: React.FC = () => {
             ) : adminTasks.length === 0 ? (
               <div className="py-12 text-center text-gray-500 text-sm">No tasks match this filter.</div>
             ) : (() => {
-              // Group by category
-              const groups: Record<string, AdminTask[]> = {};
-              for (const t of adminTasks) {
-                if (!groups[t.category]) groups[t.category] = [];
-                groups[t.category].push(t);
-              }
+              const today = new Date().toISOString().slice(0, 10);
+              const sortArrow = (key: TaskSortKey) =>
+                taskSort?.key === key ? (taskSort.dir === 'asc' ? '▲' : '▼') : '';
+              const columns: Array<{ key: TaskSortKey; label: string }> = [
+                { key: 'task', label: 'Task' },
+                { key: 'category', label: 'Category' },
+                { key: 'contact_person', label: 'Contact' },
+                { key: 'responsibility', label: 'Responsibility' },
+                { key: 'status', label: 'Status' },
+                { key: 'cost', label: 'Cost' },
+                { key: 'due_date', label: 'Deadline' },
+                { key: 'remarks', label: 'Remarks' },
+              ];
+              const filterInput = (key: keyof typeof blankTaskFilters, placeholder = 'Filter…') => (
+                <input
+                  type="text"
+                  value={taskFilters[key]}
+                  onChange={(e) => setTaskFilters({ ...taskFilters, [key]: e.target.value })}
+                  placeholder={placeholder}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white font-normal"
+                />
+              );
               return (
-                <div className="space-y-6">
-                  {Object.keys(groups).map(cat => (
-                    <div key={cat}>
-                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">
-                        {cat} <span className="text-gray-400 font-normal">({groups[cat].length})</span>
-                      </h3>
-                      <div className="overflow-x-auto rounded-lg border border-gray-200">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Task</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Contact</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Responsibility</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Cost</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Deadline</th>
-                              <th className="text-left px-3 py-2 font-semibold text-gray-700">Remarks</th>
-                              <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
+                <div>
+                  <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+                    <span>
+                      Showing {displayedTasks.length} of {adminTasks.length} task{adminTasks.length === 1 ? '' : 's'}
+                      {taskSort ? '' : ' · sorted by soonest deadline (completed last)'}
+                    </span>
+                    {(taskFiltersActive || taskSort) && (
+                      <button
+                        onClick={() => { setTaskFilters(blankTaskFilters); setTaskSort(null); }}
+                        className="text-primary-600 hover:underline"
+                      >
+                        Clear filters &amp; sorting
+                      </button>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {columns.map(c => (
+                            <th key={c.key} className="text-left px-3 py-2 font-semibold text-gray-700">
+                              <button
+                                type="button"
+                                onClick={() => cycleTaskSort(c.key)}
+                                className="inline-flex items-center gap-1 hover:text-primary-600"
+                                title="Click to sort"
+                              >
+                                {c.label}
+                                <span className="text-primary-600 text-[10px] w-2">{sortArrow(c.key)}</span>
+                              </button>
+                            </th>
+                          ))}
+                          <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
+                        </tr>
+                        <tr className="bg-white border-t border-gray-200">
+                          <th className="px-3 py-1.5">{filterInput('task')}</th>
+                          <th className="px-3 py-1.5">{filterInput('category')}</th>
+                          <th className="px-3 py-1.5">{filterInput('contact_person')}</th>
+                          <th className="px-3 py-1.5">{filterInput('responsibility')}</th>
+                          <th className="px-3 py-1.5">
+                            <select
+                              value={taskFilters.status}
+                              onChange={(e) => setTaskFilters({ ...taskFilters, status: e.target.value })}
+                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white font-normal"
+                            >
+                              <option value="">All</option>
+                              <option value="pending">Pending</option>
+                              <option value="in_progress">In Progress</option>
+                              <option value="blocked">Blocked</option>
+                              <option value="complete">Complete</option>
+                            </select>
+                          </th>
+                          <th className="px-3 py-1.5">{filterInput('cost')}</th>
+                          <th className="px-3 py-1.5"></th>
+                          <th className="px-3 py-1.5">{filterInput('remarks')}</th>
+                          <th className="px-3 py-1.5"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayedTasks.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="px-3 py-8 text-center text-gray-500 text-sm">
+                              No tasks match these filters.
+                            </td>
+                          </tr>
+                        ) : displayedTasks.map(t => {
+                          const dd = t.due_date ? t.due_date.slice(0, 10) : '';
+                          const done = t.status === 'complete';
+                          const overdue = dd && !done && dd < today;
+                          return (
+                            <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${done ? 'bg-gray-50/60' : ''}`}>
+                              <td className={`px-3 py-2 ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{t.task}</td>
+                              <td className="px-3 py-2 text-gray-500 text-xs">{t.category}</td>
+                              <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
+                              <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
+                              <td className="px-3 py-2">
+                                <AppSelect
+                                  value={t.status}
+                                  onChange={(val) => inlineUpdateStatus(t.id, val as AdminTask['status'])}
+                                  className="text-xs cursor-pointer"
+                                  options={[
+                                    { value: 'pending', label: 'Pending' },
+                                    { value: 'in_progress', label: 'In Progress' },
+                                    { value: 'blocked', label: 'Blocked' },
+                                    { value: 'complete', label: 'Complete' },
+                                  ]}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="date"
+                                  value={dd}
+                                  onChange={(e) => inlineUpdateDueDate(t.id, e.target.value)}
+                                  className={`text-xs px-2 py-1 rounded border bg-white ${overdue ? 'border-danger-400 text-danger-700 font-semibold' : 'border-gray-300 text-gray-700'}`}
+                                  title={overdue ? 'Overdue' : 'Set deadline'}
+                                />
+                                {overdue && <span className="ml-1 text-[10px] font-semibold text-danger-600 uppercase">Overdue</span>}
+                              </td>
+                              <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
+                              <td className="px-3 py-2 text-right whitespace-nowrap">
+                                <button onClick={() => openEditTask(t)} className="text-primary-600 hover:underline text-xs mr-3">Edit</button>
+                                <button onClick={() => deleteTask(t.id)} className="text-danger-600 hover:underline text-xs">Delete</button>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {groups[cat].map(t => (
-                              <tr key={t.id} className="border-t border-gray-100 hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-900">{t.task}</td>
-                                <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
-                                <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
-                                <td className="px-3 py-2">
-                                  <AppSelect
-                                    value={t.status}
-                                    onChange={(val) => inlineUpdateStatus(t.id, val as AdminTask['status'])}
-                                    className="text-xs cursor-pointer"
-                                    options={[
-                                      { value: 'pending', label: 'Pending' },
-                                      { value: 'in_progress', label: 'In Progress' },
-                                      { value: 'blocked', label: 'Blocked' },
-                                      { value: 'complete', label: 'Complete' },
-                                    ]}
-                                  />
-                                </td>
-                                <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
-                                <td className="px-3 py-2">
-                                  {(() => {
-                                    const dd = t.due_date ? t.due_date.slice(0, 10) : '';
-                                    const overdue = dd && t.status !== 'complete' && dd < new Date().toISOString().slice(0, 10);
-                                    return (
-                                      <input
-                                        type="date"
-                                        value={dd}
-                                        onChange={(e) => inlineUpdateDueDate(t.id, e.target.value)}
-                                        className={`text-xs px-2 py-1 rounded border bg-white ${overdue ? 'border-danger-400 text-danger-700 font-semibold' : 'border-gray-300 text-gray-700'}`}
-                                        title={overdue ? 'Overdue' : 'Set deadline'}
-                                      />
-                                    );
-                                  })()}
-                                </td>
-                                <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
-                                <td className="px-3 py-2 text-right whitespace-nowrap">
-                                  <button onClick={() => openEditTask(t)} className="text-primary-600 hover:underline text-xs mr-3">Edit</button>
-                                  <button onClick={() => deleteTask(t.id)} className="text-danger-600 hover:underline text-xs">Delete</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               );
             })()}

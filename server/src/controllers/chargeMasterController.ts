@@ -7,6 +7,24 @@ interface AuthRequest extends Request {
   user?: { id: number; role: string; username: string };
 }
 
+// Paid invoices are final — block any line-item mutation on them. Returns true
+// if the request was rejected (caller should return immediately).
+const rejectIfInvoicePaid = async (invoiceId: number | string, res: Response): Promise<boolean> => {
+  const r = await pool.query(
+    'SELECT status, total_amount, amount_paid FROM invoices WHERE id = $1',
+    [invoiceId]
+  );
+  if (r.rows.length === 0) return false; // let the caller's own 404 handling deal with it
+  const inv = r.rows[0];
+  const fullyPaid = inv.status === 'paid'
+    || (Number(inv.amount_paid || 0) > 0 && Number(inv.amount_paid || 0) >= Number(inv.total_amount || 0));
+  if (fullyPaid) {
+    res.status(409).json({ error: 'This invoice is paid and can no longer be edited.' });
+    return true;
+  }
+  return false;
+};
+
 // Get all charges from charge master
 // Supports optional payer filtering: ?payer_type=insurance&payer_id=3
 export const getAllCharges = async (req: Request, res: Response): Promise<void> => {
@@ -64,6 +82,8 @@ export const addChargeToInvoice = async (req: Request, res: Response): Promise<v
       res.status(400).json({ error: 'Invoice ID is required' });
       return;
     }
+
+    if (await rejectIfInvoicePaid(invoice_id, res)) return;
 
     const qty = quantity || 1;
     let unitPrice: number;
@@ -179,6 +199,8 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
     const item = itemResult.rows[0];
     const invoiceId = item.invoice_id;
 
+    if (await rejectIfInvoicePaid(invoiceId, res)) return;
+
     // Delete the item
     await pool.query('DELETE FROM invoice_items WHERE id = $1', [id]);
 
@@ -245,6 +267,9 @@ export const updateInvoiceItem = async (req: Request, res: Response): Promise<vo
     }
 
     const existing = existingResult.rows[0];
+
+    if (await rejectIfInvoicePaid(existing.invoice_id, res)) return;
+
     const oldUnitPrice = parseFloat(existing.unit_price);
     const oldQty = existing.quantity;
     const oldDescription = existing.description;

@@ -1,6 +1,115 @@
 import { Request, Response } from 'express';
+import { PoolClient } from 'pg';
 import pool from '../database/db';
 import { auditService } from '../services/auditService';
+
+export class MergeError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export interface MergeOutcome {
+  moved: Record<string, number>;
+  dropped: Record<string, number>;
+  source: { id: number; patient_number: string; user_id: number | null };
+  target: { id: number; patient_number: string };
+  carecodeOriginStamped: string | null;
+}
+
+const isCarecode = (row: { source?: string; patient_number: string }): boolean =>
+  row.source === 'carecode' || String(row.patient_number).startsWith('CC-');
+
+/**
+ * Merge one patient record into another, INSIDE a transaction the caller has
+ * already opened (caller owns BEGIN/COMMIT/ROLLBACK). Re-points every table
+ * referencing patient_id, soft-archives the source, disables its login, records
+ * a patient_merges row, and — when a CareCode record is absorbed into a native
+ * survivor — stamps the survivor's carecode_origin_number so the patient card
+ * still shows the legacy provenance. Reversible via the audit trail.
+ *
+ * Shared by the super-admin HTTP handler and the bulk cleanup script so the
+ * destructive logic lives in exactly one place.
+ */
+export const performPatientMerge = async (
+  client: PoolClient,
+  sourcePatientId: number,
+  targetPatientId: number,
+  mergedById: number | null
+): Promise<MergeOutcome> => {
+  if (!sourcePatientId || !targetPatientId || sourcePatientId === targetPatientId) {
+    throw new MergeError(400, 'A distinct source and target patient are required');
+  }
+
+  const both = await client.query(
+    'SELECT id, patient_number, user_id, source, carecode_origin_number, merged_into FROM patients WHERE id = ANY($1)',
+    [[sourcePatientId, targetPatientId]]
+  );
+  if (both.rows.length !== 2) {
+    throw new MergeError(404, 'Patient not found');
+  }
+  const source = both.rows.find((r: any) => r.id === Number(sourcePatientId));
+  const target = both.rows.find((r: any) => r.id === Number(targetPatientId));
+  if (source.merged_into || target.merged_into) {
+    throw new MergeError(409, 'One of these records has already been merged');
+  }
+
+  // Re-point every table referencing patient_id (dynamic — future-proof).
+  const tables = (await client.query(
+    "SELECT table_name FROM information_schema.columns WHERE column_name = 'patient_id' AND table_schema = 'public'"
+  )).rows.map((r: any) => r.table_name);
+
+  const moved: Record<string, number> = {};
+  const dropped: Record<string, number> = {};
+  for (const t of tables) {
+    await client.query('SAVEPOINT sp');
+    try {
+      const r = await client.query(`UPDATE "${t}" SET patient_id = $1 WHERE patient_id = $2`, [targetPatientId, sourcePatientId]);
+      if (r.rowCount) moved[t] = r.rowCount;
+      await client.query('RELEASE SAVEPOINT sp');
+    } catch {
+      // A unique/constraint conflict means the target already has the canonical
+      // row — drop the source's duplicate rows for this table instead.
+      await client.query('ROLLBACK TO SAVEPOINT sp');
+      const d = await client.query(`DELETE FROM "${t}" WHERE patient_id = $1`, [sourcePatientId]);
+      if (d.rowCount) dropped[t] = d.rowCount;
+      await client.query('RELEASE SAVEPOINT sp');
+    }
+  }
+
+  // Preserve CareCode provenance: if a CareCode record is absorbed into a native
+  // survivor, stamp the survivor so its card still flags the migration.
+  let carecodeOriginStamped: string | null = null;
+  if (isCarecode(source) && !isCarecode(target) && !target.carecode_origin_number) {
+    await client.query('UPDATE patients SET carecode_origin_number = $1 WHERE id = $2', [source.patient_number, targetPatientId]);
+    carecodeOriginStamped = source.patient_number;
+  }
+
+  // Soft-archive the source patient and disable its (orphaned) login.
+  await client.query(
+    'UPDATE patients SET merged_into = $1, merged_at = CURRENT_TIMESTAMP, merged_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+    [targetPatientId, mergedById, sourcePatientId]
+  );
+  if (source.user_id) {
+    await client.query('UPDATE users SET is_active = false WHERE id = $1', [source.user_id]);
+  }
+
+  await client.query(
+    `INSERT INTO patient_merges (source_patient_id, target_patient_id, source_patient_number, target_patient_number, merged_by, details)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [sourcePatientId, targetPatientId, source.patient_number, target.patient_number, mergedById, JSON.stringify({ moved, dropped, carecodeOriginStamped })]
+  );
+
+  return {
+    moved,
+    dropped,
+    source: { id: source.id, patient_number: source.patient_number, user_id: source.user_id },
+    target: { id: target.id, patient_number: target.patient_number },
+    carecodeOriginStamped,
+  };
+};
 
 // Find duplicate patient pairs (same name + DOB) that aren't already merged.
 // Primary case: a CareCode-imported record colliding with a native record.
@@ -55,83 +164,28 @@ export const mergePatients = async (req: Request, res: Response): Promise<void> 
     return;
   }
   const { source_patient_id, target_patient_id } = req.body;
-  if (!source_patient_id || !target_patient_id || source_patient_id === target_patient_id) {
-    res.status(400).json({ error: 'A distinct source and target patient are required' });
-    return;
-  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-
-    const both = await client.query(
-      'SELECT id, patient_number, user_id, merged_into FROM patients WHERE id = ANY($1)',
-      [[source_patient_id, target_patient_id]]
-    );
-    if (both.rows.length !== 2) {
-      await client.query('ROLLBACK');
-      res.status(404).json({ error: 'Patient not found' });
-      return;
-    }
-    const source = both.rows.find((r: any) => r.id === Number(source_patient_id));
-    const target = both.rows.find((r: any) => r.id === Number(target_patient_id));
-    if (source.merged_into || target.merged_into) {
-      await client.query('ROLLBACK');
-      res.status(409).json({ error: 'One of these records has already been merged' });
-      return;
-    }
-
-    // Re-point every table referencing patient_id (dynamic — future-proof).
-    const tables = (await client.query(
-      "SELECT table_name FROM information_schema.columns WHERE column_name = 'patient_id' AND table_schema = 'public'"
-    )).rows.map((r: any) => r.table_name);
-
-    const moved: Record<string, number> = {};
-    const dropped: Record<string, number> = {};
-    for (const t of tables) {
-      await client.query('SAVEPOINT sp');
-      try {
-        const r = await client.query(`UPDATE "${t}" SET patient_id = $1 WHERE patient_id = $2`, [target_patient_id, source_patient_id]);
-        if (r.rowCount) moved[t] = r.rowCount;
-        await client.query('RELEASE SAVEPOINT sp');
-      } catch {
-        // A unique/constraint conflict means the target already has the canonical
-        // row — drop the source's duplicate rows for this table instead.
-        await client.query('ROLLBACK TO SAVEPOINT sp');
-        const d = await client.query(`DELETE FROM "${t}" WHERE patient_id = $1`, [source_patient_id]);
-        if (d.rowCount) dropped[t] = d.rowCount;
-        await client.query('RELEASE SAVEPOINT sp');
-      }
-    }
-
-    // Soft-archive the source patient and disable its (orphaned) login.
-    await client.query(
-      'UPDATE patients SET merged_into = $1, merged_at = CURRENT_TIMESTAMP, merged_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-      [target_patient_id, authReq.user.id, source_patient_id]
-    );
-    if (source.user_id) {
-      await client.query('UPDATE users SET is_active = false WHERE id = $1', [source.user_id]);
-    }
-
-    await client.query(
-      `INSERT INTO patient_merges (source_patient_id, target_patient_id, source_patient_number, target_patient_number, merged_by, details)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [source_patient_id, target_patient_id, source.patient_number, target.patient_number, authReq.user.id, JSON.stringify({ moved, dropped })]
-    );
-
+    const outcome = await performPatientMerge(client, Number(source_patient_id), Number(target_patient_id), authReq.user.id);
     await client.query('COMMIT');
 
     await auditService.log({
       userId: authReq.user.id,
       action: 'update',
       entityType: 'patient_merge',
-      entityId: Number(target_patient_id),
-      details: { source: source.patient_number, target: target.patient_number, moved, dropped },
+      entityId: outcome.target.id,
+      details: { source: outcome.source.patient_number, target: outcome.target.patient_number, moved: outcome.moved, dropped: outcome.dropped },
     });
 
-    res.json({ message: `Merged ${source.patient_number} into ${target.patient_number}`, moved, dropped });
+    res.json({ message: `Merged ${outcome.source.patient_number} into ${outcome.target.patient_number}`, moved: outcome.moved, dropped: outcome.dropped });
   } catch (error) {
     await client.query('ROLLBACK');
+    if (error instanceof MergeError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
     console.error('Merge patients error:', error);
     res.status(500).json({ error: 'Internal server error' });
   } finally {

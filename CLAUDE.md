@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # MedSys EMR - Claude Development Context
 
 > **Read this document before making any changes to the codebase.**
@@ -6,7 +10,10 @@
 
 | Item | Value |
 |------|-------|
-| **Stack** | React 19 + TypeScript + Node.js/Express + PostgreSQL |
+| **Repo layout** | npm-workspaces monorepo (root `package.json` → `client` + `server`). Root `npm run build` builds server then client. |
+| **Stack** | React 19 + MUI + TypeScript (client) / Node.js + Express + PostgreSQL (server) |
+| **Frontend libs** | MUI (`@mui/material`) for UI, `recharts` + `react-big-calendar` for charts/scheduling, `axios`, `date-fns` |
+| **Backend libs** | `zod` (validation), `pino` (logging), `@sentry/node` + `@sentry/react` (error monitoring), `pdfkit`/`exceljs`/`xlsx` (exports), `openai` |
 | **Deployment** | Vercel (serverless) + Neon PostgreSQL |
 | **Auth** | JWT tokens, bcrypt passwords, role-based access |
 | **Default Password** | Admin reset generates a random `TempXXXXXX` per call (returned in the response dialog). Hand the printed value to the user; they're forced to change on first login. |
@@ -20,18 +27,18 @@
 medsys/
 ├── client/                 # React frontend (Vite)
 │   └── src/
-│       ├── pages/          # 24 role-based dashboard pages
+│       ├── pages/          # ~36 role-based dashboard pages
 │       ├── components/     # 40+ reusable components
 │       ├── api/            # Axios API clients
 │       ├── context/        # Auth, Toast, Notification providers
 │       └── types/          # TypeScript interfaces
 ├── server/                 # Express.js backend
 │   └── src/
-│       ├── controllers/    # 33 controllers (business logic)
-│       ├── routes/         # API route definitions
-│       ├── services/       # QB, email, AI, billing services
+│       ├── controllers/    # ~50 controllers (business logic)
+│       ├── services/       # ~16 services (QB, email/SMS, AI, billing, pricing, audit)
+│       ├── routes/         # API route definitions (one monolithic index.ts)
 │       ├── middleware/     # auth.ts (JWT + RBAC)
-│       └── database/       # db.ts + 60+ migrations
+│       └── database/       # db.ts + 100+ tracked migrations
 └── docs/                   # Documentation
 ```
 
@@ -152,7 +159,7 @@ import { someFunction } from './module';   // For values
 
 ### Adding a New API Endpoint
 1. Create/update controller in `server/src/controllers/`
-2. Add route in `server/src/routes/index.ts` — **all ~340 routes live in this one monolithic file**, grouped by feature; add yours to the matching group
+2. Add route in `server/src/routes/index.ts` — **all routes live in this one monolithic ~1000-line file**, grouped by feature; add yours to the matching group
 3. Add auth middleware: `authenticateToken, authorizeRoles('role')`. For patient-facing data, also chain `enforcePatientOwnership` (in `middleware/auth.ts`) so `patient`-role users can only reach their own records — it 403s on mismatched path `:patient_id` and force-rewrites `?patient_id=` query params
 4. Add API function in `client/src/api/`
 
@@ -259,7 +266,7 @@ Before committing:
 - [ ] Check console for errors
 - [ ] Verify mobile responsiveness
 
-> **Tests:** Vitest is configured in both `client` and `server` (`npm run test` watch, `npm run test:run` single, `npm run test:coverage`) but **no test files exist yet**. There is no test suite to gate commits — manual browser testing is the norm. The client lint is `npm run lint` (ESLint); the server has no lint script.
+> **Tests:** Vitest is configured in both `client` and `server`. A small suite now exists (`server/src/tests/*.test.ts` — auth, controllers, pricing rules; `client/src/tests/*.test.ts`). Commands: `npm run test` (watch), `npm run test:run` (single run), `npm run test:coverage`. Run one file with `npm run test:run -- src/tests/authController.test.ts`. The suite is partial and does **not** gate commits — manual browser testing is still the norm. The client lint is `npm run lint` (ESLint); the server has no lint script.
 
 ---
 

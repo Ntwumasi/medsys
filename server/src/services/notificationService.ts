@@ -351,6 +351,10 @@ export const notificationService = {
         roles: ['imaging_tech', 'imaging'],
         title: 'New Imaging Walk-in Patient',
       },
+      nurse: {
+        roles: ['nurse'],
+        title: 'New Nurse Walk-in Patient',
+      },
     };
 
     const config = departmentConfig[department];
