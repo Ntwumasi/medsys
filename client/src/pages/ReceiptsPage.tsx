@@ -5,6 +5,7 @@ import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import AppSelect from '../components/ui/AppSelect';
 import { branding } from '../config/branding';
+import { stripLabSex } from '../utils/labDisplay';
 
 interface Receipt {
   id: number;
@@ -396,7 +397,7 @@ const ReceiptsPage: React.FC = () => {
                     <tbody>
                       {receiptItems.map((item, i) => (
                         <tr key={i} className="border-t">
-                          <td className="py-2 px-3 text-sm text-gray-700">{item.description}</td>
+                          <td className="py-2 px-3 text-sm text-gray-700">{stripLabSex(item.description)}</td>
                           <td className="py-2 px-3 text-sm text-center text-gray-600">{item.quantity}</td>
                           <td className="py-2 px-3 text-sm text-right text-gray-700">GHS {parseFloat(item.total_price).toFixed(2)}</td>
                         </tr>

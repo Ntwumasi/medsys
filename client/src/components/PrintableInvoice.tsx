@@ -5,6 +5,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { branding } from '../config/branding';
 import AppSelect from './ui/AppSelect';
+import { stripLabSex } from '../utils/labDisplay';
 import type { ApiError } from '../types';
 
 interface InvoiceItem {
@@ -842,7 +843,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
               <tbody>
                 {items.map((item, index) => (
                   <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-3 px-4 text-gray-700">{item.description}</td>
+                    <td className="py-3 px-4 text-gray-700">{stripLabSex(item.description)}</td>
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
                       {isEditable && editingItemId === item.id ? (

@@ -2109,13 +2109,13 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
 
         if (inventoryResult.rows.length > 0) {
           const inventoryItem = inventoryResult.rows[0];
-          // selling_price is per PACK; quantity is in individual units. Convert
-          // to a per-unit price so a 14-tablet course of a pack-priced med
-          // isn't billed at 14× the pack price. pack_size defaults to 1, so
-          // per-unit-priced items are unaffected.
-          const packSize = parseFloat(inventoryItem.pack_size) || 1;
-          const unitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
-          const totalPrice = Math.round((parseFloat(inventoryItem.selling_price) * quantity / packSize) * 100) / 100;
+          // selling_price is the price of the unit the item is stocked and sold
+          // in (pack / tablet / bottle — the same unit as `unit` and
+          // quantity_on_hand). Bill it straight: unit price = selling_price,
+          // line total = selling_price × quantity. Selling a partial pack ("per
+          // tab") is rare and handled as a manual price edit on the invoice.
+          const unitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
+          const totalPrice = Math.round(parseFloat(inventoryItem.selling_price) * quantity * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -3061,12 +3061,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
         ]
       );
 
-      // selling_price is per PACK; bill per individual unit so a multi-unit
-      // pack isn't charged at (pack price × unit count). pack_size defaults to
-      // 1, so per-unit-priced items are unaffected. Computed server-side from
-      // inventory rather than trusting the client's unit_price.
-      const packSize = parseFloat(inventoryItem.pack_size) || 1;
-      const perUnitPrice = Math.round((parseFloat(inventoryItem.selling_price) / packSize) * 100) / 100;
+      // selling_price is the price of the unit the item is stocked and sold in
+      // (pack / tablet / bottle); bill it as-is × quantity — the clinic sells
+      // by the pack it stocks. Per-tab sales are a rare manual invoice
+      // adjustment. Computed server-side from inventory rather than trusting
+      // the client's unit_price.
+      const perUnitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
       orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
