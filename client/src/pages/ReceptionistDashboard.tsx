@@ -1050,17 +1050,15 @@ const ReceptionistDashboard: React.FC = () => {
     };
 
     const finishCheckIn = async () => {
-      // Reset form
-      setSelectedPatient(null);
+      // Keep the patient + payer selected so reception can immediately check the
+      // same patient in for ANOTHER doctor the same day (multi-specialist) —
+      // those consults now merge onto one invoice — without re-searching the
+      // patient or re-picking the payer. Clear only the per-doctor fields so the
+      // next check-in is a deliberate new clinic/doctor choice.
       setChiefComplaint('');
-      setSearchTerm('');
-      setPatientHistory([]);
-      setOutstandingBalance(0);
       setEncounterType('walk-in');
       setSelectedClinic('');
       setSelectedDoctorId('');
-      setCheckinPayerType('self_pay');
-      setCheckinPayerId(null);
 
       // Reload data first to get the updated queue, then switch to queue view
       await loadData();

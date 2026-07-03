@@ -254,9 +254,15 @@ export const setSelfPayTier = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    // Find the invoice for this encounter (may not exist yet)
+    // Find the invoice for this encounter (may not exist yet) — resolve the
+    // shared invoice via the encounter's link.
     const invoiceRow = await client.query(
-      `SELECT id, subtotal, total_amount FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      `SELECT i.id, i.subtotal, i.total_amount FROM encounters e
+         JOIN invoices i ON i.id = COALESCE(
+           e.invoice_id,
+           (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+         )
+        WHERE e.id = $1 LIMIT 1`,
       [id]
     );
     let invoiceId: number | null = null;
@@ -366,9 +372,14 @@ export const setBillingPayer = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Find or skip invoice
+    // Find or skip invoice — resolve the shared invoice via the encounter's link.
     const invoiceRow = await pool.query(
-      `SELECT id FROM invoices WHERE encounter_id = $1 LIMIT 1`,
+      `SELECT i.id FROM encounters e
+         JOIN invoices i ON i.id = COALESCE(
+           e.invoice_id,
+           (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+         )
+        WHERE e.id = $1 LIMIT 1`,
       [id]
     );
     if (invoiceRow.rows.length === 0) {

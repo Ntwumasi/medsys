@@ -38,12 +38,19 @@ export const billingService = {
     try {
       await client.query('BEGIN');
 
-      // Get encounter and invoice details
+      // Get encounter and invoice details. Resolve the (possibly shared)
+      // invoice via encounters.invoice_id first, falling back to the legacy
+      // invoices.encounter_id — so a second same-day encounter bills onto the
+      // shared invoice instead of spawning a fragment. (This aliased invoice_id
+      // is selected last so it wins over e.* for the same column name.)
       const encounterResult = await client.query(
-        `SELECT e.*, p.id as patient_id, p.patient_number, i.id as invoice_id
+        `SELECT e.*, p.id as patient_id, p.patient_number,
+                COALESCE(
+                  e.invoice_id,
+                  (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)
+                ) as invoice_id
          FROM encounters e
          JOIN patients p ON e.patient_id = p.id
-         LEFT JOIN invoices i ON i.encounter_id = e.id
          WHERE e.id = $1`,
         [encounterId]
       );
@@ -68,6 +75,8 @@ export const billingService = {
           [encounter.patient_id, encounterId, invoiceNumber]
         );
         invoiceId = invoiceResult.rows[0].id;
+        // Link the encounter so later lookups resolve this invoice directly.
+        await client.query(`UPDATE encounters SET invoice_id = $1 WHERE id = $2`, [invoiceId, encounterId]);
       }
 
       // Get existing invoice items to avoid duplicates. Dedup on the SOURCE
@@ -232,6 +241,22 @@ export const billingService = {
           });
           billedReferences.add(refKey);
         }
+      }
+
+      // Don't append to a settled invoice. Once an invoice is fully paid it's
+      // final — the safety-net sync must not add lines to it (that's the
+      // "extra items auto-add to finalized invoices" report). Charges can still
+      // accrue while it's merely pending/partly-paid.
+      const paidCheck = await client.query(
+        'SELECT status, total_amount, amount_paid FROM invoices WHERE id = $1',
+        [invoiceId]
+      );
+      const pInv = paidCheck.rows[0];
+      const invoiceFullyPaid = !!pInv && (pInv.status === 'paid'
+        || (Number(pInv.amount_paid || 0) > 0 && Number(pInv.amount_paid || 0) >= Number(pInv.total_amount || 0)));
+      if (invoiceFullyPaid && newItems.length) {
+        console.warn(`syncEncounterInvoice: invoice ${invoiceId} is fully paid — skipping ${newItems.length} auto-billed line(s).`);
+        newItems.length = 0;
       }
 
       // Insert new items
