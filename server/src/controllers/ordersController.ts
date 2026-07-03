@@ -140,8 +140,8 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
             const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
             if (exists.rows.length === 0) {
               await pool.query(
-                'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category) VALUES ($1, NULL, $2, 1, $3, $3, $4)',
-                [invoiceId, desc, price, 'lab']
+                'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id) VALUES ($1, NULL, $2, 1, $3, $3, $4, $5, $6)',
+                [invoiceId, desc, price, 'lab', 'lab_order', order.id]
               );
               const itemsTotal = await pool.query('SELECT COALESCE(SUM(total_price), 0) as total FROM invoice_items WHERE invoice_id = $1', [invoiceId]);
               await pool.query('UPDATE invoices SET subtotal = $1, total_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [parseFloat(itemsTotal.rows[0].total), invoiceId]);
@@ -601,9 +601,9 @@ const runLabCompletionSideEffects = async (
 
       if (existingItem.rows.length === 0) {
         await pool.query(
-          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-           VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
-          [invoiceId, `Lab: ${chargeDescription}`, labPrice]
+          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+           VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+          [invoiceId, `Lab: ${chargeDescription}`, labPrice, orderId]
         );
         await pool.query(
           `UPDATE invoices
@@ -1280,17 +1280,28 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
       billingPrice = fallbackPrices[order.imaging_type] || 150.00;
     }
 
-    await pool.query(
-      `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-       VALUES ($1, $2, $3, 1, $4, $4, 'imaging')`,
-      [invoiceId, chargeMasterId, description, billingPrice]
+    // Guard: an imaging study is billed at order time AND again on completion,
+    // so dedup on the source order to avoid a duplicate line (this makes the
+    // "no-op if already billed" behaviour real).
+    const alreadyBilled = await pool.query(
+      `SELECT id FROM invoice_items
+        WHERE invoice_id = $1 AND reference_type = 'imaging_order' AND reference_id = $2
+        LIMIT 1`,
+      [invoiceId, order.id]
     );
-    await pool.query(
-      `UPDATE invoices
-       SET subtotal = subtotal + $2, total_amount = total_amount + $2, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [invoiceId, billingPrice]
-    );
+    if (alreadyBilled.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+         VALUES ($1, $2, $3, 1, $4, $4, 'imaging', 'imaging_order', $5)`,
+        [invoiceId, chargeMasterId, description, billingPrice, order.id]
+      );
+      await pool.query(
+        `UPDATE invoices
+         SET subtotal = subtotal + $2, total_amount = total_amount + $2, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [invoiceId, billingPrice]
+      );
+    }
   } catch (err) {
     console.error('Imaging billing failed (non-fatal):', err);
   }
@@ -2176,9 +2187,9 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage})`
             : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
           await client.query(
-            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-             VALUES ($1, $2, $3, $4, $5, 'medication')`,
-            [invoiceId, medDescription, quantity, unitPrice, totalPrice]
+            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6)`,
+            [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id)]
           );
 
           // Update invoice total
@@ -3111,9 +3122,9 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       const itemTotal = Math.round(unitPrice * quantity * 100) / 100;
 
       await client.query(
-        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, $2, $3, $4, $5, 'medication')`,
-        [invoiceId, `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''}`, quantity, unitPrice, itemTotal]
+        `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+         VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6)`,
+        [invoiceId, `${order.medication_name}${order.dosage ? ` (${order.dosage})` : ''}`, quantity, unitPrice, itemTotal, order.id]
       );
     }
 

@@ -1501,9 +1501,9 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
 
           await pool.query(
             `INSERT INTO invoice_items
-               (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-             VALUES ($1, NULL, $2, 1, $3, $3, 'lab')`,
-            [invoiceId, description, labPrice]
+               (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+            [invoiceId, description, labPrice, lo.id]
           );
           await pool.query(
             `UPDATE invoices

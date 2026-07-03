@@ -212,13 +212,23 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
       const resolved = await resolvePrice(charge.id, invoice.id, client);
       const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
 
-      // Add invoice item
-      await client.query(
-        `INSERT INTO invoice_items (
-          invoice_id, charge_master_id, description, quantity, unit_price, total_price
-        ) VALUES ($1, $2, $3, 1, $4, $4)`,
-        [invoice.id, charge.id, procedure.procedure_name, billingPrice]
+      // Add invoice item — but only once. Guard against a double-click / retry
+      // re-billing the same procedure (completeNurseProcedure had no dedup, so a
+      // second call inserted a duplicate line). Keyed on the source procedure.
+      const alreadyBilled = await client.query(
+        `SELECT id FROM invoice_items
+          WHERE invoice_id = $1 AND reference_type = 'nurse_procedure' AND reference_id = $2
+          LIMIT 1`,
+        [invoice.id, id]
       );
+      if (alreadyBilled.rows.length === 0) {
+        await client.query(
+          `INSERT INTO invoice_items (
+            invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id
+          ) VALUES ($1, $2, $3, 1, $4, $4, 'procedure', 'nurse_procedure', $5)`,
+          [invoice.id, charge.id, procedure.procedure_name, billingPrice, id]
+        );
+      }
 
       // Update invoice totals
       const itemsResult = await client.query(
