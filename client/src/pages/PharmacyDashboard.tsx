@@ -4461,20 +4461,6 @@ const PharmacyDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
-              <input
-                type="number"
-                step="1"
-                min="1"
-                value={newInventoryForm.pack_size}
-                onChange={(e) => setNewInventoryForm({ ...newInventoryForm, pack_size: parseFloat(e.target.value) || 1 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Selling price is per pack. Set this to the number of tablets/units in a pack (e.g. 14) so dispensing bills the correct per-unit price. Leave as 1 if sold individually.
-              </p>
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
               <input
                 type="date"
@@ -4585,19 +4571,6 @@ const PharmacyDashboard: React.FC = () => {
                   onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: e.target.value ? parseFloat(e.target.value) : 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Units per Pack</label>
-                <input
-                  type="number"
-                  step="1"
-                  min="1"
-                  value={editingInventory.pack_size || ''}
-                  onChange={(e) => setEditingInventory({ ...editingInventory, pack_size: e.target.value ? parseFloat(e.target.value) : 1 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="1"
-                />
-                <p className="text-xs text-gray-500 mt-1">Selling price is per pack; set the number of units per pack so dispensing bills the correct per-unit price.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Earliest Expiry Date</label>
