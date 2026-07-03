@@ -15,7 +15,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     let receptionist_id = authReq.user?.id || null;
 
-    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id } = req.body;
+    const { patient_id, chief_complaint, encounter_type, billing_amount, clinic, provider_id: requested_provider_id, force } = req.body;
 
     // Verify receptionist_id exists in users table (to avoid FK constraint violation)
     if (receptionist_id) {
@@ -27,8 +27,13 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     await client.query('BEGIN');
 
-    // Check if patient already has an active encounter today (prevent duplicate check-ins)
-    const activeEncounterCheck = await client.query(
+    // Check if patient already has an active encounter today (prevent duplicate
+    // check-ins). `force` lets reception intentionally start a SECOND same-day
+    // visit while the first is still open — e.g. the patient needs to see a
+    // different doctor and pays for everything at the end of the day.
+    const activeEncounterCheck = force
+      ? { rows: [] as any[] }
+      : await client.query(
       `SELECT e.id, e.encounter_number, e.checked_in_at,
               u.first_name || ' ' || u.last_name as patient_name
        FROM encounters e

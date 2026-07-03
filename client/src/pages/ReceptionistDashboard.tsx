@@ -1021,8 +1021,12 @@ const ReceptionistDashboard: React.FC = () => {
       variant: 'default',
     }))) return;
 
-    try {
-      setCheckingIn(true);
+    const patientName = `${selectedPatient.first_name} ${selectedPatient.last_name}`;
+
+    // Runs the actual check-in. `force` bypasses the "already checked in today"
+    // guard so reception can start a legitimate SECOND same-day visit (e.g. the
+    // patient needs to see a different doctor and pays at the end of the day).
+    const doCheckIn = async (force: boolean) => {
       // Update patient payer source before check-in (so invoice uses correct pricing)
       const payerSource: Record<string, unknown> = { payer_type: checkinPayerType, is_primary: true };
       if (checkinPayerType === 'corporate' && checkinPayerId) {
@@ -1041,11 +1045,11 @@ const ReceptionistDashboard: React.FC = () => {
         billing_amount: 0,
         clinic: selectedClinic || null,
         provider_id: selectedDoctorId ? Number(selectedDoctorId) : null,
+        ...(force ? { force: true } : {}),
       });
+    };
 
-      // Store patient name for success message
-      const patientName = `${selectedPatient.first_name} ${selectedPatient.last_name}`;
-
+    const finishCheckIn = async () => {
       // Reset form
       setSelectedPatient(null);
       setChiefComplaint('');
@@ -1058,14 +1062,16 @@ const ReceptionistDashboard: React.FC = () => {
       setCheckinPayerType('self_pay');
       setCheckinPayerId(null);
 
-      // Reload data first to get the updated queue
+      // Reload data first to get the updated queue, then switch to queue view
       await loadData();
-
-      // Then switch to queue view
       setActiveView('queue');
-
-      // Show success message
       showToast(`${patientName} checked in successfully!`, 'success');
+    };
+
+    try {
+      setCheckingIn(true);
+      await doCheckIn(false);
+      await finishCheckIn();
     } catch (error) {
       console.error('Error checking in patient:', error);
 
@@ -1074,16 +1080,41 @@ const ReceptionistDashboard: React.FC = () => {
       const existingEncounterId = apiError.response?.data?.existingEncounterId;
 
       if (existingEncounterId) {
-        // Patient already checked in — offer to go to their encounter in queue
-        const goToQueue = await confirmDialog({
+        // Patient already has an open visit today. Offer to start a second,
+        // separate visit anyway (different doctor / another service) — otherwise
+        // fall back to viewing the existing one in the queue.
+        const checkInAnyway = await confirmDialog({
           title: 'Patient Already Checked In',
-          message: errorMessage + '\n\nWould you like to view them in the queue?',
-          confirmLabel: 'View in Queue',
-          cancelLabel: 'Stay Here',
+          message:
+            errorMessage +
+            '\n\nStart a SECOND visit for them today anyway? This creates a separate encounter and its own bill — use it when they need to see a different doctor.',
+          confirmLabel: 'Check In Anyway',
+          cancelLabel: 'No',
+          variant: 'warning',
         });
-        if (goToQueue) {
-          setActiveView('queue');
-          setQueueSearchTerm(selectedPatient?.patient_number || '');
+        if (checkInAnyway) {
+          try {
+            await doCheckIn(true);
+            await finishCheckIn();
+          } catch (retryError) {
+            console.error('Error force-checking-in patient:', retryError);
+            const retryApiError = retryError as ApiError;
+            showToast(
+              retryApiError.response?.data?.message || retryApiError.response?.data?.error || 'Failed to check in patient',
+              'error'
+            );
+          }
+        } else {
+          const goToQueue = await confirmDialog({
+            title: 'View Existing Visit?',
+            message: 'Would you like to view their existing visit in the queue?',
+            confirmLabel: 'View in Queue',
+            cancelLabel: 'Stay Here',
+          });
+          if (goToQueue) {
+            setActiveView('queue');
+            setQueueSearchTerm(selectedPatient?.patient_number || '');
+          }
         }
       } else {
         showToast(errorMessage, 'error');
