@@ -237,7 +237,7 @@ const NurseDashboard: React.FC = () => {
   const [nurseWalkinSearchResults, setNurseWalkinSearchResults] = useState<any[]>([]);
   const [creatingNurseWalkin, setCreatingNurseWalkin] = useState(false);
   const [showNurseQuickRegister, setShowNurseQuickRegister] = useState(false);
-  const [nurseQuickRegForm, setNurseQuickRegForm] = useState({ first_name: '', last_name: '', phone: '', gender: '' });
+  const [nurseQuickRegForm, setNurseQuickRegForm] = useState({ first_name: '', last_name: '', phone: '', date_of_birth: '', gender: '' });
   const [addProcWalkin, setAddProcWalkin] = useState<any | null>(null);
   const [walkinProcedureId, setWalkinProcedureId] = useState<number | ''>('');
   const [walkinProcNotes, setWalkinProcNotes] = useState('');
@@ -587,6 +587,7 @@ const NurseDashboard: React.FC = () => {
         first_name: nurseQuickRegForm.first_name,
         last_name: nurseQuickRegForm.last_name,
         phone: nurseQuickRegForm.phone,
+        date_of_birth: nurseQuickRegForm.date_of_birth || undefined,
         gender: nurseQuickRegForm.gender || undefined,
       });
       const newPatient = patientRes.data.patient;
@@ -599,7 +600,7 @@ const NurseDashboard: React.FC = () => {
       showToast(`${nurseQuickRegForm.first_name} ${nurseQuickRegForm.last_name} registered and checked in`, 'success');
       setShowNewNurseWalkin(false);
       setShowNurseQuickRegister(false);
-      setNurseQuickRegForm({ first_name: '', last_name: '', phone: '', gender: '' });
+      setNurseQuickRegForm({ first_name: '', last_name: '', phone: '', date_of_birth: '', gender: '' });
       loadNurseWalkIns();
     } catch (err: any) {
       showToast(err?.response?.data?.error || err?.response?.data?.message || 'Failed to register patient', 'error');
@@ -1912,7 +1913,7 @@ const NurseDashboard: React.FC = () => {
                     <button
                       onClick={() => {
                         const parts = nurseWalkinSearch.trim().split(/\s+/);
-                        setNurseQuickRegForm({ first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '', phone: '', gender: '' });
+                        setNurseQuickRegForm({ first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '', phone: '', date_of_birth: '', gender: '' });
                         setShowNurseQuickRegister(true);
                       }}
                       className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
@@ -1930,6 +1931,12 @@ const NurseDashboard: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <input type="text" value={nurseQuickRegForm.phone} onChange={(e) => setNurseQuickRegForm({ ...nurseQuickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <div>
+                        <label className="block text-[11px] text-gray-500 mb-0.5">Date of Birth</label>
+                        <input type="date" value={nurseQuickRegForm.date_of_birth} onChange={(e) => setNurseQuickRegForm({ ...nurseQuickRegForm, date_of_birth: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <AppSelect
                         value={nurseQuickRegForm.gender}
                         onChange={(val) => setNurseQuickRegForm({ ...nurseQuickRegForm, gender: val })}

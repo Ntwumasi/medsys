@@ -7,8 +7,9 @@ interface AuthRequest extends Request {
   user?: { id: number; role: string; username: string };
 }
 
-// Paid invoices are final — block any line-item mutation on them. Returns true
-// if the request was rejected (caller should return immediately).
+// A PAID invoice is final — block any line-item mutation on it (receptionist
+// policy: once the bill is settled, prices/items/payer can't be changed).
+// Returns true if the request was rejected (caller should return immediately).
 const rejectIfInvoicePaid = async (invoiceId: number | string, res: Response): Promise<boolean> => {
   const r = await pool.query(
     'SELECT status, total_amount, amount_paid FROM invoices WHERE id = $1',

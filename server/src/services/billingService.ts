@@ -234,6 +234,22 @@ export const billingService = {
         }
       }
 
+      // Don't append to a settled invoice. Once an invoice is fully paid it's
+      // final — the safety-net sync must not add lines to it (that's the
+      // "extra items auto-add to finalized invoices" report). Charges can still
+      // accrue while it's merely pending/partly-paid.
+      const paidCheck = await client.query(
+        'SELECT status, total_amount, amount_paid FROM invoices WHERE id = $1',
+        [invoiceId]
+      );
+      const pInv = paidCheck.rows[0];
+      const invoiceFullyPaid = !!pInv && (pInv.status === 'paid'
+        || (Number(pInv.amount_paid || 0) > 0 && Number(pInv.amount_paid || 0) >= Number(pInv.total_amount || 0)));
+      if (invoiceFullyPaid && newItems.length) {
+        console.warn(`syncEncounterInvoice: invoice ${invoiceId} is fully paid — skipping ${newItems.length} auto-billed line(s).`);
+        newItems.length = 0;
+      }
+
       // Insert new items
       for (const item of newItems) {
         await client.query(
