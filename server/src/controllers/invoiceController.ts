@@ -292,7 +292,7 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
       invoiceResult = await client.query(
         `INSERT INTO invoices (
           patient_id, encounter_id, invoice_number, invoice_date,
-          subtotal, tax, total, status
+          subtotal, tax, total_amount, status
         ) VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6, 'pending')
         RETURNING *`,
         [patient_id, encounter_id, invoice_number, subtotal, tax, total]
@@ -306,7 +306,7 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
       // Insert invoice items
       for (const item of items) {
         await client.query(
-          `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total)
+          `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price)
            VALUES ($1, $2, $3, $4, $5)`,
           [invoice_id, item.description, item.quantity, item.unit_price, item.total]
         );
@@ -356,9 +356,11 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
 
     await client.query('BEGIN');
 
-    // Get current invoice state
+    // Get current invoice state — lock the row so two concurrent checkouts
+    // can't both read amount_paid=0 and each record the full payment (duplicate
+    // collection + ledger drift).
     const currentInvoice = await client.query(
-      'SELECT * FROM invoices WHERE id = $1',
+      'SELECT * FROM invoices WHERE id = $1 FOR UPDATE',
       [id]
     );
 
@@ -369,20 +371,43 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     }
 
     const invoice = currentInvoice.rows[0];
+    const total = parseFloat(invoice.total_amount || 0);
     const currentAmountPaid = parseFloat(invoice.amount_paid || 0);
-    const newAmountPaid = amount_paid ? parseFloat(amount_paid) : currentAmountPaid;
+
+    // Default: honor an explicit status change (e.g. cancel) when no payment.
+    let newAmountPaid = currentAmountPaid;
+    let derivedStatus = status ?? invoice.status;
+
+    if (amount_paid !== undefined && amount_paid !== null) {
+      newAmountPaid = parseFloat(amount_paid);
+      if (!Number.isFinite(newAmountPaid) || newAmountPaid < 0) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: 'Invalid payment amount.' });
+        return;
+      }
+      // Reject overpayment rather than writing a negative balance / phantom credit.
+      if (newAmountPaid > total) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: `Payment (GHS ${newAmountPaid.toFixed(2)}) exceeds the invoice total (GHS ${total.toFixed(2)}).` });
+        return;
+      }
+      // Derive status from the amounts — never trust the client's status on a
+      // payment (previously an invoice could be marked 'paid' while underpaid).
+      derivedStatus = newAmountPaid >= total && total > 0 ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+    }
+
     const paymentAmount = newAmountPaid - currentAmountPaid;
 
     // Update the invoice
     const result = await client.query(
       `UPDATE invoices
-       SET status = COALESCE($1, status),
-           amount_paid = COALESCE($2, amount_paid),
+       SET status = $1,
+           amount_paid = $2,
            notes = COALESCE($3, notes),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $4
        RETURNING *`,
-      [status, amount_paid, notes, id]
+      [derivedStatus, newAmountPaid, notes, id]
     );
 
     // If a payment is being made (amount_paid is increasing), create a payment record

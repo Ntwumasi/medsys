@@ -2113,8 +2113,14 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           // quantity_on_hand). Bill it straight: unit price = selling_price,
           // line total = selling_price × quantity. Selling a partial pack ("per
           // tab") is rare and handled as a manual price edit on the invoice.
-          const unitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
-          const totalPrice = Math.round(parseFloat(inventoryItem.selling_price) * quantity * 100) / 100;
+          const sellingPrice = parseFloat(inventoryItem.selling_price);
+          // Guard: a null/blank/zero selling price would make total_price NaN and
+          // silently corrupt the whole invoice total. Refuse rather than bill NaN.
+          if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+            throw new Error(`No valid selling price set for "${inventoryItem.medication_name || updatedOrder.medication_name}" (got: ${inventoryItem.selling_price}). Set a price in inventory before dispensing.`);
+          }
+          const unitPrice = Math.round(sellingPrice * 100) / 100;
+          const totalPrice = Math.round(sellingPrice * quantity * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -2217,7 +2223,23 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       } catch (invoiceError) {
         await client.query('ROLLBACK');
         console.error('Error processing dispense (invoice/inventory):', invoiceError);
-        // Don't fail the dispense if invoice/inventory update fails, but log it
+        // The status was flipped to 'dispensed' (committed) BEFORE this
+        // transaction; billing + stock deduction just rolled back. Previously
+        // this was swallowed and the handler returned success — silently
+        // leaving the patient un-charged and stock not deducted while the
+        // pharmacist saw "dispensed". Instead revert the order to 'ready' so it
+        // isn't falsely marked dispensed, and surface the error so the cause
+        // (e.g. a missing selling price) can be fixed and the dispense retried.
+        await pool.query(
+          `UPDATE pharmacy_orders
+             SET status = 'ready', dispensed_by = NULL, dispensed_date = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [id]
+        );
+        res.status(400).json({
+          error: `Could not complete dispensing: ${invoiceError instanceof Error ? invoiceError.message : 'billing/inventory update failed'}. The order was returned to "ready" — resolve the issue and dispense again.`,
+        });
+        return;
       } finally {
         client.release();
       }
@@ -3042,7 +3064,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       // by the pack it stocks. Per-tab sales are a rare manual invoice
       // adjustment. Computed server-side from inventory rather than trusting
       // the client's unit_price.
-      const perUnitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
+      const sellingPrice = parseFloat(inventoryItem.selling_price);
+      // Guard: refuse to bill a NaN/zero price (would corrupt the invoice total).
+      if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+        throw new Error(`No valid selling price set for "${inventoryItem.medication_name}" (got: ${inventoryItem.selling_price}). Set a price in inventory before dispensing.`);
+      }
+      const perUnitPrice = Math.round(sellingPrice * 100) / 100;
       orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
@@ -3141,7 +3168,9 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Dispense walk-in order error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Surface the reason (e.g. missing selling price) so the pharmacist can fix
+    // it, instead of a generic "Internal server error".
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to dispense walk-in order' });
   } finally {
     client.release();
   }
