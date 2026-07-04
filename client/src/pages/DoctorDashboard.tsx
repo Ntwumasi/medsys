@@ -880,7 +880,10 @@ const DoctorDashboard: React.FC = () => {
     if (selectedEncounter) {
       setCheckingInteractions(true);
 
-      // 1. Check allergy cross-reactivity first
+      // 1. Check allergy cross-reactivity first. If the check itself FAILS,
+      // don't silently skip it — force an explicit decision to prescribe without
+      // the safety screen (a check-service outage must not quietly bypass it).
+      let allergyCheckFailed = false;
       try {
         const allergyRes = await apiClient.post('/allergy-check', {
           patient_id: selectedEncounter.patient_id,
@@ -895,9 +898,23 @@ const DoctorDashboard: React.FC = () => {
         }
       } catch (error) {
         console.error('Error checking allergies:', error);
+        allergyCheckFailed = true;
+      }
+      if (allergyCheckFailed) {
+        setCheckingInteractions(false);
+        const proceed = await confirmDialog({
+          title: 'Allergy check unavailable',
+          message: `Could not verify allergies for "${currentPharmacyOrder.medication_name}" — the safety check failed to run. Prescribe WITHOUT an allergy check?`,
+          variant: 'danger',
+          confirmLabel: 'Prescribe anyway',
+          cancelLabel: 'Cancel',
+        });
+        if (!proceed) return;
+        setCheckingInteractions(true);
       }
 
-      // 2. Check for drug interactions
+      // 2. Check for drug interactions — same fail-safe.
+      let interactionCheckFailed = false;
       try {
         const response = await apiClient.post('/drug-interactions/check', {
           patientId: selectedEncounter.patient_id,
@@ -912,6 +929,18 @@ const DoctorDashboard: React.FC = () => {
         }
       } catch (error) {
         console.error('Error checking drug interactions:', error);
+        interactionCheckFailed = true;
+      }
+      if (interactionCheckFailed) {
+        setCheckingInteractions(false);
+        const proceed = await confirmDialog({
+          title: 'Interaction check unavailable',
+          message: `Could not verify drug interactions for "${currentPharmacyOrder.medication_name}" — the safety check failed to run. Prescribe WITHOUT an interaction check?`,
+          variant: 'danger',
+          confirmLabel: 'Prescribe anyway',
+          cancelLabel: 'Cancel',
+        });
+        if (!proceed) return;
       }
       setCheckingInteractions(false);
     }
