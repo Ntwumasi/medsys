@@ -7,6 +7,7 @@ import notificationService from '../services/notificationService';
 import { getNextMonOrThu } from './nurseFollowUpTaskController';
 import { resolveLabCatalogItem } from './ordersController';
 import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
+import { nextInvoiceNumber } from '../services/sequences';
 
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
@@ -125,10 +126,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       /^cc/i.test(String(sourceResult.rows[0]?.patient_number || ''));
     const isNewPatient = totalEncounters === 1 && !hasPreviousVisits && !isLegacyPatient;
 
-    // Create invoice with proper billing - use MAX(id) to avoid collisions
-    const maxIdResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
-    const nextInvoiceId = parseInt(maxIdResult.rows[0].next_id);
-    const invoiceNumber = `INV${String(nextInvoiceId).padStart(6, '0')}`;
+    // Invoice number comes from an atomic sequence (no COUNT/MAX+1 collisions).
+    const invoiceNumber = await nextInvoiceNumber(client);
 
     // Build all check-in charges upfront (registration + consultation together)
     const checkInCharges: Array<{ chargeMasterId: number | null; description: string; price: number }> = [];

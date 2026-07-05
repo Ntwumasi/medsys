@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 import { aiService } from '../services/aiService';
+import { nextInvoiceNumber, nextPatientNumber } from '../services/sequences';
 import drugInteractionService from '../services/drugInteractionService';
 
 const openaiApiKey = process.env.OPENAI_API_KEY;
@@ -122,9 +123,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     await client.query('BEGIN');
 
     // Generate patient number
-    const countResult = await client.query('SELECT COUNT(*) FROM patients');
-    const patientCount = parseInt(countResult.rows[0].count) + 1;
-    const patient_number = `P${String(patientCount).padStart(6, '0')}`;
+    const patient_number = await nextPatientNumber(client);
 
     // Create user account for patient (always - even if no email provided)
     // If no email provided, generate a dummy email to satisfy unique constraint
@@ -224,8 +223,7 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       const registrationFee = 75.00;
 
       // Generate invoice number
-      const maxInvResult = await client.query('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM invoices');
-      const invoiceNumber = `INV${String(maxInvResult.rows[0].next_id).padStart(6, '0')}`;
+      const invoiceNumber = await nextInvoiceNumber(client);
 
       const invoiceResult = await client.query(
         `INSERT INTO invoices (

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import { sendReceiptEmail, validateEmail } from '../services/emailService';
 import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
+import { nextInvoiceNumber } from '../services/sequences';
 
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
@@ -280,9 +281,7 @@ export const createOrGetInvoice = async (req: Request, res: Response): Promise<v
     } else {
       // Create new invoice
       // Generate invoice number
-      const countResult = await client.query('SELECT COUNT(*) FROM invoices');
-      const invoiceCount = parseInt(countResult.rows[0].count) + 1;
-      const invoice_number = `INV${String(invoiceCount).padStart(6, '0')}`;
+      const invoice_number = await nextInvoiceNumber(client);
 
       // Calculate totals from items
       const subtotal = items.reduce((sum: number, item: any) => sum + parseFloat(item.total), 0);
@@ -727,9 +726,7 @@ export const createSpecialInvoice = async (req: Request, res: Response): Promise
     await client.query('BEGIN');
 
     // Generate invoice number
-    const countResult = await client.query('SELECT COUNT(*) FROM invoices');
-    const invoiceCount = parseInt(countResult.rows[0].count) + 1;
-    const invoice_number = `SPL${String(invoiceCount).padStart(6, '0')}`;
+    const invoice_number = await nextInvoiceNumber(client, 'SPL');
 
     // Calculate totals
     const subtotal = items.reduce((sum: number, item: any) => sum + parseFloat(item.total), 0);

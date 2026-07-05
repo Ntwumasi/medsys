@@ -3118,7 +3118,7 @@ const PharmacyDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{item.reorder_level}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        GH₵ {parseFloat(item.selling_price.toString()).toFixed(2)}
+                        GH₵ {Number(item.selling_price || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{item.supplier_name || item.supplier || '-'}</td>
                       <td className="px-6 py-4 text-sm">
