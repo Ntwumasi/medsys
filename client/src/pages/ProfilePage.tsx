@@ -275,6 +275,8 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const previousPhoto = profilePhoto; // to revert the preview if the save fails
+
     // Show preview immediately
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -291,7 +293,10 @@ export default function ProfilePage() {
       });
       showToast('Profile photo updated', 'success');
     } catch {
-      showToast('Photo upload coming soon', 'info');
+      // Real failure — revert the local preview so the avatar doesn't look
+      // changed when it never actually saved, and report it honestly.
+      setProfilePhoto(previousPhoto);
+      showToast('Could not save the photo — please try again.', 'error');
     }
   };
 

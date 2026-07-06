@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { format } from 'date-fns';
+import { safeFormatDate } from '../utils/age';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -694,7 +694,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   <span className="font-semibold">Invoice #:</span> {invoice.invoice_number}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Date:</span> {format(new Date(invoice.invoice_date), 'MMM dd, yyyy')}
+                  <span className="font-semibold">Date:</span> {safeFormatDate(invoice.invoice_date, 'MMM dd, yyyy')}
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="font-semibold">Status:</span>{' '}

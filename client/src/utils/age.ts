@@ -1,3 +1,25 @@
+import { format } from 'date-fns';
+
+/**
+ * Safely format a date. Returns `fallback` instead of throwing
+ * "Invalid time value" — which white-screens the whole page — when the value is
+ * missing or invalid (common for CareCode imports with sentinel/blank dates).
+ */
+export function safeFormatDate(
+  value: string | Date | null | undefined,
+  fmt: string,
+  fallback = '—'
+): string {
+  if (!value) return fallback;
+  try {
+    const d = typeof value === 'string' ? new Date(value) : value;
+    if (isNaN(d.getTime())) return fallback;
+    return format(d, fmt);
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Calculate age from date of birth string.
  * Returns age in years, or "N/A" if DOB is invalid.

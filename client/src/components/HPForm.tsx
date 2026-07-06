@@ -19,8 +19,18 @@ const HPForm: React.FC<HPFormProps> = ({ encounter, existingData, onSave, onClos
     ? new Date().getFullYear() - new Date(encounter.date_of_birth).getFullYear()
     : '';
 
-  // Parse existing H&P data if it exists
-  const existingHPData = existingData?.content ? JSON.parse(existingData.content) : null;
+  // Parse existing H&P data if it exists. Guard against corrupt stored content —
+  // an unguarded JSON.parse throw here (during render) white-screens the whole
+  // form so the note can't be opened at all.
+  const existingHPData = (() => {
+    if (!existingData?.content) return null;
+    try {
+      return JSON.parse(existingData.content);
+    } catch (e) {
+      console.error('Failed to parse stored H&P content:', e);
+      return null;
+    }
+  })();
 
   const [formData, setFormData] = useState(existingHPData || {
     // HPI

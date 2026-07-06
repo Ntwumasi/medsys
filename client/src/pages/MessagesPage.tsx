@@ -4,10 +4,12 @@ import AppLayout from '../components/AppLayout';
 import { messagesAPI } from '../api/messages';
 import type { Conversation, MessageableUser, ThreadResponse } from '../api/messages';
 import { useAuth } from '../context/AuthContext';
+import { useNotification } from '../context/NotificationContext';
 import { format, formatDistanceToNow } from 'date-fns';
 
 const MessagesPage: React.FC = () => {
   const { user } = useAuth();
+  const { showToast } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -99,6 +101,7 @@ const MessagesPage: React.FC = () => {
       loadThread(selectedUserId);
     } catch (error) {
       console.error('Failed to send message:', error);
+      showToast('Message not sent — please try again.', 'error');
     } finally {
       setSending(false);
     }
@@ -123,6 +126,7 @@ const MessagesPage: React.FC = () => {
       loadInbox();
     } catch (error) {
       console.error('Failed to send message:', error);
+      showToast('Message not sent — please try again.', 'error');
     } finally {
       setSending(false);
     }
