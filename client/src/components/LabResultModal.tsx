@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { format } from 'date-fns';
+import { safeFormatDate } from '../utils/age';
 import apiClient from '../api/client';
 
 // Modal shown when a doctor clicks a completed lab from the Results Alerts
@@ -176,8 +176,8 @@ const LabResultModal: React.FC<LabResultModalProps> = ({ order, onClose, footer,
   };
 
   const priority = order.priority?.toLowerCase();
-  const orderedAt = order.ordered_date ? format(new Date(order.ordered_date), 'MMM d, yyyy h:mm a') : '—';
-  const resultedAt = order.result_date ? format(new Date(order.result_date), 'MMM d, yyyy h:mm a') : '—';
+  const orderedAt = order.ordered_date ? safeFormatDate(order.ordered_date, 'MMM d, yyyy h:mm a') : '—';
+  const resultedAt = order.result_date ? safeFormatDate(order.result_date, 'MMM d, yyyy h:mm a') : '—';
 
   return (
     <div

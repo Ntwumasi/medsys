@@ -1350,6 +1350,11 @@ const NurseDashboard: React.FC = () => {
 
     if (!hasValues) return;
 
+    // Don't auto-commit invalid / out-of-range values (e.g. a typo like temp
+    // 370 or HR 900). Mirrors handleSubmitVitals — wait until the flagged fields
+    // are corrected, otherwise a bad reading silently enters the record.
+    if (Object.keys(vitalErrors).length > 0) return;
+
     try {
       await apiClient.post('/workflow/nurse/vitals', {
         encounter_id: selectedPatient.id,
@@ -1360,6 +1365,9 @@ const NurseDashboard: React.FC = () => {
       loadAssignedPatients();
     } catch (error) {
       console.error('Error auto-saving vitals:', error);
+      // Surface the failure — previously this was silent, so a nurse could walk
+      // away believing vitals were recorded when the save had failed.
+      showToast('Vitals NOT saved — auto-save failed. Use the Save button to retry.', 'error');
     }
   };
 

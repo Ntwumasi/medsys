@@ -1,4 +1,5 @@
 import pool from '../database/db';
+import { nextInvoiceNumber } from './sequences';
 
 export interface BillingItem {
   description: string;
@@ -65,8 +66,7 @@ export const billingService = {
 
       // Create invoice if it doesn't exist
       if (!invoiceId) {
-        const invoiceCountResult = await client.query('SELECT COUNT(*) FROM invoices');
-        const invoiceNumber = `INV${String(parseInt(invoiceCountResult.rows[0].count) + 1).padStart(6, '0')}`;
+        const invoiceNumber = await nextInvoiceNumber(client);
 
         const invoiceResult = await client.query(
           `INSERT INTO invoices (patient_id, encounter_id, invoice_number, invoice_date, subtotal, total_amount, status)

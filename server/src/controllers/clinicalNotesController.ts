@@ -150,17 +150,14 @@ export const signClinicalNote = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const note = result.rows[0];
-
-    // Update billing when note is signed
-    await pool.query(
-      `UPDATE invoices
-       SET subtotal = subtotal + 150.00,
-           total = total + 150.00,
-           status = 'pending'
-       WHERE encounter_id = $1`,
-      [note.encounter_id]
-    );
+    // NOTE: previously this bumped invoices.subtotal/total by a flat GHS 150 on
+    // every sign. That was broken three ways — it wrote the dropped `total`
+    // column (so it threw a 500 on every sign), it added no invoice_item (so any
+    // SUM-based total recompute erased the bump), and it force-reset status to
+    // 'pending' (downgrading an already-paid invoice). The consultation fee is
+    // already billed at check-in, so signing a note should not add a charge.
+    // Removed. If a documentation fee is ever wanted, add it as a proper
+    // charge_master line item (with reference dedup) instead.
 
     res.json({
       message: 'Clinical note signed and locked successfully',

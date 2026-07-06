@@ -4,7 +4,7 @@ import { patientsAPI } from '../api/patients';
 import { patientPortalAPI } from '../api/patientPortal';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
-import { format } from 'date-fns';
+import { safeFormatDate } from '../utils/age';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
@@ -590,7 +590,7 @@ const PatientDetails: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-gray-500 text-sm w-24">DOB:</span>
-                  <span className="font-semibold text-gray-900">{format(new Date(patient.date_of_birth), 'MMM d, yyyy')}</span>
+                  <span className="font-semibold text-gray-900">{safeFormatDate(patient.date_of_birth, 'MMM d, yyyy')}</span>
                 </div>
               </div>
             </div>
@@ -897,7 +897,7 @@ const PatientDetails: React.FC = () => {
                         <div key={encounter.id} className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
                           <div className="flex justify-between items-start mb-2">
                             <p className="font-bold text-gray-900">
-                              {format(new Date(encounter.encounter_date), 'MMM d, yyyy')}
+                              {safeFormatDate(encounter.encounter_date, 'MMM d, yyyy')}
                             </p>
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
                               {encounter.encounter_type}
@@ -951,11 +951,11 @@ const PatientDetails: React.FC = () => {
                           )}
                           {medication.dispensed_date ? (
                             <p className="text-xs text-green-600 font-medium mt-2">
-                              Dispensed: {format(new Date(medication.dispensed_date), 'MMM d, yyyy')}
+                              Dispensed: {safeFormatDate(medication.dispensed_date, 'MMM d, yyyy')}
                             </p>
                           ) : medication.start_date ? (
                             <p className="text-xs text-emerald-600 font-medium mt-2">
-                              Ordered: {format(new Date(medication.start_date), 'MMM d, yyyy')}
+                              Ordered: {safeFormatDate(medication.start_date, 'MMM d, yyyy')}
                             </p>
                           ) : null}
                         </div>
@@ -992,7 +992,7 @@ const PatientDetails: React.FC = () => {
                               <svg className={`w-4 h-4 text-gray-400 transition-transform ${isVisitOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
-                              {format(new Date(encounter.encounter_date), 'EEEE, MMMM d, yyyy')}
+                              {safeFormatDate(encounter.encounter_date, 'EEEE, MMMM d, yyyy')}
                             </h3>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
                               <p className="text-sm text-gray-600">Provider: {encounter.provider_name}</p>
@@ -1306,11 +1306,11 @@ const PatientDetails: React.FC = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-sm text-gray-600">
-                              {medication.start_date ? format(new Date(medication.start_date), 'MMM d, yyyy') : '—'}
+                              {medication.start_date ? safeFormatDate(medication.start_date, 'MMM d, yyyy') : '—'}
                             </td>
                             <td className="px-6 py-4 text-sm">
                               {medication.dispensed_date ? (
-                                <span className="text-green-700 font-medium">{format(new Date(medication.dispensed_date), 'MMM d, yyyy')}</span>
+                                <span className="text-green-700 font-medium">{safeFormatDate(medication.dispensed_date, 'MMM d, yyyy')}</span>
                               ) : (
                                 <span className="text-gray-400">Not dispensed</span>
                               )}
@@ -1344,7 +1344,7 @@ const PatientDetails: React.FC = () => {
                         </svg>
                         <h3 className="font-bold text-blue-900">Home Medications (documented in notes)</h3>
                         <span className="ml-auto text-xs text-blue-600">
-                          Recorded {format(new Date(summary.documented_medications.encounter_date), 'MMM d, yyyy')}
+                          Recorded {safeFormatDate(summary.documented_medications.encounter_date, 'MMM d, yyyy')}
                         </span>
                       </div>
                       <p className="text-sm text-blue-900 whitespace-pre-wrap">{summary.documented_medications.content}</p>
@@ -1372,7 +1372,7 @@ const PatientDetails: React.FC = () => {
                       <div key={appointment.id} className="bg-gradient-to-br from-secondary-50 to-indigo-50 rounded-xl p-5 border border-secondary-200 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                           <div className="bg-secondary-600 text-white px-3 py-1 rounded-lg text-sm font-bold">
-                            {format(new Date(appointment.appointment_date), 'MMM d')}
+                            {safeFormatDate(appointment.appointment_date, 'MMM d')}
                           </div>
                           <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                             appointment.status === 'scheduled'
@@ -1383,7 +1383,7 @@ const PatientDetails: React.FC = () => {
                           </span>
                         </div>
                         <p className="font-semibold text-gray-900 mb-1">
-                          {format(new Date(appointment.appointment_date), 'h:mm a')}
+                          {safeFormatDate(appointment.appointment_date, 'h:mm a')}
                         </p>
                         <p className="text-sm text-gray-600 mb-2">
                           Duration: {appointment.duration_minutes} minutes
@@ -1465,7 +1465,7 @@ const PatientDetails: React.FC = () => {
                             <div>
                               <span className="text-gray-500">Ordered:</span>
                               <span className="ml-2 font-medium text-gray-900">
-                                {format(new Date(lab.ordered_at), 'MMM d, yyyy h:mm a')}
+                                {safeFormatDate(lab.ordered_at, 'MMM d, yyyy h:mm a')}
                               </span>
                             </div>
                             <div>
@@ -1480,7 +1480,7 @@ const PatientDetails: React.FC = () => {
                               <div>
                                 <span className="text-gray-500">Results:</span>
                                 <span className="ml-2 font-medium text-gray-900">
-                                  {format(new Date(lab.results_available_at), 'MMM d, yyyy h:mm a')}
+                                  {safeFormatDate(lab.results_available_at, 'MMM d, yyyy h:mm a')}
                                 </span>
                               </div>
                             )}
@@ -1628,14 +1628,14 @@ const PatientDetails: React.FC = () => {
                             <div>
                               <span className="text-gray-500">Ordered:</span>
                               <span className="ml-2 font-medium text-gray-900">
-                                {format(new Date(img.ordered_date), 'MMM d, yyyy h:mm a')}
+                                {safeFormatDate(img.ordered_date, 'MMM d, yyyy h:mm a')}
                               </span>
                             </div>
                             {img.completed_date && (
                               <div>
                                 <span className="text-gray-500">Completed:</span>
                                 <span className="ml-2 font-medium text-gray-900">
-                                  {format(new Date(img.completed_date), 'MMM d, yyyy h:mm a')}
+                                  {safeFormatDate(img.completed_date, 'MMM d, yyyy h:mm a')}
                                 </span>
                               </div>
                             )}

@@ -376,13 +376,15 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
 
     await client.query('BEGIN');
 
-    // Get current stock
+    // Get current stock — lock the row so two concurrent adjustments can't both
+    // read the same value and one silently overwrite the other (lost update).
     const current = await client.query(
-      `SELECT quantity_on_hand FROM pharmacy_inventory WHERE id = $1`,
+      `SELECT quantity_on_hand FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
     if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Inventory item not found' });
       return;
     }
@@ -390,6 +392,7 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
     const newQuantity = current.rows[0].quantity_on_hand + adjustment;
 
     if (newQuantity < 0) {
+      await client.query('ROLLBACK');
       res.status(400).json({ error: 'Insufficient stock for this adjustment' });
       return;
     }
@@ -455,13 +458,15 @@ export const dispenseMedication = async (req: Request, res: Response): Promise<v
 
     await client.query('BEGIN');
 
-    // Get current stock
+    // Get current stock — lock the row so concurrent dispenses of the same item
+    // can't both pass the check and over-draw stock (TOCTOU → negative stock).
     const current = await client.query(
-      `SELECT * FROM pharmacy_inventory WHERE id = $1`,
+      `SELECT * FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
       [inventory_id]
     );
 
     if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Medication not found in inventory' });
       return;
     }
@@ -469,6 +474,7 @@ export const dispenseMedication = async (req: Request, res: Response): Promise<v
     const item = current.rows[0];
 
     if (item.quantity_on_hand < quantity) {
+      await client.query('ROLLBACK');
       res.status(400).json({
         error: 'Insufficient stock',
         available: item.quantity_on_hand,
@@ -1123,12 +1129,15 @@ export const dispenseFromBatches = async (
   const dispensedBatches: any[] = [];
   let remainingQty = quantityToDispense;
 
-  // Get batches ordered by expiry date (FEFO)
+  // Get batches ordered by expiry date (FEFO). FOR UPDATE locks the batch rows
+  // so two concurrent dispenses can't both read the same batch and over-draw it
+  // (drive a batch negative). Concurrent callers serialize on these rows.
   const batches = await client.query(
     `SELECT id, batch_number, quantity, expiry_date
      FROM inventory_batches
      WHERE inventory_id = $1 AND is_active = true AND quantity > 0
-     ORDER BY expiry_date ASC NULLS LAST, received_date ASC`,
+     ORDER BY expiry_date ASC NULLS LAST, received_date ASC
+     FOR UPDATE`,
     [inventoryId]
   );
 

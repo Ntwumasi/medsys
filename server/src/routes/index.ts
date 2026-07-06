@@ -572,7 +572,7 @@ router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('do
 // Appointment routes (with input validation)
 router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);
 router.get('/appointments', authenticateToken, enforcePatientOwnership, getAppointments);
-router.get('/appointments/today', authenticateToken, getTodayAppointments);
+router.get('/appointments/today', authenticateToken, authorizeRoles(...STAFF_ROLES), getTodayAppointments);
 router.put('/appointments/:id', authenticateToken, validateBody(createAppointmentSchema.partial()), updateAppointment);
 router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
 router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
@@ -623,11 +623,11 @@ router.post('/workflow/doctor/complete-encounter', authenticateToken, authorizeR
 
 // Clinical notes routes (with input validation)
 router.post('/clinical-notes', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema), createClinicalNote);
-router.get('/clinical-notes/encounter/:encounter_id', authenticateToken, getEncounterNotes);
-router.get('/clinical-notes/patient/:patient_id', authenticateToken, getPatientNotes);
+router.get('/clinical-notes/encounter/:encounter_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getEncounterNotes);
+router.get('/clinical-notes/patient/:patient_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getPatientNotes);
 router.put('/clinical-notes/:id', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist'), validateBody(clinicalNoteSchema.partial()), updateClinicalNote);
 router.post('/clinical-notes/:id/sign', authenticateToken, authorizeRoles('doctor', 'admin'), signClinicalNote);
-router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, getSignedNotes);
+router.get('/clinical-notes/encounter/:encounter_id/signed', authenticateToken, authorizeRoles(...STAFF_ROLES), getSignedNotes);
 
 // Orders routes - Lab
 router.post('/orders/lab', authenticateToken, authorizeRoles('doctor', 'nurse', 'lab'), createLabOrder);
@@ -635,7 +635,7 @@ router.get('/orders/lab', authenticateToken, enforcePatientOwnership, getLabOrde
 // Pending-verification queue MUST be registered before the :id routes below,
 // otherwise Express interprets "pending-verification" as an :id parameter.
 router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
-router.put('/orders/lab/:id', authenticateToken, updateLabOrder);
+router.put('/orders/lab/:id', authenticateToken, authorizeRoles(...STAFF_ROLES), updateLabOrder);
 router.post('/orders/lab/:id/verify', authenticateToken, authorizeRoles('lab', 'admin'), verifyLabResult);
 router.post('/orders/lab/:id/reject', authenticateToken, authorizeRoles('lab', 'admin'), rejectLabResult);
 router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('lab', 'admin'), deleteLabResult);
@@ -644,11 +644,11 @@ router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
 // Orders routes - Imaging (nurses can create for verbal orders)
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse', 'imaging'), createImagingOrder);
 router.get('/orders/imaging', authenticateToken, enforcePatientOwnership, getImagingOrders);
-router.put('/orders/imaging/:id', authenticateToken, updateImagingOrder);
+router.put('/orders/imaging/:id', authenticateToken, authorizeRoles(...STAFF_ROLES), updateImagingOrder);
 
 // Imaging integration routes — frontend
-router.get('/imaging/studies/by-order/:order_id', authenticateToken, getStudiesByOrder);
-router.get('/imaging/studies/:id/viewer-url', authenticateToken, getViewerUrl);
+router.get('/imaging/studies/by-order/:order_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getStudiesByOrder);
+router.get('/imaging/studies/:id/viewer-url', authenticateToken, authorizeRoles(...STAFF_ROLES), getViewerUrl);
 
 // Imaging integration routes — bridge (X-Bridge-Key auth, no JWT)
 router.get('/imaging/integration/pending-worklist', authenticateBridge, getPendingWorklist);
@@ -664,7 +664,7 @@ router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('ph
 router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), processReturn);
 
 // Get all orders for an encounter
-router.get('/orders/encounter/:encounter_id', authenticateToken, getAllEncounterOrders);
+router.get('/orders/encounter/:encounter_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getAllEncounterOrders);
 
 // Get doctor alerts - recently completed results
 router.get('/orders/doctor-alerts', authenticateToken, authorizeRoles('doctor', 'admin'), getDoctorAlerts);
@@ -738,10 +738,10 @@ router.delete('/invoice-items/:id', authenticateToken, authorizeRoles('reception
 
 // Department Routing routes
 router.post('/department-routing', authenticateToken, authorizeRoles('nurse', 'doctor', 'receptionist', 'lab', 'pharmacist', 'pharmacy_tech'), routePatientToDepartment);
-router.get('/department-routing/:department/queue', authenticateToken, getDepartmentQueue);
-router.get('/department-routing/:department/walk-ins', authenticateToken, getDepartmentWalkIns);
-router.put('/department-routing/:id/status', authenticateToken, updateRoutingStatus);
-router.get('/department-routing/encounter/:encounter_id', authenticateToken, getPatientRoutingHistory);
+router.get('/department-routing/:department/queue', authenticateToken, authorizeRoles(...STAFF_ROLES), getDepartmentQueue);
+router.get('/department-routing/:department/walk-ins', authenticateToken, authorizeRoles(...STAFF_ROLES), getDepartmentWalkIns);
+router.put('/department-routing/:id/status', authenticateToken, authorizeRoles(...STAFF_ROLES), updateRoutingStatus);
+router.get('/department-routing/encounter/:encounter_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getPatientRoutingHistory);
 router.post('/department-routing/:id/cancel', authenticateToken, authorizeRoles('nurse', 'doctor'), cancelRouting);
 router.get('/pharmacy/walk-ins', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), getPharmacyWalkIns);
 router.post('/pharmacy/walk-in-dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseWalkInOrder);

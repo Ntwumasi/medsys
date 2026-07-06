@@ -138,24 +138,33 @@ const PatientRegistrationPage: React.FC = () => {
       const newPatient = patientRes.data.patient;
 
       let appointmentDateStr: string | undefined;
+      let appointmentFailed = false;
 
-      // 2. Optionally book appointment
+      // 2. Optionally book appointment. This runs in its OWN try/catch: the
+      // patient has already been created, so a booking failure must NOT bubble
+      // to the outer catch and look like "registration failed" — that leaves the
+      // form filled and staff re-submit, creating a DUPLICATE patient.
       if (showAppointment && appointmentDate) {
-        const dateTime = new Date(`${appointmentDate}T${appointmentTime}`);
-        await apiClient.post('/appointments', {
-          patient_id: newPatient.id,
-          patient_name: `${newPatient.first_name} ${newPatient.last_name}`,
-          provider_id: appointmentDoctor,
-          appointment_date: dateTime.toISOString(),
-          duration_minutes: appointmentDuration,
-          appointment_type: appointmentType,
-          reason: appointmentReason || appointmentClinic || 'New Patient',
-          notes: '',
-        });
-        appointmentDateStr = dateTime.toLocaleDateString('en-GB', {
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        });
+        try {
+          const dateTime = new Date(`${appointmentDate}T${appointmentTime}`);
+          await apiClient.post('/appointments', {
+            patient_id: newPatient.id,
+            patient_name: `${newPatient.first_name} ${newPatient.last_name}`,
+            provider_id: appointmentDoctor,
+            appointment_date: dateTime.toISOString(),
+            duration_minutes: appointmentDuration,
+            appointment_type: appointmentType,
+            reason: appointmentReason || appointmentClinic || 'New Patient',
+            notes: '',
+          });
+          appointmentDateStr = dateTime.toLocaleDateString('en-GB', {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+          });
+        } catch (apptErr) {
+          console.error('Appointment booking failed after patient was created:', apptErr);
+          appointmentFailed = true;
+        }
       }
 
       // Show success
@@ -180,7 +189,12 @@ const PatientRegistrationPage: React.FC = () => {
       setAppointmentDoctor(null); setAppointmentClinic(''); setAppointmentType('new');
       setAppointmentDuration(30); setAppointmentReason('');
 
-      showToast(`Patient ${newPatient.patient_number} registered successfully!`, 'success');
+      showToast(
+        appointmentFailed
+          ? `Patient ${newPatient.patient_number} registered, but the appointment could NOT be booked — please book it from the calendar.`
+          : `Patient ${newPatient.patient_number} registered successfully!`,
+        appointmentFailed ? 'warning' : 'success'
+      );
     } catch (error) {
       console.error('Error registering patient:', error);
       const apiError = error as ApiError;

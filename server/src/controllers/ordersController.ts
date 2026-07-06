@@ -578,6 +578,11 @@ const runLabCompletionSideEffects = async (
     const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
     const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
     const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
+    // On no catalog match the price is 0 — mark the line so it's VISIBLE on the
+    // invoice for reception to price manually, instead of a silent free lab.
+    const lineDescription = labItem.matchType === 'none'
+      ? `Lab: ${chargeDescription} [PRICE PENDING]`
+      : `Lab: ${chargeDescription}`;
 
     if (labItem.matchType === 'fuzzy') {
       console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
@@ -592,14 +597,14 @@ const runLabCompletionSideEffects = async (
       // twice under different spellings.
       const existingItem = await pool.query(
         `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-        [invoiceId, `Lab: ${chargeDescription}`]
+        [invoiceId, lineDescription]
       );
 
       if (existingItem.rows.length === 0) {
         await pool.query(
           `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
            VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
-          [invoiceId, `Lab: ${chargeDescription}`, labPrice, orderId]
+          [invoiceId, lineDescription, labPrice, orderId]
         );
         await pool.query(
           `UPDATE invoices
@@ -2113,8 +2118,14 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           // quantity_on_hand). Bill it straight: unit price = selling_price,
           // line total = selling_price × quantity. Selling a partial pack ("per
           // tab") is rare and handled as a manual price edit on the invoice.
-          const unitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
-          const totalPrice = Math.round(parseFloat(inventoryItem.selling_price) * quantity * 100) / 100;
+          const sellingPrice = parseFloat(inventoryItem.selling_price);
+          // Guard: a null/blank/zero selling price would make total_price NaN and
+          // silently corrupt the whole invoice total. Refuse rather than bill NaN.
+          if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+            throw new Error(`No valid selling price set for "${inventoryItem.medication_name || updatedOrder.medication_name}" (got: ${inventoryItem.selling_price}). Set a price in inventory before dispensing.`);
+          }
+          const unitPrice = Math.round(sellingPrice * 100) / 100;
+          const totalPrice = Math.round(sellingPrice * quantity * 100) / 100;
 
           // Use FEFO (First Expired, First Out) to dispense from batches
           const dispenseResult = await dispenseFromBatches(
@@ -2162,9 +2173,11 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id)]
           );
 
-          // Update invoice total
+          // Update invoice total. Recompute subtotal too — previously only
+          // total_amount was updated, leaving a stale subtotal on receipts/exports.
           await client.query(
             `UPDATE invoices SET
+              subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
               total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
               updated_at = CURRENT_TIMESTAMP
              WHERE id = $1`,
@@ -2217,7 +2230,23 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
       } catch (invoiceError) {
         await client.query('ROLLBACK');
         console.error('Error processing dispense (invoice/inventory):', invoiceError);
-        // Don't fail the dispense if invoice/inventory update fails, but log it
+        // The status was flipped to 'dispensed' (committed) BEFORE this
+        // transaction; billing + stock deduction just rolled back. Previously
+        // this was swallowed and the handler returned success — silently
+        // leaving the patient un-charged and stock not deducted while the
+        // pharmacist saw "dispensed". Instead revert the order to 'ready' so it
+        // isn't falsely marked dispensed, and surface the error so the cause
+        // (e.g. a missing selling price) can be fixed and the dispense retried.
+        await pool.query(
+          `UPDATE pharmacy_orders
+             SET status = 'ready', dispensed_by = NULL, dispensed_date = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [id]
+        );
+        res.status(400).json({
+          error: `Could not complete dispensing: ${invoiceError instanceof Error ? invoiceError.message : 'billing/inventory update failed'}. The order was returned to "ready" — resolve the issue and dispense again.`,
+        });
+        return;
       } finally {
         client.release();
       }
@@ -2334,11 +2363,16 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         ? `${order.substitute_medication} (${order.dosage})`
         : `${order.medication_name} (${order.dosage})`;
 
+      // Match the line by the SOURCE order first (reference_type/reference_id) —
+      // robust even if it was billed under a different description (substitute,
+      // charge_master name, safety-net) — and fall back to the description.
       const itemRes = await client.query(
         `SELECT id, quantity, unit_price FROM invoice_items
-          WHERE invoice_id = $1 AND category = 'medication' AND description = $2
-          ORDER BY id DESC LIMIT 1`,
-        [invoiceId, medDescription]
+          WHERE invoice_id = $1 AND category = 'medication'
+            AND ((reference_type = 'pharmacy_order' AND reference_id = $2) OR description = $3)
+          ORDER BY (reference_type = 'pharmacy_order' AND reference_id = $2) DESC, id DESC
+          LIMIT 1`,
+        [invoiceId, parseInt(id), medDescription]
       );
 
       if (itemRes.rows.length > 0) {
@@ -2372,6 +2406,35 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
          WHERE id = $1`,
         [invoiceId]
       );
+
+      // If the return dropped the total below what was already paid, the patient
+      // overpaid — record a refund and settle the invoice at the new total so
+      // the ledger stays consistent. Previously the return left status='paid'
+      // with amount_paid > total_amount and NO trace of money owed back.
+      const invAfter = await client.query(
+        `SELECT total_amount, amount_paid FROM invoices WHERE id = $1`,
+        [invoiceId]
+      );
+      const newTotal = parseFloat(invAfter.rows[0].total_amount || 0);
+      const paid = parseFloat(invAfter.rows[0].amount_paid || 0);
+      if (paid > newTotal) {
+        const refund = Math.round((paid - newTotal) * 100) / 100;
+        await client.query(
+          `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
+           VALUES ($1, CURRENT_DATE, $2, 'refund', $3, $4, CURRENT_TIMESTAMP)`,
+          [invoiceId, -refund, `Refund for returned medication (order #${id}): ${return_reason || 'no reason given'}`, userId]
+        );
+        await client.query(
+          `UPDATE invoices
+             SET amount_paid = $2,
+                 status = CASE WHEN total_amount > 0 AND $2 >= total_amount THEN 'paid'
+                               WHEN $2 > 0 THEN 'partial'
+                               ELSE 'pending' END,
+                 updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [invoiceId, newTotal]
+        );
+      }
     }
 
     await client.query('COMMIT');
@@ -3042,7 +3105,12 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
       // by the pack it stocks. Per-tab sales are a rare manual invoice
       // adjustment. Computed server-side from inventory rather than trusting
       // the client's unit_price.
-      const perUnitPrice = Math.round(parseFloat(inventoryItem.selling_price) * 100) / 100;
+      const sellingPrice = parseFloat(inventoryItem.selling_price);
+      // Guard: refuse to bill a NaN/zero price (would corrupt the invoice total).
+      if (!Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+        throw new Error(`No valid selling price set for "${inventoryItem.medication_name}" (got: ${inventoryItem.selling_price}). Set a price in inventory before dispensing.`);
+      }
+      const perUnitPrice = Math.round(sellingPrice * 100) / 100;
       orderResult.rows[0]._billUnitPrice = perUnitPrice;
       createdOrders.push(orderResult.rows[0]);
 
@@ -3141,7 +3209,9 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Dispense walk-in order error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Surface the reason (e.g. missing selling price) so the pharmacist can fix
+    // it, instead of a generic "Internal server error".
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to dispense walk-in order' });
   } finally {
     client.release();
   }

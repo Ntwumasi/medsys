@@ -1,4 +1,5 @@
 import pool from '../database/db';
+import { nextInvoiceNumber } from './sequences';
 
 /**
  * Resolve the (possibly shared) invoice for an encounter.
@@ -56,8 +57,7 @@ export async function getOrCreateEncounterInvoice(
 
   const enc = await db.query('SELECT patient_id FROM encounters WHERE id = $1', [encounterId]);
   const patientId = enc.rows[0]?.patient_id;
-  const cnt = await db.query('SELECT COALESCE(MAX(id), 0) + 1 AS n FROM invoices');
-  const invoiceNumber = `INV${String(parseInt(cnt.rows[0].n)).padStart(6, '0')}`;
+  const invoiceNumber = await nextInvoiceNumber(db);
   const ins = await db.query(
     `INSERT INTO invoices (patient_id, encounter_id, invoice_number, invoice_date, subtotal, tax, total_amount, status)
      VALUES ($1, $2, $3, CURRENT_DATE, 0, 0, 0, 'pending')

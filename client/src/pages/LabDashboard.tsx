@@ -532,20 +532,29 @@ const LabDashboard: React.FC = () => {
     }
   }, [startDate, endDate, priorityFilter]);
 
+  // Guards against a fetch race: clicking patient A then B could let A's slower
+  // response overwrite B's, showing the WRONG patient's allergies/DOB. Each call
+  // takes a token; if a newer call started, the older one drops its updates.
+  const activePanelReqRef = useRef(0);
   const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
+    const reqId = ++activePanelReqRef.current;
+    const isStale = () => activePanelReqRef.current !== reqId;
     try {
       // Fetch diagnoses and encounter details
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      if (isStale()) return;
       setPatientDiagnoses(encounterRes.data.diagnoses || []);
       setEncounterDetails(encounterRes.data.encounter || null);
 
       // Fetch allergies and DOB from patient record
       const patientRes = await apiClient.get(`/patients/${patientId}`);
+      if (isStale()) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
       setPatientDOB(patientRes.data.patient?.date_of_birth || null);
 
       // Fetch recent lab history for this patient
       const labHistoryRes = await apiClient.get(`/orders/lab?patient_id=${patientId}&limit=10`);
+      if (isStale()) return;
       setPatientLabHistory(labHistoryRes.data.lab_orders || []);
     } catch (error) {
       console.error('Error fetching patient details for panel:', error);

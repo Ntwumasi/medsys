@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { format } from 'date-fns';
+import { safeFormatDate } from '../utils/age';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -350,40 +350,47 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     const changeDue = paymentMethod === 'cash' ? Math.max(0, amountReceived - balanceDue) : 0;
     const isFullPayment = amountToApply >= balanceDue;
 
+    // 1. Record the payment — the money operation. If THIS fails, stop and report.
+    const newAmountPaid = Number(invoice.amount_paid || 0) + amountToApply;
+    const newStatus = newAmountPaid >= Number(invoice.total_amount) ? 'paid' : 'partial';
     try {
-      const newAmountPaid = Number(invoice.amount_paid || 0) + amountToApply;
-      const newStatus = newAmountPaid >= Number(invoice.total_amount) ? 'paid' : 'partial';
-
       await apiClient.put(`/invoices/${invoice.id}`, {
         status: newStatus,
         amount_paid: newAmountPaid,
         payment_method: paymentMethod,
       });
-
-      if (isFullPayment && encounterId) {
-        await apiClient.post('/workflow/release-room', {
-          encounter_id: encounterId,
-        });
-      }
-
-      // Show post-payment summary modal
-      setPaymentSummaryData({
-        amountReceived,
-        amountApplied: amountToApply,
-        changeDue,
-        remainingBalance: balanceDue - amountToApply,
-        paymentMethodUsed: paymentMethod,
-        isFullPayment,
-      });
-      setShowPaymentSummary(true);
     } catch (error) {
-      console.error('Error completing payment:', error);
+      console.error('Error recording payment:', error);
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.error || apiError.message || 'Unknown error occurred';
-      showToast(`Failed to complete payment: ${errorMessage}`, 'error');
-    } finally {
+      showToast(`Failed to record payment: ${errorMessage}`, 'error');
       setIsProcessing(false);
+      return;
     }
+
+    // 2. Payment is recorded. Releasing the room is a follow-up — a failure here
+    // must NOT read as "payment failed" (that made reception re-collect and
+    // double-charge). Report it separately as a non-fatal warning.
+    if (isFullPayment && encounterId) {
+      try {
+        await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+      } catch (releaseErr) {
+        console.error('Room release failed after payment was recorded:', releaseErr);
+        showToast('Payment recorded, but releasing the room failed — please check the queue.', 'warning');
+      }
+    }
+
+    // 3. Show post-payment summary modal
+    setPaymentSummaryData({
+      amountReceived,
+      amountApplied: amountToApply,
+      changeDue,
+      remainingBalance: balanceDue - amountToApply,
+      paymentMethodUsed: paymentMethod,
+      isFullPayment,
+    });
+    setShowPaymentSummary(true);
+    setIsProcessing(false);
   };
 
   const handleDeferPayment = async () => {
@@ -422,26 +429,31 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       return;
     }
 
+    // 1. Mark the invoice submitted/paid — the money operation.
     try {
-      // Update invoice status to paid (invoice submitted to payer for processing)
       await apiClient.put(`/invoices/${invoice.id}`, {
         status: 'paid',
       });
-
-      // Complete the encounter
-      await apiClient.post('/workflow/release-room', {
-        encounter_id: encounterId,
-      });
-
-      showToast('Invoice submitted to payer and encounter completed successfully!', 'success');
-      onClose();
-      if (onPaymentComplete) onPaymentComplete();
     } catch (error) {
       console.error('Error submitting to payer:', error);
       const apiError = error as ApiError;
       const errorMessage = apiError.response?.data?.error || apiError.message || 'Unknown error occurred';
       showToast(`Failed to submit to payer: ${errorMessage}`, 'error');
+      return;
     }
+
+    // 2. Complete the encounter — follow-up; a failure here must not read as
+    // "submit failed" and prompt a re-submit.
+    try {
+      await apiClient.post('/workflow/release-room', { encounter_id: encounterId });
+    } catch (releaseErr) {
+      console.error('Room release failed after submit-to-payer:', releaseErr);
+      showToast('Invoice submitted, but completing the encounter failed — please check the queue.', 'warning');
+    }
+
+    showToast('Invoice submitted to payer successfully!', 'success');
+    onClose();
+    if (onPaymentComplete) onPaymentComplete();
   };
 
   const formatPayerSource = (payer: PayerSource) => {
@@ -682,7 +694,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   <span className="font-semibold">Invoice #:</span> {invoice.invoice_number}
                 </p>
                 <p className="text-sm text-gray-600">
-                  <span className="font-semibold">Date:</span> {format(new Date(invoice.invoice_date), 'MMM dd, yyyy')}
+                  <span className="font-semibold">Date:</span> {safeFormatDate(invoice.invoice_date, 'MMM dd, yyyy')}
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="font-semibold">Status:</span>{' '}

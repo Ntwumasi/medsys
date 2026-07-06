@@ -270,8 +270,14 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
       // Delete existing payer sources for this patient
       await client.query('DELETE FROM patient_payer_sources WHERE patient_id = $1', [patient_id]);
 
-      // Insert new payer sources
-      for (const ps of payer_sources) {
+      // Insert new payer sources. Exactly ONE may be primary (the DB now
+      // enforces this) — previously each defaulted to is_primary=true, so a
+      // multi-payer patient got several primaries. Pick the first source that's
+      // explicitly flagged primary, else default to the first source.
+      const explicitPrimary = payer_sources.findIndex((ps: any) => ps.is_primary === true);
+      const primaryIndex = explicitPrimary >= 0 ? explicitPrimary : 0;
+      for (let i = 0; i < payer_sources.length; i++) {
+        const ps = payer_sources[i];
         await client.query(
           `INSERT INTO patient_payer_sources (patient_id, payer_type, corporate_client_id, insurance_provider_id, is_primary)
            VALUES ($1, $2, $3, $4, $5)`,
@@ -280,7 +286,7 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
             ps.payer_type,
             ps.payer_type === 'corporate' ? ps.corporate_client_id : null,
             ps.payer_type === 'insurance' ? ps.insurance_provider_id : null,
-            ps.is_primary ?? true,
+            i === primaryIndex,
           ]
         );
       }

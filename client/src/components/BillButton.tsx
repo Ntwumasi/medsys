@@ -53,10 +53,13 @@ const BillButton: React.FC<BillButtonProps> = ({
   const [saving, setSaving] = useState(false);
   const [sources, setSources] = useState<PayerSource[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Fetch the patient's payer sources whenever the patient changes.
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
     apiClient
       .get(`/payer-sources/patient/${patientId}`)
       .then((res) => {
@@ -65,10 +68,13 @@ const BillButton: React.FC<BillButtonProps> = ({
       })
       .catch(() => {
         if (cancelled) return;
-        setSources([]);
+        // A fetch FAILURE is not the same as "no payers on file" — don't show
+        // the false "receptionist must add a payer" message and block billing.
+        setLoadError(true);
+        setSources(null);
       });
     return () => { cancelled = true; };
-  }, [patientId]);
+  }, [patientId, reloadKey]);
 
   const close = () => { setOpen(false); setError(null); };
 
@@ -126,7 +132,7 @@ const BillButton: React.FC<BillButtonProps> = ({
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        disabled={saving || sources === null}
+        disabled={saving || (sources === null && !loadError)}
         className={`px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 border ${
           buttonColored
             ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
@@ -137,7 +143,7 @@ const BillButton: React.FC<BillButtonProps> = ({
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        {sources === null ? 'Loading…' : buttonLabel}
+        {sources === null ? (loadError ? 'Bill' : 'Loading…') : buttonLabel}
       </button>
 
       {open && (
@@ -150,7 +156,19 @@ const BillButton: React.FC<BillButtonProps> = ({
               </div>
             )}
 
-            {sources && sources.length === 0 && (
+            {loadError && (
+              <div className="px-3 py-4 text-sm text-gray-600 text-center">
+                Couldn't load payer info.
+                <button
+                  onClick={() => setReloadKey((k) => k + 1)}
+                  className="block mx-auto mt-2 text-xs font-medium text-primary-600 hover:text-primary-700 underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {!loadError && sources && sources.length === 0 && (
               <div className="px-3 py-4 text-sm text-gray-500 text-center">
                 No payer sources on file for this patient.
                 <div className="text-xs text-gray-400 mt-1">

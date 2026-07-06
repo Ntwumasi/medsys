@@ -1861,7 +1861,14 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  const dispenseMedication = async (orderId: number, medicationName?: string, patientId?: number) => {
+  // Returns 'stopped' when it opened an allergy modal or the user cancelled (a
+  // decision is pending) so batch "Dispense All" can stop instead of blasting
+  // past warnings; 'done' when the dispense was attempted.
+  const dispenseMedication = async (
+    orderId: number,
+    medicationName?: string,
+    patientId?: number
+  ): Promise<'done' | 'stopped'> => {
     // Check for allergy cross-reactivity via API
     if (medicationName && patientId) {
       try {
@@ -1874,15 +1881,33 @@ const PharmacyDashboard: React.FC = () => {
           setPharmacyAllergyWarnings(res.data.warnings);
           setPendingDispenseOrder({ id: orderId, name: medicationName });
           setShowPharmacyAllergyModal(true);
-          return; // Wait for user override
+          return 'stopped'; // Wait for user override
         }
       } catch (error) {
         console.error('Error checking allergies:', error);
-        // Continue if check fails
+        // The allergy check failed — don't silently dispense. Force a decision.
+        const proceed = await confirmDialog({
+          title: 'Allergy check unavailable',
+          message: `Could not verify allergies for "${medicationName}" — the safety check failed to run. Dispense WITHOUT an allergy check?`,
+          variant: 'danger',
+          confirmLabel: 'Dispense anyway',
+          cancelLabel: 'Cancel',
+        });
+        if (!proceed) return 'stopped';
       }
     }
 
     await executeDispense(orderId);
+    return 'done';
+  };
+
+  // Dispense a whole group SEQUENTIALLY so each allergy check/modal is handled
+  // one at a time (parallel forEach shared one modal state and dropped warnings).
+  const dispenseAllInGroup = async (orders: Array<{ id: number; medication_name?: string; patient_id?: number }>) => {
+    for (const o of orders) {
+      const result = await dispenseMedication(o.id, o.medication_name, o.patient_id);
+      if (result === 'stopped') break; // a warning/decision is pending — stop here
+    }
   };
 
   const executeDispense = async (orderId: number) => {
@@ -1894,9 +1919,11 @@ const PharmacyDashboard: React.FC = () => {
       showToast('Medication dispensed successfully', 'success');
       refreshActiveOrdersTab();
       fetchOrderStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error dispensing medication:', error);
-      showToast('Failed to dispense medication', 'error');
+      // Surface the server reason (e.g. "no valid selling price set") so the
+      // pharmacist knows why, instead of a generic failure.
+      showToast(error?.response?.data?.error || 'Failed to dispense medication', 'error');
     }
   };
 
@@ -2310,7 +2337,7 @@ const PharmacyDashboard: React.FC = () => {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  group.orders.forEach(o => dispenseMedication(o.id, o.medication_name, o.patient_id));
+                                  dispenseAllInGroup(group.orders);
                                 }}
                                 className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
                               >
@@ -3091,7 +3118,7 @@ const PharmacyDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{item.reorder_level}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                        GH₵ {parseFloat(item.selling_price.toString()).toFixed(2)}
+                        GH₵ {Number(item.selling_price || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{item.supplier_name || item.supplier || '-'}</td>
                       <td className="px-6 py-4 text-sm">

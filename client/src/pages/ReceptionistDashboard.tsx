@@ -1198,16 +1198,25 @@ const ReceptionistDashboard: React.FC = () => {
       });
       const newPatientData = patientResponse.data.patient;
 
-      // Immediately check in the new patient — use Preferred Clinic and PCP from the form above
+      // Immediately check in the new patient — in its OWN try/catch so a
+      // check-in failure doesn't bubble up and read as "registration failed",
+      // which would leave the form filled and lead staff to re-submit and create
+      // a DUPLICATE patient (the patient is already created at this point).
       const pcpNorm = newPatient.pcp_name?.replace(/^Dr\.?\s*/i, '').toLowerCase().trim();
       const matchedDoctor = pcpNorm ? doctors.find(d => `${d.first_name} ${d.last_name}`.toLowerCase() === pcpNorm) : null;
-      await apiClient.post('/workflow/check-in', {
-        patient_id: newPatientData.id,
-        encounter_type: newPatientEncounterType,
-        chief_complaint: newPatientChiefComplaint,
-        clinic: newPatient.preferred_clinic || null,
-        provider_id: matchedDoctor ? matchedDoctor.id : null,
-      });
+      let checkInFailed = false;
+      try {
+        await apiClient.post('/workflow/check-in', {
+          patient_id: newPatientData.id,
+          encounter_type: newPatientEncounterType,
+          chief_complaint: newPatientChiefComplaint,
+          clinic: newPatient.preferred_clinic || null,
+          provider_id: matchedDoctor ? matchedDoctor.id : null,
+        });
+      } catch (checkInErr) {
+        console.error('Check-in failed after patient was created:', checkInErr);
+        checkInFailed = true;
+      }
 
       // Reset form
       setNewPatient({
@@ -1239,7 +1248,12 @@ const ReceptionistDashboard: React.FC = () => {
 
       // Reload data and go to queue
       await loadData();
-      showToast(`Patient ${newPatientData.patient_number} registered and checked in!`, 'success');
+      showToast(
+        checkInFailed
+          ? `Patient ${newPatientData.patient_number} registered, but check-in failed — search for them to check in (do NOT re-register).`
+          : `Patient ${newPatientData.patient_number} registered and checked in!`,
+        checkInFailed ? 'warning' : 'success'
+      );
       setActiveView('queue');
     } catch (error) {
       console.error('Error creating new patient:', error);
