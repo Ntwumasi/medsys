@@ -97,41 +97,58 @@ describe('workflowController', () => {
         encounter_type: 'walk-in',
       };
 
-      // 1. SELECT users (receptionist exists)
+      // check-in issues these queries IN ORDER; each mock feeds the next call.
+      // nextInvoiceNumber() runs on this same mock client (query 9). resolvePrice()
+      // does NOT appear: its require() of priceResolutionService throws under the
+      // ESM test runtime and is swallowed by the loop's try/catch, so the charge
+      // is inserted at its cash price (this only affects the test — in the
+      // compiled build resolvePrice runs normally).
+      // 1. Verify receptionist exists
       mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }] } as any);
       // 2. BEGIN
       mockClient.query.mockResolvedValueOnce(undefined as any);
-      // 3. Active encounter check (none found)
+      // 3. Active-encounter-today check (none → not a duplicate)
       mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
-      // 4. Payer source check
+      // 4. Corporate payer-source check (none)
       mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
       // 5. INSERT encounter
       mockClient.query.mockResolvedValueOnce({ rows: [encounter] } as any);
       // 6. Encounter count (returning patient = 2)
       mockClient.query.mockResolvedValueOnce({ rows: [{ count: '2' }] } as any);
-      // 6b. Previous visit count (has previous visits)
+      // 7. Previous-visit count (has previous visits)
       mockClient.query.mockResolvedValueOnce({ rows: [{ count: '1' }] } as any);
-      // 7. MAX invoice id
-      mockClient.query.mockResolvedValueOnce({ rows: [{ next_id: '50' }] } as any);
-      // 8. Consultation charge_master lookup (CONS-GP fallback — no clinic passed)
+      // 8. Patient source/number (not a CareCode legacy import)
+      mockClient.query.mockResolvedValueOnce({ rows: [{ source: 'medsys', patient_number: 'PT001' }] } as any);
+      // 9. nextInvoiceNumber(): SELECT nextval('invoice_number_seq')
+      mockClient.query.mockResolvedValueOnce({ rows: [{ n: 50 }] } as any);
+      // 10. Consultation charge_master lookup (CONS-GP fallback — no clinic passed)
       mockClient.query.mockResolvedValueOnce({
         rows: [{ id: 10, price: '200.00', service_name: 'General Consultation' }],
       } as any);
-      // 9. INSERT invoice
-      mockClient.query.mockResolvedValueOnce({
-        rows: [{ id: 50, invoice_number: 'INV000050' }],
-      } as any);
-      // 10. INSERT invoice_item (consultation)
+      // 11. Open-invoice-today check (none → create a new invoice)
       mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
-      // 11. Patient info query
+      // 12. INSERT invoice
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{ id: 50, invoice_number: 'INV000050', status: 'pending' }],
+      } as any);
+      // 13. UPDATE encounters SET invoice_id
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 14. INSERT invoice_item (consultation; resolvePrice skipped in test — see note)
+      mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
+      // 15. UPDATE invoice subtotal/total
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 16. SELECT * canonical invoice record for the response
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{ id: 50, invoice_number: 'INV000050', status: 'pending' }],
+      } as any);
+      // 17. Patient info (name + number)
       mockClient.query.mockResolvedValueOnce({
         rows: [{ patient_name: 'John Doe', patient_number: 'PT001' }],
       } as any);
-      // 12. Conflict check for appointment
+      // (no provider assigned → appointment conflict check is skipped)
+      // 18. INSERT appointment (walk-in slot)
       mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
-      // 13. INSERT appointment
-      mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
-      // 14. COMMIT
+      // 19. COMMIT
       mockClient.query.mockResolvedValueOnce(undefined as any);
 
       const req = mockRequest(
