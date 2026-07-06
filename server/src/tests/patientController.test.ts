@@ -238,7 +238,9 @@ describe('Patient Controller', () => {
 
       vi.mocked(pool.query)
         .mockResolvedValueOnce({ rows: [mockPatient] } as any)
-        .mockResolvedValueOnce({ rows: mockAllergies } as any);
+        .mockResolvedValueOnce({ rows: mockAllergies } as any)
+        // Duplicate-patient check (runs when date_of_birth is present) — no dup.
+        .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({}, { id: '1' });
       const res = mockResponse();
