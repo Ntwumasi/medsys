@@ -41,11 +41,21 @@ export async function resolvePrice(
     return { unitPrice: cashPrice, isExcluded: false, priceSource: 'lab_uniform' };
   }
 
-  // Get the invoice's payer source
+  // Get the payer source. Prefer the invoice's explicitly-set payer_source_id,
+  // but FALL BACK to the patient's PRIMARY payer source when it's null — which
+  // it is at charge time (check-in / lab-order / dispense all price themselves
+  // before anyone calls setBillingPayer). Without this, insured/corporate
+  // patients were billed the cash rate and excluded services weren't excluded.
   const payerResult = await queryFn.query(
     `SELECT pps.payer_type, pps.insurance_provider_id, pps.corporate_client_id
      FROM invoices i
-     LEFT JOIN patient_payer_sources pps ON i.payer_source_id = pps.id
+     LEFT JOIN patient_payer_sources pps
+       ON pps.id = COALESCE(
+            i.payer_source_id,
+            (SELECT p2.id FROM patient_payer_sources p2
+              WHERE p2.patient_id = i.patient_id AND p2.is_primary = true
+              ORDER BY p2.id DESC LIMIT 1)
+          )
      WHERE i.id = $1`,
     [invoiceId]
   );

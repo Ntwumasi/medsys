@@ -1523,9 +1523,13 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
           const labItem = await resolveLabCatalogItem(lo.test_code, lo.test_name);
           const chargeDescription = labItem.match ? labItem.match.test_name : lo.test_name;
           const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
-          const description = `Lab: ${chargeDescription}`;
+          // Mark a no-match (price 0) line so reception sees it needs pricing
+          // rather than a silent free lab.
+          const description = labItem.matchType === 'none'
+            ? `Lab: ${chargeDescription} [PRICE PENDING]`
+            : `Lab: ${chargeDescription}`;
           if (!labItem.match) {
-            console.warn(`⚠️ Route-from-lab billing: no catalog match for "${lo.test_name}" (code ${lo.test_code}) — billed 0, review.`);
+            console.warn(`⚠️ Route-from-lab billing: no catalog match for "${lo.test_name}" (code ${lo.test_code}) — billed 0 [PRICE PENDING], review.`);
           }
 
           // Dedup by the canonical catalog name so the same test isn't billed twice.

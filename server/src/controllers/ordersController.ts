@@ -578,6 +578,11 @@ const runLabCompletionSideEffects = async (
     const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
     const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
     const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
+    // On no catalog match the price is 0 — mark the line so it's VISIBLE on the
+    // invoice for reception to price manually, instead of a silent free lab.
+    const lineDescription = labItem.matchType === 'none'
+      ? `Lab: ${chargeDescription} [PRICE PENDING]`
+      : `Lab: ${chargeDescription}`;
 
     if (labItem.matchType === 'fuzzy') {
       console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
@@ -592,14 +597,14 @@ const runLabCompletionSideEffects = async (
       // twice under different spellings.
       const existingItem = await pool.query(
         `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-        [invoiceId, `Lab: ${chargeDescription}`]
+        [invoiceId, lineDescription]
       );
 
       if (existingItem.rows.length === 0) {
         await pool.query(
           `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
            VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
-          [invoiceId, `Lab: ${chargeDescription}`, labPrice, orderId]
+          [invoiceId, lineDescription, labPrice, orderId]
         );
         await pool.query(
           `UPDATE invoices
@@ -2356,11 +2361,16 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         ? `${order.substitute_medication} (${order.dosage})`
         : `${order.medication_name} (${order.dosage})`;
 
+      // Match the line by the SOURCE order first (reference_type/reference_id) —
+      // robust even if it was billed under a different description (substitute,
+      // charge_master name, safety-net) — and fall back to the description.
       const itemRes = await client.query(
         `SELECT id, quantity, unit_price FROM invoice_items
-          WHERE invoice_id = $1 AND category = 'medication' AND description = $2
-          ORDER BY id DESC LIMIT 1`,
-        [invoiceId, medDescription]
+          WHERE invoice_id = $1 AND category = 'medication'
+            AND ((reference_type = 'pharmacy_order' AND reference_id = $2) OR description = $3)
+          ORDER BY (reference_type = 'pharmacy_order' AND reference_id = $2) DESC, id DESC
+          LIMIT 1`,
+        [invoiceId, parseInt(id), medDescription]
       );
 
       if (itemRes.rows.length > 0) {
@@ -2394,6 +2404,35 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
          WHERE id = $1`,
         [invoiceId]
       );
+
+      // If the return dropped the total below what was already paid, the patient
+      // overpaid — record a refund and settle the invoice at the new total so
+      // the ledger stays consistent. Previously the return left status='paid'
+      // with amount_paid > total_amount and NO trace of money owed back.
+      const invAfter = await client.query(
+        `SELECT total_amount, amount_paid FROM invoices WHERE id = $1`,
+        [invoiceId]
+      );
+      const newTotal = parseFloat(invAfter.rows[0].total_amount || 0);
+      const paid = parseFloat(invAfter.rows[0].amount_paid || 0);
+      if (paid > newTotal) {
+        const refund = Math.round((paid - newTotal) * 100) / 100;
+        await client.query(
+          `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
+           VALUES ($1, CURRENT_DATE, $2, 'refund', $3, $4, CURRENT_TIMESTAMP)`,
+          [invoiceId, -refund, `Refund for returned medication (order #${id}): ${return_reason || 'no reason given'}`, userId]
+        );
+        await client.query(
+          `UPDATE invoices
+             SET amount_paid = $2,
+                 status = CASE WHEN total_amount > 0 AND $2 >= total_amount THEN 'paid'
+                               WHEN $2 > 0 THEN 'partial'
+                               ELSE 'pending' END,
+                 updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [invoiceId, newTotal]
+        );
+      }
     }
 
     await client.query('COMMIT');
