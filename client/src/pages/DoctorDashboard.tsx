@@ -949,7 +949,7 @@ const DoctorDashboard: React.FC = () => {
     addMedicationToList();
   };
 
-  const addMedicationToList = async () => {
+  const addMedicationToList = async (overrideReason?: string) => {
     const nameLC = currentPharmacyOrder.medication_name.trim().toLowerCase();
     const inPending = pendingPharmacyOrders.some(o => o.medication_name.trim().toLowerCase() === nameLC);
     const inSubmitted = encounterPharmacyOrders.some(o => (o as any).medication_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
@@ -963,7 +963,12 @@ const DoctorDashboard: React.FC = () => {
       });
       if (!proceed) return;
     }
-    setPendingPharmacyOrders([...pendingPharmacyOrders, currentPharmacyOrder]);
+    // Persist the clinical justification when a safety warning was overridden —
+    // previously the reason was only toasted and never saved with the order.
+    const orderToAdd = overrideReason
+      ? { ...currentPharmacyOrder, notes: [currentPharmacyOrder.notes, `Safety override: ${overrideReason}`].filter(Boolean).join(' | ') }
+      : currentPharmacyOrder;
+    setPendingPharmacyOrders([...pendingPharmacyOrders, orderToAdd]);
     setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
     setDrugInteractions([]);
     setShowInteractionModal(false);
@@ -3541,7 +3546,7 @@ const DoctorDashboard: React.FC = () => {
           showToast(`Allergy override documented: ${reason}`, 'warning');
           setShowAllergyWarning(false);
           setAllergyWarnings([]);
-          addMedicationToList();
+          addMedicationToList(reason);
         }}
         onCancel={() => {
           setShowAllergyWarning(false);

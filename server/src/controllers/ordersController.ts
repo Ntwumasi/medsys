@@ -2173,9 +2173,11 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id)]
           );
 
-          // Update invoice total
+          // Update invoice total. Recompute subtotal too — previously only
+          // total_amount was updated, leaving a stale subtotal on receipts/exports.
           await client.query(
             `UPDATE invoices SET
+              subtotal = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
               total_amount = (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1),
               updated_at = CURRENT_TIMESTAMP
              WHERE id = $1`,
