@@ -241,18 +241,26 @@ const ImagingDashboard: React.FC = () => {
     }
   };
 
+  // Guards against a fetch race (clicking A then B could let A's slower response
+  // overwrite B's allergies/contrast-allergy — showing the WRONG patient).
+  const activePanelReqRef = useRef(0);
   const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
+    const reqId = ++activePanelReqRef.current;
+    const isStale = () => activePanelReqRef.current !== reqId;
     try {
       // Fetch diagnoses from encounter
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      if (isStale()) return;
       setPatientDiagnoses(encounterRes.data.diagnoses || []);
 
       // Fetch allergies from patient record
       const patientRes = await apiClient.get(`/patients/${patientId}`);
+      if (isStale()) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
 
       // Fetch recent imaging history for this patient
       const imagingHistoryRes = await apiClient.get(`/orders/imaging?patient_id=${patientId}&limit=10`);
+      if (isStale()) return;
       setPatientImagingHistory(imagingHistoryRes.data.imaging_orders || []);
     } catch (error) {
       console.error('Error fetching patient details for panel:', error);
@@ -265,8 +273,10 @@ const ImagingDashboard: React.FC = () => {
         status: status,
       });
       fetchWalkIns();
+      showToast('Status updated', 'success');
     } catch (error) {
       console.error('Error updating status:', error);
+      showToast('Failed to update status', 'error');
     }
   };
 
@@ -275,8 +285,10 @@ const ImagingDashboard: React.FC = () => {
       await apiClient.put(`/orders/imaging/${orderId}`, { status });
       fetchImagingOrders();
       // If completed, may auto-route patient back to nurse
+      showToast(status === 'completed' ? 'Study completed' : status === 'in_progress' ? 'Study started' : 'Study updated', 'success');
     } catch (error) {
       console.error('Error updating order status:', error);
+      showToast('Failed to update the study — please try again', 'error');
     }
   };
 
