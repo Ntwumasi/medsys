@@ -43,7 +43,10 @@ const parseLoginGeo = (raw: unknown): LoginGeo | null => {
 // Security constants
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MINUTES = 15;
-const PASSWORD_EXPIRY_DAYS = 90;
+// NOTE: Time-based password expiry (formerly 90 days) was removed. It forced a
+// whole cohort of staff through a change-password flow on the same day and,
+// combined with the reuse-history check, trapped users in the forced-change
+// modal. Admin-initiated resets (must_change_password) still force a change.
 
 const getJwtSecret = (): string => {
   const secret = process.env.JWT_SECRET;
@@ -345,13 +348,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       await logBreakglassAccess(user.id, 'login', null, null, { username: user.username }, req);
     }
 
-    // Check if password has expired
-    let passwordExpired = false;
-    if (user.password_changed_at) {
-      const daysSinceChange = Math.floor((Date.now() - new Date(user.password_changed_at).getTime()) / (1000 * 60 * 60 * 24));
-      passwordExpired = daysSinceChange > PASSWORD_EXPIRY_DAYS;
-    }
-
     // Generate JWT token
     const secret = getJwtSecret();
     const token = jwt.sign(
@@ -360,8 +356,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '24h' }
     );
 
-    // Check if user must change password
-    const mustChangePassword = user.must_change_password || passwordExpired;
+    // Check if user must change password (admin-initiated resets only)
+    const mustChangePassword = Boolean(user.must_change_password);
 
     // Set HttpOnly cookie for secure token storage
     res.cookie('auth_token', token, {
@@ -388,7 +384,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
       token, // Still include for backward compatibility with frontend
       must_change_password: mustChangePassword,
-      password_expired: passwordExpired,
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -646,18 +641,8 @@ export const getCurrentUser = async (req: Request, res: Response): Promise<void>
 
     const user = result.rows[0];
 
-    // Check if password has expired
-    let passwordExpired = false;
-    if (user.password_changed_at) {
-      const daysSinceChange = Math.floor((Date.now() - new Date(user.password_changed_at).getTime()) / (1000 * 60 * 60 * 24));
-      passwordExpired = daysSinceChange > PASSWORD_EXPIRY_DAYS;
-    }
-
     res.json({
-      user: {
-        ...user,
-        password_expired: passwordExpired,
-      }
+      user,
     });
   } catch (error) {
     console.error('Get current user error:', error);

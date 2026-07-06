@@ -36,7 +36,6 @@ export interface LoginResponse {
   };
   token: string;
   must_change_password?: boolean;
-  password_expired?: boolean;
 }
 
 export interface ChangePasswordData {

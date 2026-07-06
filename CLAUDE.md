@@ -95,7 +95,7 @@ medsys/
 - 8+ characters
 - 1 uppercase, 1 lowercase, 1 number, 1 special character
 - Cannot reuse last 5 passwords
-- Expires after 90 days
+- No time-based expiry (removed — it forced whole cohorts through a change-password flow at once). A change is only forced when an admin resets a password (`must_change_password`).
 
 ---
 

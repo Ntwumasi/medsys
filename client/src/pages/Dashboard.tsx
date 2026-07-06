@@ -583,6 +583,11 @@ const Dashboard: React.FC = () => {
   const [staffPage, setStaffPage] = useState(1);
   const staffItemsPerPage = 10;
   const [selectedStaff, setSelectedStaff] = useState<Set<number>>(new Set());
+  // Temporary-password credentials shown after a reset. Kept in a persistent
+  // modal (not a toast) so the admin can actually read/copy and hand them over.
+  const [resetPwResult, setResetPwResult] = useState<
+    { name: string; username: string; temporary_password: string }[] | null
+  >(null);
 
   // Past Patients state
   const [pastPatients, setPastPatients] = useState<PastPatientEncounter[]>([]);
@@ -879,8 +884,16 @@ const Dashboard: React.FC = () => {
 
     try {
       const response = await apiClient.post(`/users/${member.id}/reset-password`);
-      const tempPwd = response.data?.credentials?.temporary_password || '(check with admin)';
-      showToast(`Password reset for ${member.first_name} ${member.last_name}. Temporary password: ${tempPwd}`, 'success');
+      const creds = response.data?.credentials;
+      if (creds?.temporary_password) {
+        setResetPwResult([{
+          name: `${member.first_name} ${member.last_name}`,
+          username: creds.username || member.username,
+          temporary_password: creds.temporary_password,
+        }]);
+      } else {
+        showToast('Password was reset, but the temporary password was not returned. Please reset again.', 'warning');
+      }
     } catch (err) {
       const error = err as ApiError;
       const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to reset password';
@@ -988,23 +1001,33 @@ const Dashboard: React.FC = () => {
     if (selectedStaff.size === 0) return;
 
     const count = selectedStaff.size;
-    if (!(await confirmDialog({ title: 'Reset passwords?', message: `Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? Each will get a unique temporary password. You will need to reset them individually to see each password.`, variant: 'warning', confirmLabel: 'Reset' }))) {
+    if (!(await confirmDialog({ title: 'Reset passwords?', message: `Reset passwords for ${count} selected staff member${count > 1 ? 's' : ''}? Each gets a unique temporary password, which will be shown so you can hand them out.`, variant: 'warning', confirmLabel: 'Reset' }))) {
       return;
     }
 
     try {
-      const promises = Array.from(selectedStaff).map(id =>
-        apiClient.post(`/users/${id}/reset-password`)
+      const selectedIds = Array.from(selectedStaff);
+      const results = await Promise.all(
+        selectedIds.map(id => apiClient.post(`/users/${id}/reset-password`))
       );
-      const results = await Promise.all(promises);
-      const passwords = results.map(r => {
-        const creds = r.data?.credentials;
-        return creds ? `${creds.username}: ${creds.temporary_password}` : null;
-      }).filter(Boolean);
-      if (passwords.length > 0) {
-        alert(`Temporary passwords:\n\n${passwords.join('\n')}\n\nAll users must change their password on next login.`);
+      const creds = results
+        .map((r, i) => {
+          const c = r.data?.credentials;
+          if (!c?.temporary_password) return null;
+          const member = staff.find(s => s.id === selectedIds[i]);
+          return {
+            name: member ? `${member.first_name} ${member.last_name}` : (c.username || 'Staff'),
+            username: c.username || member?.username || '',
+            temporary_password: c.temporary_password,
+          };
+        })
+        .filter((c): c is { name: string; username: string; temporary_password: string } => c !== null);
+      if (creds.length > 0) {
+        setResetPwResult(creds);
       }
-      showToast(`Passwords reset for ${count} staff member${count > 1 ? 's' : ''}`, 'success');
+      if (creds.length < count) {
+        showToast(`${count - creds.length} password(s) reset but not returned — reset those individually.`, 'warning');
+      }
       setSelectedStaff(new Set());
     } catch (err) {
       showToast('Failed to reset some passwords', 'error');
@@ -4338,6 +4361,73 @@ const Dashboard: React.FC = () => {
           payerSources={invoicePayerSources}
           onClose={() => setShowInvoice(false)}
         />
+      )}
+
+      {/* Reset-password result modal — persistent (not a toast) so the admin can
+          read/copy the temporary password(s) and hand them to staff. */}
+      {resetPwResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">
+                {resetPwResult.length > 1 ? 'Passwords Reset' : 'Password Reset'}
+              </h3>
+              <button
+                onClick={() => setResetPwResult(null)}
+                className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="bg-success-50 border border-success-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-success-800 mb-1">
+                  {resetPwResult.length > 1
+                    ? `${resetPwResult.length} passwords reset.`
+                    : `Password reset for ${resetPwResult[0].name}.`}
+                </p>
+                <p className="text-xs text-gray-600 mb-3">
+                  Copy and give these credentials to the staff member. They will be required
+                  to change the password on next login. This is the only time it is shown.
+                </p>
+                <div className="font-mono text-sm bg-white border border-gray-200 rounded p-3 space-y-2 max-h-64 overflow-y-auto">
+                  {resetPwResult.map((c, i) => (
+                    <div key={i} className={i > 0 ? 'pt-2 border-t border-gray-100' : ''}>
+                      {resetPwResult.length > 1 && (
+                        <div className="text-xs text-gray-500">{c.name}</div>
+                      )}
+                      <div><span className="text-gray-500">Username:</span> {c.username}</div>
+                      <div><span className="text-gray-500">Password:</span> {c.temporary_password}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    const text = resetPwResult
+                      .map(c => `${c.name} — username: ${c.username}, temporary password: ${c.temporary_password}`)
+                      .join('\n');
+                    navigator.clipboard?.writeText(text).then(
+                      () => showToast('Credentials copied to clipboard', 'success'),
+                      () => showToast('Could not copy — please copy manually', 'warning')
+                    );
+                  }}
+                  className="px-4 py-2 text-primary-700 bg-white border border-primary-300 rounded-lg hover:bg-primary-50"
+                >
+                  Copy
+                </button>
+                <button
+                  onClick={() => setResetPwResult(null)}
+                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </AppLayout>
   );
