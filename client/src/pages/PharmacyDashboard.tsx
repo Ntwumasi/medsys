@@ -9,6 +9,8 @@ import { useDialog } from '../context/DialogContext';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
+import AIPharmacistAssist from '../components/ai/AIPharmacistAssist';
+import VoiceCommandBar from '../components/ai/VoiceCommandBar';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
@@ -461,6 +463,7 @@ const PharmacyDashboard: React.FC = () => {
       .catch((err) => console.error('Failed to load pharmacy trends:', err));
   }, []);
   const [selectedOrder, setSelectedOrder] = useState<PharmacyOrder | null>(null);
+  const [showAIAssist, setShowAIAssist] = useState(false);
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
   const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
@@ -2104,6 +2107,10 @@ const PharmacyDashboard: React.FC = () => {
         {/* ORDERS TAB */}
         {activeTab === 'orders' && (
           <div>
+            {/* AI quick-command bar — parse a natural dispense request into a structured preview */}
+            <div className="mb-4">
+              <VoiceCommandBar />
+            </div>
             {/* Sub-tabs */}
             <div className="flex justify-between items-center mb-4">
               <div className="flex gap-4">
@@ -2690,9 +2697,21 @@ const PharmacyDashboard: React.FC = () => {
 
                     {/* Prescription Details */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                        Prescription Details
-                      </h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
+                          Prescription Details
+                        </h3>
+                        <button
+                          onClick={() => setShowAIAssist(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
+                          title="Dosage check, substitutes & patient counseling"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                          AI Assist
+                        </button>
+                      </div>
                       <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">
                         <div><span className="text-gray-500">Medication:</span> <span className="font-medium">{selectedOrder.medication_name}</span></div>
                         <div><span className="text-gray-500">Dosage:</span> {selectedOrder.dosage}</div>
@@ -5950,6 +5969,20 @@ const PharmacyDashboard: React.FC = () => {
           setPendingDispenseOrder(null);
         }}
       />
+      {/* AI Pharmacist Assist — dosage check, substitutes & counseling for the selected order */}
+      {selectedOrder && (
+        <AIPharmacistAssist
+          isOpen={showAIAssist}
+          onClose={() => setShowAIAssist(false)}
+          medication={selectedOrder.medication_name}
+          dosage={selectedOrder.dosage}
+          frequency={selectedOrder.frequency}
+          route={selectedOrder.route}
+          patientName={selectedOrder.patient_name}
+          patientAllergies={selectedOrder.patient_allergies}
+          patientConditions={selectedOrder.primary_diagnosis ? [selectedOrder.primary_diagnosis] : []}
+        />
+      )}
     </AppLayout>
   );
 };

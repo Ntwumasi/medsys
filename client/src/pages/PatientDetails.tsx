@@ -5,6 +5,7 @@ import { patientPortalAPI } from '../api/patientPortal';
 import apiClient from '../api/client';
 import type { PatientSummary } from '../types';
 import { safeFormatDate } from '../utils/age';
+import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
@@ -1228,6 +1229,13 @@ const PatientDetails: React.FC = () => {
                               <span className="text-gray-400">+</span>
                               <span className="font-semibold text-gray-900">{it.drug2}</span>
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase ${sevClass}`}>{it.severity}</span>
+                              <div className="ml-auto">
+                                <InteractionExplainButton
+                                  drug1={it.drug1}
+                                  drug2={it.drug2}
+                                  existingInteraction={{ severity: it.severity, description: it.description }}
+                                />
+                              </div>
                             </div>
                             {it.description && <p className="text-sm text-gray-700 mt-1">{it.description}</p>}
                             {it.recommendation && <p className="text-sm text-red-700 mt-1"><strong>Action:</strong> {it.recommendation}</p>}
