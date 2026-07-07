@@ -172,7 +172,7 @@ const DoctorDashboard: React.FC = () => {
   // Guards against a double-click / double-submit creating duplicate orders.
   const [submittingOrders, setSubmittingOrders] = useState(false);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
@@ -953,7 +953,8 @@ const DoctorDashboard: React.FC = () => {
     const nameLC = currentPharmacyOrder.medication_name.trim().toLowerCase();
     const inPending = pendingPharmacyOrders.some(o => o.medication_name.trim().toLowerCase() === nameLC);
     const inSubmitted = encounterPharmacyOrders.some(o => (o as any).medication_name?.toLowerCase() === nameLC && o.status !== 'cancelled');
-    if (inPending || inSubmitted) {
+    const isDuplicate = inPending || inSubmitted;
+    if (isDuplicate) {
       const proceed = await confirmDialog({
         title: 'Duplicate order',
         message: `"${currentPharmacyOrder.medication_name}" has already been ${inPending ? 'added to the pending list' : 'ordered for this encounter'}. Do you want to add it again?`,
@@ -965,9 +966,13 @@ const DoctorDashboard: React.FC = () => {
     }
     // Persist the clinical justification when a safety warning was overridden —
     // previously the reason was only toasted and never saved with the order.
-    const orderToAdd = overrideReason
+    const baseOrder = overrideReason
       ? { ...currentPharmacyOrder, notes: [currentPharmacyOrder.notes, `Safety override: ${overrideReason}`].filter(Boolean).join(' | ') }
-      : currentPharmacyOrder;
+      : { ...currentPharmacyOrder };
+    // When the prescriber confirmed re-ordering a med already on the encounter,
+    // flag it so the backend accepts the intentional repeat (e.g. a 2nd
+    // salbutamol dose) instead of hard-blocking it with a 409.
+    const orderToAdd = isDuplicate ? { ...baseOrder, allow_duplicate: true } : baseOrder;
     setPendingPharmacyOrders([...pendingPharmacyOrders, orderToAdd]);
     setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
     setDrugInteractions([]);
@@ -1045,9 +1050,33 @@ const DoctorDashboard: React.FC = () => {
         await apiClient.post('/orders/imaging', { ...baseData, ...order });
       }
 
-      // Submit all pharmacy orders
+      // Submit all pharmacy orders. If the backend reports the med is already on
+      // this encounter (409), confirm the intentional repeat and retry with the
+      // override — covers legit re-dosing (e.g. a 2nd salbutamol dose) even when
+      // the on-screen order list was stale and didn't pre-flag it.
       for (const order of pendingPharmacyOrders) {
-        await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
+        try {
+          await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
+        } catch (err: any) {
+          if (
+            err?.response?.status === 409 &&
+            err?.response?.data?.code === 'DUPLICATE_MEDICATION' &&
+            !order.allow_duplicate
+          ) {
+            const proceed = await confirmDialog({
+              title: 'Already ordered',
+              message: `"${order.medication_name}" is already on this encounter. Prescribe another dose anyway?`,
+              variant: 'warning',
+              confirmLabel: 'Yes, add another dose',
+              cancelLabel: 'Skip this one',
+            });
+            if (proceed) {
+              await apiClient.post('/orders/pharmacy', { ...baseData, ...order, allow_duplicate: true });
+            }
+          } else {
+            throw err;
+          }
+        }
       }
 
       showToast(`Successfully submitted ${totalOrders} order(s)!`, 'success');
