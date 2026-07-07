@@ -1570,20 +1570,30 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       priority,
       notes,
       inventory_id,
+      allow_duplicate,
     } = req.body;
 
-    // Prevent duplicate: same medication for the same encounter
-    const dupCheck = await pool.query(
-      `SELECT id FROM pharmacy_orders
-       WHERE encounter_id = $1
-         AND LOWER(medication_name) = LOWER($2)
-         AND status != 'cancelled'
-       LIMIT 1`,
-      [encounter_id, medication_name]
-    );
-    if (dupCheck.rows.length > 0) {
-      res.status(409).json({ error: `${medication_name} has already been ordered for this encounter.` });
-      return;
+    // Guard against ACCIDENTAL duplicate orders (e.g. a double-click) — but allow
+    // an intentional repeat when the prescriber explicitly confirms it. Some meds
+    // are legitimately re-dosed within a single encounter (e.g. a second
+    // salbutamol nebule in the sickbay). The doctor UI sends allow_duplicate=true
+    // after showing the "already ordered — add it again?" confirmation.
+    if (!allow_duplicate) {
+      const dupCheck = await pool.query(
+        `SELECT id FROM pharmacy_orders
+         WHERE encounter_id = $1
+           AND LOWER(medication_name) = LOWER($2)
+           AND status != 'cancelled'
+         LIMIT 1`,
+        [encounter_id, medication_name]
+      );
+      if (dupCheck.rows.length > 0) {
+        res.status(409).json({
+          error: `${medication_name} has already been ordered for this encounter.`,
+          code: 'DUPLICATE_MEDICATION',
+        });
+        return;
+      }
     }
 
     const result = await pool.query(
