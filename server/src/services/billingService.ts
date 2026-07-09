@@ -98,8 +98,8 @@ export const billingService = {
       const newItems: BillingItem[] = [];
 
       // 1. Check for consultation/registration fee (should already exist from check-in)
-      // Skip consultation fee for department walk-ins (pharmacy OTC, lab walk-in, imaging walk-in)
-      const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)'];
+      // Skip consultation fee for department walk-ins (pharmacy OTC, lab, imaging, nurse procedures)
+      const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
       const isDepartmentWalkIn = departmentClinics.includes(encounter.clinic);
       const hasConsultation = existingItems.rows.some(r => r.category === 'consultation' || r.category === 'registration');
       if (!hasConsultation && !isDepartmentWalkIn) {

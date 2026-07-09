@@ -133,7 +133,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     const checkInCharges: Array<{ chargeMasterId: number | null; description: string; price: number }> = [];
 
     // 1. Registration fee for new patients only — skip for department walk-ins
-    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)'];
+    // (pharmacy OTC, lab, imaging, nurse procedures — all billed per service, no consult fee).
+    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
     if (isNewPatient && !departmentClinics.includes(clinic)) {
       const chargeResult = await client.query(
         'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true',
