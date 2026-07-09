@@ -100,7 +100,19 @@ export const billingService = {
       // 1. Check for consultation/registration fee (should already exist from check-in)
       // Skip consultation fee for department walk-ins (pharmacy OTC, lab, imaging, nurse procedures)
       const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
-      const isDepartmentWalkIn = departmentClinics.includes(encounter.clinic);
+      // Fee-exempt if the clinic matches, the encounter is flagged OTC, it's an
+      // "OTC Purchase" walk-in, or it was routed to a department as a walk-in —
+      // so an OTC/walk-in whose `clinic` string drifted (null/legacy/a real
+      // clinic) still never gets a consultation fee auto-added here.
+      const walkInRouting = await client.query(
+        `SELECT 1 FROM department_routing WHERE encounter_id = $1 AND is_walk_in = true LIMIT 1`,
+        [encounterId]
+      );
+      const isDepartmentWalkIn =
+        departmentClinics.includes(encounter.clinic) ||
+        encounter.is_otc === true ||
+        String(encounter.chief_complaint || '').trim().toLowerCase() === 'otc purchase' ||
+        walkInRouting.rows.length > 0;
       const hasConsultation = existingItems.rows.some(r => r.category === 'consultation' || r.category === 'registration');
       if (!hasConsultation && !isDepartmentWalkIn) {
         // Look up consultation fee from charge_master using new codes

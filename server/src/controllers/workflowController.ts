@@ -81,11 +81,21 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       assigned_provider_id = payerSourceResult.rows[0].assigned_doctor_id;
     }
 
+    // A department walk-in (pharmacy OTC / lab / imaging / nurse procedure) is
+    // billed per service and must NEVER carry a registration or consultation
+    // fee. Decide this from MORE than the clinic string — a blank / legacy / or
+    // a real clinic value must not let a fee leak onto an OTC sale. The pharmacy
+    // "OTC Purchase" chief complaint and the is_otc flag are the durable signals.
+    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
+    const isOtcPurchase = String(chief_complaint || '').trim().toLowerCase() === 'otc purchase';
+    const isPharmacyOtc = clinic === 'Pharmacy (OTC/Walk-in)' || isOtcPurchase;
+    const isDepartmentWalkIn = departmentClinics.includes(clinic) || isPharmacyOtc;
+
     const result = await client.query(
       `INSERT INTO encounters (
         patient_id, provider_id, receptionist_id, encounter_date, encounter_type,
-        chief_complaint, status, checked_in_at, triage_time, triage_priority, clinic
-      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green', $7)
+        chief_complaint, status, checked_in_at, triage_time, triage_priority, clinic, is_otc
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green', $7, $8)
       RETURNING *`,
       [
         patient_id,
@@ -95,6 +105,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
         encounter_type || 'walk-in',
         chief_complaint,
         clinic || null,
+        isPharmacyOtc,
       ]
     );
 
@@ -134,8 +145,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     // 1. Registration fee for new patients only — skip for department walk-ins
     // (pharmacy OTC, lab, imaging, nurse procedures — all billed per service, no consult fee).
-    const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
-    if (isNewPatient && !departmentClinics.includes(clinic)) {
+    if (isNewPatient && !isDepartmentWalkIn) {
       const chargeResult = await client.query(
         'SELECT id, price, service_name FROM charge_master WHERE service_code = $1 AND is_active = true',
         ['REG-001']
@@ -150,7 +160,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     // 2. Consultation fee — match the clinic if possible, fall back to general
     // Only add consultation for non-department walk-ins (pharmacy/lab/imaging don't need it)
-    if (!departmentClinics.includes(clinic)) {
+    if (!isDepartmentWalkIn) {
       // Prefer the assigned clinic's linked consultation charge. Billing the
       // charge (not a flat price) means the invoice loop below runs it through
       // resolvePrice, so the patient's payer source (self-pay / insurance /
@@ -222,7 +232,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     // bill this visit's charges onto it. Department walk-ins keep their own
     // invoice (they run their own quick billing/checkout).
     let invoiceId: number | undefined;
-    if (!departmentClinics.includes(clinic)) {
+    if (!isDepartmentWalkIn) {
       const openInv = await client.query(
         `SELECT id FROM invoices
           WHERE patient_id = $1 AND invoice_date = CURRENT_DATE
