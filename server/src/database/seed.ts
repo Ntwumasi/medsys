@@ -214,6 +214,7 @@ const clinics = [
   'Lab (Walk-in)',
   'Imaging (Walk-in)',
   'Pharmacy (OTC/Walk-in)',
+  'Nurse (Procedures/Walk-in)',
 ];
 
 // ─── Rooms ───────────────────────────────────────────────────────────
