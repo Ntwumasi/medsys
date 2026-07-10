@@ -13,6 +13,7 @@ import { parseMedicationName, calculateQuantity, FREQUENCY_OPTIONS } from '../ut
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import PastVisitsPanel from '../components/PastVisitsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
 import AppSelect from '../components/ui/AppSelect';
@@ -2070,6 +2071,12 @@ const DoctorDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Past Visits — inline history so the doctor needn't leave to search Past Patients */}
+                <PastVisitsPanel
+                  patientId={selectedEncounter.patient_id}
+                  currentEncounterId={selectedEncounter.id}
+                />
 
                 {/* Diagnoses */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
