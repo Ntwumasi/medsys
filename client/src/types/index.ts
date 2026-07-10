@@ -1,7 +1,7 @@
 export interface User {
   id: number;
   email: string;
-  role: 'doctor' | 'nurse' | 'admin' | 'office_manager' | 'receptionist' | 'patient' | 'lab' | 'pharmacy' | 'pharmacist' | 'pharmacy_tech' | 'imaging' | 'accountant';
+  role: 'doctor' | 'nurse' | 'admin' | 'office_manager' | 'receptionist' | 'patient' | 'lab' | 'pharmacy' | 'pharmacist' | 'pharmacy_tech' | 'imaging' | 'accountant' | 'marketing';
   first_name: string;
   last_name: string;
   phone?: string;

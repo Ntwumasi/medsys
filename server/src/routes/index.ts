@@ -465,9 +465,9 @@ router.get('/doctor/trends',     authenticateToken, authorizeRoles('doctor', 'ad
 
 // Admin clinic-operations task tracker
 import { listAdminTasks, createAdminTask, updateAdminTask, deleteAdminTask } from '../controllers/adminTasksController';
-router.get   ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), listAdminTasks);
+router.get   ('/admin/tasks',      authenticateToken, authorizeRoles('admin', 'marketing'), listAdminTasks);
 router.post  ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), createAdminTask);
-router.put   ('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), updateAdminTask);
+router.put   ('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin', 'marketing'), updateAdminTask);
 router.delete('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), deleteAdminTask);
 
 // Admin security routes

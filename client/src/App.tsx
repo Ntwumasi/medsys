@@ -20,6 +20,7 @@ const RefillsCalendar = lazy(() => import('./pages/RefillsCalendar'));
 const ImagingDashboard = lazy(() => import('./pages/ImagingDashboard'));
 const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const MarketingDashboard = lazy(() => import('./pages/MarketingDashboard'));
 const PatientList = lazy(() => import('./pages/PatientList'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
@@ -116,6 +117,8 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
       case 'accountant':
         return <ErrorBoundary><AccountantDashboard /></ErrorBoundary>;
+      case 'marketing': // minimal role — only sees its assigned task list
+        return <ErrorBoundary><MarketingDashboard /></ErrorBoundary>;
       case 'admin':
       case 'office_manager': // curated admin view (oversight sections hidden)
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;

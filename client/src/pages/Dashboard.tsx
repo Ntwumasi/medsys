@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
+import { taskDueMeta } from '../utils/taskDue';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
@@ -290,6 +291,8 @@ const Dashboard: React.FC = () => {
     remarks: string | null;
     cost: string | null;
     due_date: string | null;
+    assigned_to: number | null;
+    assigned_to_name?: string | null;
   }
   const [adminTasks, setAdminTasks] = useState<AdminTask[]>([]);
   const [adminTasksCounts, setAdminTasksCounts] = useState<Record<string, number>>({});
@@ -330,6 +333,7 @@ const Dashboard: React.FC = () => {
     remarks: '',
     cost: '',
     due_date: '',
+    assigned_to: '' as string, // holds the staff user id as a string (or '')
   };
   const [taskForm, setTaskForm] = useState<typeof blankTaskForm>(blankTaskForm);
 
@@ -368,6 +372,7 @@ const Dashboard: React.FC = () => {
       remarks: t.remarks || '',
       cost: t.cost || '',
       due_date: t.due_date ? t.due_date.slice(0, 10) : '',
+      assigned_to: t.assigned_to != null ? String(t.assigned_to) : '',
     });
     setShowTaskModal(true);
   };
@@ -385,6 +390,7 @@ const Dashboard: React.FC = () => {
       remarks: taskForm.remarks || null,
       cost: taskForm.cost || null,
       due_date: taskForm.due_date || null,
+      assigned_to: taskForm.assigned_to ? Number(taskForm.assigned_to) : null,
     };
     try {
       if (editingTask) {
@@ -2732,6 +2738,7 @@ const Dashboard: React.FC = () => {
                         { value: 'imaging', label: 'Imaging/Radiology' },
                         { value: 'admin', label: 'Administrator' },
                         { value: 'office_manager', label: 'Office Manager' },
+                        { value: 'marketing', label: 'Marketing' },
                       ]}
                     />
                   </div>
@@ -3172,12 +3179,17 @@ const Dashboard: React.FC = () => {
                             </td>
                           </tr>
                         ) : displayedTasks.map(t => {
-                          const dd = t.due_date ? t.due_date.slice(0, 10) : '';
                           const done = t.status === 'complete';
-                          const overdue = dd && !done && dd < today;
+                          const due = taskDueMeta(t.due_date, done, today);
+                          const dd = due.dd;
                           return (
                             <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${done ? 'bg-gray-50/60' : ''}`}>
-                              <td className={`px-3 py-2 ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{t.task}</td>
+                              <td className={`px-3 py-2 ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                                <div>{t.task}</div>
+                                {t.assigned_to_name && (
+                                  <div className="text-[10px] font-medium text-fuchsia-600 mt-0.5">Assigned: {t.assigned_to_name}</div>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-gray-500 text-xs">{t.category}</td>
                               <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
                               <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
@@ -3200,10 +3212,12 @@ const Dashboard: React.FC = () => {
                                   type="date"
                                   value={dd}
                                   onChange={(e) => inlineUpdateDueDate(t.id, e.target.value)}
-                                  className={`text-xs px-2 py-1 rounded border bg-white ${overdue ? 'border-danger-400 text-danger-700 font-semibold' : 'border-gray-300 text-gray-700'}`}
-                                  title={overdue ? 'Overdue' : 'Set deadline'}
+                                  className={`text-xs px-2 py-1 rounded border bg-white ${due.inputCls}`}
+                                  title={due.badge || 'Set deadline'}
                                 />
-                                {overdue && <span className="ml-1 text-[10px] font-semibold text-danger-600 uppercase">Overdue</span>}
+                                {due.badge && (
+                                  <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-amber-600'}`}>{due.badge}</span>
+                                )}
                               </td>
                               <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
                               <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -3299,6 +3313,20 @@ const Dashboard: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     />
                   </div>
+                </div>
+                <div>
+                  <AppSelect
+                    label="Assign To"
+                    value={taskForm.assigned_to}
+                    onChange={(val) => setTaskForm({ ...taskForm, assigned_to: val })}
+                    options={[
+                      { value: '', label: 'Unassigned' },
+                      ...staff.map((s) => ({
+                        value: String(s.id),
+                        label: `${s.first_name} ${s.last_name} (${s.role})`,
+                      })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Cost</label>
