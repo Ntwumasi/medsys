@@ -151,6 +151,7 @@ import {
   getAllInvoices,
   getInvoiceById,
   getInvoicesByPatient,
+  getPatientStatement,
   getInvoiceByEncounter,
   createOrGetInvoice,
   updateInvoice,
@@ -701,6 +702,7 @@ router.get('/invoices',                         authenticateToken, authorizeRole
 router.get('/invoices/pending-payments',        authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPendingPayments);
 router.post('/invoices/special',                authenticateToken, authorizeRoles(...BILLING_STAFF), createSpecialInvoice);
 router.get('/invoices/:id',                     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceById);
+router.get('/invoices/patient/:patient_id/statement', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPatientStatement);
 router.get('/invoices/patient/:patient_id',     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
