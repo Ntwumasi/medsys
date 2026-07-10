@@ -2499,6 +2499,45 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // A refill must bill onto the patient's CURRENT visit so the dispensed
+    // medication shows on the front-desk invoice. Copying the original
+    // prescription's encounter_id (often a long-closed past visit) stranded the
+    // charge on that old invoice — the med appeared on pharmacy's Dispensed tab
+    // but never reached reception (Irene's report). Resolve today's open
+    // encounter; if the patient has none, open a Pharmacy (OTC/Walk-in) visit so
+    // the sale still bills and reaches checkout (is_otc → no consultation fee).
+    let billingEncounterId: number;
+    const openEnc = await client.query(
+      `SELECT id FROM encounters
+        WHERE patient_id = $1
+          AND DATE(checked_in_at) = CURRENT_DATE
+          AND status NOT IN ('completed', 'discharged', 'cancelled')
+        ORDER BY id DESC LIMIT 1`,
+      [original.patient_id]
+    );
+    if (openEnc.rows.length > 0) {
+      billingEncounterId = openEnc.rows[0].id;
+    } else {
+      const walkIn = await client.query(
+        `INSERT INTO encounters (
+           patient_id, provider_id, encounter_date, encounter_type, chief_complaint,
+           status, checked_in_at, triage_time, triage_priority, clinic, is_otc
+         ) VALUES ($1, NULL, CURRENT_TIMESTAMP, 'walk-in', 'OTC Purchase',
+           'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green',
+           'Pharmacy (OTC/Walk-in)', true)
+         RETURNING id`,
+        [original.patient_id]
+      );
+      billingEncounterId = walkIn.rows[0].id;
+      // Surface the auto-created visit in the reception queue as a pharmacy walk-in.
+      await client.query(
+        `INSERT INTO department_routing (
+           encounter_id, patient_id, department, priority, notes, routed_by, is_walk_in
+         ) VALUES ($1, $2, 'pharmacy', 'routine', 'Medication refill walk-in', $3, true)`,
+        [billingEncounterId, original.patient_id, userId]
+      );
+    }
+
     // Create a new order as the refill (copies the prescription)
     const newOrderResult = await client.query(
       `INSERT INTO pharmacy_orders (
@@ -2509,7 +2548,7 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
       RETURNING *`,
       [
         original.patient_id,
-        original.encounter_id,
+        billingEncounterId,
         original.ordering_provider,
         original.medication_name,
         original.dosage,
