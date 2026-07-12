@@ -69,7 +69,7 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
     'patient_id', 'encounter_id', 'ordering_provider', 'medication_name',
     'dosage', 'frequency', 'route', 'quantity', 'refills', 'priority',
     'status', 'notes', 'ordered_date', 'dispensed_date',
-    'dispensed_by', 'prepared_by', 'days_supply', 'parent_order_id',
+    'dispensed_by', 'prepared_by', 'days_supply', 'is_long_term', 'parent_order_id',
     'inventory_id', 'substitute_medication', 'substitute_reason',
     'return_quantity', 'return_reason', 'returned_at', 'returned_by',
     'administered_by', 'administered_at', 'administration_notes'

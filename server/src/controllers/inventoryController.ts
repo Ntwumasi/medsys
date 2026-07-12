@@ -898,6 +898,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
             po.quantity,
             po.refills,
             po.days_supply,
+            po.is_long_term,
             po.dispensed_date,
             po.frequency,
             po.is_manual_reminder,
@@ -911,7 +912,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN patients p ON po.patient_id = p.id
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
-             AND po.refills > 0
+             AND (po.is_long_term IS TRUE OR po.refills > 0)
              AND po.reminder_cleared IS NOT TRUE
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
@@ -932,6 +933,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
             po.quantity,
             po.refills,
             po.days_supply,
+            po.is_long_term,
             po.dispensed_date,
             po.frequency,
             po.is_manual_reminder,
@@ -945,7 +947,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN patients p ON po.patient_id = p.id
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
-             AND po.refills > 0
+             AND (po.is_long_term IS TRUE OR po.refills > 0)
              AND po.reminder_cleared IS NOT TRUE
              AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
              AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2

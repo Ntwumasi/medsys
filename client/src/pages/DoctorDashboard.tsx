@@ -173,12 +173,12 @@ const DoctorDashboard: React.FC = () => {
   // Guards against a double-click / double-submit creating duplicate orders.
   const [submittingOrders, setSubmittingOrders] = useState(false);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', is_long_term: false, priority: 'routine', notes: ''});
 
   // Medication search state
   const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
@@ -975,7 +975,7 @@ const DoctorDashboard: React.FC = () => {
     // salbutamol dose) instead of hard-blocking it with a 409.
     const orderToAdd = isDuplicate ? { ...baseOrder, allow_duplicate: true } : baseOrder;
     setPendingPharmacyOrders([...pendingPharmacyOrders, orderToAdd]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', is_long_term: false, priority: 'routine', notes: ''});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -3042,6 +3042,34 @@ const DoctorDashboard: React.FC = () => {
                             placeholder="Refill"
                           />
                         </div>
+                        {/* One-time vs Long-term. Long-term = chronic/refillable →
+                            surfaces on the pharmacy refills calendar so the patient
+                            gets a refill reminder. One-time = a single course. */}
+                        <div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: false})}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              aria-pressed={!currentPharmacyOrder.is_long_term}
+                            >
+                              One-time
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: true})}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              aria-pressed={currentPharmacyOrder.is_long_term}
+                            >
+                              Long-term (refillable)
+                            </button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {currentPharmacyOrder.is_long_term
+                              ? 'Chronic medication — will appear on the pharmacy refills calendar for reminders.'
+                              : 'Single course — no automatic refill reminder.'}
+                          </p>
+                        </div>
                         <AppSelect
                           value={currentPharmacyOrder.priority}
                           onChange={(val) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: val})}
@@ -3097,6 +3125,9 @@ const DoctorDashboard: React.FC = () => {
                                     {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
                                   </div>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                      {order.is_long_term ? 'Long-term' : 'One-time'}
+                                    </span>
                                     <span className="text-[10px] font-bold uppercase tracking-wide text-success-600">{order.priority}</span>
                                     {order.selling_price && (
                                       <span className="text-xs text-gray-500">GHS {Number(order.selling_price).toFixed(2)}/unit</span>

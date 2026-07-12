@@ -76,6 +76,8 @@ interface PharmacyOrder {
   /** True when inventory_quantity/price came from a fuzzy name match, not a hard link. */
   inventory_name_matched?: boolean;
   days_supply?: number;
+  /** Doctor-set: true = chronic/refillable (on refills calendar), false = one-time course. */
+  is_long_term?: boolean;
   substitute_medication?: string;
   substitute_reason?: string;
   /** Cumulative quantity returned so far. The original `quantity` is never
@@ -2453,6 +2455,9 @@ const PharmacyDashboard: React.FC = () => {
                                       {order.days_supply}-day supply
                                     </span>
                                   )}
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    {order.is_long_term ? 'Long-term' : 'One-time'}
+                                  </span>
                                   {order.inventory_price != null && (
                                     <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
                                   )}
