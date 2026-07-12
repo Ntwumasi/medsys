@@ -181,6 +181,75 @@ export const getInvoicesByPatient = async (req: Request, res: Response): Promise
   }
 };
 
+// Consolidated statement: ALL of a patient's outstanding (pending/partial)
+// invoices with their line items and a single grand total. Lets reception show
+// / print one past-due statement instead of opening and tallying each invoice.
+// The underlying per-visit invoices are left intact (nothing is merged).
+export const getPatientStatement = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+
+    const patientResult = await pool.query(
+      `SELECT p.patient_number,
+              u.first_name || ' ' || u.last_name AS patient_name,
+              u.email AS patient_email, u.phone AS patient_phone,
+              p.address AS patient_address, p.city AS patient_city, p.state AS patient_state
+       FROM patients p JOIN users u ON p.user_id = u.id
+       WHERE p.id = $1`,
+      [patient_id]
+    );
+    if (patientResult.rows.length === 0) {
+      res.status(404).json({ error: 'Patient not found' });
+      return;
+    }
+
+    const invoicesResult = await pool.query(
+      `SELECT i.id, i.invoice_number, i.invoice_date, i.due_date, i.status,
+              i.subtotal, i.tax, i.total_amount, i.amount_paid,
+              e.encounter_date, e.chief_complaint
+       FROM invoices i
+       LEFT JOIN encounters e ON i.encounter_id = e.id
+       WHERE i.patient_id = $1 AND i.status IN ('pending', 'partial')
+       ORDER BY i.invoice_date ASC, i.id ASC`,
+      [patient_id]
+    );
+
+    const invoiceIds = invoicesResult.rows.map((r) => r.id);
+    const itemsByInvoice: Record<number, any[]> = {};
+    if (invoiceIds.length > 0) {
+      const itemsResult = await pool.query(
+        `SELECT id, invoice_id, description, quantity, unit_price, total_price, category
+           FROM invoice_items WHERE invoice_id = ANY($1)
+          ORDER BY invoice_id ASC, id ASC`,
+        [invoiceIds]
+      );
+      for (const it of itemsResult.rows) {
+        (itemsByInvoice[it.invoice_id] ||= []).push(it);
+      }
+    }
+
+    const invoices = invoicesResult.rows.map((inv) => ({
+      ...inv,
+      items: itemsByInvoice[inv.id] || [],
+    }));
+
+    const grandTotal = invoices.reduce(
+      (sum, inv) => sum + (parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0)),
+      0
+    );
+
+    res.json({
+      patient: patientResult.rows[0],
+      invoices,
+      grand_total: Math.round(grandTotal * 100) / 100,
+      count: invoices.length,
+    });
+  } catch (error) {
+    console.error('Get patient statement error:', error);
+    res.status(500).json({ error: 'Failed to fetch patient statement' });
+  }
+};
+
 // Get invoice by encounter ID
 export const getInvoiceByEncounter = async (req: Request, res: Response): Promise<void> => {
   try {

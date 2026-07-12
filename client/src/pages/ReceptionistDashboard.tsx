@@ -8,6 +8,7 @@ import type { View } from 'react-big-calendar';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
+import PatientStatement from '../components/PatientStatement';
 import SearchBar from '../components/SearchBar';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -556,6 +557,7 @@ const ReceptionistDashboard: React.FC = () => {
 
   // Invoice state
   const [showInvoice, setShowInvoice] = useState(false);
+  const [statementPatientId, setStatementPatientId] = useState<number | null>(null);
   const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [invoicePayerSources, setInvoicePayerSources] = useState<InvoicePayerSource[]>([]);
@@ -2150,9 +2152,18 @@ const ReceptionistDashboard: React.FC = () => {
                             </button>
                           )}
                           {(item.outstanding_balance ?? 0) > 0 && (
-                            <span className="font-semibold text-danger-700 bg-danger-50 px-2 py-0.5 rounded">
-                              Balance: GH₵{Number(item.outstanding_balance).toFixed(2)}
-                            </span>
+                            <>
+                              <span className="font-semibold text-danger-700 bg-danger-50 px-2 py-0.5 rounded">
+                                Balance: GH₵{Number(item.outstanding_balance).toFixed(2)}
+                              </span>
+                              <button
+                                onClick={() => setStatementPatientId(item.patient_id)}
+                                className="font-semibold text-primary-700 hover:text-primary-800 hover:underline"
+                                title="View a single statement of all outstanding invoices"
+                              >
+                                Statement
+                              </button>
+                            </>
                           )}
                         </div>
 
@@ -4801,6 +4812,14 @@ const ReceptionistDashboard: React.FC = () => {
           encounterId={currentEncounterId || undefined}
           onClose={() => setShowInvoice(false)}
           onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+
+      {/* Consolidated outstanding statement (all unpaid invoices in one document) */}
+      {statementPatientId != null && (
+        <PatientStatement
+          patientId={statementPatientId}
+          onClose={() => setStatementPatientId(null)}
         />
       )}
       {/* Edit Patient Modal */}
