@@ -1567,6 +1567,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       quantity,
       refills,
       days_supply,
+      is_long_term,
       priority,
       notes,
       inventory_id,
@@ -1599,8 +1600,8 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     const result = await pool.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, days_supply, priority, notes, inventory_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        dosage, frequency, route, quantity, refills, days_supply, is_long_term, priority, notes, inventory_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         patient_id,
@@ -1613,6 +1614,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
         quantity,
         refills || 0,
         days_supply || null,
+        is_long_term === true,
         priority || 'routine',
         notes,
         inventory_id || null,
@@ -2542,9 +2544,9 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
     const newOrderResult = await client.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, days_supply, priority,
+        dosage, frequency, route, quantity, refills, days_supply, is_long_term, priority,
         status, parent_order_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         original.patient_id,
@@ -2557,6 +2559,10 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
         original.quantity,
         0, // Refill order has no refills of its own
         original.days_supply,
+        // Carry the long-term flag forward so a chronic med keeps cycling on the
+        // refills calendar (the calendar gate is is_long_term OR refills>0, and a
+        // refill order deliberately has 0 refills of its own).
+        original.is_long_term === true,
         'routine', // Refills are typically routine priority
         'ordered',
         parseInt(id), // Link to parent order
