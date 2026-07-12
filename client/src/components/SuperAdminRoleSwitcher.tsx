@@ -13,6 +13,7 @@ const roleLabels: Record<string, string> = {
   pharmacy_tech: 'Pharmacy Tech',
   imaging: 'Imaging',
   accountant: 'Accountant',
+  marketing: 'Marketing',
 };
 
 const SuperAdminRoleSwitcher: React.FC = () => {
