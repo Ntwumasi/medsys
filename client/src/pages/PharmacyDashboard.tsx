@@ -399,6 +399,25 @@ const PharmacyDashboard: React.FC = () => {
   const [showNewWalkInModal, setShowNewWalkInModal] = useState(false);
   const [newWalkInForm, setNewWalkInForm] = useState({ firstName: '', lastName: '', phone: '' });
   const [creatingWalkIn, setCreatingWalkIn] = useState(false);
+  // Walk-in modal has two modes: look up an EXISTING patient (default, avoids
+  // creating duplicate records) or quick-register a brand-new one.
+  const [walkInMode, setWalkInMode] = useState<'search' | 'new'>('search');
+  const [walkInSearchQuery, setWalkInSearchQuery] = useState('');
+  const [walkInSearchResults, setWalkInSearchResults] = useState<Array<{
+    id: number; full_name?: string; first_name?: string; last_name?: string;
+    patient_number?: string; phone?: string; date_of_birth?: string; gender?: string;
+  }>>([]);
+  const [searchingPatients, setSearchingPatients] = useState(false);
+  const [walkInSearched, setWalkInSearched] = useState(false);
+
+  const resetWalkInModal = () => {
+    setShowNewWalkInModal(false);
+    setWalkInMode('search');
+    setNewWalkInForm({ firstName: '', lastName: '', phone: '' });
+    setWalkInSearchQuery('');
+    setWalkInSearchResults([]);
+    setWalkInSearched(false);
+  };
 
   const handleCreateWalkIn = async () => {
     const { firstName, lastName, phone } = newWalkInForm;
@@ -425,11 +444,59 @@ const PharmacyDashboard: React.FC = () => {
         clinic: 'Pharmacy (OTC/Walk-in)',
       });
       showToast(`${firstName} ${lastName} added as walk-in patient`, 'success');
-      setShowNewWalkInModal(false);
-      setNewWalkInForm({ firstName: '', lastName: '', phone: '' });
+      resetWalkInModal();
       fetchWalkIns();
     } catch (error: any) {
       showToast(error.response?.data?.error || error.response?.data?.message || 'Failed to create walk-in patient', 'error');
+    } finally {
+      setCreatingWalkIn(false);
+    }
+  };
+
+  // Debounced patient lookup for the walk-in modal's "existing patient" mode.
+  // Reuses the shared /search/patients endpoint (name, patient number, phone).
+  useEffect(() => {
+    if (!showNewWalkInModal || walkInMode !== 'search') return;
+    const q = walkInSearchQuery.trim();
+    if (q.length < 2) {
+      setWalkInSearchResults([]);
+      setWalkInSearched(false);
+      return;
+    }
+    setSearchingPatients(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiClient.get('/search/patients', { params: { q } });
+        setWalkInSearchResults(res.data.patients || []);
+      } catch {
+        setWalkInSearchResults([]);
+      } finally {
+        setSearchingPatients(false);
+        setWalkInSearched(true);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [walkInSearchQuery, walkInMode, showNewWalkInModal]);
+
+  // Check an EXISTING patient in as an OTC walk-in (no new patient record).
+  const handleSelectExistingPatient = async (patient: { id: number; full_name?: string; first_name?: string; last_name?: string }) => {
+    const name = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Patient';
+    setCreatingWalkIn(true);
+    try {
+      await apiClient.post('/workflow/check-in', {
+        patient_id: patient.id,
+        chief_complaint: 'OTC Purchase',
+        encounter_type: 'walk-in',
+        billing_amount: 0,
+        clinic: 'Pharmacy (OTC/Walk-in)',
+      });
+      showToast(`${name} checked in for OTC purchase`, 'success');
+      resetWalkInModal();
+      fetchWalkIns();
+    } catch (error: any) {
+      // check-in 409s with a helpful `message` when the patient already has an
+      // open encounter today (e.g. they saw a doctor earlier) — surface that.
+      showToast(error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient', 'error');
     } finally {
       setCreatingWalkIn(false);
     }
@@ -5891,65 +5958,138 @@ const PharmacyDashboard: React.FC = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">New Walk-in Patient</h3>
-                  <p className="text-sm text-gray-600">Quick registration for OTC purchases</p>
+                  <h3 className="text-lg font-bold text-gray-900">Walk-in for OTC</h3>
+                  <p className="text-sm text-gray-600">Find an existing patient or register a new one</p>
                 </div>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                <input
-                  type="text"
-                  value={newWalkInForm.firstName}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Enter first name"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                <input
-                  type="text"
-                  value={newWalkInForm.lastName}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Enter last name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
-                <input
-                  type="tel"
-                  value={newWalkInForm.phone}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="e.g., 0244123456"
-                />
+            {/* Mode tabs: look up existing patient (default) or register new */}
+            <div className="px-6 pt-4">
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode('search')}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'search' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                  Existing Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode('new')}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'new' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                  New Patient
+                </button>
               </div>
             </div>
+
+            {walkInMode === 'search' ? (
+              <div className="p-6 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search patient</label>
+                  <input
+                    type="text"
+                    value={walkInSearchQuery}
+                    onChange={(e) => setWalkInSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Name, patient number, or phone"
+                    autoFocus
+                  />
+                </div>
+                {searchingPatients && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 px-1">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-500 border-t-transparent"></div>
+                    Searching…
+                  </div>
+                )}
+                {!searchingPatients && walkInSearchQuery.trim().length >= 2 && walkInSearched && walkInSearchResults.length === 0 && (
+                  <p className="text-sm text-gray-500 px-1">
+                    No patients found. Try the <span className="font-medium">New Patient</span> tab to register.
+                  </p>
+                )}
+                {walkInSearchResults.length > 0 && (
+                  <div className="max-h-64 overflow-y-auto -mx-1 divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                    {walkInSearchResults.map((p) => {
+                      const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown';
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectExistingPatient(p)}
+                          disabled={creatingWalkIn}
+                          className="w-full text-left px-3 py-2.5 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <div className="font-medium text-gray-900 text-sm">{name}</div>
+                          <div className="text-xs text-gray-500">
+                            {p.patient_number || 'No patient #'}{p.phone ? ` • ${p.phone}` : ''}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {walkInSearchQuery.trim().length < 2 && (
+                  <p className="text-xs text-gray-400 px-1">Type at least 2 characters to search.</p>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    value={newWalkInForm.firstName}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter first name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    value={newWalkInForm.lastName}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter last name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                  <input
+                    type="tel"
+                    value={newWalkInForm.phone}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., 0244123456"
+                  />
+                </div>
+              </div>
+            )}
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
               <button
-                onClick={() => { setShowNewWalkInModal(false); setNewWalkInForm({ firstName: '', lastName: '', phone: '' }); }}
+                onClick={resetWalkInModal}
                 className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Cancel
               </button>
-              <button
-                onClick={handleCreateWalkIn}
-                disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
-                className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {creatingWalkIn ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    Creating...
-                  </>
-                ) : (
-                  'Add Patient'
-                )}
-              </button>
+              {walkInMode === 'new' && (
+                <button
+                  onClick={handleCreateWalkIn}
+                  disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
+                  className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {creatingWalkIn ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Add Patient'
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
