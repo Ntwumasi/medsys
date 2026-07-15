@@ -135,8 +135,10 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
           // Price from the lab catalog (single source of truth), by code then name.
           const labItem = await resolveLabCatalogItem(resolvedCode, test_name);
           if (labItem.match) {
-            const desc = `Lab: ${labItem.match.test_name}`;
             const price = Number(labItem.match.base_price);
+            // A matched-but-unpriced (base_price 0) test must still be flagged so
+            // it isn't billed silently free at the walk-in counter.
+            const desc = price > 0 ? `Lab: ${labItem.match.test_name}` : `Lab: ${labItem.match.test_name} [PRICE PENDING]`;
             const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
             if (exists.rows.length === 0) {
               await pool.query(
@@ -578,9 +580,11 @@ const runLabCompletionSideEffects = async (
     const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
     const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
     const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
-    // On no catalog match the price is 0 — mark the line so it's VISIBLE on the
-    // invoice for reception to price manually, instead of a silent free lab.
-    const lineDescription = labItem.matchType === 'none'
+    // Flag the line [PRICE PENDING] whenever it would bill at 0 — whether from no
+    // catalog match OR a matched row whose base_price is still 0/unset. Either way
+    // it must be VISIBLE for reception to price manually, never a silent free lab.
+    const unpriced = !(labPrice > 0);
+    const lineDescription = unpriced
       ? `Lab: ${chargeDescription} [PRICE PENDING]`
       : `Lab: ${chargeDescription}`;
 
@@ -588,6 +592,8 @@ const runLabCompletionSideEffects = async (
       console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
     } else if (labItem.matchType === 'none') {
       console.warn(`⚠️ Lab billing: NO catalog match for "${order.test_name}" (code ${order.test_code}). Billed 0 — needs review.`);
+    } else if (unpriced) {
+      console.warn(`⚠️ Lab billing: catalog test "${chargeDescription}" (code ${labItem.match?.test_code}) has base_price 0 — billed 0 [PRICE PENDING], set its price.`);
     }
 
     const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);

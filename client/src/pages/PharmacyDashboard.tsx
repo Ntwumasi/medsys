@@ -433,7 +433,11 @@ const PharmacyDashboard: React.FC = () => {
         phone: phone.trim() || undefined,
         gender: '',
         date_of_birth: '',
-        registration_payment: 'pay_later',
+        // OTC walk-ins must NOT incur a registration fee — they're buying
+        // over-the-counter meds, not registering as a clinic patient. Passing
+        // 'pay_later' here minted a standalone GHS 75 "Patient Registration Fee"
+        // invoice alongside the OTC sale (Sharon: pharmacy purchase spawns a
+        // second 75 invoice). Omit registration_payment so no fee is created.
       });
       const patient = patientRes.data.patient;
       await apiClient.post('/workflow/check-in', {
