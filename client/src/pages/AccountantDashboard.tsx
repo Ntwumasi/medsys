@@ -355,7 +355,7 @@ const PAYER_TAB_LABEL: Record<string, string> = {
 
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const { prompt: promptDialog } = useDialog();
+  const { prompt: promptDialog, confirm: confirmDialog } = useDialog();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -591,11 +591,16 @@ const AccountantDashboard: React.FC = () => {
 
   const loadInsuranceInvoices = async () => {
     try {
+      // Only insurance-payer invoices can become claims — createClaim rejects
+      // any other invoice with "Patient has no insurance on record". Also drop
+      // zero-value invoices (nothing to claim).
       const response = await apiClient.get('/invoices', {
-        params: { status: 'all', limit: 100 },
+        params: { status: 'all', payer_type: 'insurance', limit: 100 },
       });
-      // Filter to only show invoices that can have claims (with insurance payer)
-      setInsuranceInvoices(response.data.invoices || []);
+      const eligible = (response.data.invoices || []).filter(
+        (inv: InvoiceData) => (parseFloat(inv.total_amount as unknown as string) || 0) > 0
+      );
+      setInsuranceInvoices(eligible);
     } catch (error) {
       console.error('Error loading invoices:', error);
     }
@@ -638,6 +643,27 @@ const AccountantDashboard: React.FC = () => {
       showToast(error.response?.data?.error || 'Failed to submit to payer', 'error');
     } finally {
       setSubmittingId(null);
+    }
+  };
+
+  const [afreshing, setAfreshing] = useState(false);
+  const handleStartAfresh = async () => {
+    const ok = await confirmDialog({
+      title: 'Start afresh on reminders?',
+      message: 'This clears every current outstanding invoice from the reminders list so it starts empty. The invoices are not changed — they still count as outstanding in the aging report and statements — they just drop off the reminders workflow. New invoices going forward will still appear.',
+      confirmLabel: 'Start Afresh',
+    });
+    if (!ok) return;
+    setAfreshing(true);
+    try {
+      const res = await apiClient.post('/reminders/start-afresh');
+      showToast(res.data?.message || 'Reminders list cleared', 'success');
+      loadOutstandingInvoices();
+    } catch (error) {
+      console.error('Error starting afresh:', error);
+      showToast('Failed to clear reminders list', 'error');
+    } finally {
+      setAfreshing(false);
     }
   };
 
@@ -1774,6 +1800,21 @@ const AccountantDashboard: React.FC = () => {
                         Send to Selected ({selectedForBulk.length})
                       </button>
                     )}
+                    <button
+                      onClick={handleStartAfresh}
+                      disabled={afreshing || outstandingInvoices.length === 0}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                      title="Clear all current outstanding invoices from the reminders list — new invoices going forward still appear"
+                    >
+                      {afreshing ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                      Start Afresh
+                    </button>
                   </div>
                 </div>
 
@@ -2057,12 +2098,15 @@ const AccountantDashboard: React.FC = () => {
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Select an invoice to create an insurance claim</p>
+              <p className="text-sm text-gray-500 mt-1">Select an insurance invoice to create a claim. Only invoices billed to an insurance provider appear here.</p>
             </div>
             <div className="p-6">
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {insuranceInvoices.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No invoices available for claims</p>
+                  <p className="text-center text-gray-500 py-8">
+                    No insurance invoices available for claims.<br />
+                    <span className="text-sm text-gray-400">Only invoices for patients whose payer is an insurance provider can become claims.</span>
+                  </p>
                 ) : (
                   insuranceInvoices.map((inv) => (
                     <div
@@ -2074,6 +2118,9 @@ const AccountantDashboard: React.FC = () => {
                         <div>
                           <p className="font-medium text-gray-900">{inv.invoice_number}</p>
                           <p className="text-sm text-gray-600">{inv.patient_name}</p>
+                          {inv.insurance_provider_name && (
+                            <p className="text-xs text-primary-600">{inv.insurance_provider_name}</p>
+                          )}
                           <p className="text-xs text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
                         </div>
                         <div className="text-right">
