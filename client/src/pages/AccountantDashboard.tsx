@@ -349,7 +349,7 @@ const PAYER_TAB_LABEL: Record<string, string> = {
 
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const { prompt: promptDialog } = useDialog();
+  const { prompt: promptDialog, confirm: confirmDialog } = useDialog();
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -602,6 +602,27 @@ const AccountantDashboard: React.FC = () => {
       console.error('Error loading outstanding invoices:', error);
     } finally {
       setRemindersLoading(false);
+    }
+  };
+
+  const [afreshing, setAfreshing] = useState(false);
+  const handleStartAfresh = async () => {
+    const ok = await confirmDialog({
+      title: 'Start afresh on reminders?',
+      message: 'This clears every current outstanding invoice from the reminders list so it starts empty. The invoices are not changed — they still count as outstanding in the aging report and statements — they just drop off the reminders workflow. New invoices going forward will still appear.',
+      confirmLabel: 'Start Afresh',
+    });
+    if (!ok) return;
+    setAfreshing(true);
+    try {
+      const res = await apiClient.post('/reminders/start-afresh');
+      showToast(res.data?.message || 'Reminders list cleared', 'success');
+      loadOutstandingInvoices();
+    } catch (error) {
+      console.error('Error starting afresh:', error);
+      showToast('Failed to clear reminders list', 'error');
+    } finally {
+      setAfreshing(false);
     }
   };
 
@@ -1667,6 +1688,21 @@ const AccountantDashboard: React.FC = () => {
                         Send to Selected ({selectedForBulk.length})
                       </button>
                     )}
+                    <button
+                      onClick={handleStartAfresh}
+                      disabled={afreshing || outstandingInvoices.length === 0}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                      title="Clear all current outstanding invoices from the reminders list — new invoices going forward still appear"
+                    >
+                      {afreshing ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                      Start Afresh
+                    </button>
                   </div>
                 </div>
 

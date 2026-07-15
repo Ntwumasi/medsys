@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateToken, authorizeRoles } from '../middleware/auth';
 import {
   getOutstandingInvoices,
+  startAfreshReminders,
   getReminderSettings,
   updateReminderSettings,
   sendReminder,
@@ -20,6 +21,9 @@ router.use(authorizeRoles('admin', 'accountant', 'receptionist'));
 
 // Outstanding invoices eligible for reminders
 router.get('/outstanding', getOutstandingInvoices);
+
+// "Start Afresh" — exclude all current outstanding invoices from the list
+router.post('/start-afresh', authorizeRoles('admin', 'accountant'), startAfreshReminders);
 
 // Reminder settings
 router.get('/settings', getReminderSettings);

@@ -15,7 +15,9 @@ export const getOutstandingInvoices = async (req: Request, res: Response) => {
   try {
     const { aging_bucket, search } = req.query;
 
-    let whereClause = `WHERE i.status IN ('pending', 'partial') AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0`;
+    // Invoices excluded via "Start Afresh" are hidden from the reminders list
+    // (they still count as outstanding elsewhere — this only affects reminders).
+    let whereClause = `WHERE i.status IN ('pending', 'partial') AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0 AND NOT COALESCE(i.reminders_excluded, false)`;
 
     if (aging_bucket && aging_bucket !== 'all') {
       switch (aging_bucket) {
@@ -89,6 +91,7 @@ export const getOutstandingInvoices = async (req: Request, res: Response) => {
       FROM invoices
       WHERE status IN ('pending', 'partial')
         AND (total_amount - COALESCE(amount_paid, 0)) > 0
+        AND NOT COALESCE(reminders_excluded, false)
     `;
     const summaryResult = await pool.query(summaryQuery);
 
@@ -99,6 +102,33 @@ export const getOutstandingInvoices = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching outstanding invoices:', error);
     res.status(500).json({ error: 'Failed to fetch outstanding invoices' });
+  }
+};
+
+/**
+ * "Start Afresh": exclude every currently-outstanding invoice from the payment
+ * reminders list, so the list starts empty and only invoices going forward
+ * appear. Non-destructive — invoices are untouched (still outstanding in aging /
+ * statements), they just drop off the reminders workflow. Reversible by clearing
+ * the flag.
+ */
+export const startAfreshReminders = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      UPDATE invoices
+      SET reminders_excluded = true
+      WHERE status IN ('pending', 'partial')
+        AND (total_amount - COALESCE(amount_paid, 0)) > 0
+        AND NOT COALESCE(reminders_excluded, false)
+    `);
+    res.json({
+      success: true,
+      excluded_count: result.rowCount || 0,
+      message: `${result.rowCount || 0} outstanding invoice(s) cleared from the reminders list.`,
+    });
+  } catch (error) {
+    console.error('Error starting afresh on reminders:', error);
+    res.status(500).json({ error: 'Failed to clear reminders' });
   }
 };
 
