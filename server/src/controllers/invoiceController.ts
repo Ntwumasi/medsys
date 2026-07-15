@@ -210,6 +210,115 @@ export const submitInvoiceToPayer = async (req: Request, res: Response): Promise
   }
 };
 
+// Record a corporate/insurance payer settlement against a submitted invoice.
+// This is the settle side of the submit→settle loop: the payer (not the
+// patient) pays, so it's accountant-accessible (the normal PUT /invoices/:id
+// payment path is receptionist/admin only). Records a payment and moves the
+// invoice to paid/partial from its amounts. Supports partial settlement.
+export const settlePayerInvoice = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { amount, reference, payment_method } = req.body || {};
+    const userId = (req as any).user?.id;
+
+    await client.query('BEGIN');
+
+    const invoiceResult = await client.query(
+      `SELECT i.id, i.status, i.total_amount, i.amount_paid, i.payer_submitted_at,
+              pp.payer_type
+       FROM invoices i
+       LEFT JOIN LATERAL (
+         SELECT pps.payer_type FROM patient_payer_sources pps
+         WHERE pps.patient_id = i.patient_id
+         ORDER BY pps.is_primary DESC, pps.id ASC LIMIT 1
+       ) pp ON true
+       WHERE i.id = $1
+       FOR UPDATE OF i`,
+      [id]
+    );
+
+    if (invoiceResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const inv = invoiceResult.rows[0];
+    if (inv.payer_type !== 'corporate' && inv.payer_type !== 'insurance') {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'This invoice is not billed to a corporate or insurance payer.' });
+      return;
+    }
+
+    const total = parseFloat(inv.total_amount || 0);
+    const currentPaid = parseFloat(inv.amount_paid || 0);
+    const balance = total - currentPaid;
+
+    if (balance <= 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'This invoice is already fully settled.' });
+      return;
+    }
+
+    // Default to settling the full outstanding balance.
+    let payAmount = amount !== undefined && amount !== null ? parseFloat(amount) : balance;
+    if (!Number.isFinite(payAmount) || payAmount <= 0) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Invalid settlement amount.' });
+      return;
+    }
+    if (payAmount > balance + 0.001) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: `Settlement (GHS ${payAmount.toFixed(2)}) exceeds the outstanding balance (GHS ${balance.toFixed(2)}).` });
+      return;
+    }
+
+    const newPaid = currentPaid + payAmount;
+    const newStatus = newPaid >= total && total > 0 ? 'paid' : 'partial';
+
+    await client.query(
+      `UPDATE invoices SET amount_paid = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newPaid, newStatus, id]
+    );
+
+    const paymentResult = await client.query(
+      `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, reference_number, notes, created_by, created_at)
+       VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       RETURNING id`,
+      [id, payAmount, payment_method || `${inv.payer_type}_settlement`, reference || null, `${inv.payer_type} payer settlement`, userId]
+    );
+
+    // Mirror to QuickBooks like the normal payment path.
+    const cfg = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+    if (cfg.rows[0]?.is_connected) {
+      await client.query(
+        `INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
+         VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)`,
+        [paymentResult.rows[0].id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      status: newStatus,
+      amount_settled: payAmount,
+      balance_remaining: total - newPaid,
+      message: newStatus === 'paid'
+        ? `Invoice fully settled by ${inv.payer_type} payer.`
+        : `Partial ${inv.payer_type} settlement of GHS ${payAmount.toFixed(2)} recorded. GHS ${(total - newPaid).toFixed(2)} still outstanding.`,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Settle payer invoice error:', error);
+    res.status(500).json({ error: 'Failed to record settlement' });
+  } finally {
+    client.release();
+  }
+};
+
 // List completed encounters billed to a corporate/insurance payer whose invoice
 // hasn't been submitted yet — lets the accountant catch encounters front desk
 // missed and submit them after the fact.
