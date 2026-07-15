@@ -449,18 +449,29 @@ export async function receiveResponseXML(
 
     console.log(`[QBWC] Processed response for request ${request.id}: ${status}`);
 
-    // Check for more pending requests
-    const pendingCount = await pool.query(`
-      SELECT COUNT(*) FROM quickbooks_request_queue WHERE status = 'pending'
+    // Report progress back to the Web Connector. Its contract: return 100 when
+    // the batch is done, a value in (0,100) to be polled again for the next
+    // item, and NEVER a negative value — the connector treats <0 as a fatal
+    // error and aborts the session. The old `100 - remaining` went negative
+    // for any queue larger than one item, so the connector quit after a single
+    // record and the queue never drained. Clamp to a real 1–99 progress %.
+    const counts = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+        COUNT(*) FILTER (WHERE status IN ('completed', 'error')) AS done
+      FROM quickbooks_request_queue
     `);
+    const pending = parseInt(counts.rows[0].pending);
+    const done = parseInt(counts.rows[0].done);
 
-    const remaining = parseInt(pendingCount.rows[0].count);
-    if (remaining === 0) {
-      return 100; // Complete
+    if (pending === 0) {
+      return 100; // No more pending work — batch complete
     }
 
-    // Return percentage (just estimate)
-    return Math.min(99, 100 - remaining);
+    // Monotonic-ish progress out of everything that's been queued and resolved.
+    const total = pending + done;
+    const pct = total > 0 ? Math.floor((done / total) * 100) : 0;
+    return Math.max(1, Math.min(99, pct)); // keep polling: strictly 1–99
 
   } catch (error) {
     console.error('[QBWC] receiveResponseXML error:', error);
