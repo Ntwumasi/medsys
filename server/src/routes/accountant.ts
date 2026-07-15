@@ -4,6 +4,7 @@ import {
   getFinancialSummary,
   exportInvoicesToExcel,
   exportInvoiceDetailToExcel,
+  exportRevenueTrendToExcel,
   getAgingReport,
   getRevenueByPayer,
   getDepartmentRevenue,
@@ -25,6 +26,7 @@ router.get('/summary', getFinancialSummary);
 
 // Excel exports
 router.get('/export/invoices', exportInvoicesToExcel);
+router.get('/export/revenue-trend', exportRevenueTrendToExcel);
 router.get('/export/invoice/:id', exportInvoiceDetailToExcel);
 
 // Reports

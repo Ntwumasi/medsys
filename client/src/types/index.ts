@@ -350,7 +350,7 @@ export interface Invoice {
 }
 
 export interface PayerSource {
-  payer_type: 'self_pay' | 'corporate' | 'insurance';
+  payer_type: 'self_pay' | 'corporate' | 'insurance' | 'staff';
   corporate_client_id?: number;
   corporate_client_name?: string;
   insurance_provider_id?: number;

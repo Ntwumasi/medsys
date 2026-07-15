@@ -7,18 +7,34 @@ import { nextInvoiceNumber } from '../services/sequences';
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, start_date, end_date, search, limit = 50, offset = 0 } = req.query;
+    const { status, start_date, end_date, search, payer_type, limit = 50, offset = 0 } = req.query;
 
+    // Each invoice's effective payer type is the patient's PRIMARY payer source.
+    // Patients with no payer source on file are treated as fee-paying (self_pay).
     let query = `
       SELECT i.*,
              p.patient_number,
              u.first_name || ' ' || u.last_name as patient_name,
              e.encounter_number,
-             e.chief_complaint
+             e.chief_complaint,
+             COALESCE(pp.payer_type, 'self_pay') as payer_type,
+             pp.corporate_client_name,
+             pp.insurance_provider_name
       FROM invoices i
       JOIN patients p ON i.patient_id = p.id
       JOIN users u ON p.user_id = u.id
       LEFT JOIN encounters e ON i.encounter_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT pps.payer_type,
+               cc.name as corporate_client_name,
+               ip.name as insurance_provider_name
+        FROM patient_payer_sources pps
+        LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+        LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+        WHERE pps.patient_id = i.patient_id
+        ORDER BY pps.is_primary DESC, pps.id ASC
+        LIMIT 1
+      ) pp ON true
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -28,6 +44,19 @@ export const getAllInvoices = async (req: Request, res: Response): Promise<void>
       paramCount++;
       query += ` AND i.status = $${paramCount}`;
       params.push(status);
+    }
+
+    // Filter by payer type (drives the Invoices / Insurance / Corporate / Staff
+    // tabs on the accountant dashboard). 'self_pay' also matches invoices whose
+    // patient has no payer source recorded.
+    if (payer_type && payer_type !== 'all') {
+      if (payer_type === 'self_pay') {
+        query += ` AND COALESCE(pp.payer_type, 'self_pay') = 'self_pay'`;
+      } else {
+        paramCount++;
+        query += ` AND pp.payer_type = $${paramCount}`;
+        params.push(payer_type);
+      }
     }
 
     if (start_date) {

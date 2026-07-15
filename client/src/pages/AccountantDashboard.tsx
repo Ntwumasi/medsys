@@ -118,7 +118,21 @@ interface InvoiceData {
   status: string;
   chief_complaint?: string;
   encounter_date?: string;
+  payer_type?: string;
+  corporate_client_name?: string;
+  insurance_provider_name?: string;
 }
+
+// Human label for an invoice's payer (the specific corporate client / insurer,
+// or the payer-type name for self-pay / staff).
+const payerLabel = (inv: InvoiceData): string => {
+  switch (inv.payer_type) {
+    case 'corporate': return inv.corporate_client_name || 'Corporate';
+    case 'insurance': return inv.insurance_provider_name || 'Insurance';
+    case 'staff': return 'Staff';
+    default: return 'Self Pay';
+  }
+};
 
 interface InvoiceItem {
   id: number;
@@ -316,12 +330,30 @@ const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, a
   );
 };
 
+// The four invoice tabs are the same table filtered by payer type. 'Invoices'
+// means fee-paying (self-pay) only; the rest split out insurance / corporate /
+// staff billing.
+const INVOICE_TABS = ['invoices', 'insuranceInvoices', 'corporateInvoices', 'staffInvoices'] as const;
+const TAB_PAYER_TYPE: Record<string, string> = {
+  invoices: 'self_pay',
+  insuranceInvoices: 'insurance',
+  corporateInvoices: 'corporate',
+  staffInvoices: 'staff',
+};
+const PAYER_TAB_LABEL: Record<string, string> = {
+  invoices: 'fee-paying',
+  insuranceInvoices: 'insurance',
+  corporateInvoices: 'corporate',
+  staffInvoices: 'staff',
+};
+
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { prompt: promptDialog } = useDialog();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingTrend, setExportingTrend] = useState(false);
 
   // Date filters
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
@@ -460,7 +492,7 @@ const AccountantDashboard: React.FC = () => {
   }, [startDate, endDate]);
 
   useEffect(() => {
-    if (activeTab === 'invoices') {
+    if ((INVOICE_TABS as readonly string[]).includes(activeTab)) {
       loadInvoices();
     } else if (activeTab === 'aging') {
       loadAgingReport();
@@ -501,6 +533,7 @@ const AccountantDashboard: React.FC = () => {
           search: invoiceSearch || undefined,
           start_date: startDate,
           end_date: endDate,
+          payer_type: TAB_PAYER_TYPE[activeTab] || undefined,
           limit: 100,
         },
       });
@@ -794,11 +827,13 @@ const AccountantDashboard: React.FC = () => {
   const handleExportInvoices = async () => {
     setExporting(true);
     try {
+      const payerType = TAB_PAYER_TYPE[activeTab];
       const response = await apiClient.get('/accountant/export/invoices', {
         params: {
           start_date: startDate,
           end_date: endDate,
           status: invoiceFilter !== 'all' ? invoiceFilter : undefined,
+          payer_type: payerType || undefined,
         },
         responseType: 'blob',
       });
@@ -807,7 +842,8 @@ const AccountantDashboard: React.FC = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `invoices_${startDate}_to_${endDate}.xlsx`);
+      const payerTag = payerType && payerType !== 'self_pay' ? `${payerType}_` : '';
+      link.setAttribute('download', `${payerTag}invoices_${startDate}_to_${endDate}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -819,6 +855,30 @@ const AccountantDashboard: React.FC = () => {
       showToast('Failed to export invoices', 'error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportRevenueTrend = async () => {
+    setExportingTrend(true);
+    try {
+      const response = await apiClient.get('/accountant/export/revenue-trend', {
+        params: { start_date: startDate, end_date: endDate },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `revenue_trend_${startDate}_to_${endDate}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Revenue trend exported', 'success');
+    } catch (error) {
+      console.error('Error exporting revenue trend:', error);
+      showToast('Failed to export revenue trend', 'error');
+    } finally {
+      setExportingTrend(false);
     }
   };
 
@@ -925,6 +985,9 @@ const AccountantDashboard: React.FC = () => {
               {[
                 { id: 'overview', label: 'Overview' },
                 { id: 'invoices', label: 'Invoices' },
+                { id: 'insuranceInvoices', label: 'Insurance Invoices' },
+                { id: 'corporateInvoices', label: 'Corporate Invoices' },
+                { id: 'staffInvoices', label: 'Staff Invoices' },
                 { id: 'aging', label: 'Aging Report' },
                 { id: 'claims', label: 'Insurance Claims' },
                 { id: 'reminders', label: 'Payment Reminders' },
@@ -1029,7 +1092,23 @@ const AccountantDashboard: React.FC = () => {
 
                     {/* Revenue Trend Chart */}
                     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Revenue Trend</h3>
+                        <button
+                          onClick={handleExportRevenueTrend}
+                          disabled={exportingTrend || dailyRevenue.length === 0}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                        >
+                          {exportingTrend ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          Export to Excel
+                        </button>
+                      </div>
                       {dailyRevenue.length > 0 ? (
                         <div className="h-72">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1053,7 +1132,7 @@ const AccountantDashboard: React.FC = () => {
                                 fontSize={12}
                               />
                               <Tooltip
-                                formatter={(value) => [formatCurrency(value as number), '']}
+                                formatter={(value, name) => [formatCurrency(value as number), name as string]}
                                 labelFormatter={(label) => {
                                   try {
                                     return format(parseISO(label), 'MMMM d, yyyy');
@@ -1275,8 +1354,13 @@ const AccountantDashboard: React.FC = () => {
             )}
 
             {/* Invoices Tab */}
-            {activeTab === 'invoices' && (
+            {(INVOICE_TABS as readonly string[]).includes(activeTab) && (
               <div className="space-y-4">
+                {activeTab !== 'invoices' && (
+                  <div className="text-sm text-gray-600">
+                    Showing <span className="font-semibold text-gray-900">{PAYER_TAB_LABEL[activeTab]}</span> invoices only.
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-4 items-center justify-between">
                   <div className="flex gap-4 items-center flex-1">
                     <input
@@ -1322,6 +1406,9 @@ const AccountantDashboard: React.FC = () => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        {activeTab !== 'invoices' && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                        )}
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
@@ -1333,12 +1420,12 @@ const AccountantDashboard: React.FC = () => {
                       {invoicesLoading ? (
                         <>
                           {Array.from({ length: 6 }).map((_, i) => (
-                            <TableRowSkeleton key={i} columns={8} />
+                            <TableRowSkeleton key={i} columns={activeTab !== 'invoices' ? 9 : 8} />
                           ))}
                         </>
                       ) : invoices.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
+                          <td colSpan={activeTab !== 'invoices' ? 9 : 8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
                         </tr>
                       ) : (
                         invoices.map((inv) => (
@@ -1349,6 +1436,9 @@ const AccountantDashboard: React.FC = () => {
                               <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
                               <div className="text-xs text-gray-500">{inv.patient_number}</div>
                             </td>
+                            {activeTab !== 'invoices' && (
+                              <td className="px-4 py-3 text-sm text-gray-700">{payerLabel(inv)}</td>
+                            )}
                             <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(inv.total_amount)}</td>
                             <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(inv.amount_paid)}</td>
                             <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
