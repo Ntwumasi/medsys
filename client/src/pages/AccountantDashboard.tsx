@@ -580,11 +580,16 @@ const AccountantDashboard: React.FC = () => {
 
   const loadInsuranceInvoices = async () => {
     try {
+      // Only insurance-payer invoices can become claims — createClaim rejects
+      // any other invoice with "Patient has no insurance on record". Also drop
+      // zero-value invoices (nothing to claim).
       const response = await apiClient.get('/invoices', {
-        params: { status: 'all', limit: 100 },
+        params: { status: 'all', payer_type: 'insurance', limit: 100 },
       });
-      // Filter to only show invoices that can have claims (with insurance payer)
-      setInsuranceInvoices(response.data.invoices || []);
+      const eligible = (response.data.invoices || []).filter(
+        (inv: InvoiceData) => (parseFloat(inv.total_amount as unknown as string) || 0) > 0
+      );
+      setInsuranceInvoices(eligible);
     } catch (error) {
       console.error('Error loading invoices:', error);
     }
@@ -1986,12 +1991,15 @@ const AccountantDashboard: React.FC = () => {
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Select an invoice to create an insurance claim</p>
+              <p className="text-sm text-gray-500 mt-1">Select an insurance invoice to create a claim. Only invoices billed to an insurance provider appear here.</p>
             </div>
             <div className="p-6">
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {insuranceInvoices.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No invoices available for claims</p>
+                  <p className="text-center text-gray-500 py-8">
+                    No insurance invoices available for claims.<br />
+                    <span className="text-sm text-gray-400">Only invoices for patients whose payer is an insurance provider can become claims.</span>
+                  </p>
                 ) : (
                   insuranceInvoices.map((inv) => (
                     <div
@@ -2003,6 +2011,9 @@ const AccountantDashboard: React.FC = () => {
                         <div>
                           <p className="font-medium text-gray-900">{inv.invoice_number}</p>
                           <p className="text-sm text-gray-600">{inv.patient_name}</p>
+                          {inv.insurance_provider_name && (
+                            <p className="text-xs text-primary-600">{inv.insurance_provider_name}</p>
+                          )}
                           <p className="text-xs text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
                         </div>
                         <div className="text-right">
