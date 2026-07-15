@@ -11,140 +11,160 @@ const generateClaimNumber = async (): Promise<string> => {
   return `CLM${year}${String(nextId).padStart(6, '0')}`;
 };
 
-// Create a new claim from an invoice
+// Result of an internal claim-creation attempt (shared by the HTTP handler and
+// the submit-to-payer flow).
+export type CreateClaimResult =
+  | { ok: true; claim: any; alreadyExisted?: boolean; patient_name?: string; provider_name?: string }
+  | { ok: false; status: number; error: string };
+
+// Core claim creation from an invoice — reusable. When `skipIfExists` is true
+// an existing claim is treated as success (used by auto-submit) rather than a
+// 400 error.
+export const createClaimForInvoice = async (
+  invoiceId: number,
+  userId: number | undefined,
+  opts: { skipIfExists?: boolean } = {}
+): Promise<CreateClaimResult> => {
+  // Get invoice details with patient and encounter info
+  const invoiceResult = await pool.query(
+    `SELECT i.*,
+            p.id as patient_id,
+            p.patient_number,
+            p.date_of_birth,
+            u.first_name || ' ' || u.last_name as patient_name,
+            e.id as encounter_id,
+            e.encounter_number
+     FROM invoices i
+     JOIN patients p ON i.patient_id = p.id
+     JOIN users u ON p.user_id = u.id
+     LEFT JOIN encounters e ON i.encounter_id = e.id
+     WHERE i.id = $1`,
+    [invoiceId]
+  );
+
+  if (invoiceResult.rows.length === 0) {
+    return { ok: false, status: 404, error: 'Invoice not found' };
+  }
+
+  const invoice = invoiceResult.rows[0];
+
+  // Check if claim already exists for this invoice
+  const existingClaim = await pool.query(
+    `SELECT * FROM insurance_claims WHERE invoice_id = $1`,
+    [invoiceId]
+  );
+
+  if (existingClaim.rows.length > 0) {
+    if (opts.skipIfExists) {
+      return { ok: true, claim: existingClaim.rows[0], alreadyExisted: true };
+    }
+    return { ok: false, status: 400, error: 'Claim already exists for this invoice' };
+  }
+
+  // Get patient's insurance info
+  const insuranceResult = await pool.query(
+    `SELECT pps.*, ip.id as provider_id, ip.name as provider_name,
+            pid.member_id, pid.plan_option, pid.annual_limit, pid.used_to_date
+     FROM patient_payer_sources pps
+     JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+     LEFT JOIN patient_insurance_details pid ON pid.patient_id = pps.patient_id
+       AND pid.insurance_provider_id = ip.id
+     WHERE pps.patient_id = $1 AND pps.payer_type = 'insurance'
+     ORDER BY pps.is_primary DESC
+     LIMIT 1`,
+    [invoice.patient_id]
+  );
+
+  if (insuranceResult.rows.length === 0) {
+    return { ok: false, status: 400, error: 'Patient has no insurance on record' };
+  }
+
+  const insurance = insuranceResult.rows[0];
+
+  // Get diagnoses from encounter
+  const diagnosesResult = await pool.query(
+    `SELECT diagnosis_code, diagnosis_description, type
+     FROM diagnoses
+     WHERE encounter_id = $1
+     ORDER BY type = 'primary' DESC, created_at`,
+    [invoice.encounter_id]
+  );
+
+  const primaryDiagnosis = diagnosesResult.rows.find(d => d.type === 'primary') || diagnosesResult.rows[0];
+  const secondaryDiagnoses = diagnosesResult.rows.filter(d => d !== primaryDiagnosis);
+
+  // Get invoice items for claim
+  const itemsResult = await pool.query(
+    `SELECT description, quantity, unit_price, total_price, category
+     FROM invoice_items
+     WHERE invoice_id = $1`,
+    [invoiceId]
+  );
+
+  const claimNumber = await generateClaimNumber();
+
+  const annualLimit = parseFloat(insurance.annual_limit) || 0;
+  const usedToDate = parseFloat(insurance.used_to_date) || 0;
+  const remainingCoverage = annualLimit - usedToDate;
+
+  const result = await pool.query(
+    `INSERT INTO insurance_claims (
+      claim_number, invoice_id, patient_id, encounter_id, insurance_provider_id,
+      member_id, plan_option,
+      primary_diagnosis_code, primary_diagnosis_desc, secondary_diagnosis_codes,
+      total_charged, annual_limit, used_to_date, remaining_coverage,
+      claim_items, status, created_by
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'draft', $16)
+    RETURNING *`,
+    [
+      claimNumber,
+      invoiceId,
+      invoice.patient_id,
+      invoice.encounter_id,
+      insurance.provider_id,
+      insurance.member_id || '',
+      insurance.plan_option || '',
+      primaryDiagnosis?.diagnosis_code || '',
+      primaryDiagnosis?.diagnosis_description || '',
+      JSON.stringify(secondaryDiagnoses.map(d => ({
+        code: d.diagnosis_code,
+        description: d.diagnosis_description
+      }))),
+      invoice.total_amount,
+      annualLimit,
+      usedToDate,
+      remainingCoverage,
+      JSON.stringify(itemsResult.rows),
+      userId
+    ]
+  );
+
+  return {
+    ok: true,
+    claim: result.rows[0],
+    patient_name: invoice.patient_name,
+    provider_name: insurance.provider_name,
+  };
+};
+
+// Create a new claim from an invoice (HTTP handler — manual "Create Claim").
 export const createClaim = async (req: Request, res: Response): Promise<void> => {
   try {
     const { invoice_id } = req.body;
     const userId = (req as any).user?.id;
 
-    // Get invoice details with patient and encounter info
-    const invoiceResult = await pool.query(
-      `SELECT i.*,
-              p.id as patient_id,
-              p.patient_number,
-              p.date_of_birth,
-              u.first_name || ' ' || u.last_name as patient_name,
-              e.id as encounter_id,
-              e.encounter_number
-       FROM invoices i
-       JOIN patients p ON i.patient_id = p.id
-       JOIN users u ON p.user_id = u.id
-       LEFT JOIN encounters e ON i.encounter_id = e.id
-       WHERE i.id = $1`,
-      [invoice_id]
-    );
-
-    if (invoiceResult.rows.length === 0) {
-      res.status(404).json({ error: 'Invoice not found' });
+    const result = await createClaimForInvoice(invoice_id, userId);
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
       return;
     }
-
-    const invoice = invoiceResult.rows[0];
-
-    // Check if claim already exists for this invoice
-    const existingClaim = await pool.query(
-      `SELECT id, claim_number FROM insurance_claims WHERE invoice_id = $1`,
-      [invoice_id]
-    );
-
-    if (existingClaim.rows.length > 0) {
-      res.status(400).json({
-        error: 'Claim already exists for this invoice',
-        claim_id: existingClaim.rows[0].id,
-        claim_number: existingClaim.rows[0].claim_number
-      });
-      return;
-    }
-
-    // Get patient's insurance info
-    const insuranceResult = await pool.query(
-      `SELECT pps.*, ip.id as provider_id, ip.name as provider_name,
-              pid.member_id, pid.plan_option, pid.annual_limit, pid.used_to_date
-       FROM patient_payer_sources pps
-       JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
-       LEFT JOIN patient_insurance_details pid ON pid.patient_id = pps.patient_id
-         AND pid.insurance_provider_id = ip.id
-       WHERE pps.patient_id = $1 AND pps.payer_type = 'insurance'
-       ORDER BY pps.is_primary DESC
-       LIMIT 1`,
-      [invoice.patient_id]
-    );
-
-    if (insuranceResult.rows.length === 0) {
-      res.status(400).json({ error: 'Patient has no insurance on record' });
-      return;
-    }
-
-    const insurance = insuranceResult.rows[0];
-
-    // Get diagnoses from encounter
-    const diagnosesResult = await pool.query(
-      `SELECT diagnosis_code, diagnosis_description, type
-       FROM diagnoses
-       WHERE encounter_id = $1
-       ORDER BY type = 'primary' DESC, created_at`,
-      [invoice.encounter_id]
-    );
-
-    const primaryDiagnosis = diagnosesResult.rows.find(d => d.type === 'primary') || diagnosesResult.rows[0];
-    const secondaryDiagnoses = diagnosesResult.rows.filter(d => d !== primaryDiagnosis);
-
-    // Get invoice items for claim
-    const itemsResult = await pool.query(
-      `SELECT description, quantity, unit_price, total_price, category
-       FROM invoice_items
-       WHERE invoice_id = $1`,
-      [invoice_id]
-    );
-
-    // Generate claim number
-    const claimNumber = await generateClaimNumber();
-
-    // Calculate coverage
-    const annualLimit = parseFloat(insurance.annual_limit) || 0;
-    const usedToDate = parseFloat(insurance.used_to_date) || 0;
-    const remainingCoverage = annualLimit - usedToDate;
-
-    // Create the claim
-    const result = await pool.query(
-      `INSERT INTO insurance_claims (
-        claim_number, invoice_id, patient_id, encounter_id, insurance_provider_id,
-        member_id, plan_option,
-        primary_diagnosis_code, primary_diagnosis_desc, secondary_diagnosis_codes,
-        total_charged, annual_limit, used_to_date, remaining_coverage,
-        claim_items, status, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'draft', $16)
-      RETURNING *`,
-      [
-        claimNumber,
-        invoice_id,
-        invoice.patient_id,
-        invoice.encounter_id,
-        insurance.provider_id,
-        insurance.member_id || '',
-        insurance.plan_option || '',
-        primaryDiagnosis?.diagnosis_code || '',
-        primaryDiagnosis?.diagnosis_description || '',
-        JSON.stringify(secondaryDiagnoses.map(d => ({
-          code: d.diagnosis_code,
-          description: d.diagnosis_description
-        }))),
-        invoice.total_amount,
-        annualLimit,
-        usedToDate,
-        remainingCoverage,
-        JSON.stringify(itemsResult.rows),
-        userId
-      ]
-    );
 
     res.status(201).json({
       message: 'Claim created successfully',
-      claim: result.rows[0],
-      patient_name: invoice.patient_name,
-      provider_name: insurance.provider_name
+      claim: result.claim,
+      patient_name: result.patient_name,
+      provider_name: result.provider_name,
     });
-
   } catch (error) {
     console.error('Create claim error:', error);
     res.status(500).json({ error: 'Failed to create claim' });
