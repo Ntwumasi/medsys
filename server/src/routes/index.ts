@@ -159,6 +159,7 @@ import {
   getPendingPayments,
   createSpecialInvoice,
   submitInvoiceToPayer,
+  settlePayerInvoice,
   getUnbilledPayerInvoices,
 } from '../controllers/invoiceController';
 import {
@@ -712,6 +713,7 @@ router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admi
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
 router.post('/invoices/:id/submit-to-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), submitInvoiceToPayer);
+router.post('/invoices/:id/settle-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), settlePayerInvoice);
 
 // Receipts
 router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getAllReceipts);

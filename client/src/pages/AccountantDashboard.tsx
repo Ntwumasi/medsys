@@ -646,6 +646,30 @@ const AccountantDashboard: React.FC = () => {
     }
   };
 
+  const handleSettlePayer = async (inv: InvoiceData) => {
+    const balance = (parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0);
+    const payerName = payerLabel(inv);
+    const entered = await promptDialog({
+      title: `Record ${payerName} settlement`,
+      message: `How much did ${payerName} pay for invoice ${inv.invoice_number}? Outstanding balance: ${formatCurrency(balance)}.`,
+      defaultValue: balance.toFixed(2),
+      confirmLabel: 'Record settlement',
+    });
+    if (entered === null) return;
+    const amount = parseFloat(entered);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showToast('Enter a valid settlement amount', 'error');
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/invoices/${inv.id}/settle-payer`, { amount });
+      showToast(res.data?.message || 'Settlement recorded', 'success');
+      loadInvoices();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to record settlement', 'error');
+    }
+  };
+
   const [afreshing, setAfreshing] = useState(false);
   const handleStartAfresh = async () => {
     const ok = await confirmDialog({
@@ -1530,6 +1554,15 @@ const AccountantDashboard: React.FC = () => {
                                 >
                                   View
                                 </button>
+                                {isSubmittedAwaitingPayer(inv) && (
+                                  <button
+                                    onClick={() => handleSettlePayer(inv)}
+                                    className="text-purple-600 hover:text-purple-900 text-sm font-medium"
+                                    title="Record the payer's settlement for this invoice"
+                                  >
+                                    Settle
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleExportSingleInvoice(inv.id)}
                                   className="text-green-600 hover:text-green-900 text-sm font-medium"
