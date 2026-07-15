@@ -179,12 +179,19 @@ export function buildInvoiceAddRq(
   items: InvoiceItemData[],
   customerListId: string,
   itemListIds: Map<number, string>, // charge_master_id -> QB ListID
-  requestId?: string
+  requestId?: string,
+  defaultItemFullName: string = 'Medical Services', // fallback item for unmapped lines
 ): string {
-  const lineItems = items.map((item, index) => {
+  const lineItems = items.map((item) => {
+    // QuickBooks REQUIRES every InvoiceLineAdd to reference an existing Item —
+    // a line with no ItemRef is invalid qbXML and (with stopOnError) aborts the
+    // whole Web Connector batch ("Unexpected error, check qbsdklog.txt"). When a
+    // line's charge item isn't mapped to a QB ListID, fall back to a named
+    // default item so the request stays valid; if that item is missing in QB,
+    // only this one invoice errors instead of the entire connection.
     const itemRef = item.charge_master_id && itemListIds.has(item.charge_master_id)
       ? `<ItemRef><ListID>${escapeXML(itemListIds.get(item.charge_master_id)!)}</ListID></ItemRef>`
-      : '';
+      : `<ItemRef><FullName>${escapeXML(defaultItemFullName)}</FullName></ItemRef>`;
 
     return `
       <InvoiceLineAdd>

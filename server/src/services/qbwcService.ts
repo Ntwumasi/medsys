@@ -12,6 +12,18 @@ const pool = new Pool({
 
 const APP_VERSION = '1.0.0';
 
+// Name of the QuickBooks item used for invoice lines whose charge isn't mapped
+// to a specific QB item. Configurable via quickbooks_config.default_item_name;
+// falls back to a sensible default. This item must exist in QuickBooks.
+async function getDefaultItemName(): Promise<string> {
+  try {
+    const r = await pool.query(`SELECT default_item_name FROM quickbooks_config WHERE id = 1`);
+    return r.rows[0]?.default_item_name || 'Medical Services';
+  } catch {
+    return 'Medical Services';
+  }
+}
+
 // ===== QBWC SOAP Method Implementations =====
 
 export async function serverVersion(): Promise<string> {
@@ -119,14 +131,29 @@ export async function sendRequestXML(
     if (!qbxml) {
       qbxml = await generateQBXML(request);
       if (!qbxml) {
-        console.error(`[QBWC] Failed to generate QBXML for ${request.entity_type} ${request.operation} #${request.medsys_id}`);
-        // Mark as error and move on
-        await pool.query(`
-          UPDATE quickbooks_request_queue SET
-            status = 'error',
-            error_message = 'Failed to generate QBXML'
-          WHERE id = $1
-        `, [request.id]);
+        // generateQBXML returns null for TWO different reasons:
+        //  1. It deferred the row on purpose (a dependency isn't in QuickBooks
+        //     yet) and already set its status to 'waiting' — must be left alone
+        //     so it can be reactivated once the dependency syncs.
+        //  2. A genuine failure — mark it 'error'.
+        // The old code blindly overwrote (1) with 'error: Failed to generate
+        // QBXML', which is why hundreds of invoices/payments errored and no row
+        // ever stayed 'waiting'. Only error the row if it wasn't deferred.
+        const cur = await pool.query(
+          `SELECT status FROM quickbooks_request_queue WHERE id = $1`,
+          [request.id]
+        );
+        if (cur.rows[0]?.status !== 'waiting') {
+          console.error(`[QBWC] Failed to generate QBXML for ${request.entity_type} ${request.operation} #${request.medsys_id}`);
+          await pool.query(`
+            UPDATE quickbooks_request_queue SET
+              status = 'error',
+              error_message = 'Failed to generate QBXML'
+            WHERE id = $1
+          `, [request.id]);
+        } else {
+          console.log(`[QBWC] Deferred ${request.entity_type} #${request.medsys_id} (waiting on a dependency)`);
+        }
         // Try next request
         return sendRequestXML(ticket, strHCPResponse, strCompanyFileName, qbXMLCountry, qbXMLMajorVers, qbXMLMinorVers);
       }
@@ -255,7 +282,8 @@ async function generateQBXML(request: any): Promise<string | null> {
         itemsResult.rows,
         syncMap.rows[0].quickbooks_id,
         itemListIds,
-        request.id.toString()
+        request.id.toString(),
+        await getDefaultItemName()
       );
     }
 
@@ -445,6 +473,22 @@ export async function receiveResponseXML(
           sync_status = 'synced',
           error_message = NULL
       `, [request.entity_type, request.medsys_id, qbListId || qbTxnId, qbEditSequence]);
+
+      // Payment sync status is surfaced on the dashboard from the payments row
+      // itself (payments.quickbooks_txn_id), NOT the sync map — mirror it there
+      // so synced payments actually show as synced. medsys_id is the payment id
+      // (see qbDataController recordPayment enqueue).
+      if (request.entity_type === 'payment' && qbTxnId) {
+        await pool.query(
+          `UPDATE payments SET quickbooks_txn_id = $2, quickbooks_synced_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [request.medsys_id, qbTxnId]
+        );
+      }
+
+      // Now that this entity exists in QuickBooks, wake up any dependent rows
+      // that were parked waiting on it (or that previously mis-errored while it
+      // was missing) so they retry on the next poll.
+      await reactivateDependents(request.entity_type, request.medsys_id);
     }
 
     console.log(`[QBWC] Processed response for request ${request.id}: ${status}`);
@@ -476,6 +520,58 @@ export async function receiveResponseXML(
   } catch (error) {
     console.error('[QBWC] receiveResponseXML error:', error);
     return -1;
+  }
+}
+
+// When an entity finishes syncing, promote the rows that were waiting on it
+// back to 'pending'. This also recovers rows that errored as "Failed to
+// generate QBXML" while the dependency was missing (the pre-fix behaviour that
+// burned deferred rows). Scoped by the specific patient/invoice so each success
+// only touches its own dependents.
+async function reactivateDependents(entityType: string, medsysId: number): Promise<void> {
+  // Rows eligible to wake up: those parked as 'waiting', plus the historically
+  // mis-burned "Failed to generate QBXML" errors.
+  const wakeable = `(
+    status = 'waiting'
+    OR (status = 'error' AND error_message = 'Failed to generate QBXML')
+  )`;
+
+  try {
+    if (entityType === 'patient' || entityType === 'customer') {
+      // A customer synced → its invoices and payments can go.
+      const inv = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'invoice' AND ${wakeable}
+            AND EXISTS (SELECT 1 FROM invoices i WHERE i.id = q.medsys_id AND i.patient_id = $1)`,
+        [medsysId]
+      );
+      const pay = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'payment' AND ${wakeable}
+            AND EXISTS (
+              SELECT 1 FROM payments p JOIN invoices i ON p.invoice_id = i.id
+              WHERE p.id = q.medsys_id AND i.patient_id = $1
+            )`,
+        [medsysId]
+      );
+      const n = (inv.rowCount || 0) + (pay.rowCount || 0);
+      if (n > 0) console.log(`[QBWC] Reactivated ${n} dependent(s) after patient ${medsysId} synced`);
+    } else if (entityType === 'invoice') {
+      // An invoice synced → its payments can go.
+      const pay = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'payment' AND ${wakeable}
+            AND EXISTS (SELECT 1 FROM payments p WHERE p.id = q.medsys_id AND p.invoice_id = $1)`,
+        [medsysId]
+      );
+      if ((pay.rowCount || 0) > 0) console.log(`[QBWC] Reactivated ${pay.rowCount} payment(s) after invoice ${medsysId} synced`);
+    }
+  } catch (error) {
+    // Reactivation is best-effort — never let it break response processing.
+    console.error('[QBWC] reactivateDependents error:', error);
   }
 }
 
@@ -696,7 +792,9 @@ export async function queueInvoiceSync(invoiceId: number): Promise<void> {
     invoice,
     itemsResult.rows,
     customerListId,
-    itemListIds
+    itemListIds,
+    undefined,
+    await getDefaultItemName()
   );
 
   await pool.query(`
