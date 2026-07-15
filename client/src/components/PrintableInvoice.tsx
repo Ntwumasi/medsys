@@ -423,17 +423,17 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const handleSubmitToPayer = async () => {
     if (!(await confirmDialog({
       title: 'Submit invoice?',
-      message: 'Submit this invoice to the payer and complete the encounter?',
+      message: 'Submit this invoice to the payer and complete the encounter? It stays outstanding until the payer settles.',
       confirmLabel: 'Submit',
     }))) {
       return;
     }
 
-    // 1. Mark the invoice submitted/paid — the money operation.
+    // 1. Record the submission to the corporate/insurance payer. This does NOT
+    //    mark the invoice paid — it stays a receivable until the payer settles
+    //    (and, for insurance, auto-creates a claim).
     try {
-      await apiClient.put(`/invoices/${invoice.id}`, {
-        status: 'paid',
-      });
+      await apiClient.post(`/invoices/${invoice.id}/submit-to-payer`);
     } catch (error) {
       console.error('Error submitting to payer:', error);
       const apiError = error as ApiError;

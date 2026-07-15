@@ -15,7 +15,16 @@ export const getOutstandingInvoices = async (req: Request, res: Response) => {
   try {
     const { aging_bucket, search } = req.query;
 
-    let whereClause = `WHERE i.status IN ('pending', 'partial') AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0`;
+    // Patient reminders only make sense for self-pay/staff patients. Invoices
+    // billed to a corporate/insurance payer are the payer's responsibility, not
+    // the patient's, so they never belong in the patient reminders list.
+    const selfPayerOnly = `AND COALESCE((
+        SELECT pps.payer_type FROM patient_payer_sources pps
+        WHERE pps.patient_id = i.patient_id
+        ORDER BY pps.is_primary DESC, pps.id ASC LIMIT 1
+      ), 'self_pay') NOT IN ('corporate', 'insurance')`;
+
+    let whereClause = `WHERE i.status IN ('pending', 'partial') AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0 ${selfPayerOnly}`;
 
     if (aging_bucket && aging_bucket !== 'all') {
       switch (aging_bucket) {
@@ -86,9 +95,10 @@ export const getOutstandingInvoices = async (req: Request, res: Response) => {
         COUNT(*) FILTER (WHERE CURRENT_DATE - DATE(invoice_date) > 90) as bucket_90_plus,
         COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as total_outstanding,
         COUNT(*) as total_invoices
-      FROM invoices
+      FROM invoices i
       WHERE status IN ('pending', 'partial')
         AND (total_amount - COALESCE(amount_paid, 0)) > 0
+        ${selfPayerOnly}
     `;
     const summaryResult = await pool.query(summaryQuery);
 

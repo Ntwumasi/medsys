@@ -3,6 +3,7 @@ import pool from '../database/db';
 import { sendReceiptEmail, validateEmail } from '../services/emailService';
 import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
 import { nextInvoiceNumber } from '../services/sequences';
+import { createClaimForInvoice } from './claimsController';
 
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
@@ -40,7 +41,11 @@ export const getAllInvoices = async (req: Request, res: Response): Promise<void>
     const params: any[] = [];
     let paramCount = 0;
 
-    if (status && status !== 'all') {
+    if (status === 'submitted') {
+      // "Submitted — awaiting payer": handed to a corporate/insurance payer but
+      // not yet settled (still a receivable).
+      query += ` AND i.payer_submitted_at IS NOT NULL AND i.status IN ('pending', 'partial')`;
+    } else if (status && status !== 'all') {
       paramCount++;
       query += ` AND i.status = $${paramCount}`;
       params.push(status);
@@ -119,6 +124,132 @@ export const getAllInvoices = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('Get all invoices error:', error);
     res.status(500).json({ error: 'Failed to fetch invoices' });
+  }
+};
+
+// Submit an invoice to its corporate/insurance payer. Unlike marking it paid,
+// this records WHEN it was submitted and leaves it a receivable (status
+// unchanged, amount_paid unchanged) so it isn't counted as collected. For
+// insurance payers it also auto-creates a draft claim. The invoice is marked
+// paid separately, later, when the payer actually settles.
+export const submitInvoiceToPayer = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = (req as any).user?.id;
+
+    // Resolve the invoice and the patient's primary payer source.
+    const invoiceResult = await pool.query(
+      `SELECT i.id, i.status, i.payer_submitted_at, i.patient_id,
+              pp.payer_type, pp.payer_source_id, pp.corporate_client_name, pp.insurance_provider_name
+       FROM invoices i
+       LEFT JOIN LATERAL (
+         SELECT pps.id as payer_source_id, pps.payer_type,
+                cc.name as corporate_client_name, ip.name as insurance_provider_name
+         FROM patient_payer_sources pps
+         LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+         LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+         WHERE pps.patient_id = i.patient_id
+         ORDER BY pps.is_primary DESC, pps.id ASC
+         LIMIT 1
+       ) pp ON true
+       WHERE i.id = $1`,
+      [id]
+    );
+
+    if (invoiceResult.rows.length === 0) {
+      res.status(404).json({ error: 'Invoice not found' });
+      return;
+    }
+
+    const inv = invoiceResult.rows[0];
+    const payerType = inv.payer_type;
+
+    if (payerType !== 'corporate' && payerType !== 'insurance') {
+      res.status(400).json({ error: 'This invoice is not billed to a corporate or insurance payer.' });
+      return;
+    }
+
+    if (inv.status === 'paid') {
+      res.status(400).json({ error: 'This invoice is already fully paid.' });
+      return;
+    }
+
+    // Record the submission (idempotent — safe to re-submit).
+    await pool.query(
+      `UPDATE invoices
+       SET payer_source_id = COALESCE(payer_source_id, $2),
+           payer_submitted_at = COALESCE(payer_submitted_at, CURRENT_TIMESTAMP),
+           payer_submitted_by = COALESCE(payer_submitted_by, $3),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id, inv.payer_source_id, userId]
+    );
+
+    // Insurance → land it in the Claims workflow automatically.
+    let claim: any = null;
+    if (payerType === 'insurance') {
+      const claimResult = await createClaimForInvoice(Number(id), userId, { skipIfExists: true });
+      if (claimResult.ok) {
+        claim = claimResult.claim;
+      } else {
+        // Don't fail the submission if claim creation can't proceed; report it.
+        console.warn(`[submitInvoiceToPayer] claim not created for invoice ${id}: ${claimResult.error}`);
+      }
+    }
+
+    res.json({
+      success: true,
+      payer_type: payerType,
+      payer_name: payerType === 'corporate' ? inv.corporate_client_name : inv.insurance_provider_name,
+      claim,
+      message: `Invoice submitted to ${payerType === 'corporate' ? (inv.corporate_client_name || 'corporate payer') : (inv.insurance_provider_name || 'insurer')}. It stays outstanding until the payer settles.`,
+    });
+  } catch (error) {
+    console.error('Submit invoice to payer error:', error);
+    res.status(500).json({ error: 'Failed to submit invoice to payer' });
+  }
+};
+
+// List completed encounters billed to a corporate/insurance payer whose invoice
+// hasn't been submitted yet — lets the accountant catch encounters front desk
+// missed and submit them after the fact.
+export const getUnbilledPayerInvoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(`
+      SELECT i.id, i.invoice_number, i.invoice_date, i.total_amount, i.amount_paid, i.status,
+             (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
+             p.patient_number,
+             u.first_name || ' ' || u.last_name as patient_name,
+             e.encounter_number, e.encounter_date, e.status as encounter_status,
+             pp.payer_type,
+             pp.corporate_client_name,
+             pp.insurance_provider_name
+      FROM invoices i
+      JOIN patients p ON i.patient_id = p.id
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN encounters e ON i.encounter_id = e.id
+      JOIN LATERAL (
+        SELECT pps.payer_type,
+               cc.name as corporate_client_name,
+               ip.name as insurance_provider_name
+        FROM patient_payer_sources pps
+        LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+        LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+        WHERE pps.patient_id = i.patient_id
+        ORDER BY pps.is_primary DESC, pps.id ASC
+        LIMIT 1
+      ) pp ON true
+      WHERE pp.payer_type IN ('corporate', 'insurance')
+        AND i.payer_submitted_at IS NULL
+        AND i.status IN ('pending', 'partial')
+        AND i.total_amount > 0
+      ORDER BY i.invoice_date ASC, i.id ASC
+    `);
+
+    res.json({ invoices: result.rows, count: result.rows.length });
+  } catch (error) {
+    console.error('Get unbilled payer invoices error:', error);
+    res.status(500).json({ error: 'Failed to fetch unbilled payer invoices' });
   }
 };
 

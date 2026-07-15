@@ -121,7 +121,13 @@ interface InvoiceData {
   payer_type?: string;
   corporate_client_name?: string;
   insurance_provider_name?: string;
+  payer_submitted_at?: string | null;
 }
+
+// An invoice with a corporate/insurance payer that's been submitted but not yet
+// paid reads as "Submitted — awaiting payer" (it's a receivable, not settled).
+const isSubmittedAwaitingPayer = (inv: InvoiceData): boolean =>
+  !!inv.payer_submitted_at && inv.status !== 'paid';
 
 // Human label for an invoice's payer (the specific corporate client / insurer,
 // or the payer-type name for self-pay / staff).
@@ -350,10 +356,13 @@ const PAYER_TAB_LABEL: Record<string, string> = {
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { prompt: promptDialog } = useDialog();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportingTrend, setExportingTrend] = useState(false);
+  const [unbilledInvoices, setUnbilledInvoices] = useState<InvoiceData[]>([]);
+  const [unbilledLoading, setUnbilledLoading] = useState(false);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
 
   // Date filters
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
@@ -494,6 +503,8 @@ const AccountantDashboard: React.FC = () => {
   useEffect(() => {
     if ((INVOICE_TABS as readonly string[]).includes(activeTab)) {
       loadInvoices();
+    } else if (activeTab === 'unbilled') {
+      loadUnbilledInvoices();
     } else if (activeTab === 'aging') {
       loadAgingReport();
     } else if (activeTab === 'claims') {
@@ -602,6 +613,31 @@ const AccountantDashboard: React.FC = () => {
       console.error('Error loading outstanding invoices:', error);
     } finally {
       setRemindersLoading(false);
+    }
+  };
+
+  const loadUnbilledInvoices = async () => {
+    setUnbilledLoading(true);
+    try {
+      const response = await apiClient.get('/invoices/unbilled-payer');
+      setUnbilledInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error('Error loading unbilled encounters:', error);
+    } finally {
+      setUnbilledLoading(false);
+    }
+  };
+
+  const handleSubmitToPayer = async (invoiceId: number) => {
+    setSubmittingId(invoiceId);
+    try {
+      const res = await apiClient.post(`/invoices/${invoiceId}/submit-to-payer`);
+      showToast(res.data?.message || 'Invoice submitted to payer', 'success');
+      loadUnbilledInvoices();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to submit to payer', 'error');
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -988,6 +1024,7 @@ const AccountantDashboard: React.FC = () => {
                 { id: 'insuranceInvoices', label: 'Insurance Invoices' },
                 { id: 'corporateInvoices', label: 'Corporate Invoices' },
                 { id: 'staffInvoices', label: 'Staff Invoices' },
+                { id: 'unbilled', label: 'Awaiting Submission' },
                 { id: 'aging', label: 'Aging Report' },
                 { id: 'claims', label: 'Insurance Claims' },
                 { id: 'reminders', label: 'Payment Reminders' },
@@ -1374,7 +1411,7 @@ const AccountantDashboard: React.FC = () => {
                     <AppSelect
                       value={invoiceFilter}
                       onChange={(val) => setInvoiceFilter(val)}
-                      options={[{value:'all',label:'All Status'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'paid',label:'Paid'}]}
+                      options={[{value:'all',label:'All Status'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'submitted',label:'Submitted (awaiting payer)'},{value:'paid',label:'Paid'}]}
                     />
                     <button
                       onClick={loadInvoices}
@@ -1445,13 +1482,19 @@ const AccountantDashboard: React.FC = () => {
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                inv.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {inv.status.toUpperCase()}
-                              </span>
+                              {isSubmittedAwaitingPayer(inv) ? (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800" title={`Submitted to payer${inv.payer_submitted_at ? ' on ' + safeFormatDate(inv.payer_submitted_at, 'MMM d, yyyy') : ''} — awaiting settlement`}>
+                                  SUBMITTED
+                                </span>
+                              ) : (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                  inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {inv.status.toUpperCase()}
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex justify-center gap-2">
@@ -1468,6 +1511,70 @@ const AccountantDashboard: React.FC = () => {
                                   Excel
                                 </button>
                               </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Awaiting Submission Tab — completed corporate/insurance encounters
+                not yet submitted to their payer (catch what front desk missed). */}
+            {activeTab === 'unbilled' && (
+              <div className="space-y-4">
+                <div className="text-sm text-gray-600">
+                  Completed encounters billed to a <span className="font-semibold">corporate</span> or <span className="font-semibold">insurance</span> payer that haven't been submitted yet. Submitting hands the invoice to the payer (and creates an insurance claim) — it stays outstanding until the payer settles.
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {unbilledLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} columns={6} />)
+                      ) : unbilledInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                            Nothing awaiting submission — all corporate/insurance encounters have been submitted.
+                          </td>
+                        </tr>
+                      ) : (
+                        unbilledInvoices.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
+                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
+                              </span>
+                              <span className="ml-2">{payerLabel(inv)}</span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
+                              {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleSubmitToPayer(inv.id)}
+                                disabled={submittingId === inv.id}
+                                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                              >
+                                {submittingId === inv.id ? 'Submitting…' : 'Submit to payer'}
+                              </button>
                             </td>
                           </tr>
                         ))

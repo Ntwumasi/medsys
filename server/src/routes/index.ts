@@ -158,6 +158,8 @@ import {
   deferPayment,
   getPendingPayments,
   createSpecialInvoice,
+  submitInvoiceToPayer,
+  getUnbilledPayerInvoices,
 } from '../controllers/invoiceController';
 import {
   getAllCharges,
@@ -699,6 +701,7 @@ router.put('/payer-sources/patient/:patient_id', authenticateToken, authorizeRol
 
 // Invoice routes
 router.get('/invoices',                         authenticateToken, authorizeRoles(...BILLING_VIEWERS), getAllInvoices);
+router.get('/invoices/unbilled-payer',          authenticateToken, authorizeRoles(...BILLING_STAFF), getUnbilledPayerInvoices);
 router.get('/invoices/pending-payments',        authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPendingPayments);
 router.post('/invoices/special',                authenticateToken, authorizeRoles(...BILLING_STAFF), createSpecialInvoice);
 router.get('/invoices/:id',                     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceById);
@@ -708,6 +711,7 @@ router.get('/invoices/encounter/:encounter_id', authenticateToken, authorizeRole
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
+router.post('/invoices/:id/submit-to-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), submitInvoiceToPayer);
 
 // Receipts
 router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getAllReceipts);
