@@ -46,6 +46,24 @@ interface LinesResponse {
 const fmtGHS = (n: number): string =>
   'GHS ' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const fmt2 = (n: number): string =>
+  n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// A physician-copy line the accountant can edit before printing. Seeded from
+// the doctor's physician-only line items; the accountant can tweak amounts,
+// remove lines, or append manual adjustment rows (bonuses/deductions).
+interface EditLine {
+  key: string;
+  category: string;
+  description: string;
+  line_count: number;
+  quantity: number;
+  total: number;
+  adjustment?: boolean;
+}
+
+const ADJUSTMENTS_CATEGORY = 'Adjustments';
+
 // Categories that are billed under the doctor's name but represent services
 // performed by other departments (lab tech runs the test, pharmacist dispenses,
 // receptionist registers, etc). On the *physician copy* of the production
@@ -73,6 +91,10 @@ const DoctorRevenuePanel: React.FC = () => {
   const [drillDoctor, setDrillDoctor] = useState<DoctorRevenueRow | null>(null);
   const [drillData, setDrillData] = useState<LinesResponse | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
+
+  // Editable physician-copy state
+  const [editMode, setEditMode] = useState(false);
+  const [editLines, setEditLines] = useState<EditLine[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -112,6 +134,61 @@ const DoctorRevenuePanel: React.FC = () => {
   const closeDrill = () => {
     setDrillDoctor(null);
     setDrillData(null);
+    setEditMode(false);
+    setEditLines([]);
+  };
+
+  // Enter the editable physician copy. Seed rows from the physician-only lines
+  // (auxiliary categories stripped) so the accountant can adjust before printing.
+  const enterEditMode = () => {
+    if (!drillData) return;
+    const phys = drillData.lines.filter(l => !isAuxiliary(l.category));
+    setEditLines(phys.map((l, i) => ({
+      key: `orig-${i}`,
+      category: l.category,
+      description: l.description,
+      line_count: l.line_count,
+      quantity: l.quantity,
+      total: l.total,
+    })));
+    setEditMode(true);
+  };
+
+  const updateEditLine = (key: string, patch: Partial<EditLine>) => {
+    setEditLines(prev => prev.map(l => (l.key === key ? { ...l, ...patch } : l)));
+  };
+
+  const removeEditLine = (key: string) => {
+    setEditLines(prev => prev.filter(l => l.key !== key));
+  };
+
+  const addAdjustmentLine = () => {
+    setEditLines(prev => [
+      ...prev,
+      {
+        key: `adj-${prev.length}-${prev.reduce((s, l) => s + l.description.length, 0)}`,
+        category: ADJUSTMENTS_CATEGORY,
+        description: 'Adjustment',
+        line_count: 1,
+        quantity: 1,
+        total: 0,
+        adjustment: true,
+      },
+    ]);
+  };
+
+  // Print the (possibly edited) physician copy from the current editLines.
+  const printEditedCopy = () => {
+    if (!drillData) return;
+    const lines = editLines.map(l => ({
+      category: l.category,
+      description: l.description,
+      line_count: l.line_count,
+      quantity: l.quantity,
+      total: Number(l.total) || 0,
+    }));
+    const html = buildPhysicianCopyHtml(drillData, lines, true);
+    openPrintWindow(`Physician Production (Physician Copy) — ${drillData.doctor_name}`, html);
   };
 
   const printSummary = () => {
@@ -148,6 +225,84 @@ const DoctorRevenuePanel: React.FC = () => {
       </table>
     `;
     openPrintWindow('Doctor Revenue Report', html);
+  };
+
+  // Build the Physician Copy body HTML from an explicit set of lines (grouped
+  // by category, with recomputed subtotals and a net total). Shared by the
+  // editable-copy print path.
+  const buildPhysicianCopyHtml = (
+    meta: { doctor_name: string; doctor_clinic: string | null; start_date: string; end_date: string },
+    lines: { category: string; description: string; line_count: number; quantity: number; total: number }[],
+    edited: boolean,
+  ): string => {
+    const byCategory = new Map<string, typeof lines>();
+    for (const l of lines) {
+      if (!byCategory.has(l.category)) byCategory.set(l.category, []);
+      byCategory.get(l.category)!.push(l);
+    }
+    // Keep Adjustments last; otherwise alphabetical.
+    const sortedCategories = Array.from(byCategory.keys()).sort((a, b) => {
+      if (a === ADJUSTMENTS_CATEGORY) return 1;
+      if (b === ADJUSTMENTS_CATEGORY) return -1;
+      return a.localeCompare(b);
+    });
+
+    let grandTotal = 0;
+    const sections = sortedCategories.map(cat => {
+      const items = byCategory.get(cat)!;
+      const sub = items.reduce((s, l) => s + (Number(l.total) || 0), 0);
+      grandTotal += sub;
+      return `
+        <h2 class="section">${cat.charAt(0).toUpperCase() + cat.slice(1)}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Service / Line item</th>
+              <th class="r">Times billed</th>
+              <th class="r">Quantity</th>
+              <th class="r">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(l => `
+              <tr>
+                <td>${l.description}</td>
+                <td class="r mono">${l.line_count}</td>
+                <td class="r mono">${l.quantity}</td>
+                <td class="r mono">${fmt2(Number(l.total) || 0)}</td>
+              </tr>`).join('')}
+            <tr class="subtotal">
+              <td colspan="3"><strong>Subtotal — ${cat}</strong></td>
+              <td class="r mono bold">${fmt2(sub)}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }).join('');
+
+    const subtitle = `<p class="meta" style="font-style:italic;color:#666;">Personal services only — excludes lab, imaging, pharmacy, and registration.${edited ? ' Adjusted copy.' : ''}</p>`;
+    const emptyNotice = lines.length === 0
+      ? '<p class="meta" style="margin-top:24px;">No line items on this physician copy.</p>'
+      : '';
+
+    return `
+      <h1>Physician Production (Physician Copy)</h1>
+      <p class="meta"><strong>${meta.doctor_name}</strong>${meta.doctor_clinic ? ' — ' + meta.doctor_clinic : ''}</p>
+      <p class="meta">Period: <strong>${meta.start_date}</strong> to <strong>${meta.end_date}</strong></p>
+      <p class="meta">Generated: ${new Date().toLocaleString()}</p>
+      ${subtitle}
+      ${sections}
+      ${emptyNotice}
+      <h2 class="section">Total</h2>
+      <table>
+        <tbody>
+          <tr class="grandtotal">
+            <td><strong>Net Service Revenue</strong></td>
+            <td class="r mono bold">${fmt2(grandTotal)}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
   };
 
   // Print a Physician Production sheet. When `physicianOnly` is true, strip
@@ -446,28 +601,65 @@ const DoctorRevenuePanel: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => printDrill(true)}
-                  disabled={!drillData || drillData.lines.filter(l => !isAuxiliary(l.category)).length === 0}
-                  className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs disabled:opacity-40 inline-flex items-center gap-1"
-                  title="Print a copy for the physician — excludes lab, imaging, pharmacy, registration"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  Physician Copy
-                </button>
-                <button
-                  onClick={() => printDrill(false)}
-                  disabled={!drillData || drillData.lines.length === 0}
-                  className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-xs disabled:opacity-40 inline-flex items-center gap-1"
-                  title="Print the full breakdown — includes auxiliary services (lab, imaging, pharmacy, registration)"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  Full Print / PDF
-                </button>
+                {editMode ? (
+                  <>
+                    <button
+                      onClick={addAdjustmentLine}
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs inline-flex items-center gap-1"
+                      title="Add a manual adjustment line (bonus or deduction)"
+                    >
+                      + Adjustment
+                    </button>
+                    <button
+                      onClick={enterEditMode}
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs"
+                      title="Discard edits and reload the original line items"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={printEditedCopy}
+                      className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs inline-flex items-center gap-1"
+                      title="Print / Save the edited physician copy as PDF"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Print Copy
+                    </button>
+                    <button
+                      onClick={() => { setEditMode(false); setEditLines([]); }}
+                      className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-xs"
+                    >
+                      Done
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={enterEditMode}
+                      disabled={!drillData || drillData.lines.filter(l => !isAuxiliary(l.category)).length === 0}
+                      className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-xs disabled:opacity-40 inline-flex items-center gap-1"
+                      title="Edit and print a copy for the physician — excludes lab, imaging, pharmacy, registration"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Physician Copy
+                    </button>
+                    <button
+                      onClick={() => printDrill(false)}
+                      disabled={!drillData || drillData.lines.length === 0}
+                      className="px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-xs disabled:opacity-40 inline-flex items-center gap-1"
+                      title="Print the full breakdown — includes auxiliary services (lab, imaging, pharmacy, registration)"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Full Print / PDF
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={closeDrill}
                   className="text-gray-400 hover:text-gray-600"
@@ -486,6 +678,100 @@ const DoctorRevenuePanel: React.FC = () => {
               ) : !drillData || drillData.lines.length === 0 ? (
                 <div className="py-12 text-center text-gray-500 text-sm">
                   No line items billed for this doctor in the selected period.
+                </div>
+              ) : editMode ? (
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-500 italic">
+                    Editing the physician copy — adjust amounts/quantities, remove lines, or add adjustment rows.
+                    Auxiliary services (lab, imaging, pharmacy, registration) are excluded. Totals update live.
+                  </p>
+                  {(() => {
+                    const grouped = new Map<string, EditLine[]>();
+                    for (const l of editLines) {
+                      if (!grouped.has(l.category)) grouped.set(l.category, []);
+                      grouped.get(l.category)!.push(l);
+                    }
+                    const cats = Array.from(grouped.keys()).sort((a, b) =>
+                      a === ADJUSTMENTS_CATEGORY ? 1 : b === ADJUSTMENTS_CATEGORY ? -1 : a.localeCompare(b));
+                    if (cats.length === 0) {
+                      return <p className="text-sm text-gray-500 py-8 text-center">No lines. Use “+ Adjustment” to add one.</p>;
+                    }
+                    return cats.map(cat => {
+                      const items = grouped.get(cat)!;
+                      const sub = items.reduce((s, l) => s + (Number(l.total) || 0), 0);
+                      return (
+                        <div key={cat} className="mb-4">
+                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide border-b border-gray-300 pb-1 mb-2">
+                            {cat}
+                          </h4>
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="text-xs text-gray-500">
+                                <th className="text-left py-1.5 font-medium">Service / Line item</th>
+                                <th className="text-right py-1.5 font-medium w-20">Qty</th>
+                                <th className="text-right py-1.5 font-medium w-32">Total (GHS)</th>
+                                <th className="w-10"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map(l => (
+                                <tr key={l.key} className="border-t border-gray-100">
+                                  <td className="py-1.5 pr-2">
+                                    <input
+                                      value={l.description}
+                                      onChange={e => updateEditLine(l.key, { description: e.target.value })}
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-sm"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 pr-2">
+                                    <input
+                                      type="number"
+                                      value={l.quantity}
+                                      onChange={e => updateEditLine(l.key, { quantity: Number(e.target.value) })}
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right font-mono"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 pr-2">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={l.total}
+                                      onChange={e => updateEditLine(l.key, { total: Number(e.target.value) })}
+                                      className="w-full px-2 py-1 border border-gray-200 rounded text-sm text-right font-mono"
+                                    />
+                                  </td>
+                                  <td className="py-1.5 text-center">
+                                    <button
+                                      onClick={() => removeEditLine(l.key)}
+                                      className="text-red-500 hover:text-red-700 text-lg leading-none"
+                                      title="Remove line"
+                                      aria-label="Remove line"
+                                    >
+                                      ×
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                              <tr className="border-t border-gray-300 bg-gray-50">
+                                <td className="py-1.5 font-semibold text-gray-700" colSpan={2}>Subtotal — {cat}</td>
+                                <td className="py-1.5 text-right font-bold text-gray-900 font-mono">{fmt2(sub)}</td>
+                                <td></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    });
+                  })()}
+
+                  <div className="mt-2 pt-4 border-t-2 border-gray-300">
+                    <div className="flex items-center justify-between bg-success-50 border border-success-200 rounded-lg px-4 py-3">
+                      <div className="text-sm font-semibold text-success-800">Net Service Revenue</div>
+                      <div className="text-xl font-bold text-success-800 font-mono">
+                        {fmtGHS(editLines.reduce((s, l) => s + (Number(l.total) || 0), 0))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <>

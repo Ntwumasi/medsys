@@ -47,19 +47,20 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 
     const categoryResult = await pool.query(categoryQuery, params);
 
-    // Daily revenue for chart (last 30 days)
+    // Daily revenue for chart — respects the selected date range (falls back to
+    // last 30 days when no range is supplied, matching the other cards).
     const dailyQuery = `
       SELECT
         DATE(i.invoice_date) as date,
         COALESCE(SUM(total_amount), 0) as billed,
         COALESCE(SUM(amount_paid), 0) as collected
       FROM invoices i
-      WHERE i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE 1=1 ${dateFilter}
       GROUP BY DATE(i.invoice_date)
       ORDER BY date
     `;
 
-    const dailyResult = await pool.query(dailyQuery);
+    const dailyResult = await pool.query(dailyQuery, params);
 
     // Top services by revenue
     const topServicesQuery = `
@@ -125,7 +126,7 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 // Export invoices to Excel
 export const exportInvoicesToExcel = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { start_date, end_date, status } = req.query;
+    const { start_date, end_date, status, payer_type } = req.query;
 
     let query = `
       SELECT
@@ -141,11 +142,29 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
         i.amount_paid,
         (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
         i.status,
+        COALESCE(pp.payer_type, 'self_pay') as payer_type,
+        CASE COALESCE(pp.payer_type, 'self_pay')
+          WHEN 'corporate' THEN COALESCE(pp.corporate_client_name, 'Corporate')
+          WHEN 'insurance' THEN COALESCE(pp.insurance_provider_name, 'Insurance')
+          WHEN 'staff' THEN 'Staff'
+          ELSE 'Self Pay'
+        END as payer_label,
         i.created_at
       FROM invoices i
       JOIN patients p ON i.patient_id = p.id
       JOIN users u ON p.user_id = u.id
       LEFT JOIN encounters e ON i.encounter_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT pps.payer_type,
+               cc.name as corporate_client_name,
+               ip.name as insurance_provider_name
+        FROM patient_payer_sources pps
+        LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+        LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+        WHERE pps.patient_id = i.patient_id
+        ORDER BY pps.is_primary DESC, pps.id ASC
+        LIMIT 1
+      ) pp ON true
       WHERE 1=1
     `;
 
@@ -170,6 +189,16 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
       params.push(status);
     }
 
+    if (payer_type && payer_type !== 'all') {
+      if (payer_type === 'self_pay') {
+        query += ` AND COALESCE(pp.payer_type, 'self_pay') = 'self_pay'`;
+      } else {
+        paramCount++;
+        query += ` AND pp.payer_type = $${paramCount}`;
+        params.push(payer_type);
+      }
+    }
+
     query += ` ORDER BY i.invoice_date DESC, i.id DESC`;
 
     const result = await pool.query(query, params);
@@ -191,6 +220,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
       { header: 'Phone', key: 'patient_phone', width: 15 },
       { header: 'Encounter #', key: 'encounter_number', width: 15 },
       { header: 'Chief Complaint', key: 'chief_complaint', width: 30 },
+      { header: 'Payer', key: 'payer_label', width: 22 },
       { header: 'Total (GHS)', key: 'total_amount', width: 12 },
       { header: 'Paid (GHS)', key: 'amount_paid', width: 12 },
       { header: 'Balance (GHS)', key: 'balance', width: 12 },
@@ -216,6 +246,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
         patient_phone: row.patient_phone || '',
         encounter_number: row.encounter_number || '',
         chief_complaint: row.chief_complaint || '',
+        payer_label: row.payer_label || 'Self Pay',
         total_amount: parseFloat(row.total_amount) || 0,
         amount_paid: parseFloat(row.amount_paid) || 0,
         balance: parseFloat(row.balance) || 0,
@@ -226,9 +257,9 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
     // Add totals row
     const totalRow = summarySheet.addRow({
       invoice_number: 'TOTALS',
-      total_amount: { formula: `SUM(H2:H${result.rows.length + 1})` },
-      amount_paid: { formula: `SUM(I2:I${result.rows.length + 1})` },
-      balance: { formula: `SUM(J2:J${result.rows.length + 1})` },
+      total_amount: { formula: `SUM(I2:I${result.rows.length + 1})` },
+      amount_paid: { formula: `SUM(J2:J${result.rows.length + 1})` },
+      balance: { formula: `SUM(K2:K${result.rows.length + 1})` },
     });
     totalRow.font = { bold: true };
     totalRow.fill = {
@@ -238,7 +269,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
     };
 
     // Format currency columns
-    ['H', 'I', 'J'].forEach((col) => {
+    ['I', 'J', 'K'].forEach((col) => {
       summarySheet.getColumn(col).numFmt = '#,##0.00';
     });
 
@@ -254,6 +285,77 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
   } catch (error) {
     console.error('Export invoices error:', error);
     res.status(500).json({ error: 'Failed to export invoices' });
+  }
+};
+
+// Export the Revenue Trend (billed vs collected per day) to Excel
+export const exportRevenueTrendToExcel = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    const dateFilter = start_date && end_date
+      ? `AND i.invoice_date BETWEEN $1 AND $2`
+      : `AND i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'`;
+    const params = start_date && end_date ? [start_date, end_date] : [];
+
+    const result = await pool.query(`
+      SELECT
+        DATE(i.invoice_date) as date,
+        COALESCE(SUM(total_amount), 0) as billed,
+        COALESCE(SUM(amount_paid), 0) as collected,
+        COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as outstanding,
+        COUNT(*) as invoices
+      FROM invoices i
+      WHERE 1=1 ${dateFilter}
+      GROUP BY DATE(i.invoice_date)
+      ORDER BY date
+    `, params);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'MedSys';
+    workbook.created = new Date();
+    const sheet = workbook.addWorksheet('Revenue Trend');
+
+    sheet.columns = [
+      { header: 'Date', key: 'date', width: 14 },
+      { header: 'Invoices', key: 'invoices', width: 10 },
+      { header: 'Billed (GHS)', key: 'billed', width: 14 },
+      { header: 'Collected (GHS)', key: 'collected', width: 16 },
+      { header: 'Outstanding (GHS)', key: 'outstanding', width: 16 },
+    ];
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+
+    result.rows.forEach((row) => {
+      sheet.addRow({
+        date: row.date ? new Date(row.date).toLocaleDateString() : '',
+        invoices: parseInt(row.invoices) || 0,
+        billed: parseFloat(row.billed) || 0,
+        collected: parseFloat(row.collected) || 0,
+        outstanding: parseFloat(row.outstanding) || 0,
+      });
+    });
+
+    const n = result.rows.length;
+    const totalRow = sheet.addRow({
+      date: 'TOTALS',
+      invoices: { formula: `SUM(B2:B${n + 1})` },
+      billed: { formula: `SUM(C2:C${n + 1})` },
+      collected: { formula: `SUM(D2:D${n + 1})` },
+      outstanding: { formula: `SUM(E2:E${n + 1})` },
+    });
+    totalRow.font = { bold: true };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+    ['C', 'D', 'E'].forEach((col) => { sheet.getColumn(col).numFmt = '#,##0.00'; });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `revenue_trend_${start_date || 'last30'}_to_${end_date || 'now'}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Export revenue trend error:', error);
+    res.status(500).json({ error: 'Failed to export revenue trend' });
   }
 };
 

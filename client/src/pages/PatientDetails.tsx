@@ -663,6 +663,7 @@ const PatientDetails: React.FC = () => {
                         <div key={ps.id} className="font-semibold text-gray-900 capitalize">
                           {ps.payer_type === 'corporate' ? ps.corporate_client_name :
                            ps.payer_type === 'insurance' ? ps.insurance_provider_name :
+                           ps.payer_type === 'staff' ? 'Staff' :
                            'Self Pay'}
                           {ps.is_primary && <span className="text-xs text-primary-500 ml-1">(Primary)</span>}
                         </div>
@@ -1760,7 +1761,7 @@ const PatientDetails: React.FC = () => {
                   label="Payer Type"
                   value={editPayerType}
                   onChange={(val) => { setEditPayerType(val); setEditPayerId(null); }}
-                  options={[{value:'self_pay',label:'Self Pay'},{value:'corporate',label:'Corporate / Employer'},{value:'insurance',label:'Health Insurance'}]}
+                  options={[{value:'self_pay',label:'Self Pay'},{value:'corporate',label:'Corporate / Employer'},{value:'insurance',label:'Health Insurance'},{value:'staff',label:'Staff (Hospital Employee)'}]}
                 />
                 {editPayerType === 'corporate' && (
                   <AppSelect

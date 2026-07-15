@@ -136,7 +136,7 @@ interface InsuranceProvider {
 }
 
 interface PayerSource {
-  payer_type: 'self_pay' | 'corporate' | 'insurance';
+  payer_type: 'self_pay' | 'corporate' | 'insurance' | 'staff';
   corporate_client_id?: number;
   insurance_provider_id?: number;
 }
