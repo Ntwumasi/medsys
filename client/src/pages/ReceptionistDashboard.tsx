@@ -8,6 +8,7 @@ import type { View } from 'react-big-calendar';
 import { enUS } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
+import UnbilledPayerEncounters from '../components/UnbilledPayerEncounters';
 import PatientStatement from '../components/PatientStatement';
 import SearchBar from '../components/SearchBar';
 import AppLayout from '../components/AppLayout';
@@ -227,11 +228,12 @@ const ReceptionistDashboard: React.FC = () => {
   // patient (e.g. "ready for checkout"). We scroll to and flash that card.
   const highlightParam = searchParams.get('highlight');
   const [highlightId, setHighlightId] = useState<number | null>(null);
-  const initialView: 'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff' =
+  const initialView: 'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff' | 'awaiting-submission' =
     viewParam === 'special-invoice' ? 'special-invoice'
     : viewParam === 'staff' ? 'staff'
+    : viewParam === 'awaiting-submission' ? 'awaiting-submission'
     : 'queue';
-  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff'>(initialView);
+  const [activeView, setActiveView] = useState<'queue' | 'checkin' | 'new-patient' | 'appointments' | 'special-invoice' | 'staff' | 'awaiting-submission'>(initialView);
 
   // Respond to ?view= changes after mount (e.g. user clicks the left-nav
   // Staff link while already on the dashboard).
@@ -1842,10 +1844,32 @@ const ReceptionistDashboard: React.FC = () => {
             </div>
           </button>
 
+          <button
+            onClick={() => setActiveView('awaiting-submission')}
+            className={`bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all cursor-pointer border-2 ${
+              activeView === 'awaiting-submission' ? 'border-primary-500' : 'border-transparent'
+            }`}
+          >
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-primary-100 rounded-md p-3">
+                <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h2 className="text-lg font-bold text-gray-900">Awaiting Submission</h2>
+                <p className="text-sm text-gray-600">Corporate / insurance</p>
+              </div>
+            </div>
+          </button>
 
         </div>
 
         {/* Main Content Area */}
+        {activeView === 'awaiting-submission' && (
+          <UnbilledPayerEncounters />
+        )}
+
         {activeView === 'queue' && (
           <>
             {/* Billing Alerts Accordion — collapsed by default */}
