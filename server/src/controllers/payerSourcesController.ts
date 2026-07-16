@@ -316,3 +316,71 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
     res.status(500).json({ error: 'Failed to update patient payer sources' });
   }
 };
+
+// ===== Staff health-package benefit =====
+
+// Get a staff patient's package cap + live usage for the current period.
+export const getStaffBenefit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+
+    const benefit = await pool.query(
+      `SELECT annual_limit, period_start, notes FROM staff_benefits WHERE patient_id = $1`,
+      [patient_id]
+    );
+
+    if (benefit.rows.length === 0) {
+      res.json({ benefit: null, used: 0, remaining: 0 });
+      return;
+    }
+
+    const row = benefit.rows[0];
+    const limit = parseFloat(row.annual_limit) || 0;
+
+    // Usage = total billed to this patient since the period start (live, no counter).
+    const usage = await pool.query(
+      `SELECT COALESCE(SUM(total_amount), 0) as used
+       FROM invoices
+       WHERE patient_id = $1 AND invoice_date >= $2 AND status <> 'cancelled'`,
+      [patient_id, row.period_start]
+    );
+    const used = parseFloat(usage.rows[0].used) || 0;
+
+    res.json({
+      benefit: { annual_limit: limit, period_start: row.period_start, notes: row.notes },
+      used,
+      remaining: Math.max(0, limit - used),
+    });
+  } catch (error) {
+    console.error('Get staff benefit error:', error);
+    res.status(500).json({ error: 'Failed to fetch staff benefit' });
+  }
+};
+
+// Set/clear a staff patient's annual package amount.
+export const upsertStaffBenefit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+    const { annual_limit, notes } = req.body;
+
+    const limit = parseFloat(annual_limit);
+    if (!Number.isFinite(limit) || limit < 0) {
+      res.status(400).json({ error: 'Invalid package amount.' });
+      return;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO staff_benefits (patient_id, annual_limit, notes, updated_at)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+       ON CONFLICT (patient_id)
+       DO UPDATE SET annual_limit = $2, notes = $3, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [patient_id, limit, notes || null]
+    );
+
+    res.json({ benefit: result.rows[0] });
+  } catch (error) {
+    console.error('Upsert staff benefit error:', error);
+    res.status(500).json({ error: 'Failed to save staff benefit' });
+  }
+};
