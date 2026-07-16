@@ -1334,7 +1334,7 @@ const AccountantDashboard: React.FC = () => {
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Services</h3>
                         {topServices.length > 0 ? (
                           <div className="space-y-3">
-                            {topServices.slice(0, 5).map((service, idx) => {
+                            {topServices.slice(0, 8).map((service, idx) => {
                               const maxRevenue = Math.max(...topServices.map(s => s.total_revenue));
                               const percentage = (service.total_revenue / maxRevenue) * 100;
                               return (

@@ -62,16 +62,21 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 
     const dailyResult = await pool.query(dailyQuery, params);
 
-    // Top services by revenue
+    // Top services by revenue. Excludes dispensed products (medication/pharmacy)
+    // — this is a *services* ranking, and a single expensive one-off drug was
+    // otherwise outranking real services while lab/procedures were buried.
+    // Medication revenue is still shown on the Revenue by Category card.
     const topServicesQuery = `
       SELECT
         ii.description,
+        COALESCE(ii.category, 'other') as category,
         COUNT(*) as times_billed,
         COALESCE(SUM(ii.total_price), 0) as total_revenue
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.id
       WHERE 1=1 ${dateFilter.replace('i.invoice_date', 'i.invoice_date')}
-      GROUP BY ii.description
+        AND LOWER(COALESCE(ii.category, '')) NOT IN ('medication', 'pharmacy')
+      GROUP BY ii.description, ii.category
       ORDER BY total_revenue DESC
       LIMIT 10
     `;
