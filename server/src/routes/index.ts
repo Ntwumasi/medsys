@@ -146,6 +146,8 @@ import {
   deleteInsuranceProvider,
   getPatientPayerSources,
   updatePatientPayerSources,
+  getStaffBenefit,
+  upsertStaffBenefit,
 } from '../controllers/payerSourcesController';
 import {
   getAllInvoices,
@@ -699,6 +701,10 @@ router.delete('/payer-sources/insurance-providers/:id', authenticateToken, autho
 // Get patient payer sources
 router.get('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientPayerSources);
 router.put('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), updatePatientPayerSources);
+
+// Staff health-package benefit (cap + live usage) for staff-payer patients
+router.get('/staff-benefits/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getStaffBenefit);
+router.put('/staff-benefits/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), upsertStaffBenefit);
 
 // Invoice routes
 router.get('/invoices',                         authenticateToken, authorizeRoles(...BILLING_VIEWERS), getAllInvoices);

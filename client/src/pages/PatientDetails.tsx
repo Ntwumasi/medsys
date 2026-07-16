@@ -183,6 +183,8 @@ const PatientDetails: React.FC = () => {
   const [interactionData, setInteractionData] = useState<{ aiAvailable: boolean; summary: string; loaded: boolean }>({ aiAvailable: false, summary: '', loaded: false });
   const [interactionsLoading, setInteractionsLoading] = useState(false);
   const [editPayerType, setEditPayerType] = useState<string>('self_pay');
+  const [editStaffLimit, setEditStaffLimit] = useState<string>('');
+  const [staffBenefit, setStaffBenefit] = useState<{ annual_limit: number; used: number; remaining: number } | null>(null);
   const [editPayerId, setEditPayerId] = useState<number | null>(null);
   const [corporateClients, setCorporateClients] = useState<Array<{id: number; name: string}>>([]);
   const [insuranceProviders, setInsuranceProviders] = useState<Array<{id: number; name: string}>>([]);
@@ -390,6 +392,17 @@ const PatientDetails: React.FC = () => {
       console.error('Error loading payer options:', e);
     }
 
+    // Load the staff package amount (if any) so it can be edited.
+    try {
+      const { data } = await apiClient.get(`/staff-benefits/patient/${summary.patient.id}`);
+      setStaffBenefit(data.benefit ? { annual_limit: data.benefit.annual_limit, used: data.used, remaining: data.remaining } : null);
+      setEditStaffLimit(data.benefit ? String(data.benefit.annual_limit) : '');
+    } catch (e) {
+      console.error('Error loading staff benefit:', e);
+      setStaffBenefit(null);
+      setEditStaffLimit('');
+    }
+
     setShowEditModal(true);
   };
 
@@ -410,6 +423,14 @@ const PatientDetails: React.FC = () => {
       await apiClient.put(`/payer-sources/patient/${summary.patient.id}`, {
         payer_sources: [payerSource],
       });
+
+      // Save the staff package amount when this patient is billed as staff.
+      if (editPayerType === 'staff' && editStaffLimit.trim() !== '') {
+        const limit = parseFloat(editStaffLimit);
+        if (Number.isFinite(limit) && limit >= 0) {
+          await apiClient.put(`/staff-benefits/patient/${summary.patient.id}`, { annual_limit: limit });
+        }
+      }
 
       showToast('Patient information updated', 'success');
       setShowEditModal(false);
@@ -1778,6 +1799,24 @@ const PatientDetails: React.FC = () => {
                     onChange={(val) => setEditPayerId(val ? Number(val) : null)}
                     options={[{value:'',label:'Select insurance provider'}, ...insuranceProviders.map((ip) => ({value:ip.id,label:ip.name}))]}
                   />
+                )}
+                {editPayerType === 'staff' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Annual staff package (GHS)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editStaffLimit}
+                      onChange={(e) => setEditStaffLimit(e.target.value)}
+                      placeholder="e.g. 1000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    {staffBenefit && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Used GHS {staffBenefit.used.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Remaining GHS {staffBenefit.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} this year
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
