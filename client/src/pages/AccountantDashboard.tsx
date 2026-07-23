@@ -1584,8 +1584,17 @@ const AccountantDashboard: React.FC = () => {
                 not yet submitted to their payer (catch what front desk missed). */}
             {activeTab === 'unbilled' && (
               <div className="space-y-4">
-                <div className="text-sm text-gray-600">
-                  Completed encounters billed to a <span className="font-semibold">corporate</span> or <span className="font-semibold">insurance</span> payer that haven't been submitted yet. Submitting hands the invoice to the payer (and creates an insurance claim) — it stays outstanding until the payer settles.
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-gray-700 space-y-2">
+                  <div className="font-semibold text-amber-800">What "Awaiting Submission" means</div>
+                  <p>
+                    These are visits for patients paid by a <span className="font-semibold">company (corporate)</span> or an <span className="font-semibold">insurance</span> — not by the patient in cash. The visit is done and billed, but the bill <span className="font-semibold">hasn't been sent to that company/insurer yet</span>, so we can't get paid for it until it is.
+                  </p>
+                  <p>
+                    <span className="font-semibold">Example:</span> a patient covered by "Acme Ltd" is seen and billed GHS 200. Until we submit that invoice to Acme, it sits here — Acme doesn't know they owe us.
+                  </p>
+                  <p>
+                    Click <span className="font-semibold">"Submit to payer"</span> to send it. For insurance it also opens a claim. After that the invoice moves out of this list and stays outstanding until the company/insurer actually pays. An empty list means every corporate/insurance visit has already been sent.
+                  </p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">

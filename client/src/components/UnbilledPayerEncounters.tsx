@@ -71,10 +71,10 @@ const UnbilledPayerEncounters: React.FC = () => {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div>
+        <div className="max-w-3xl">
           <h2 className="text-xl font-semibold text-gray-900">Awaiting Submission</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Completed corporate/insurance encounters not yet submitted to their payer. Submitting hands the invoice to the payer — it stays outstanding until the payer settles.
+            Visits for patients paid by a <span className="font-semibold">company (corporate)</span> or <span className="font-semibold">insurance</span> — not cash. The visit is billed, but the bill hasn't been sent to that company/insurer yet, so we can't be paid until it is. Click <span className="font-semibold">"Submit to payer"</span> to send it (for insurance it also opens a claim). An empty list means everything has been sent.
           </p>
         </div>
         <button onClick={load} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Refresh</button>

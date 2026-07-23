@@ -64,19 +64,41 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 
     // Top services by revenue. Excludes dispensed products (medication/pharmacy)
     // — this is a *services* ranking, and a single expensive one-off drug was
-    // otherwise outranking real services while lab/procedures were buried.
-    // Medication revenue is still shown on the Revenue by Category card.
+    // otherwise outranking real services. Medication revenue is still shown on
+    // the Revenue by Category card.
+    //
+    // Lab and imaging are rolled up to a single line each ("Lab Tests (all)",
+    // "Imaging (all)"). These categories are naturally spread across dozens of
+    // individual test names, each small, so a per-description ranking buried
+    // them even though lab is one of the top revenue sources overall. Rolling
+    // them up makes Top Services an honest picture of what's driving revenue;
+    // the per-test breakdown lives on the Lab/Imaging dashboards. Consultations,
+    // procedures, registration and other services stay broken out by name.
     const topServicesQuery = `
+      WITH grouped AS (
+        SELECT
+          CASE
+            WHEN LOWER(COALESCE(ii.category, '')) = 'lab' THEN 'Lab Tests (all)'
+            WHEN LOWER(COALESCE(ii.category, '')) = 'imaging' THEN 'Imaging (all)'
+            ELSE ii.description
+          END AS description,
+          CASE
+            WHEN LOWER(COALESCE(ii.category, '')) IN ('lab', 'imaging') THEN LOWER(ii.category)
+            ELSE COALESCE(ii.category, 'other')
+          END AS category,
+          ii.total_price
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        WHERE 1=1 ${dateFilter.replace('i.invoice_date', 'i.invoice_date')}
+          AND LOWER(COALESCE(ii.category, '')) NOT IN ('medication', 'pharmacy')
+      )
       SELECT
-        ii.description,
-        COALESCE(ii.category, 'other') as category,
+        description,
+        category,
         COUNT(*) as times_billed,
-        COALESCE(SUM(ii.total_price), 0) as total_revenue
-      FROM invoice_items ii
-      JOIN invoices i ON ii.invoice_id = i.id
-      WHERE 1=1 ${dateFilter.replace('i.invoice_date', 'i.invoice_date')}
-        AND LOWER(COALESCE(ii.category, '')) NOT IN ('medication', 'pharmacy')
-      GROUP BY ii.description, ii.category
+        COALESCE(SUM(total_price), 0) as total_revenue
+      FROM grouped
+      GROUP BY description, category
       ORDER BY total_revenue DESC
       LIMIT 10
     `;
