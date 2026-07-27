@@ -2960,7 +2960,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
         u_provider.first_name || ' ' || u_provider.last_name as ordering_provider_name,
         u_ack.first_name || ' ' || u_ack.last_name as acknowledged_by_name,
         e.encounter_number,
-        e.room_number
+        rm.room_number
       FROM critical_result_alerts cra
       JOIN lab_orders lo ON cra.lab_order_id = lo.id
       JOIN patients p ON lo.patient_id = p.id
@@ -2968,6 +2968,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
       JOIN users u_provider ON cra.ordering_provider_id = u_provider.id
       LEFT JOIN users u_ack ON cra.acknowledged_by = u_ack.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
+      LEFT JOIN rooms rm ON e.room_id = rm.id
       WHERE 1=1
     `;
     const params: any[] = [];

@@ -205,10 +205,13 @@ export const getAccountantTrends = async (req: Request, res: Response): Promise<
     // including that day, minus payments). Approximation — uses
     // current balance row state per invoice grouped by invoice_date,
     // which is good enough for a sparkline trend.
+    // invoices has no `balance` column — it's total_amount minus amount_paid.
     const outstanding = await pool.query(
-      `SELECT DATE(invoice_date) AS day, COALESCE(SUM(balance), 0)::float AS value
+      `SELECT DATE(invoice_date) AS day,
+              COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0)::float AS value
          FROM invoices
-        WHERE invoice_date >= $1::date AND balance > 0
+        WHERE invoice_date >= $1::date
+          AND (total_amount - COALESCE(amount_paid, 0)) > 0
         GROUP BY DATE(invoice_date)
         ORDER BY DATE(invoice_date) ASC`,
       [since],
