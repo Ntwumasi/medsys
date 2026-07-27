@@ -97,6 +97,16 @@ interface AgingSummary {
   total_balance: number;
 }
 
+interface FinancialStatement {
+  period: { start: string | null; end: string | null; label?: string };
+  headline: { total_billed: number; total_collected: number; total_outstanding: number; collection_rate: number; invoice_count: number; payment_count: number };
+  revenue_by_category: { category: string; billed: number }[];
+  revenue_by_payer: { payer_type: string; billed: number; collected: number }[];
+  collections_by_method: { method: string; amount: number; count: number }[];
+  monthly_trend: { month: string; billed: number; collected: number }[];
+  aging: { aging_bucket: string; invoice_count: number; total_balance: number }[];
+}
+
 interface InvoiceData {
   id: number;
   invoice_number: string;
@@ -356,7 +366,7 @@ const PAYER_TAB_LABEL: Record<string, string> = {
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const { prompt: promptDialog, confirm: confirmDialog } = useDialog();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportingTrend, setExportingTrend] = useState(false);
@@ -437,6 +447,9 @@ const AccountantDashboard: React.FC = () => {
   const [agingInvoices, setAgingInvoices] = useState<AgingInvoice[]>([]);
   const [agingSummary, setAgingSummary] = useState<AgingSummary[]>([]);
   const [agingLoading, setAgingLoading] = useState(false);
+  // Financial summary
+  const [financials, setFinancials] = useState<FinancialStatement | null>(null);
+  const [financialsLoading, setFinancialsLoading] = useState(false);
 
   // Invoice modal
   const [showInvoice, setShowInvoice] = useState(false);
@@ -507,6 +520,8 @@ const AccountantDashboard: React.FC = () => {
       loadUnbilledInvoices();
     } else if (activeTab === 'aging') {
       loadAgingReport();
+    } else if (activeTab === 'financials') {
+      loadFinancialStatement();
     } else if (activeTab === 'claims') {
       loadClaims();
     } else if (activeTab === 'reminders') {
@@ -553,6 +568,20 @@ const AccountantDashboard: React.FC = () => {
       console.error('Error loading invoices:', error);
     } finally {
       setInvoicesLoading(false);
+    }
+  };
+
+  const loadFinancialStatement = async () => {
+    setFinancialsLoading(true);
+    try {
+      const response = await apiClient.get('/accountant/reports/financial-statement', {
+        params: { start_date: startDate, end_date: endDate },
+      });
+      setFinancials(response.data);
+    } catch (error) {
+      console.error('Error loading financial statement:', error);
+    } finally {
+      setFinancialsLoading(false);
     }
   };
 
@@ -1070,6 +1099,7 @@ const AccountantDashboard: React.FC = () => {
             <nav className="flex -mb-px">
               {[
                 { id: 'overview', label: 'Overview' },
+                { id: 'financials', label: 'Financial Summary' },
                 { id: 'invoices', label: 'Invoices' },
                 { id: 'insuranceInvoices', label: 'Insurance Invoices' },
                 { id: 'corporateInvoices', label: 'Corporate Invoices' },
@@ -1650,6 +1680,142 @@ const AccountantDashboard: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* Financial Summary Tab */}
+            {activeTab === 'financials' && (
+              <div className="space-y-6">
+                {financialsLoading || !financials ? (
+                  <div className="py-12 text-center text-gray-500">Loading financial summary…</div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                      <span className="font-semibold">Operational financial summary</span> — the clinic's revenue and cash position for the selected period{financials.period.label ? ` (${financials.period.label})` : ''}. This is not a GAAP balance sheet, income statement, or cash-flow statement — those come from QuickBooks, which tracks expenses, cash accounts and equity that this system doesn't.
+                    </div>
+
+                    {/* Headline metrics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="rounded-xl p-4 bg-white border border-gray-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-gray-500">Billed</h4>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(financials.headline.total_billed)}</p>
+                        <p className="text-xs text-gray-500 mt-1">{financials.headline.invoice_count} invoices</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-green-50 border border-green-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-green-700">Collected</h4>
+                        <p className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(financials.headline.total_collected)}</p>
+                        <p className="text-xs text-green-600 mt-1">{financials.headline.payment_count} payments</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-primary-50 border border-primary-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-primary-700">Collection Rate</h4>
+                        <p className="text-2xl font-bold text-primary-900 mt-1">{financials.headline.collection_rate}%</p>
+                        <p className="text-xs text-primary-600 mt-1">collected ÷ billed</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-red-50 border border-red-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-red-700">Outstanding (A/R)</h4>
+                        <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
+                        <p className="text-xs text-red-600 mt-1">current, all-time</p>
+                      </div>
+                    </div>
+
+                    {/* Monthly billed vs collected */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed vs Collected by Month</h3>
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={financials.monthly_trend}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                            <Legend />
+                            <Bar dataKey="billed" name="Billed" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="collected" name="Collected" fill={CHART_COLORS.success} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Revenue by category */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed Revenue by Category</h3>
+                        <table className="min-w-full text-sm">
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.revenue_by_category.map((r) => (
+                              <tr key={r.category}>
+                                <td className="py-2 text-gray-700">{r.category}</td>
+                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.billed)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Collections by method */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Collections by Payment Method</h3>
+                        <table className="min-w-full text-sm">
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.collections_by_method.map((r) => (
+                              <tr key={r.method}>
+                                <td className="py-2 text-gray-700 capitalize">{r.method.replace(/_/g, ' ')}</td>
+                                <td className="py-2 text-center text-gray-400 text-xs">{r.count}</td>
+                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Revenue by payer: billed vs collected */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Payer</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Billed</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Collected</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.revenue_by_payer.map((r) => (
+                              <tr key={r.payer_type}>
+                                <td className="px-4 py-2 text-gray-700 capitalize">{r.payer_type.replace(/_/g, ' ')}</td>
+                                <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(r.billed)}</td>
+                                <td className="px-4 py-2 text-right text-green-700">{formatCurrency(r.collected)}</td>
+                                <td className="px-4 py-2 text-right text-red-600">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* A/R aging snapshot */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounts Receivable — Aging</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {financials.aging.map((b) => (
+                          <div key={b.aging_bucket} className={`rounded-lg p-3 ${
+                            b.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
+                            b.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
+                            b.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
+                            'bg-green-50 border border-green-200'
+                          }`}>
+                            <h4 className="text-xs font-medium text-gray-700">{b.aging_bucket}</h4>
+                            <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(b.total_balance)}</p>
+                            <p className="text-xs text-gray-500">{b.invoice_count} invoices</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

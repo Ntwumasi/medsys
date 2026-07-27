@@ -625,6 +625,135 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
   }
 };
 
+// Operational Financial Summary — the clinic's revenue-and-cash picture for a
+// date range. NOT a GAAP balance sheet / income statement (the EMR doesn't
+// track expenses, cash accounts or equity — those live in QuickBooks). This is
+// billed vs collected revenue by category/payer, collections by method, a
+// monthly trend, and the current A/R aging snapshot.
+export const getFinancialStatement = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start_date, end_date } = req.query as { start_date?: string; end_date?: string };
+    // Default to the last 12 months when no range is supplied.
+    const hasRange = !!(start_date && end_date);
+    const invFilter = hasRange ? `AND i.invoice_date BETWEEN $1 AND $2` : `AND i.invoice_date >= CURRENT_DATE - INTERVAL '12 months'`;
+    const payFilter = hasRange ? `AND pay.payment_date BETWEEN $1 AND $2` : `AND pay.payment_date >= CURRENT_DATE - INTERVAL '12 months'`;
+    const params = hasRange ? [start_date, end_date] : [];
+
+    // Headline: billed (invoices in range, excl. cancelled) vs collected
+    // (payments in range). Outstanding A/R is a current snapshot (all-time).
+    const billed = await pool.query(
+      `SELECT COALESCE(SUM(i.total_amount), 0) AS total_billed, COUNT(*) AS invoice_count
+         FROM invoices i WHERE i.status <> 'cancelled' ${invFilter}`, params);
+    const collected = await pool.query(
+      `SELECT COALESCE(SUM(pay.amount), 0) AS total_collected, COUNT(*) AS payment_count
+         FROM payments pay WHERE 1=1 ${payFilter}`, params);
+    const outstanding = await pool.query(
+      `SELECT COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) AS total_outstanding
+         FROM invoices WHERE status IN ('pending', 'partial') AND (total_amount - COALESCE(amount_paid, 0)) > 0`);
+
+    // Billed revenue by service category (lab/imaging rolled up like Top Services)
+    const byCategory = await pool.query(
+      `SELECT
+         CASE WHEN LOWER(COALESCE(ii.category, '')) = 'lab' THEN 'Lab'
+              WHEN LOWER(COALESCE(ii.category, '')) = 'imaging' THEN 'Imaging'
+              ELSE INITCAP(COALESCE(NULLIF(ii.category, ''), 'other')) END AS category,
+         COALESCE(SUM(ii.total_price), 0) AS billed
+       FROM invoice_items ii
+       JOIN invoices i ON ii.invoice_id = i.id
+       WHERE i.status <> 'cancelled' ${invFilter}
+       GROUP BY 1 ORDER BY billed DESC`, params);
+
+    // Billed by payer type (invoices) — via the patient's primary payer source.
+    const billedByPayer = await pool.query(
+      `SELECT COALESCE(pps.payer_type, 'self_pay') AS payer_type,
+              COALESCE(SUM(i.total_amount), 0) AS billed
+         FROM invoices i
+         LEFT JOIN patient_payer_sources pps ON i.patient_id = pps.patient_id AND pps.is_primary = true
+        WHERE i.status <> 'cancelled' ${invFilter}
+        GROUP BY 1`, params);
+    // Collected by payer type (payments)
+    const collectedByPayer = await pool.query(
+      `SELECT COALESCE(pps.payer_type, 'self_pay') AS payer_type,
+              COALESCE(SUM(pay.amount), 0) AS collected
+         FROM payments pay
+         JOIN invoices i ON pay.invoice_id = i.id
+         LEFT JOIN patient_payer_sources pps ON i.patient_id = pps.patient_id AND pps.is_primary = true
+        WHERE 1=1 ${payFilter}
+        GROUP BY 1`, params);
+
+    // Collections by payment method
+    const byMethod = await pool.query(
+      `SELECT COALESCE(NULLIF(pay.payment_method, ''), 'Unknown') AS method,
+              COALESCE(SUM(pay.amount), 0) AS amount, COUNT(*) AS count
+         FROM payments pay WHERE 1=1 ${payFilter}
+        GROUP BY 1 ORDER BY amount DESC`, params);
+
+    // Monthly billed vs collected trend
+    const billedMonthly = await pool.query(
+      `SELECT TO_CHAR(DATE_TRUNC('month', i.invoice_date), 'YYYY-MM') AS month,
+              COALESCE(SUM(i.total_amount), 0) AS billed
+         FROM invoices i WHERE i.status <> 'cancelled' ${invFilter}
+        GROUP BY 1 ORDER BY 1`, params);
+    const collectedMonthly = await pool.query(
+      `SELECT TO_CHAR(DATE_TRUNC('month', pay.payment_date), 'YYYY-MM') AS month,
+              COALESCE(SUM(pay.amount), 0) AS collected
+         FROM payments pay WHERE 1=1 ${payFilter}
+        GROUP BY 1 ORDER BY 1`, params);
+
+    // Current A/R aging snapshot (CTE so the alias is a real column in ORDER BY)
+    const aging = await pool.query(
+      `WITH aged AS (
+         SELECT CASE WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
+                     WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
+                     WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
+                     ELSE '90+ days' END AS aging_bucket,
+                (total_amount - COALESCE(amount_paid, 0)) AS balance
+           FROM invoices
+          WHERE status IN ('pending', 'partial') AND (total_amount - COALESCE(amount_paid, 0)) > 0)
+       SELECT aging_bucket, COUNT(*) AS invoice_count, COALESCE(SUM(balance), 0) AS total_balance
+         FROM aged GROUP BY aging_bucket
+        ORDER BY CASE aging_bucket WHEN '0-30 days' THEN 1 WHEN '31-60 days' THEN 2 WHEN '61-90 days' THEN 3 ELSE 4 END`);
+
+    // Merge billed + collected by payer into one row set
+    const payerMap: Record<string, { payer_type: string; billed: number; collected: number }> = {};
+    for (const r of billedByPayer.rows) payerMap[r.payer_type] = { payer_type: r.payer_type, billed: parseFloat(r.billed) || 0, collected: 0 };
+    for (const r of collectedByPayer.rows) {
+      payerMap[r.payer_type] = payerMap[r.payer_type] || { payer_type: r.payer_type, billed: 0, collected: 0 };
+      payerMap[r.payer_type].collected = parseFloat(r.collected) || 0;
+    }
+    // Merge monthly billed + collected
+    const monthMap: Record<string, { month: string; billed: number; collected: number }> = {};
+    for (const r of billedMonthly.rows) monthMap[r.month] = { month: r.month, billed: parseFloat(r.billed) || 0, collected: 0 };
+    for (const r of collectedMonthly.rows) {
+      monthMap[r.month] = monthMap[r.month] || { month: r.month, billed: 0, collected: 0 };
+      monthMap[r.month].collected = parseFloat(r.collected) || 0;
+    }
+
+    const totalBilled = parseFloat(billed.rows[0].total_billed) || 0;
+    const totalCollected = parseFloat(collected.rows[0].total_collected) || 0;
+
+    res.json({
+      period: hasRange ? { start: start_date, end: end_date } : { start: null, end: null, label: 'Last 12 months' },
+      headline: {
+        total_billed: totalBilled,
+        total_collected: totalCollected,
+        total_outstanding: parseFloat(outstanding.rows[0].total_outstanding) || 0,
+        collection_rate: totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 1000) / 10 : 0,
+        invoice_count: parseInt(billed.rows[0].invoice_count) || 0,
+        payment_count: parseInt(collected.rows[0].payment_count) || 0,
+      },
+      revenue_by_category: byCategory.rows.map((r: any) => ({ category: r.category, billed: parseFloat(r.billed) || 0 })),
+      revenue_by_payer: Object.values(payerMap).sort((a, b) => b.billed - a.billed),
+      collections_by_method: byMethod.rows.map((r: any) => ({ method: r.method, amount: parseFloat(r.amount) || 0, count: parseInt(r.count) || 0 })),
+      monthly_trend: Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)),
+      aging: aging.rows.map((r: any) => ({ aging_bucket: r.aging_bucket, invoice_count: parseInt(r.invoice_count) || 0, total_balance: parseFloat(r.total_balance) || 0 })),
+    });
+  } catch (error) {
+    console.error('Get financial statement error:', error);
+    res.status(500).json({ error: 'Failed to fetch financial statement' });
+  }
+};
+
 // Get revenue by payer type
 export const getRevenueByPayer = async (req: Request, res: Response): Promise<void> => {
   try {
