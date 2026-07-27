@@ -187,6 +187,79 @@ export async function sendRequestXML(
 }
 
 // Generate QBXML based on request type
+// Resolve which QuickBooks customer an invoice/payment for this patient should
+// be booked under.
+//
+// Payer-based mode (use_payer_based_customers) — what the accountant wants:
+//   self_pay / staff / none -> the single "Cash Sales" customer
+//   corporate               -> the corporate client's mapped QB customer
+//   insurance               -> the insurer's mapped QB customer
+// All referenced by FullName, so they point at customers QB already has. If a
+// payer isn't mapped yet we return null so the caller can hold the row rather
+// than post it under the wrong (or a duplicate) customer.
+//
+// Legacy mode (flag off) — one QB customer per patient, resolved from the
+// patient's ListID in quickbooks_sync_map (null until the patient syncs).
+type CustomerResolution =
+  | { ref: { listId: string } | { fullName: string } }
+  | { unresolved: 'patient_not_synced' | 'payer_not_mapped' | 'cash_sales_not_set'; detail: string };
+
+async function resolveCustomerForPatient(patientId: number): Promise<CustomerResolution> {
+  const cfg = await pool.query(
+    `SELECT use_payer_based_customers, cash_sales_customer_name FROM quickbooks_config WHERE id = 1`
+  );
+  const config = cfg.rows[0] || {};
+
+  if (!config.use_payer_based_customers) {
+    const syncMap = await pool.query(
+      `SELECT quickbooks_id FROM quickbooks_sync_map WHERE entity_type = 'patient' AND medsys_id = $1`,
+      [patientId]
+    );
+    if (syncMap.rows.length === 0) {
+      return { unresolved: 'patient_not_synced', detail: `Patient ${patientId} not synced to QB yet` };
+    }
+    return { ref: { listId: syncMap.rows[0].quickbooks_id } };
+  }
+
+  // Payer-based: look at the patient's PRIMARY payer source.
+  const payer = await pool.query(
+    `SELECT pps.payer_type,
+            COALESCE(cc.quickbooks_customer_name, cc.name)  AS corporate_name,
+            COALESCE(ip.quickbooks_customer_name, ip.name)  AS insurance_name,
+            cc.quickbooks_customer_name AS corporate_mapped,
+            ip.quickbooks_customer_name AS insurance_mapped
+       FROM patient_payer_sources pps
+       LEFT JOIN corporate_clients cc     ON pps.corporate_client_id = cc.id
+       LEFT JOIN insurance_providers ip   ON pps.insurance_provider_id = ip.id
+      WHERE pps.patient_id = $1
+      ORDER BY pps.is_primary DESC
+      LIMIT 1`,
+    [patientId]
+  );
+  const type = payer.rows[0]?.payer_type || 'self_pay';
+
+  if (type === 'corporate') {
+    // Require an explicit QB mapping — the corporate name in MedSys may not
+    // match the QB customer name, so don't guess.
+    if (!payer.rows[0]?.corporate_mapped) {
+      return { unresolved: 'payer_not_mapped', detail: `Corporate payer for patient ${patientId} has no QuickBooks customer mapped` };
+    }
+    return { ref: { fullName: payer.rows[0].corporate_name } };
+  }
+  if (type === 'insurance') {
+    if (!payer.rows[0]?.insurance_mapped) {
+      return { unresolved: 'payer_not_mapped', detail: `Insurance payer for patient ${patientId} has no QuickBooks customer mapped` };
+    }
+    return { ref: { fullName: payer.rows[0].insurance_name } };
+  }
+
+  // self_pay, staff, or no payer source -> single Cash Sales customer.
+  if (!config.cash_sales_customer_name) {
+    return { unresolved: 'cash_sales_not_set', detail: 'Self-pay customer name not configured in QuickBooks settings' };
+  }
+  return { ref: { fullName: config.cash_sales_customer_name } };
+}
+
 async function generateQBXML(request: any): Promise<string | null> {
   const { entity_type, operation, medsys_id } = request;
 
@@ -246,18 +319,13 @@ async function generateQBXML(request: any): Promise<string | null> {
         WHERE ii.invoice_id = $1
       `, [medsys_id]);
 
-      // Get QB customer ID
-      const syncMap = await pool.query(`
-        SELECT quickbooks_id FROM quickbooks_sync_map
-        WHERE entity_type = 'patient' AND medsys_id = $1
-      `, [invoiceResult.rows[0].patient_id]);
-
-      if (syncMap.rows.length === 0) {
-        console.log(`[QBWC] Patient ${invoiceResult.rows[0].patient_id} not synced to QB yet`);
-        // Queue patient first, mark invoice as waiting
+      // Resolve the QB customer (payer-based or legacy per-patient).
+      const customer = await resolveCustomerForPatient(invoiceResult.rows[0].patient_id);
+      if ('unresolved' in customer) {
+        console.log(`[QBWC] Invoice ${medsys_id} held: ${customer.detail}`);
         await pool.query(`
-          UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1
-        `, [request.id]);
+          UPDATE quickbooks_request_queue SET status = 'waiting', error_message = $2 WHERE id = $1
+        `, [request.id, customer.detail]);
         return null;
       }
 
@@ -280,7 +348,7 @@ async function generateQBXML(request: any): Promise<string | null> {
       return qbxmlBuilder.buildInvoiceAddRq(
         invoiceResult.rows[0],
         itemsResult.rows,
-        syncMap.rows[0].quickbooks_id,
+        customer.ref,
         itemListIds,
         request.id.toString(),
         await getDefaultItemName()
@@ -300,19 +368,15 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       const payment = paymentResult.rows[0];
 
-      // Get QB customer ID
-      const customerSync = await pool.query(`
-        SELECT quickbooks_id FROM quickbooks_sync_map
-        WHERE entity_type = 'patient' AND medsys_id = $1
-      `, [payment.patient_id]);
-
-      if (customerSync.rows.length === 0) {
-        console.log(`[QBWC] Customer for payment ${medsys_id} not synced to QB yet`);
-        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+      // Resolve the QB customer (payer-based or legacy per-patient).
+      const customer = await resolveCustomerForPatient(payment.patient_id);
+      if ('unresolved' in customer) {
+        console.log(`[QBWC] Payment ${medsys_id} held: ${customer.detail}`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting', error_message = $2 WHERE id = $1`, [request.id, customer.detail]);
         return null;
       }
 
-      // Get QB invoice ID
+      // Payment must apply to an already-synced invoice (needs its QB TxnID).
       const invoiceSync = await pool.query(`
         SELECT quickbooks_id FROM quickbooks_sync_map
         WHERE entity_type = 'invoice' AND medsys_id = $1
@@ -320,13 +384,13 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       if (invoiceSync.rows.length === 0) {
         console.log(`[QBWC] Invoice for payment ${medsys_id} not synced to QB yet`);
-        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting', error_message = 'Waiting for invoice to sync' WHERE id = $1`, [request.id]);
         return null;
       }
 
       return qbxmlBuilder.buildReceivePaymentAddRq(
         payment,
-        customerSync.rows[0].quickbooks_id,
+        customer.ref,
         invoiceSync.rows[0].quickbooks_id,
         request.id.toString()
       );

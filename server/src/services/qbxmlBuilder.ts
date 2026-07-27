@@ -34,6 +34,22 @@ function formatQBDate(date: Date | string): string {
   return d.toISOString().split('T')[0];
 }
 
+// A QuickBooks customer can be referenced either by its ListID (a customer we
+// created and mapped) or by FullName (an existing customer the accountant made
+// — e.g. a payer like "Acacia Insurance" or a single "Cash Sales" bucket).
+// Referencing by FullName lets us point at customers QB already has without
+// creating or ListID-mapping them. A plain string is treated as a ListID for
+// backward compatibility with the legacy per-patient callers.
+export type QBCustomerRef = { listId: string } | { fullName: string };
+
+function buildCustomerRefXML(customer: string | QBCustomerRef): string {
+  const ref: QBCustomerRef = typeof customer === 'string' ? { listId: customer } : customer;
+  if ('fullName' in ref) {
+    return `<CustomerRef><FullName>${escapeXML(ref.fullName)}</FullName></CustomerRef>`;
+  }
+  return `<CustomerRef><ListID>${escapeXML(ref.listId)}</ListID></CustomerRef>`;
+}
+
 // ===== Customer (Patient) Builders =====
 
 interface PatientData {
@@ -177,7 +193,7 @@ interface InvoiceItemData {
 export function buildInvoiceAddRq(
   invoice: InvoiceData,
   items: InvoiceItemData[],
-  customerListId: string,
+  customer: string | QBCustomerRef, // ListID (legacy) or {listId}/{fullName}
   itemListIds: Map<number, string>, // charge_master_id -> QB ListID
   requestId?: string,
   defaultItemFullName: string = 'Medical Services', // fallback item for unmapped lines
@@ -205,9 +221,7 @@ export function buildInvoiceAddRq(
   const requestXML = `
     <InvoiceAddRq${requestId ? ` requestID="${requestId}"` : ''}>
       <InvoiceAdd>
-        <CustomerRef>
-          <ListID>${escapeXML(customerListId)}</ListID>
-        </CustomerRef>
+        ${buildCustomerRefXML(customer)}
         <TxnDate>${formatQBDate(invoice.invoice_date)}</TxnDate>
         ${invoice.due_date ? `<DueDate>${formatQBDate(invoice.due_date)}</DueDate>` : ''}
         <RefNumber>${escapeXML(invoice.invoice_number.substring(0, 11))}</RefNumber>
@@ -244,16 +258,14 @@ interface PaymentData {
 
 export function buildReceivePaymentAddRq(
   payment: PaymentData,
-  customerListId: string,
+  customer: string | QBCustomerRef,
   invoiceTxnId: string,
   requestId?: string
 ): string {
   const requestXML = `
     <ReceivePaymentAddRq${requestId ? ` requestID="${requestId}"` : ''}>
       <ReceivePaymentAdd>
-        <CustomerRef>
-          <ListID>${escapeXML(customerListId)}</ListID>
-        </CustomerRef>
+        ${buildCustomerRefXML(customer)}
         <TxnDate>${formatQBDate(payment.payment_date)}</TxnDate>
         ${payment.reference_number ? `<RefNumber>${escapeXML(payment.reference_number.substring(0, 11))}</RefNumber>` : ''}
         <TotalAmount>${Number(payment.amount || 0).toFixed(2)}</TotalAmount>

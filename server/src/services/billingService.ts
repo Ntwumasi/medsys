@@ -295,11 +295,13 @@ export const billingService = {
 
       // Auto-queue to QuickBooks if connected
       const qbConfig = await client.query(
-        'SELECT is_connected, use_cash_sales_customer FROM quickbooks_config WHERE id = 1'
+        'SELECT is_connected, use_cash_sales_customer, use_payer_based_customers FROM quickbooks_config WHERE id = 1'
       );
       if (qbConfig.rows[0]?.is_connected) {
-        // Only sync individual patients if NOT using Cash Sales mode
-        if (!qbConfig.rows[0]?.use_cash_sales_customer) {
+        // Only sync individual patients as their own QB customer in legacy mode
+        // — payer-based and Cash Sales modes book under a shared/payer customer,
+        // so per-patient customers aren't needed.
+        if (!qbConfig.rows[0]?.use_cash_sales_customer && !qbConfig.rows[0]?.use_payer_based_customers) {
           const patientSynced = await client.query(
             `SELECT quickbooks_id FROM quickbooks_sync_map
              WHERE entity_type = 'patient' AND medsys_id = $1`,

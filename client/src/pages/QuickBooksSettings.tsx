@@ -29,9 +29,17 @@ interface ConnectionStatus {
   useCashSalesCustomer: boolean;
   cashSalesCustomerName: string;
   cashSalesCustomerListId?: string;
+  usePayerBasedCustomers: boolean;
+  defaultItemName: string;
   ownerId?: string;
   fileId?: string;
   queueStatus: QueueStatus;
+}
+
+interface PayerMapping {
+  id: number;
+  name: string;
+  quickbooks_customer_name: string | null;
 }
 
 interface QueueItem {
@@ -115,9 +123,13 @@ const QuickBooksSettings: React.FC = () => {
   const [newPassword, setNewPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [importing, setImporting] = useState<string | null>(null);
+  const [corporateMappings, setCorporateMappings] = useState<PayerMapping[]>([]);
+  const [insuranceMappings, setInsuranceMappings] = useState<PayerMapping[]>([]);
+  const [redriving, setRedriving] = useState(false);
 
   useEffect(() => {
     loadStatus();
+    loadPayerMappings();
   }, []);
 
   const loadStatus = async () => {
@@ -262,6 +274,40 @@ const QuickBooksSettings: React.FC = () => {
       showToast('Settings updated', 'success');
     } catch (error) {
       showToast('Failed to update settings', 'error');
+    }
+  };
+
+  const loadPayerMappings = async () => {
+    try {
+      const response = await apiClient.get('/quickbooks/payer-mappings');
+      setCorporateMappings(response.data.corporate || []);
+      setInsuranceMappings(response.data.insurance || []);
+    } catch {
+      // non-blocking
+    }
+  };
+
+  // Persist a payer's QB customer name on blur (local edits kept in state while typing).
+  const savePayerMapping = async (type: 'corporate' | 'insurance', id: number, quickbooksCustomerName: string) => {
+    try {
+      await apiClient.put('/quickbooks/payer-mappings', { type, id, quickbooksCustomerName });
+      showToast('Payer mapping saved', 'success');
+    } catch {
+      showToast('Failed to save payer mapping', 'error');
+    }
+  };
+
+  const handleRedrive = async () => {
+    setRedriving(true);
+    try {
+      const response = await apiClient.post('/quickbooks/redrive');
+      showToast(response.data?.message || 'Transactions re-queued', 'success');
+      loadStatus();
+      loadQueueItems(queueFilter || undefined);
+    } catch {
+      showToast('Failed to re-drive transactions', 'error');
+    } finally {
+      setRedriving(false);
     }
   };
 
@@ -675,7 +721,119 @@ const QuickBooksSettings: React.FC = () => {
 
                     <hr className="border-gray-200" />
 
-                    {/* Cash Sales Customer Mode */}
+                    {/* Payer-based billing */}
+                    <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                      <label className="flex items-center gap-2 cursor-pointer mb-3">
+                        <input
+                          type="checkbox"
+                          checked={status?.usePayerBasedCustomers ?? false}
+                          onChange={(e) => handleUpdateSettings('usePayerBasedCustomers', e.target.checked)}
+                          className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">Bill by payer (recommended)</span>
+                      </label>
+                      <p className="text-xs text-gray-600 mb-3">
+                        Books each invoice under the <span className="font-medium">payer's</span> existing QuickBooks customer:
+                        self-pay patients go under one shared customer, and each insurer / corporate client goes under the
+                        customer you already created in QuickBooks. Map the exact QB customer names below so MedSys points at
+                        customers QuickBooks already has (no per-patient customers, no duplicates).
+                      </p>
+
+                      {(status?.usePayerBasedCustomers ?? false) && (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Self-pay customer name (must exist in QuickBooks)
+                              </label>
+                              <input
+                                type="text"
+                                value={status?.cashSalesCustomerName || ''}
+                                onChange={(e) => setStatus(prev => prev ? { ...prev, cashSalesCustomerName: e.target.value } : null)}
+                                onBlur={(e) => handleUpdateSettings('cashSalesCustomerName', e.target.value)}
+                                placeholder="Cash Sales"
+                                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Invoice line item name (must exist in QuickBooks)
+                              </label>
+                              <input
+                                type="text"
+                                value={status?.defaultItemName || ''}
+                                onChange={(e) => setStatus(prev => prev ? { ...prev, defaultItemName: e.target.value } : null)}
+                                onBlur={(e) => handleUpdateSettings('defaultItemName', e.target.value)}
+                                placeholder="Medical Services"
+                                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                            Create a single service item in QuickBooks (Item List) with the exact name above — all invoice lines
+                            use it, so if it's missing QuickBooks rejects the invoice.
+                          </p>
+
+                          {/* Insurance mapping */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Insurance providers</h4>
+                            <div className="space-y-1.5">
+                              {insuranceMappings.map((m) => (
+                                <div key={`ins-${m.id}`} className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-700 w-1/2 truncate" title={m.name}>{m.name}</span>
+                                  <input
+                                    type="text"
+                                    value={m.quickbooks_customer_name ?? ''}
+                                    placeholder={`QB customer for ${m.name}`}
+                                    onChange={(e) => setInsuranceMappings(prev => prev.map(x => x.id === m.id ? { ...x, quickbooks_customer_name: e.target.value } : x))}
+                                    onBlur={(e) => savePayerMapping('insurance', m.id, e.target.value)}
+                                    className="px-2 py-1 border border-gray-300 rounded text-xs w-1/2 focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+                              ))}
+                              {insuranceMappings.length === 0 && <p className="text-xs text-gray-400">No insurance providers.</p>}
+                            </div>
+                          </div>
+
+                          {/* Corporate mapping */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Corporate clients</h4>
+                            <div className="space-y-1.5">
+                              {corporateMappings.map((m) => (
+                                <div key={`corp-${m.id}`} className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-700 w-1/2 truncate" title={m.name}>{m.name}</span>
+                                  <input
+                                    type="text"
+                                    value={m.quickbooks_customer_name ?? ''}
+                                    placeholder={`QB customer for ${m.name}`}
+                                    onChange={(e) => setCorporateMappings(prev => prev.map(x => x.id === m.id ? { ...x, quickbooks_customer_name: e.target.value } : x))}
+                                    onBlur={(e) => savePayerMapping('corporate', m.id, e.target.value)}
+                                    className="px-2 py-1 border border-gray-300 rounded text-xs w-1/2 focus:ring-2 focus:ring-primary-500"
+                                  />
+                                </div>
+                              ))}
+                              {corporateMappings.length === 0 && <p className="text-xs text-gray-400">No corporate clients.</p>}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 pt-1">
+                            <button
+                              onClick={handleRedrive}
+                              disabled={redriving}
+                              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                            >
+                              {redriving ? 'Re-queuing…' : 'Re-drive held transactions'}
+                            </button>
+                            <span className="text-xs text-gray-500">
+                              Retries invoices/payments that failed or are waiting — run after filling in the mappings.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Cash Sales Customer Mode (legacy — hidden when billing by payer) */}
+                    {!(status?.usePayerBasedCustomers ?? false) && (
                     <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                       <label className="flex items-center gap-2 cursor-pointer mb-3">
                         <input
@@ -717,6 +875,7 @@ const QuickBooksSettings: React.FC = () => {
                         </div>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -15,6 +15,11 @@ const qbAuth = [authenticateToken, authorizeRoles('admin', 'accountant')];
 router.get('/status', ...qbAuth, qbController.getStatus);
 router.put('/settings', ...qbAuth, qbController.updateSettings);
 
+// Payer -> QuickBooks customer mapping (payer-based billing)
+router.get('/payer-mappings', ...qbAuth, qbController.getPayerMappings);
+router.put('/payer-mappings', ...qbAuth, qbController.updatePayerMapping);
+router.post('/redrive', ...qbAuth, qbController.redriveTransactions);
+
 // Password Management
 router.post('/password', ...qbAuth, qbController.setPassword);
 router.post('/password/reset', ...qbAuth, qbController.resetPassword);
