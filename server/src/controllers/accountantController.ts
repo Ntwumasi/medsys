@@ -612,7 +612,8 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Get aging report error:', error);
-    res.status(500).json({ error: 'Failed to fetch aging report' });
+    // TEMP diagnostic: surface the real DB error so we can see why prod 500s.
+    res.status(500).json({ error: 'Failed to fetch aging report', detail: (error as any)?.message, code: (error as any)?.code });
   }
 };
 
