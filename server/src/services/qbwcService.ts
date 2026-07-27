@@ -191,9 +191,12 @@ export async function sendRequestXML(
 // be booked under.
 //
 // Payer-based mode (use_payer_based_customers) — what the accountant wants:
-//   self_pay / staff / none -> the single "Cash Sales" customer
-//   corporate               -> the corporate client's mapped QB customer
-//   insurance               -> the insurer's mapped QB customer
+//   self_pay / none -> the single "Cash Sales" customer
+//   corporate       -> the corporate client's mapped QB customer
+//   insurance       -> the insurer's mapped QB customer
+//   staff           -> SKIPPED entirely: the staff health-package perk is an
+//                      internal employee benefit (GHS cap tracked in-app), not
+//                      external revenue, so it must never post to QuickBooks.
 // All referenced by FullName, so they point at customers QB already has. If a
 // payer isn't mapped yet we return null so the caller can hold the row rather
 // than post it under the wrong (or a duplicate) customer.
@@ -202,6 +205,7 @@ export async function sendRequestXML(
 // patient's ListID in quickbooks_sync_map (null until the patient syncs).
 type CustomerResolution =
   | { ref: { listId: string } | { fullName: string } }
+  | { skip: 'staff_perk'; detail: string }
   | { unresolved: 'patient_not_synced' | 'payer_not_mapped' | 'cash_sales_not_set'; detail: string };
 
 async function resolveCustomerForPatient(patientId: number): Promise<CustomerResolution> {
@@ -238,6 +242,10 @@ async function resolveCustomerForPatient(patientId: number): Promise<CustomerRes
   );
   const type = payer.rows[0]?.payer_type || 'self_pay';
 
+  if (type === 'staff') {
+    // Staff health-package perk — internal benefit, never goes to QuickBooks.
+    return { skip: 'staff_perk', detail: 'Staff health-package perk — excluded from QuickBooks' };
+  }
   if (type === 'corporate') {
     // Require an explicit QB mapping — the corporate name in MedSys may not
     // match the QB customer name, so don't guess.
@@ -253,7 +261,7 @@ async function resolveCustomerForPatient(patientId: number): Promise<CustomerRes
     return { ref: { fullName: payer.rows[0].insurance_name } };
   }
 
-  // self_pay, staff, or no payer source -> single Cash Sales customer.
+  // self_pay or no payer source -> single Cash Sales customer.
   if (!config.cash_sales_customer_name) {
     return { unresolved: 'cash_sales_not_set', detail: 'Self-pay customer name not configured in QuickBooks settings' };
   }
@@ -321,6 +329,13 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       // Resolve the QB customer (payer-based or legacy per-patient).
       const customer = await resolveCustomerForPatient(invoiceResult.rows[0].patient_id);
+      if ('skip' in customer) {
+        console.log(`[QBWC] Invoice ${medsys_id} skipped: ${customer.detail}`);
+        await pool.query(`
+          UPDATE quickbooks_request_queue SET status = 'completed', error_message = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $1
+        `, [request.id, customer.detail]);
+        return null;
+      }
       if ('unresolved' in customer) {
         console.log(`[QBWC] Invoice ${medsys_id} held: ${customer.detail}`);
         await pool.query(`
@@ -370,6 +385,11 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       // Resolve the QB customer (payer-based or legacy per-patient).
       const customer = await resolveCustomerForPatient(payment.patient_id);
+      if ('skip' in customer) {
+        console.log(`[QBWC] Payment ${medsys_id} skipped: ${customer.detail}`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'completed', error_message = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $1`, [request.id, customer.detail]);
+        return null;
+      }
       if ('unresolved' in customer) {
         console.log(`[QBWC] Payment ${medsys_id} held: ${customer.detail}`);
         await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting', error_message = $2 WHERE id = $1`, [request.id, customer.detail]);
