@@ -580,20 +580,29 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
 
     const result = await pool.query(query);
 
-    // Calculate summary by bucket
+    // Calculate summary by bucket. The bucketing CASE is computed in a CTE so
+    // that `aging_bucket` is a real column downstream — Postgres rejects a
+    // SELECT alias used *inside an expression* in ORDER BY (CASE aging_bucket …)
+    // with "column aging_bucket does not exist", which is what broke this report.
     const summaryQuery = `
+      WITH aged AS (
+        SELECT
+          CASE
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
+            ELSE '90+ days'
+          END AS aging_bucket,
+          (total_amount - COALESCE(amount_paid, 0)) AS balance
+        FROM invoices
+        WHERE status IN ('pending', 'partial')
+          AND (total_amount - COALESCE(amount_paid, 0)) > 0
+      )
       SELECT
-        CASE
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
-          ELSE '90+ days'
-        END as aging_bucket,
-        COUNT(*) as invoice_count,
-        COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as total_balance
-      FROM invoices
-      WHERE status IN ('pending', 'partial')
-        AND (total_amount - COALESCE(amount_paid, 0)) > 0
+        aging_bucket,
+        COUNT(*) AS invoice_count,
+        COALESCE(SUM(balance), 0) AS total_balance
+      FROM aged
       GROUP BY aging_bucket
       ORDER BY
         CASE aging_bucket
@@ -612,8 +621,7 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('Get aging report error:', error);
-    // TEMP diagnostic: surface the real DB error so we can see why prod 500s.
-    res.status(500).json({ error: 'Failed to fetch aging report', detail: (error as any)?.message, code: (error as any)?.code });
+    res.status(500).json({ error: 'Failed to fetch aging report' });
   }
 };
 
