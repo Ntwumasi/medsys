@@ -175,7 +175,13 @@ export const staffSendLink = async (req: Request, res: Response): Promise<void> 
     }
 
     const sentBy = (req as any).user?.id || null;
-    await createAndSendLink(patient_id, check.formatted, 'staff', sentBy, req);
+    const sent = await createAndSendLink(patient_id, check.formatted, 'staff', sentBy, req);
+
+    // Don't tell the user it was sent unless it actually was.
+    if (!sent) {
+      res.status(502).json({ error: 'Text could not be sent (SMS service not configured or the send failed). The link was created but not delivered — check SMS setup.' });
+      return;
+    }
 
     const masked = check.formatted.slice(0, -6).replace(/\d/g, '•') + check.formatted.slice(-4);
     res.json({ message: `Portal login link sent to ${masked}.` });

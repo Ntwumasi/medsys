@@ -1,13 +1,9 @@
 /**
- * SMS Service - Stub Implementation
- *
- * This is a placeholder service that logs SMS messages to the console.
- * When you're ready to integrate with a real SMS provider, replace the
- * implementation in sendSMS() with your provider's API.
+ * SMS Service
  *
  * Three real providers are wired up below (all via axios REST — no SDKs).
  * The first one whose credentials are present in the environment is used,
- * in this order; otherwise it falls back to the console stub (local/dev):
+ * in this order:
  *
  *   1. Hubtel          HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET   (Ghana; needs a GH business)
  *   2. Twilio          TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN    (easiest int'l signup)
@@ -16,6 +12,11 @@
  *
  * Ghana A2P SMS requires a registered Sender ID with the provider regardless of
  * which one you pick. Numbers are normalized to E.164 (+233…) before sending.
+ *
+ * IMPORTANT: when NO provider is configured, sendSMS returns success:false (it
+ * does NOT pretend to have sent). Callers must check `result.success` and never
+ * tell a user a text was sent unless it was — otherwise "link sent" is a lie and
+ * the patient never gets anything.
  */
 
 import axios from 'axios';
@@ -49,7 +50,7 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
         'https://smsc.hubtel.com/v1/messages/send',
         {
           From: process.env.HUBTEL_SENDER_ID || 'Clinic',
-          To: to,
+          To: e164,
           Content: message,
         },
         {
@@ -145,22 +146,20 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
     }
   }
 
-  // Fallback: log the SMS that would be sent (local/dev / no provider configured)
-  console.log('========================================');
-  console.log('[SMS SERVICE - STUB MODE]');
-  console.log(`To: ${to}`);
-  console.log(`Message: ${message}`);
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log('========================================');
+  // No provider configured. Log the message (dev visibility) but report
+  // failure — we did NOT send anything, and callers must not claim we did.
+  console.warn('========================================');
+  console.warn('[SMS NOT SENT — no provider configured]');
+  console.warn(`To: ${e164}`);
+  console.warn(`Message: ${message}`);
+  console.warn('Set HUBTEL_*, TWILIO_* or AT_* env vars to enable real SMS.');
+  console.warn('========================================');
 
-  // Simulate a small delay like a real API would have
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  // Return success - in production this would be the provider's response
   return {
-    success: true,
-    provider: 'stub',
-    messageId: `sms-stub-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    success: false,
+    provider: 'none',
+    messageId: '',
+    error: 'SMS provider not configured',
   };
 };
 
