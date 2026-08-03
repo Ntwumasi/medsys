@@ -1,14 +1,15 @@
 /**
  * SMS Service
  *
- * Three real providers are wired up below (all via axios REST — no SDKs).
+ * Real providers are wired up below (all via axios REST — no SDKs).
  * The first one whose credentials are present in the environment is used,
  * in this order:
  *
- *   1. Hubtel          HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET   (Ghana; needs a GH business)
- *   2. Twilio          TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN    (easiest int'l signup)
+ *   1. Arkesel         ARKESEL_API_KEY + ARKESEL_SENDER_ID       (Ghana-native — PRIMARY)
+ *   2. Hubtel          HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET   (Ghana; needs a GH business)
+ *   3. Twilio          TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN    (US-centric; restricted for GH)
  *                      + TWILIO_PHONE_NUMBER or TWILIO_MESSAGING_SERVICE_SID
- *   3. Africa's Talking AT_API_KEY + AT_USERNAME + AT_SENDER_ID  (Africa-native rates)
+ *   4. Africa's Talking AT_API_KEY + AT_USERNAME + AT_SENDER_ID  (Africa-native rates)
  *
  * Ghana A2P SMS requires a registered Sender ID with the provider regardless of
  * which one you pick. Numbers are normalized to E.164 (+233…) before sending.
@@ -43,7 +44,40 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
   // Normalize to E.164 (+233…) for providers that require it (Twilio, AT).
   const e164 = validatePhoneNumber(to).formatted;
 
-  // --- Provider 1: Hubtel (Ghana) ---
+  // --- Provider 1: Arkesel (Ghana-native — our primary) ---
+  if (process.env.ARKESEL_API_KEY) {
+    try {
+      // Arkesel wants the number with country code and NO leading '+' (233XXXXXXXXX).
+      const recipient = e164.replace(/^\+/, '');
+      const response = await axios.post(
+        'https://sms.arkesel.com/api/v2/sms/send',
+        {
+          sender: process.env.ARKESEL_SENDER_ID || 'Clinic',
+          message,
+          recipients: [recipient],
+        },
+        { headers: { 'api-key': process.env.ARKESEL_API_KEY }, timeout: 15000 }
+      );
+      const ok = response.data?.status === 'success';
+      const data = response.data?.data;
+      return {
+        success: ok,
+        provider: 'arkesel',
+        messageId: (Array.isArray(data) ? data[0]?.id : data?.id) || '',
+        error: ok ? undefined : (response.data?.message || 'SMS send failed'),
+      };
+    } catch (error: any) {
+      console.error('Arkesel SMS send failed:', error?.response?.data || error?.message);
+      return {
+        success: false,
+        provider: 'arkesel',
+        messageId: '',
+        error: error?.response?.data?.message || error?.message || 'SMS send failed',
+      };
+    }
+  }
+
+  // --- Provider 2: Hubtel (Ghana) ---
   if (process.env.HUBTEL_CLIENT_ID && process.env.HUBTEL_CLIENT_SECRET) {
     try {
       const response = await axios.post(
@@ -186,11 +220,12 @@ export const sendBulkSMS = async (messages: SMSMessage[]): Promise<SMSResult[]> 
  */
 export const isSMSConfigured = (): boolean => {
   // Check for provider API keys in environment
+  const hasArkesel = !!process.env.ARKESEL_API_KEY;
   const hasHubtel = !!(process.env.HUBTEL_CLIENT_ID && process.env.HUBTEL_CLIENT_SECRET);
   const hasTwilio = !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN);
   const hasAfricasTalking = !!(process.env.AT_API_KEY && process.env.AT_USERNAME);
 
-  return hasHubtel || hasTwilio || hasAfricasTalking;
+  return hasArkesel || hasHubtel || hasTwilio || hasAfricasTalking;
 };
 
 /**
