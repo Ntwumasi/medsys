@@ -188,6 +188,10 @@ interface InvoiceItemData {
   quantity: number;
   unit_price: number;
   charge_master_id?: number;
+  // Item resolved from the revenue map (qbRevenueMapService) so the line books
+  // to the right income account. Set by the caller before building.
+  qb_item_name?: string | null;
+  qb_item_listid?: string | null;
 }
 
 export function buildInvoiceAddRq(
@@ -205,9 +209,21 @@ export function buildInvoiceAddRq(
     // line's charge item isn't mapped to a QB ListID, fall back to a named
     // default item so the request stays valid; if that item is missing in QB,
     // only this one invoice errors instead of the entire connection.
-    const itemRef = item.charge_master_id && itemListIds.has(item.charge_master_id)
-      ? `<ItemRef><ListID>${escapeXML(itemListIds.get(item.charge_master_id)!)}</ListID></ItemRef>`
-      : `<ItemRef><FullName>${escapeXML(defaultItemFullName)}</FullName></ItemRef>`;
+    //
+    // Resolution order: the line's own charge_master mapping (most specific),
+    // then the revenue-map item that routes it to the correct income account,
+    // then the global default. Without the middle step nearly every line lands
+    // on the default item and all revenue collapses into one account.
+    let itemRef: string;
+    if (item.charge_master_id && itemListIds.has(item.charge_master_id)) {
+      itemRef = `<ItemRef><ListID>${escapeXML(itemListIds.get(item.charge_master_id)!)}</ListID></ItemRef>`;
+    } else if (item.qb_item_listid) {
+      itemRef = `<ItemRef><ListID>${escapeXML(item.qb_item_listid)}</ListID></ItemRef>`;
+    } else if (item.qb_item_name) {
+      itemRef = `<ItemRef><FullName>${escapeXML(item.qb_item_name)}</FullName></ItemRef>`;
+    } else {
+      itemRef = `<ItemRef><FullName>${escapeXML(defaultItemFullName)}</FullName></ItemRef>`;
+    }
 
     return `
       <InvoiceLineAdd>
@@ -385,6 +401,52 @@ export function parsePaymentResponse(xml: string): PaymentResponse {
     statusSeverity,
     txnId: extractTag(xml, 'TxnID') || undefined,
   };
+}
+
+export function parseItemResponse(xml: string): CustomerResponse {
+  const statusCode = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusCode') ||
+                     extractTag(xml, 'statusCode') || '0';
+  const statusMessage = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusMessage') ||
+                        extractTag(xml, 'statusMessage') || '';
+  const statusSeverity = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusSeverity') ||
+                         extractTag(xml, 'statusSeverity') || 'Info';
+
+  return {
+    statusCode,
+    statusMessage,
+    statusSeverity,
+    listId: extractTag(xml, 'ListID') || undefined,
+    editSequence: extractTag(xml, 'EditSequence') || undefined,
+    name: extractTag(xml, 'Name') || undefined,
+  };
+}
+
+// Parse every account in an AccountQueryRs. FullName is the path form
+// ("Revenue:Lab.Service Fee") and is what the revenue map keys on — Name alone
+// is just the leaf and collides across parents (several "Consultation" leaves).
+export function parseAccountsFromResponse(xml: string): Array<{
+  listId: string;
+  fullName: string;
+  name?: string;
+  accountType?: string;
+}> {
+  const accounts: Array<{ listId: string; fullName: string; name?: string; accountType?: string }> = [];
+  const matches = xml.match(/<AccountRet>[\s\S]*?<\/AccountRet>/g) || [];
+
+  for (const accountXml of matches) {
+    const listId = extractTag(accountXml, 'ListID');
+    const fullName = extractTag(accountXml, 'FullName') || extractTag(accountXml, 'Name');
+    if (listId && fullName) {
+      accounts.push({
+        listId,
+        fullName,
+        name: extractTag(accountXml, 'Name') || undefined,
+        accountType: extractTag(accountXml, 'AccountType') || undefined,
+      });
+    }
+  }
+
+  return accounts;
 }
 
 export function parseAccountResponse(xml: string): AccountResponse {

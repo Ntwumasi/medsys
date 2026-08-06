@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import * as qbwcService from '../services/qbwcService';
+import * as qbRevenueMap from '../services/qbRevenueMapService';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -469,6 +470,77 @@ export const importServiceItems = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error('Import service items error:', error);
     res.status(500).json({ error: 'Failed to queue service items import' });
+  }
+};
+
+// ===== Revenue account routing =====
+
+// Dry run: how would every billed line be split across her revenue accounts?
+// Meant to be approved BEFORE any item is created in the live company file.
+export const getRevenueRoutingReport = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const lines = await pool.query(`
+      SELECT ii.category, ii.description, ii.total_price
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoice_id
+       WHERE i.status <> 'cancelled'
+    `);
+    const routing = await qbRevenueMap.summariseRouting(lines.rows);
+    const items = await qbRevenueMap.requiredItems();
+
+    res.json({
+      lines_considered: lines.rows.length,
+      total_amount: routing.reduce((s, r) => s + r.amount, 0),
+      routing,
+      items: items.map((i) => ({
+        item_name: i.itemName,
+        account: i.accountFullName,
+        exists_in_quickbooks: !!i.itemListId,
+        account_found: !!i.accountListId,
+      })),
+    });
+  } catch (error) {
+    console.error('Revenue routing report error:', error);
+    res.status(500).json({ error: 'Failed to build revenue routing report' });
+  }
+};
+
+export const discoverRevenueAccounts = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    await qbwcService.queueRevenueAccountDiscovery();
+    res.json({ message: 'Income account discovery queued. Web Connector will fetch the accounts on next sync (read-only).' });
+  } catch (error) {
+    console.error('Discover revenue accounts error:', error);
+    res.status(500).json({ error: 'Failed to queue account discovery' });
+  }
+};
+
+export const createRevenueItems = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await qbwcService.queueRevenueItemCreation();
+    res.json({
+      message: result.queued > 0
+        ? `${result.queued} service item(s) queued for creation in QuickBooks.`
+        : 'Nothing to create — every mapped item already exists or is waiting on its account.',
+      ...result,
+    });
+  } catch (error) {
+    console.error('Create revenue items error:', error);
+    res.status(500).json({ error: 'Failed to queue revenue item creation' });
+  }
+};
+
+export const getRevenueMap = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const r = await pool.query(
+      `SELECT id, rule_order, match_category, match_pattern, qb_account_full_name,
+              qb_item_name, qb_account_listid, qb_item_listid, is_active, notes
+         FROM quickbooks_revenue_map ORDER BY rule_order, id`
+    );
+    res.json({ rules: r.rows });
+  } catch (error) {
+    console.error('Get revenue map error:', error);
+    res.status(500).json({ error: 'Failed to fetch revenue map' });
   }
 };
 

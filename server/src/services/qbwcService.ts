@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import * as qbxmlBuilder from './qbxmlBuilder';
+import * as qbRevenueMap from './qbRevenueMapService';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -21,6 +22,28 @@ async function getDefaultItemName(): Promise<string> {
     return r.rows[0]?.default_item_name || 'Medical Services';
   } catch {
     return 'Medical Services';
+  }
+}
+
+// Tag each invoice line with the QB item that routes it to the right income
+// account (see qbRevenueMapService). Lines the rules don't classify are left
+// untagged and fall through to the default item, which keeps them visible as
+// unclassified rather than filed under a plausible-looking account.
+async function attachRevenueRouting<T extends { category?: string | null; description?: string | null }>(
+  lines: T[]
+): Promise<Array<T & { qb_item_name: string | null; qb_item_listid: string | null }>> {
+  try {
+    const rules = await qbRevenueMap.loadRules();
+    const catalogs = await qbRevenueMap.loadCatalogs();
+    return lines.map((line) => {
+      const resolved = qbRevenueMap.resolveLine(rules, line.category, line.description, catalogs);
+      return { ...line, qb_item_name: resolved.itemName, qb_item_listid: resolved.itemListId };
+    });
+  } catch (err) {
+    // Routing is an enhancement, never a reason to drop an invoice on the floor —
+    // without it lines just use the default item, which is the old behaviour.
+    console.error('[QBWC] Revenue routing unavailable, falling back to the default item:', err);
+    return lines.map((line) => ({ ...line, qb_item_name: null, qb_item_listid: null }));
   }
 }
 
@@ -362,7 +385,7 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       return qbxmlBuilder.buildInvoiceAddRq(
         invoiceResult.rows[0],
-        itemsResult.rows,
+        await attachRevenueRouting(itemsResult.rows),
         customer.ref,
         itemListIds,
         request.id.toString(),
@@ -472,6 +495,61 @@ export async function receiveResponseXML(
         errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}, Errors: ${importResult.errors.join('; ').substring(0, 500)}`;
       } else {
         errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}`;
+      }
+    } else if (request.entity_type === 'discover_accounts') {
+      // Resolve each mapped revenue account name to its QuickBooks ListID.
+      const accounts = qbxmlBuilder.parseAccountsFromResponse(response || '');
+      let matched = 0;
+      for (const account of accounts) {
+        const upd = await pool.query(
+          `UPDATE quickbooks_revenue_map
+              SET qb_account_listid = $2, updated_at = CURRENT_TIMESTAMP
+            WHERE qb_account_full_name = $1 AND qb_account_listid IS DISTINCT FROM $2`,
+          [account.fullName, account.listId]
+        );
+        matched += upd.rowCount || 0;
+      }
+      qbRevenueMap.invalidateRuleCache();
+
+      const unresolved = await pool.query(
+        `SELECT DISTINCT qb_account_full_name FROM quickbooks_revenue_map
+          WHERE is_active AND qb_account_listid IS NULL`
+      );
+      errorMessage = `Found ${accounts.length} income accounts; matched ${matched} mapping row(s).`;
+      if (unresolved.rows.length > 0) {
+        // Not an error — the accountant may not have created these yet. Naming
+        // them beats a silent partial mapping that misfiles revenue later.
+        const names = unresolved.rows.map((r: any) => r.qb_account_full_name);
+        console.warn('[QBWC] Revenue accounts not found in QuickBooks:', names);
+        errorMessage += ` Not found in QuickBooks: ${names.join('; ')}`.substring(0, 500);
+      }
+    } else if (request.entity_type === 'revenue_item') {
+      if (!response || !response.includes('ItemServiceAddRs')) {
+        status = 'error';
+        errorMessage = 'Empty or invalid response from QuickBooks';
+      } else {
+        const parsed = qbxmlBuilder.parseItemResponse(response);
+        if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+          status = 'error';
+          errorCode = parsed.statusCode;
+          errorMessage = parsed.statusMessage;
+        } else if (!parsed.listId) {
+          status = 'error';
+          errorMessage = 'No ListID returned from QuickBooks';
+        } else {
+          // The item name was parked in error_message when the request was queued.
+          const itemName = request.error_message;
+          await pool.query(
+            `UPDATE quickbooks_revenue_map
+                SET qb_item_listid = $2, updated_at = CURRENT_TIMESTAMP
+              WHERE qb_item_name = $1`,
+            [itemName, parsed.listId]
+          );
+          qbRevenueMap.invalidateRuleCache();
+          qbListId = parsed.listId;
+          errorMessage = `Created revenue item "${itemName}"`;
+          console.log(`[QBWC] Created revenue item "${itemName}" (ListID ${parsed.listId})`);
+        }
       }
     } else if (request.entity_type === 'patient' || request.entity_type === 'customer') {
       // Check for empty/invalid response
@@ -874,7 +952,7 @@ export async function queueInvoiceSync(invoiceId: number): Promise<void> {
 
   const qbxml = qbxmlBuilder.buildInvoiceAddRq(
     invoice,
-    itemsResult.rows,
+    await attachRevenueRouting(itemsResult.rows),
     customerListId,
     itemListIds,
     undefined,
@@ -1092,6 +1170,54 @@ export async function queueImportServiceItems(): Promise<void> {
   `, [qbxml]);
 
   console.log('[QBWC] Queued import service items query');
+}
+
+// ===== Revenue account routing (see qbRevenueMapService) =====
+
+// Step 1: ask QuickBooks for its income accounts so we can resolve each mapped
+// account name to a ListID. Nothing is written to the company file here.
+export async function queueRevenueAccountDiscovery(): Promise<void> {
+  const qbxml = qbxmlBuilder.buildAccountQueryRq('Income', 'discover-accounts');
+
+  await pool.query(`
+    INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority)
+    VALUES ('discover_accounts', 0, 'query', $1, 21)
+  `, [qbxml]);
+
+  console.log('[QBWC] Queued income account discovery');
+}
+
+// Step 2: create the service items the revenue map needs, each pointing at its
+// income account. Only items that are still missing a ListID and whose account
+// has been resolved are queued, so this is safe to re-run.
+export async function queueRevenueItemCreation(): Promise<{ queued: number; blocked: string[] }> {
+  const items = await qbRevenueMap.requiredItems();
+  const blocked: string[] = [];
+  let queued = 0;
+
+  for (const item of items) {
+    if (item.itemListId) continue; // already exists in QB
+    if (!item.accountListId) {
+      blocked.push(`${item.itemName} → ${item.accountFullName} (account not found in QuickBooks)`);
+      continue;
+    }
+
+    const qbxml = qbxmlBuilder.buildItemServiceAddRq(
+      { id: 0, service_code: item.itemName, service_name: item.itemName, price: 0 },
+      item.accountListId,
+      `revenue-item-${item.itemName}`
+    );
+
+    await pool.query(`
+      INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority, error_message)
+      VALUES ('revenue_item', 0, 'add', $1, 20, $2)
+    `, [qbxml, item.itemName]); // item name parked in error_message so the response handler knows which row to update
+    queued++;
+  }
+
+  console.log(`[QBWC] Queued ${queued} revenue service item(s); ${blocked.length} blocked`);
+  if (blocked.length) console.warn('[QBWC] Blocked revenue items:', blocked);
+  return { queued, blocked };
 }
 
 export async function queueImportInvoices(fromDate?: string, toDate?: string): Promise<void> {

@@ -49,6 +49,13 @@ router.post('/import/items', ...qbAuth, qbController.importServiceItems);
 router.post('/import/invoices', ...qbAuth, qbController.importInvoices);
 router.post('/import/all', ...qbAuth, qbController.importAll);
 
+// Revenue account routing. The report is a dry run and the discovery call is
+// read-only; only create-items writes into the QuickBooks company file.
+router.get('/revenue-map', ...qbAuth, qbController.getRevenueMap);
+router.get('/revenue-map/report', ...qbAuth, qbController.getRevenueRoutingReport);
+router.post('/revenue-map/discover-accounts', ...qbAuth, qbController.discoverRevenueAccounts);
+router.post('/revenue-map/create-items', ...qbAuth, qbController.createRevenueItems);
+
 // Imported Data View
 router.get('/imported', ...qbAuth, qbController.getImportedData);
 
