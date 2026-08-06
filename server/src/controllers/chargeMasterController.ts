@@ -9,6 +9,11 @@ interface AuthRequest extends Request {
 
 // A PAID invoice is final — block any line-item mutation on it (receptionist
 // policy: once the bill is settled, prices/items/payer can't be changed).
+//
+// "Settled" is decided by the MONEY, not by the status string. Charges appended
+// after a payment (labs ordered later in the visit) can leave a real balance
+// owing on a row still flagged 'paid'; locking on the flag would strand
+// reception with a bill they can't correct and a patient who still owes.
 // Returns true if the request was rejected (caller should return immediately).
 const rejectIfInvoicePaid = async (invoiceId: number | string, res: Response): Promise<boolean> => {
   const r = await pool.query(
@@ -17,8 +22,9 @@ const rejectIfInvoicePaid = async (invoiceId: number | string, res: Response): P
   );
   if (r.rows.length === 0) return false; // let the caller's own 404 handling deal with it
   const inv = r.rows[0];
-  const fullyPaid = inv.status === 'paid'
-    || (Number(inv.amount_paid || 0) > 0 && Number(inv.amount_paid || 0) >= Number(inv.total_amount || 0));
+  const total = Number(inv.total_amount || 0);
+  const paid = Number(inv.amount_paid || 0);
+  const fullyPaid = total > 0 && paid >= total - 0.005;
   if (fullyPaid) {
     res.status(409).json({ error: 'This invoice is paid and can no longer be edited.' });
     return true;
@@ -221,6 +227,36 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
       [newTotal, invoiceId]
     );
 
+    // Un-billing a diagnostic must also un-order it. Reception removes a lab or
+    // imaging line precisely because the test was ordered in error — if the
+    // order stayed live the department would still run it, and the patient
+    // would be stuck with a test nobody is billed for. Only orders that haven't
+    // been acted on yet are cancelled; once a specimen is collected or a result
+    // exists, the work is real and the clinical record is left alone.
+    let cancelledOrder: { type: string; id: number } | null = null;
+    if (item.reference_id && (item.reference_type === 'lab_order' || item.reference_type === 'imaging_order')) {
+      try {
+        const table = item.reference_type === 'lab_order' ? 'lab_orders' : 'imaging_orders';
+        const cancelled = await pool.query(
+          `UPDATE ${table}
+              SET status = 'cancelled',
+                  notes = COALESCE(notes || ' | ', '') || 'Cancelled: charge removed from invoice by reception',
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND status IN ('ordered', 'pending', 'scheduled')
+            RETURNING id`,
+          [item.reference_id]
+        );
+        if (cancelled.rows.length > 0) {
+          cancelledOrder = { type: item.reference_type, id: Number(item.reference_id) };
+        }
+      } catch (cancelErr) {
+        // Never fail the un-billing over this, but make the gap loud: the charge
+        // is gone while the order may still be live.
+        console.error(`Failed to cancel ${item.reference_type} ${item.reference_id} after removing its invoice line:`, cancelErr);
+      }
+    }
+
     // Audit log the deletion
     if (authReq.user) {
       await auditService.log({
@@ -228,7 +264,7 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
         action: 'delete',
         entityType: 'invoice_item',
         entityId: parseInt(id as string),
-        details: { invoice_id: invoiceId },
+        details: { invoice_id: invoiceId, cancelled_order: cancelledOrder },
         oldValues: {
           description: item.description,
           unit_price: parseFloat(item.unit_price),
@@ -240,8 +276,11 @@ export const removeInvoiceItem = async (req: Request, res: Response): Promise<vo
     }
 
     res.json({
-      message: 'Invoice item removed successfully',
+      message: cancelledOrder
+        ? 'Invoice item removed and the underlying order cancelled.'
+        : 'Invoice item removed successfully',
       new_total: newTotal,
+      cancelled_order: cancelledOrder,
     });
   } catch (error) {
     console.error('Remove invoice item error:', error);

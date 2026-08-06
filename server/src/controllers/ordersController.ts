@@ -644,6 +644,40 @@ const runLabCompletionSideEffects = async (
   }
 };
 
+// Take a cancelled lab test back off the bill. Imaging has always done this
+// (removeImagingOrderFromInvoice); labs never did, so a test cancelled after it
+// had been billed stayed on the patient's invoice as a charge for work that was
+// never performed. Matched on the source order rather than the description, so
+// a re-worded catalog name can't strand the line.
+const removeLabOrderFromInvoice = async (orderId: number): Promise<void> => {
+  try {
+    const del = await pool.query(
+      `DELETE FROM invoice_items
+        WHERE reference_type = 'lab_order' AND reference_id = $1
+        RETURNING invoice_id, total_price`,
+      [orderId]
+    );
+    if (del.rows.length === 0) return;
+
+    // Recompute from the surviving items rather than subtracting — a decrement
+    // drifts if the same order was ever billed twice.
+    const invoiceIds = [...new Set(del.rows.map((r: any) => r.invoice_id))];
+    for (const invoiceId of invoiceIds) {
+      await pool.query(
+        `UPDATE invoices
+            SET subtotal = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0),
+                total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0)
+                               + COALESCE(tax, 0),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1`,
+        [invoiceId]
+      );
+    }
+  } catch (err) {
+    console.error(`Lab billing reversal failed for order ${orderId} (non-fatal):`, err);
+  }
+};
+
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureLabVerificationSchema();
@@ -822,6 +856,12 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     }
 
     const updatedOrder = result.rows[0];
+
+    // Cancelling the test cancels the charge — the patient must not be billed
+    // for a lab that was never run. Mirrors the imaging cancel path.
+    if (updateData.status === 'cancelled' && before.status !== 'cancelled') {
+      await removeLabOrderFromInvoice(parseInt(id as string, 10));
+    }
 
     // Log to audit trail if a completed result's text changed.
     // (File replacement is logged in documentsController when the new

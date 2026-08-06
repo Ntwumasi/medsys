@@ -87,8 +87,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
   // Paid invoices are locked — line items, prices and payer can't be changed
   // once the bill is settled (receptionist policy: paid invoices are final).
-  const isPaid = invoice.status === 'paid'
-    || (Number(invoice.amount_paid || 0) > 0 && Number(invoice.amount_paid || 0) >= Number(invoice.total_amount || 0));
+  // Judge that on the balance, not the status string: charges added after a
+  // payment (labs ordered later in the visit) leave money genuinely owing, and
+  // that invoice must stay editable so reception can correct it.
+  const isPaid = Number(invoice.total_amount || 0) > 0
+    && Number(invoice.amount_paid || 0) >= Number(invoice.total_amount || 0) - 0.005;
   const isEditable = !!encounterId && !isPaid;
   const items = editableItems;
 
