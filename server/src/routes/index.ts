@@ -1022,6 +1022,10 @@ router.get('/nurse/follow-up-tasks', authenticateToken, authorizeRoles('nurse', 
 router.get('/nurse/follow-up-tasks/due', authenticateToken, authorizeRoles('nurse', 'admin'), getDueTasks);
 router.post('/nurse/follow-up-tasks/complete', authenticateToken, authorizeRoles('nurse', 'admin'), completeFollowUpTask);
 
+// Nurse QA review — which patients a doctor saw in a period, with callback numbers
+import { getPatientsSeenByDoctor } from '../controllers/nurseQAController';
+router.get('/nurse/qa/patients-seen', authenticateToken, authorizeRoles('nurse', 'admin'), getPatientsSeenByDoctor);
+
 // Nurse inventory & procurement (head nurse manages procurement, all nurses see stock)
 router.get('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), getNurseInventory);
 router.post('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), createNurseInventoryItem);

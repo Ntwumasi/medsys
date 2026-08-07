@@ -12,6 +12,7 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import AIPharmacistAssist from '../components/ai/AIPharmacistAssist';
 import VoiceCommandBar from '../components/ai/VoiceCommandBar';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
+import { prepareFileForUpload, UploadTooLargeError } from '../utils/fileUpload';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import AppSelect from '../components/ui/AppSelect';
@@ -1083,25 +1084,25 @@ const PharmacyDashboard: React.FC = () => {
         let uploadedCount = 0;
         for (const file of walkInPrescriptionFiles) {
           try {
-            const dataUrl: string = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(file);
-            });
+            // Photos of prescriptions are usually multi-megabyte — compress
+            // them to fit the request-body limit before sending.
+            const prepared = await prepareFileForUpload(file);
 
             await apiClient.post('/documents', {
               patient_id: servingWalkIn.patient_id,
               encounter_id: servingWalkIn.encounter_id,
               document_type: 'prescription',
-              document_name: file.name,
-              file_type: file.type,
-              file_data: dataUrl,
+              document_name: prepared.fileName,
+              file_type: prepared.fileType,
+              file_data: prepared.dataUrl,
               description: 'Walk-in prescription',
             });
             uploadedCount++;
           } catch (uploadErr) {
             console.error(`Failed to upload ${file.name}:`, uploadErr);
+            if (uploadErr instanceof UploadTooLargeError) {
+              showToast(uploadErr.message, 'error');
+            }
           }
         }
 

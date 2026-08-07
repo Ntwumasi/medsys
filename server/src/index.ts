@@ -122,8 +122,29 @@ app.use('/api/auth/reset-password', authLimiter);
 app.use('/api/patient-portal/request-link', authLimiter);
 app.use('/api/patient-portal/verify', authLimiter);
 
-app.use(express.json({ limit: '10mb' })); // Add request body size limit
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body size limit. Uploads arrive as base64 inside JSON (4/3 inflation), so this
+// has to sit above the largest file we accept. Note that on Vercel the platform
+// caps a serverless request body at ~4.5MB regardless — this limit only binds
+// when self-hosted. The client compresses images to stay under the smaller of the two.
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+
+// Turn body-parser's size/parse failures into an answer the UI can show.
+// Without this they fall through to the generic 500 handler and the user just
+// sees "Internal server error" after waiting through a long upload.
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err?.type === 'entity.too.large' || err?.status === 413) {
+    res.status(413).json({
+      error: 'That file is too large to upload. Photos and scans are compressed automatically — for PDFs, split the file or scan it as an image instead.',
+    });
+    return;
+  }
+  if (err?.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Malformed request body' });
+    return;
+  }
+  next(err);
+});
 app.use(cookieParser()); // Parse cookies for HttpOnly auth tokens
 
 // Request logging middleware (exclude sensitive data)
