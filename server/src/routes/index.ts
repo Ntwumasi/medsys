@@ -223,6 +223,7 @@ import {
   getAIStatus,
   suggestTriagePriority,
   suggestTestOrders,
+  getPatientTestSuggestions,
   generateEncounterSummary,
 } from '../controllers/aiController';
 import {
@@ -562,6 +563,7 @@ router.put('/patients/:id',             authenticateToken, authorizeRoles('docto
 router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);
 router.get('/patients/:id/medication-interactions', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacist', 'pharmacy', 'pharmacy_tech', 'admin'), getMedicationInteractions);
 router.get('/patients/:id/ai-summary',  authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), getAISummary);
+router.get('/patients/:id/suggested-tests', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getPatientTestSuggestions);
 
 // Encounter routes
 router.post('/encounters',              authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);

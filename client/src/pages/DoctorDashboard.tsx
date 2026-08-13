@@ -14,6 +14,7 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import PastVisitsPanel from '../components/PastVisitsPanel';
+import SuggestedTestsPanel from '../components/SuggestedTestsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
 import AppSelect from '../components/ui/AppSelect';
@@ -169,7 +170,7 @@ const DoctorDashboard: React.FC = () => {
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
 
   // Multi-order state - arrays to hold pending orders
-  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number, customFrequency?: string}>>([]);
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, test_code?: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number, customFrequency?: string}>>([]);
   // Guards against a double-click / double-submit creating duplicate orders.
   const [submittingOrders, setSubmittingOrders] = useState(false);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
@@ -2076,6 +2077,29 @@ const DoctorDashboard: React.FC = () => {
                 <PastVisitsPanel
                   patientId={selectedEncounter.patient_id}
                   currentEncounterId={selectedEncounter.id}
+                />
+
+                {/* AI-suggested tests — history/demographics driven; "Add" stages a
+                    real lab order alongside anything typed manually. */}
+                <SuggestedTestsPanel
+                  patientId={selectedEncounter.patient_id}
+                  encounterId={selectedEncounter.id}
+                  mode="doctor"
+                  alreadyOrdered={[
+                    ...encounterLabOrders.filter(o => o.status !== 'cancelled').map(o => o.test_name || ''),
+                    ...pendingLabOrders.map(o => o.test_name),
+                  ]}
+                  onAddOrder={(test) =>
+                    setPendingLabOrders(prev => [
+                      ...prev,
+                      {
+                        test_name: test.test_name,
+                        test_code: test.test_code,
+                        priority: test.priority,
+                        notes: test.rationale ? `AI suggestion: ${test.rationale}` : '',
+                      },
+                    ])
+                  }
                 />
 
                 {/* Diagnoses */}

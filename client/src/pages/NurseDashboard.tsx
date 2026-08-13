@@ -15,6 +15,7 @@ import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
 import LabTestSetChips from '../components/LabTestSetChips';
+import SuggestedTestsPanel from '../components/SuggestedTestsPanel';
 import type { LabTestSetItem } from '../api/labTestSets';
 import type { ApiError } from '../types';
 import { useSmartPolling } from '../hooks/useSmartPolling';
@@ -316,9 +317,6 @@ const NurseDashboard: React.FC = () => {
   // AI suggestions
   const [aiTriageSuggestion, setAiTriageSuggestion] = useState<{ suggested_priority: string; confidence: string; reasoning: string; key_concerns: string[]; recommended_actions: string[] } | null>(null);
   const [loadingTriageSuggestion, setLoadingTriageSuggestion] = useState(false);
-  const [aiTestSuggestions, setAiTestSuggestions] = useState<{ lab_tests: { test_name: string; test_code: string; priority: string; rationale: string }[]; imaging_tests: { study_type: string; body_part: string; priority: string; rationale: string }[]; clinical_note: string } | null>(null);
-  const [loadingTestSuggestions, setLoadingTestSuggestions] = useState(false);
-  const [showAiTestPanel, setShowAiTestPanel] = useState(false);
 
   // Auto-save for vitals — the debounce timer lives inside the useEffect,
   // so we only need a flag to know whether the user has touched anything.
@@ -1443,26 +1441,6 @@ const NurseDashboard: React.FC = () => {
       showToast('AI triage suggestion unavailable', 'info');
     } finally {
       setLoadingTriageSuggestion(false);
-    }
-  };
-
-  // AI test suggestions
-  const handleGetTestSuggestions = async () => {
-    if (!selectedPatient) return;
-    setLoadingTestSuggestions(true);
-    setAiTestSuggestions(null);
-    setShowAiTestPanel(true);
-    try {
-      const recentTests = labOrders.map(l => l.test_name);
-      const res = await apiClient.post('/ai/test-suggest', {
-        chiefComplaint: selectedPatient.chief_complaint,
-        recentLabTests: recentTests,
-      });
-      setAiTestSuggestions(res.data);
-    } catch {
-      showToast('AI test suggestion unavailable', 'info');
-    } finally {
-      setLoadingTestSuggestions(false);
     }
   };
 
@@ -3588,18 +3566,8 @@ const NurseDashboard: React.FC = () => {
                     {/* Doctor's Orders Tab */}
                     {activeTab === 'orders' && (
                       <div className="space-y-4">
-                        {/* Create Lab Order + AI Suggest Buttons */}
+                        {/* Create Lab Order */}
                         <div className="flex justify-end gap-2 mb-4">
-                          <button
-                            onClick={handleGetTestSuggestions}
-                            disabled={loadingTestSuggestions}
-                            className="bg-indigo-50 text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-100 flex items-center gap-2 text-sm font-medium transition-colors"
-                          >
-                            {loadingTestSuggestions ? (
-                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                            ) : '✨'}
-                            AI Suggest Tests
-                          </button>
                           <button
                             onClick={() => setShowLabOrderModal(true)}
                             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center gap-2 text-sm font-medium"
@@ -3611,65 +3579,16 @@ const NurseDashboard: React.FC = () => {
                           </button>
                         </div>
 
-                        {/* AI Test Suggestions Panel */}
-                        {showAiTestPanel && (
-                          <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="font-bold text-indigo-900 text-sm flex items-center gap-1">✨ AI-Suggested Tests</h4>
-                              <button onClick={() => { setShowAiTestPanel(false); setAiTestSuggestions(null); }} className="text-gray-400 hover:text-gray-600 text-sm">✕</button>
-                            </div>
-                            {loadingTestSuggestions ? (
-                              <p className="text-sm text-indigo-600 animate-pulse">Analyzing chief complaint...</p>
-                            ) : aiTestSuggestions ? (
-                              <div className="space-y-3">
-                                {aiTestSuggestions.clinical_note && (
-                                  <p className="text-xs text-gray-700 italic">{aiTestSuggestions.clinical_note}</p>
-                                )}
-                                {aiTestSuggestions.lab_tests?.length > 0 && (
-                                  <div>
-                                    <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Lab Tests</h5>
-                                    <div className="space-y-1">
-                                      {aiTestSuggestions.lab_tests.map((test, i) => (
-                                        <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs border border-indigo-100">
-                                          <div>
-                                            <span className="font-semibold text-gray-900">{test.test_name}</span>
-                                            {test.test_code && <span className="text-gray-400 ml-1">({test.test_code})</span>}
-                                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                              test.priority === 'stat' ? 'bg-red-100 text-red-700' :
-                                              test.priority === 'urgent' ? 'bg-yellow-100 text-yellow-700' :
-                                              'bg-gray-100 text-gray-600'
-                                            }`}>{test.priority}</span>
-                                          </div>
-                                          <span className="text-gray-500 max-w-[200px] truncate" title={test.rationale}>{test.rationale}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {aiTestSuggestions.imaging_tests?.length > 0 && (
-                                  <div>
-                                    <h5 className="text-xs font-bold text-gray-600 uppercase mb-1">Imaging</h5>
-                                    <div className="space-y-1">
-                                      {aiTestSuggestions.imaging_tests.map((test, i) => (
-                                        <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs border border-indigo-100">
-                                          <div>
-                                            <span className="font-semibold text-gray-900">{test.study_type} — {test.body_part}</span>
-                                            <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                              test.priority === 'stat' ? 'bg-red-100 text-red-700' :
-                                              test.priority === 'urgent' ? 'bg-yellow-100 text-yellow-700' :
-                                              'bg-gray-100 text-gray-600'
-                                            }`}>{test.priority}</span>
-                                          </div>
-                                          <span className="text-gray-500 max-w-[200px] truncate" title={test.rationale}>{test.rationale}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <p className="text-sm text-gray-500">No suggestions available</p>
-                            )}
+                        {/* AI-suggested tests — history + demographics driven.
+                            Read-only for nurses; ordering stays with the doctor. */}
+                        {selectedPatient && (
+                          <div className="mb-4">
+                            <SuggestedTestsPanel
+                              patientId={selectedPatient.patient_id}
+                              encounterId={selectedPatient.id}
+                              mode="nurse"
+                              alreadyOrdered={labOrders.map(l => l.test_name || '')}
+                            />
                           </div>
                         )}
 
