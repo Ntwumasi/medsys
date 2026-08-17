@@ -2591,8 +2591,8 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
         dosage, frequency, route, quantity, refills, days_supply, is_long_term, priority,
-        status, parent_order_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        status, parent_order_id, notes, inventory_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         original.patient_id,
@@ -2613,6 +2613,9 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
         'ordered',
         parseInt(id), // Link to parent order
         `Refill of prescription #${id}`,
+        // Carry the inventory link forward too, or the refill prices as "—" in
+        // Order History even though the parent prescription priced fine.
+        original.inventory_id,
       ]
     );
 
@@ -3182,10 +3185,15 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
 
       // Create pharmacy order for this medication (already dispensed)
       const orderResult = await client.query(
+        // inventory_id must be stored, not just used for the stock check below:
+        // Order History prices each row by joining pharmacy_inventory on it, so
+        // leaving it NULL made every OTC sale show its price as "—" even though
+        // the sale was billed correctly (Irene).
         `INSERT INTO pharmacy_orders (
           patient_id, encounter_id, ordering_provider, medication_name,
-          dosage, frequency, route, quantity, refills, days_supply, priority, notes, status, dispensed_by, dispensed_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, $8, $9, 'routine', $10, 'dispensed', $11, CURRENT_TIMESTAMP)
+          dosage, frequency, route, quantity, refills, days_supply, priority, notes, status, dispensed_by, dispensed_date,
+          inventory_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, $8, $9, 'routine', $10, 'dispensed', $11, CURRENT_TIMESTAMP, $12)
         RETURNING *`,
         [
           patient_id,
@@ -3198,7 +3206,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
           med.refills || 0,
           med.duration_days || null,
           [med.duration_days ? `${med.duration_days} days` : '', med.instructions].filter(Boolean).join(' - ') || 'OTC Walk-in',
-          dispensed_by
+          dispensed_by,
+          med.inventory_id
         ]
       );
 
