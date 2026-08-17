@@ -93,6 +93,63 @@ export const deleteManualReminder = async (req: Request, res: Response): Promise
 };
 
 // Get all inventory items with optional filters
+/**
+ * pharmacy_inventory.quantity_on_hand is a CACHE of the batch layer — batches are
+ * what FEFO dispensing actually draws from, and what stock-take reconciles to.
+ * Any writer that moves stock must move it in the batches and then call this, or
+ * the two drift apart and pharmacy sees stock it cannot dispense (Irene: changes
+ * made in inventory don't show when the medication is checked).
+ */
+const resyncItemFromBatches = async (client: any, inventoryId: string | number): Promise<number> => {
+  const res = await client.query(
+    `UPDATE pharmacy_inventory
+        SET quantity_on_hand = COALESCE((
+              SELECT SUM(quantity) FROM inventory_batches
+               WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+            ), 0),
+            expiry_date = (
+              SELECT MIN(expiry_date) FROM inventory_batches
+               WHERE inventory_id = $1 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+            ),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING quantity_on_hand`,
+    [inventoryId]
+  );
+  return parseInt(String(res.rows[0]?.quantity_on_hand ?? 0)) || 0;
+};
+
+/**
+ * Stock that predates the batch layer (a CSV import, or an opening balance set
+ * when the item was created) can sit in quantity_on_hand with no batch behind
+ * it. Materialise that count as a batch BEFORE moving stock, otherwise the
+ * resync afterwards would treat "no batches" as zero and wipe the count the
+ * pharmacist is looking at. No-op when a usable batch already exists.
+ */
+const ensureBatchForExistingStock = async (
+  client: any,
+  inventoryId: string | number,
+  medicationName: string,
+  onHand: number,
+  expiryDate: string | null
+): Promise<void> => {
+  if (!onHand || onHand <= 0) return;
+
+  const existing = await client.query(
+    `SELECT 1 FROM inventory_batches
+      WHERE inventory_id = $1 AND is_active = true AND quantity > 0 LIMIT 1`,
+    [inventoryId]
+  );
+  if (existing.rows.length > 0) return;
+
+  const batchNumber = await generateBatchNumber(client, inventoryId, medicationName, expiryDate);
+  await client.query(
+    `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+     VALUES ($1, $2, $3, $4, 'Opened from existing on-hand count')`,
+    [inventoryId, batchNumber, onHand, expiryDate || null]
+  );
+};
+
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { category, low_stock, expiring_soon, expired, search, include_inactive } = req.query;
@@ -282,6 +339,17 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
          VALUES ($1, 'adjustment', $2, 'Opening balance (item created)', $3)`,
         [result.rows[0].id, quantity_on_hand, authReq.user?.id]
       );
+
+      // Open a batch for the opening balance too. Without it the new item shows
+      // stock in the inventory list that FEFO dispensing cannot draw from, and
+      // the first stock-take resyncs the count down to zero.
+      await ensureBatchForExistingStock(
+        pool,
+        result.rows[0].id,
+        medication_name,
+        parseInt(String(quantity_on_hand)) || 0,
+        expiry
+      );
     }
 
     res.status(201).json({
@@ -379,7 +447,8 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
     // Get current stock — lock the row so two concurrent adjustments can't both
     // read the same value and one silently overwrite the other (lost update).
     const current = await client.query(
-      `SELECT quantity_on_hand FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
+      `SELECT quantity_on_hand, medication_name, expiry_date
+         FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
@@ -389,7 +458,8 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const newQuantity = current.rows[0].quantity_on_hand + adjustment;
+    const onHand = parseInt(String(current.rows[0].quantity_on_hand)) || 0;
+    const newQuantity = onHand + adjustment;
 
     if (newQuantity < 0) {
       await client.query('ROLLBACK');
@@ -397,14 +467,59 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Update stock
+    // The adjustment has to land in the BATCHES, not just on the cached count —
+    // writing only quantity_on_hand left the added stock undispensable (FEFO had
+    // no batch to draw from) and the next stock-take, which resyncs the count
+    // from the batches, silently erased it.
+    await ensureBatchForExistingStock(
+      client, String(id), current.rows[0].medication_name, onHand, current.rows[0].expiry_date
+    );
+
+    if (adjustment > 0) {
+      // Correct the earliest-expiry open batch when there is one — an adjustment
+      // is a correction to stock already on the shelf, not a new delivery (a real
+      // delivery goes through Procurement, which opens its own batch).
+      const target = await client.query(
+        `SELECT id FROM inventory_batches
+          WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+          ORDER BY expiry_date ASC NULLS LAST, received_date ASC
+          LIMIT 1 FOR UPDATE`,
+        [id]
+      );
+
+      if (target.rows.length > 0) {
+        await client.query(
+          `UPDATE inventory_batches
+              SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2`,
+          [adjustment, target.rows[0].id]
+        );
+      } else {
+        // Nothing on the shelf at all (on-hand was 0) — open a batch so the
+        // added stock is immediately dispensable.
+        const batchNumber = await generateBatchNumber(
+          client, String(id), current.rows[0].medication_name, current.rows[0].expiry_date
+        );
+        await client.query(
+          `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, batchNumber, adjustment, current.rows[0].expiry_date || null,
+           `Opened via stock adjustment. ${notes || ''}`.trim()]
+        );
+      }
+    } else {
+      // Negative adjustment: draw it down FEFO through the same path dispensing
+      // uses, so batches and the cached count stay in agreement.
+      await dispenseFromBatches(client, parseInt(String(id)), Math.abs(adjustment), authReq.user?.id ?? null);
+    }
+
+    // quantity_on_hand is derived from the batches — recompute rather than trust
+    // the arithmetic above (this also corrects any pre-existing drift on the item).
+    const resyncedQuantity = await resyncItemFromBatches(client, String(id));
+
     const result = await client.query(
-      `UPDATE pharmacy_inventory SET
-        quantity_on_hand = $1,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING *`,
-      [newQuantity, id]
+      `SELECT * FROM pharmacy_inventory WHERE id = $1`,
+      [id]
     );
 
     // Log the transaction
@@ -424,7 +539,7 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       await notificationService.notifyPharmacistOfTechAction(
         authReq.user.id,
         'Inventory Adjusted',
-        `${direction} ${item.medication_name} by ${Math.abs(adjustment)} units (now ${newQuantity}). Reason: ${notes || 'Not specified'}`,
+        `${direction} ${item.medication_name} by ${Math.abs(adjustment)} units (now ${resyncedQuantity}). Reason: ${notes || 'Not specified'}`,
         'pharmacy_inventory',
         parseInt(id as string)
       );
@@ -1712,20 +1827,7 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
     }
 
     // Resync the item's on-hand to the sum of its active batches + earliest expiry.
-    await client.query(
-      `UPDATE pharmacy_inventory
-       SET quantity_on_hand = COALESCE((
-             SELECT SUM(quantity) FROM inventory_batches
-             WHERE inventory_id = $1 AND is_active = true AND quantity > 0
-           ), 0),
-           expiry_date = (
-             SELECT MIN(expiry_date) FROM inventory_batches
-             WHERE inventory_id = $1 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-           ),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [id]
-    );
+    await resyncItemFromBatches(client, String(id));
 
     await client.query('COMMIT');
     res.json({ message: 'Stock-take saved' });
