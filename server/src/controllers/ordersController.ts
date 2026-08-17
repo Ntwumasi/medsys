@@ -1713,6 +1713,13 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         e.chief_complaint,
         p.patient_number,
         p.allergies as patient_allergies,
+        -- 1900-01-01 is the sentinel patientController writes when a real DOB
+        -- isn't known, so don't hand the UI an age of 125 — send NULL and let it
+        -- show "unknown".
+        CASE WHEN p.date_of_birth > DATE '1900-01-01' THEN p.date_of_birth END as patient_date_of_birth,
+        vw.weight as latest_weight,
+        vw.weight_unit as latest_weight_unit,
+        vw.recorded_at as latest_weight_recorded_at,
         pu.first_name || ' ' || pu.last_name as patient_name,
         du.first_name || ' ' || du.last_name as dispensed_by_name,
         COALESCE(pi.quantity_on_hand, pim.quantity_on_hand) as inventory_quantity,
@@ -1816,6 +1823,17 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
           pi2.quantity_on_hand DESC
         LIMIT 1
       ) pim ON true
+      -- Most recent recorded weight for the patient, for the Patient Details
+      -- panel (pharmacists need it to sanity-check paediatric and weight-based
+      -- doses). Lateral so it stays one indexed lookup per row rather than three
+      -- correlated subqueries.
+      LEFT JOIN LATERAL (
+        SELECT vsh.weight, vsh.weight_unit, vsh.recorded_at
+        FROM vital_signs_history vsh
+        WHERE vsh.patient_id = p.id AND vsh.weight IS NOT NULL
+        ORDER BY vsh.recorded_at DESC
+        LIMIT 1
+      ) vw ON true
       WHERE 1=1
         -- Manual refill reminders live in pharmacy_orders as status='dispensed'
         -- only to drive the refills calendar; they are not real orders/dispenses

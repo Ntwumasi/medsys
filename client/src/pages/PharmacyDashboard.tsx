@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
-import { format } from 'date-fns';
+import { format, differenceInMonths, differenceInYears } from 'date-fns';
 import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
@@ -56,6 +56,12 @@ interface PharmacyOrder {
   patient_name?: string;
   patient_number?: string;
   patient_allergies?: string;
+  // NULL when the patient's real DOB isn't on file (the server filters out its
+  // 1900-01-01 sentinel), so treat absence as "unknown", not "newborn".
+  patient_date_of_birth?: string | null;
+  latest_weight?: number | string | null;
+  latest_weight_unit?: string | null;
+  latest_weight_recorded_at?: string | null;
   encounter_number?: string;
   chief_complaint?: string;
   primary_diagnosis?: string;
@@ -2009,6 +2015,23 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Age for the Patient Details panel. Months matter under 2 (paediatric dosing),
+  // so show them; returns null when no real DOB is on file rather than guessing.
+  const formatPatientAge = (dob?: string | null): string | null => {
+    if (!dob) return null;
+    const born = new Date(dob);
+    if (isNaN(born.getTime())) return null;
+    const now = new Date();
+    if (born > now) return null;
+
+    const years = differenceInYears(now, born);
+    if (years >= 2) return `${years} yr`;
+
+    const months = differenceInMonths(now, born);
+    if (months >= 1) return `${months} mo`;
+    return '<1 mo';
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity?.toLowerCase()) {
       case 'severe': return 'bg-danger-100 text-danger-800 border-danger-300';
@@ -2691,6 +2714,33 @@ const PharmacyDashboard: React.FC = () => {
                       <div className="bg-gray-50 rounded p-3 space-y-2">
                         <div className="font-semibold text-gray-900">{selectedOrder.patient_name}</div>
                         <div className="text-sm text-gray-600">{selectedOrder.patient_number}</div>
+                        {/* Age and current weight — pharmacy needs both to sanity-check
+                            paediatric and weight-based doses before dispensing. */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-gray-200 text-sm">
+                          <div>
+                            <span className="text-gray-500">Age: </span>
+                            <span className="font-medium text-gray-900">
+                              {formatPatientAge(selectedOrder.patient_date_of_birth) || 'Unknown'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Weight: </span>
+                            {selectedOrder.latest_weight != null ? (
+                              <span
+                                className="font-medium text-gray-900"
+                                title={
+                                  selectedOrder.latest_weight_recorded_at
+                                    ? `Recorded ${format(new Date(selectedOrder.latest_weight_recorded_at), 'MMM dd, yyyy')}`
+                                    : undefined
+                                }
+                              >
+                                {Number(selectedOrder.latest_weight)} {selectedOrder.latest_weight_unit || 'kg'}
+                              </span>
+                            ) : (
+                              <span className="font-medium text-gray-400">Not recorded</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
