@@ -86,6 +86,109 @@ describe('workflowController', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
+    // A pharmacy OTC sale for a patient who is already seeing a doctor must
+    // attach to that open visit, not be refused as a duplicate check-in —
+    // otherwise the pharmacist simply cannot ring up the sale.
+    it('should attach an OTC walk-in to the open visit instead of 409ing', async () => {
+      const mockClient = createMockClient();
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
+
+      // 1. SELECT users WHERE id = receptionist_id
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }] } as any);
+      // 2. BEGIN
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 3. SELECT active encounter today — patient is mid-visit with a doctor
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{
+          id: 99,
+          encounter_number: 'ENC000099',
+          checked_in_at: new Date().toISOString(),
+          patient_number: 'P0001',
+          patient_name: 'John Doe',
+        }],
+      } as any);
+      // 4. SELECT existing pharmacy routing row (none yet)
+      mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
+      // 5. INSERT department_routing
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 7 }] } as any);
+      // 6. COMMIT
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+
+      const req = mockRequest(
+        {
+          patient_id: 1,
+          chief_complaint: 'OTC Purchase',
+          encounter_type: 'walk-in',
+          billing_amount: 0,
+          clinic: 'Pharmacy (OTC/Walk-in)',
+        },
+        {},
+        {},
+        { id: 1 }
+      );
+      const res = mockResponse();
+
+      await checkInPatient(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          encounter_id: 99,
+          encounter_number: 'ENC000099',
+          routed_to: 'pharmacy',
+          reused_encounter: true,
+        })
+      );
+
+      // The sale must bill onto the existing visit, so no second encounter and
+      // no ROLLBACK — and the routing row points at the open encounter.
+      const sql = mockClient.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(s => s.includes('INSERT INTO encounters'))).toBe(false);
+      expect(sql.some(s => s.includes('ROLLBACK'))).toBe(false);
+      expect(sql.some(s => s.includes('COMMIT'))).toBe(true);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO department_routing'),
+        expect.arrayContaining([99, 1, 'pharmacy'])
+      );
+    });
+
+    it('should not queue an OTC walk-in twice when already at the pharmacy desk', async () => {
+      const mockClient = createMockClient();
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
+
+      // 1. SELECT users, 2. BEGIN
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }] } as any);
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 3. Active encounter today
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{
+          id: 99,
+          encounter_number: 'ENC000099',
+          checked_in_at: new Date().toISOString(),
+          patient_number: 'P0001',
+          patient_name: 'John Doe',
+        }],
+      } as any);
+      // 4. SELECT existing pharmacy routing row — already queued
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 7 }] } as any);
+      // 5. COMMIT
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+
+      const req = mockRequest(
+        { patient_id: 1, chief_complaint: 'OTC Purchase', clinic: 'Pharmacy (OTC/Walk-in)' },
+        {},
+        {},
+        { id: 1 }
+      );
+      const res = mockResponse();
+
+      await checkInPatient(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const sql = mockClient.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(s => s.includes('INSERT INTO department_routing'))).toBe(false);
+    });
+
     it('should successfully create encounter and invoice for a returning patient', async () => {
       const mockClient = createMockClient();
       vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);

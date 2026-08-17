@@ -488,19 +488,24 @@ const PharmacyDashboard: React.FC = () => {
     const name = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Patient';
     setCreatingWalkIn(true);
     try {
-      await apiClient.post('/workflow/check-in', {
+      const { data } = await apiClient.post('/workflow/check-in', {
         patient_id: patient.id,
         chief_complaint: 'OTC Purchase',
         encounter_type: 'walk-in',
         billing_amount: 0,
         clinic: 'Pharmacy (OTC/Walk-in)',
       });
-      showToast(`${name} checked in for OTC purchase`, 'success');
+      // A patient already seeing a doctor is attached to that open visit rather
+      // than refused, so say which visit the sale will bill onto.
+      showToast(
+        data?.reused_encounter
+          ? `${name} added for OTC on their open visit (${data.encounter_number}) — the sale bills onto that invoice`
+          : `${name} checked in for OTC purchase`,
+        'success'
+      );
       resetWalkInModal();
       fetchWalkIns();
     } catch (error: any) {
-      // check-in 409s with a helpful `message` when the patient already has an
-      // open encounter today (e.g. they saw a doctor earlier) — surface that.
       showToast(error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient', 'error');
     } finally {
       setCreatingWalkIn(false);

@@ -9,6 +9,17 @@ import { resolveLabCatalogItem } from './ordersController';
 import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 import { nextInvoiceNumber } from '../services/sequences';
 
+// Clinic string → department queue, for the four walk-in desks that bill per
+// service. Single source of truth: the duplicate-check-in guard and the routing
+// insert further down must agree on this mapping, or a patient can be attached
+// to a visit and then land in no department queue at all.
+const DEPARTMENT_WALK_IN_CLINICS: Record<string, string> = {
+  'Pharmacy (OTC/Walk-in)': 'pharmacy',
+  'Lab (Walk-in)': 'lab',
+  'Imaging (Walk-in)': 'imaging',
+  'Nurse (Procedures/Walk-in)': 'nurse',
+};
+
 // Receptionist: Check-in patient and create encounter
 export const checkInPatient = async (req: Request, res: Response): Promise<void> => {
   const client = await pool.connect();
@@ -37,6 +48,7 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       ? { rows: [] as any[] }
       : await client.query(
       `SELECT e.id, e.encounter_number, e.checked_in_at,
+              p.patient_number,
               u.first_name || ' ' || u.last_name as patient_name
        FROM encounters e
        JOIN patients p ON e.patient_id = p.id
@@ -47,10 +59,70 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       [patient_id]
     );
 
+    // Which walk-in desk is this check-in for, if any? Accept the OTC chief
+    // complaint as well as the clinic string, matching isPharmacyOtc below —
+    // pharmacy sends both, but a blank/legacy clinic must still be recognised.
+    const requestedWalkInDepartment: string | undefined =
+      DEPARTMENT_WALK_IN_CLINICS[clinic] ||
+      (String(chief_complaint || '').trim().toLowerCase() === 'otc purchase' ? 'pharmacy' : undefined);
+
     if (activeEncounterCheck.rows.length > 0) {
-      await client.query('ROLLBACK');
-      client.release(); // Release connection before returning
       const existing = activeEncounterCheck.rows[0];
+
+      // A department walk-in (pharmacy OTC, lab, imaging, nurse procedure) on
+      // top of an already-open visit is a normal thing, not a duplicate
+      // check-in: the patient is in the building seeing a doctor and now wants
+      // to buy something over the counter. Refusing it blocked the sale
+      // outright (Irene: "I am unable to add them and create the order, it says
+      // they have a pending invoice"). Attach the walk-in to the visit they
+      // already have instead. Billing onto the CURRENT visit is the same rule
+      // processRefill follows, so the charge reaches the front-desk invoice
+      // rather than stranding on a second, parallel encounter.
+      if (requestedWalkInDepartment) {
+        // If the pharmacist clicks twice, don't queue the same patient at the
+        // same desk twice — reuse the open routing row when one already exists.
+        const alreadyQueued = await client.query(
+          `SELECT id FROM department_routing
+            WHERE encounter_id = $1 AND department = $2
+              AND status IN ('pending', 'in-progress')
+            LIMIT 1`,
+          [existing.id, requestedWalkInDepartment]
+        );
+
+        if (alreadyQueued.rows.length === 0) {
+          await client.query(
+            `INSERT INTO department_routing (
+               encounter_id, patient_id, department, priority, notes, routed_by, is_walk_in
+             ) VALUES ($1, $2, $3, 'routine', $4, $5, true)`,
+            [existing.id, patient_id, requestedWalkInDepartment, chief_complaint || 'Walk-in', receptionist_id]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        if (existing.patient_name) {
+          await notificationService.notifyDepartmentWalkIn(
+            requestedWalkInDepartment,
+            existing.patient_name,
+            existing.patient_number,
+            existing.id
+          );
+        }
+
+        // No new encounter, invoice, registration fee or consultation fee here
+        // on purpose — we are reusing the open visit, so its existing invoice is
+        // what the OTC items bill onto at dispense time.
+        res.status(200).json({
+          message: `Patient added to ${requestedWalkInDepartment} on their open visit (${existing.encounter_number})`,
+          encounter_id: existing.id,
+          encounter_number: existing.encounter_number,
+          routed_to: requestedWalkInDepartment,
+          reused_encounter: true,
+        });
+        return;
+      }
+
+      await client.query('ROLLBACK');
       const checkedInTime = new Date(existing.checked_in_at).toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
@@ -322,15 +394,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
     const patientInfo = patientInfoResult.rows[0] || {};
 
-    // Check if this is a department walk-in (pharmacy, lab, or imaging)
-    const departmentWalkIns: Record<string, string> = {
-      'Pharmacy (OTC/Walk-in)': 'pharmacy',
-      'Lab (Walk-in)': 'lab',
-      'Imaging (Walk-in)': 'imaging',
-      'Nurse (Procedures/Walk-in)': 'nurse',
-    };
-
-    const walkInDepartment = departmentWalkIns[clinic];
+    // Check if this is a department walk-in (pharmacy, lab, imaging or nurse)
+    const walkInDepartment = requestedWalkInDepartment;
 
     if (walkInDepartment) {
       // Route directly to department as walk-in (no doctor/appointment needed)
