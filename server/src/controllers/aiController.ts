@@ -408,10 +408,21 @@ export const getPatientTestSuggestions = async (req: Request, res: Response): Pr
          ORDER BY LOWER(test_name), created_at DESC`,
         [patientId]
       ),
+      // Vitals come from vital_signs_history — that is where addVitalSigns
+      // actually writes. This read used to point at the `vital_signs` table,
+      // which is empty (0 rows against 2289 in history), so every suggestion was
+      // generated with no weight, blood pressure or heart rate at all.
+      //
+      // Units are passed through rather than normalised, and BMI is deliberately
+      // not computed: the data is overwhelmingly kg/cm but a handful of lbs/in
+      // rows exist, and handing a clinical model a silently mis-converted BMI is
+      // worse than handing it the raw figures plus their units.
       pool.query(
-        `SELECT temperature, blood_pressure_systolic, blood_pressure_diastolic,
-                heart_rate, weight, height, bmi
-         FROM vital_signs
+        `SELECT temperature, temperature_unit,
+                blood_pressure_systolic, blood_pressure_diastolic,
+                heart_rate, respiratory_rate, oxygen_saturation,
+                weight, weight_unit, height, height_unit, recorded_at
+         FROM vital_signs_history
          WHERE patient_id = $1
          ORDER BY recorded_at DESC LIMIT 1`,
         [patientId]
