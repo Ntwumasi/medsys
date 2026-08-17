@@ -26,9 +26,12 @@ export async function addSedoTamakloe() {
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash('demo123', saltRounds);
 
+      // NOTE: no department/position columns here — see addClifftonGardner.ts.
+      // The users table has never had them, so including them made this
+      // migration fail with 42703 on any fresh database.
       await client.query(
-        `INSERT INTO users (first_name, last_name, email, username, password_hash, role, department, position, is_active, is_super_admin, must_change_password)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, TRUE, TRUE)`,
+        `INSERT INTO users (first_name, last_name, email, username, password_hash, role, is_active, is_super_admin, must_change_password)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, TRUE, TRUE)`,
         [
           'Sedo',
           'Tamakloe',
@@ -36,8 +39,6 @@ export async function addSedoTamakloe() {
           'stamakloe',
           passwordHash,
           'doctor',
-          'MEDICINE',
-          'Medical Director & Clinic Owner',
         ]
       );
       console.log('Created user stamakloe (Sedo Tamakloe) as doctor + super admin');
