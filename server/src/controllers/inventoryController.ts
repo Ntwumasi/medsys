@@ -1325,45 +1325,113 @@ export const dispenseFromBatches = async (
 // Get purchase history
 export const getPurchaseHistory = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Pull purchase history from transactions, joining batches for accurate per-purchase data
+    const { start_date, end_date, limit } = req.query;
+
+    // Purchases are recorded one transaction PER LINE ITEM, all sharing the
+    // invoice header the pharmacist typed once. Returned ungrouped, a single
+    // 30-line delivery buried everything else (invoice ADDP0439/Jul26 really is
+    // 30 rows), and the old flat LIMIT 50 then hid older purchases entirely —
+    // 18 of them at the time of writing. So group by invoice and page over
+    // GROUPS, with the line items nested for expand-on-demand.
+    //
+    // Purchases with no invoice number still group, by supplier + the minute
+    // they were recorded, which is how a multi-item entry lands anyway.
+    const params: any[] = [];
+    const where: string[] = [`it.transaction_type = 'purchase'`];
+
+    if (start_date) {
+      params.push(start_date);
+      where.push(`it.created_at >= $${params.length}::date`);
+    }
+    if (end_date) {
+      params.push(end_date);
+      // End of the chosen day, so a same-day range isn't empty.
+      where.push(`it.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const groupLimit = Math.min(Math.max(parseInt(String(limit ?? '100'), 10) || 100, 1), 500);
+    params.push(groupLimit);
+
     const result = await pool.query(
-      `SELECT
-        it.id,
-        it.inventory_id,
-        it.quantity,
-        it.notes,
-        it.created_at,
-        it.invoice_number,
-        it.invoice_date,
-        it.reference_id as batch_id,
-        pi.medication_name,
-        COALESCE(ib.unit_cost, pi.unit_cost) as unit_cost,
-        COALESCE(s2.name, s.name) as supplier_name,
-        COALESCE(ib.supplier_id, pi.supplier_id) as supplier_id,
-        CASE
-          WHEN it.notes LIKE '%Discount: %'
-          THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
-          ELSE NULL
-        END as discount_percent,
-        COALESCE(ib.batch_number,
+      `WITH purchase_rows AS (
+        SELECT
+          it.id,
+          it.inventory_id,
+          it.quantity,
+          it.notes,
+          it.created_at,
+          it.invoice_number,
+          it.invoice_date,
+          it.reference_id as batch_id,
+          pi.medication_name,
+          COALESCE(ib.unit_cost, pi.unit_cost) as unit_cost,
+          COALESCE(s2.name, s.name) as supplier_name,
+          COALESCE(ib.supplier_id, pi.supplier_id) as supplier_id,
           CASE
-            WHEN it.notes LIKE '%Batch: %'
-            THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+            WHEN it.notes LIKE '%Discount: %'
+            THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
             ELSE NULL
-          END
-        ) as batch_number,
-        ib.expiry_date
-       FROM inventory_transactions it
-       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
-       LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
-       LEFT JOIN suppliers s ON pi.supplier_id = s.id
-       LEFT JOIN suppliers s2 ON ib.supplier_id = s2.id
-       WHERE it.transaction_type = 'purchase'
-       ORDER BY it.created_at DESC
-       LIMIT 50`
+          END as discount_percent,
+          COALESCE(ib.batch_number,
+            CASE
+              WHEN it.notes LIKE '%Batch: %'
+              THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+              ELSE NULL
+            END
+          ) as batch_number,
+          ib.expiry_date,
+          COALESCE(
+            NULLIF(it.invoice_number, ''),
+            'grp:' || COALESCE(ib.supplier_id, pi.supplier_id, 0)::text || ':' ||
+              to_char(date_trunc('minute', it.created_at), 'YYYYMMDDHH24MI')
+          ) as group_key
+        FROM inventory_transactions it
+        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+        LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
+        LEFT JOIN suppliers s ON pi.supplier_id = s.id
+        LEFT JOIN suppliers s2 ON ib.supplier_id = s2.id
+        WHERE ${where.join(' AND ')}
+      )
+      SELECT
+        r.group_key,
+        MAX(r.invoice_number)                       AS invoice_number,
+        MAX(r.supplier_name)                        AS supplier_name,
+        MAX(r.created_at)                           AS purchase_date,
+        MAX(r.invoice_date)                         AS invoice_date,
+        COUNT(*)::int                               AS item_count,
+        SUM(r.quantity * COALESCE(r.unit_cost, 0))  AS total_cost,
+        SUM(r.quantity)::int                        AS total_quantity,
+        json_agg(to_jsonb(r) ORDER BY r.medication_name) AS items
+      FROM purchase_rows r
+      GROUP BY r.group_key
+      ORDER BY MAX(r.created_at) DESC
+      LIMIT $${params.length}`,
+      params
     );
 
-    res.json({ purchases: result.rows });
+    // Total number of groups in range, so the UI can say when it is truncated
+    // instead of silently showing a partial list (the old bug, in a new place).
+    const totalRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM (
+         SELECT COALESCE(
+                  NULLIF(it.invoice_number, ''),
+                  'grp:' || COALESCE(ib.supplier_id, pi.supplier_id, 0)::text || ':' ||
+                    to_char(date_trunc('minute', it.created_at), 'YYYYMMDDHH24MI')
+                ) AS gk
+           FROM inventory_transactions it
+           JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+           LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
+          WHERE ${where.join(' AND ')}
+          GROUP BY gk
+       ) g`,
+      params.slice(0, params.length - 1)
+    );
+
+    res.json({
+      purchases: result.rows,
+      total_groups: totalRes.rows[0]?.n ?? result.rows.length,
+      truncated: (totalRes.rows[0]?.n ?? 0) > result.rows.length,
+    });
   } catch (error) {
     console.error('Get purchase history error:', error);
     res.status(500).json({ error: 'Failed to fetch purchase history' });

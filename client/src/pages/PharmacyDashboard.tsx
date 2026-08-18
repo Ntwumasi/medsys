@@ -710,6 +710,13 @@ const PharmacyDashboard: React.FC = () => {
   };
   const [procurementItems, setProcurementItems] = useState([{ ...emptyLineItem }]);
   const [purchaseHistory, setPurchaseHistory] = useState<any[]>([]);
+  // Procurement history filters. Purchases are grouped by invoice, so these
+  // page over invoices rather than individual line items.
+  const [purchaseStart, setPurchaseStart] = useState('');
+  const [purchaseEnd, setPurchaseEnd] = useState('');
+  const [purchaseTruncated, setPurchaseTruncated] = useState(false);
+  const [purchaseTotalGroups, setPurchaseTotalGroups] = useState(0);
+  const [expandedPurchases, setExpandedPurchases] = useState<string[]>([]);
   const [submittingProcurement, setSubmittingProcurement] = useState(false);
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<number | null>(null);
 
@@ -1846,12 +1853,24 @@ const PharmacyDashboard: React.FC = () => {
   // Procurement functions
   const fetchPurchaseHistory = async () => {
     try {
-      const response = await apiClient.get('/inventory/purchases');
+      const params: string[] = [];
+      if (purchaseStart) params.push(`start_date=${purchaseStart}`);
+      if (purchaseEnd) params.push(`end_date=${purchaseEnd}`);
+      const url = `/inventory/purchases${params.length ? `?${params.join('&')}` : ''}`;
+      const response = await apiClient.get(url);
       setPurchaseHistory(response.data.purchases || []);
+      setPurchaseTotalGroups(response.data.total_groups ?? 0);
+      setPurchaseTruncated(Boolean(response.data.truncated));
+      setExpandedPurchases([]);
     } catch (error) {
       console.error('Error fetching purchase history:', error);
     }
   };
+
+  const togglePurchaseGroup = (key: string) =>
+    setExpandedPurchases(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
 
   // A procurement row is "complete" (countable) when a medication is selected,
   // quantity > 0, and a unit cost is entered. Cost MAY be 0 (free sample /
@@ -4036,60 +4055,151 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Purchase History */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-lg font-semibold">Recent Purchases</h2>
+              <div className="px-6 py-4 border-b flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Purchases</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {purchaseTotalGroups > 0
+                      ? `${purchaseTotalGroups} purchase${purchaseTotalGroups === 1 ? '' : 's'}${purchaseStart || purchaseEnd ? ' in range' : ''} — one line per invoice, click to see the items`
+                      : 'One line per invoice, click to see the items'}
+                  </p>
+                </div>
+                {/* Date range — the list used to be capped at the 50 most recent
+                    line items, which hid older purchases entirely. */}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={purchaseStart}
+                      onChange={(e) => setPurchaseStart(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={purchaseEnd}
+                      onChange={(e) => setPurchaseEnd(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={fetchPurchaseHistory}
+                    className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                  >
+                    Search
+                  </button>
+                  {(purchaseStart || purchaseEnd) && (
+                    <button
+                      onClick={() => { setPurchaseStart(''); setPurchaseEnd(''); setTimeout(fetchPurchaseHistory, 0); }}
+                      className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
+              {purchaseTruncated && (
+                <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
+                  Showing the most recent {purchaseHistory.length} of {purchaseTotalGroups} purchases. Narrow the date range to see older ones.
+                </div>
+              )}
               {purchaseHistory.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-3 w-8"></th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {purchaseHistory.map((purchase) => (
-                        <tr key={purchase.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {format(new Date(purchase.created_at), 'MMM dd, yyyy')}
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">{purchase.medication_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.supplier_name || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.invoice_number || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{purchase.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-600">
-                            GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                            GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.batch_number || '—'}</td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => handleDeletePurchase(purchase.id)}
-                              disabled={deletingPurchaseId === purchase.id}
-                              className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors p-1"
-                              title="Delete purchase"
+                      {purchaseHistory.map((group) => {
+                        const open = expandedPurchases.includes(group.group_key);
+                        const items = Array.isArray(group.items) ? group.items : [];
+                        return (
+                          <React.Fragment key={group.group_key}>
+                            <tr
+                              className="hover:bg-gray-50 cursor-pointer"
+                              onClick={() => togglePurchaseGroup(group.group_key)}
                             >
-                              {deletingPurchaseId === purchase.id ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
-                              ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <td className="px-4 py-3 text-gray-400">
+                                <svg
+                                  className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`}
+                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {format(new Date(group.purchase_date), 'MMM dd, yyyy')}
+                              </td>
+                              <td className="px-4 py-3 font-medium text-gray-900">{group.invoice_number || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{group.supplier_name || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-right text-gray-900">{group.item_count}</td>
+                              <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                                GH₵ {parseFloat(group.total_cost || 0).toFixed(2)}
+                              </td>
+                            </tr>
+                            {open && (
+                              <tr className="bg-gray-50">
+                                <td></td>
+                                <td colSpan={5} className="px-4 py-3">
+                                  <table className="min-w-full">
+                                    <thead>
+                                      <tr className="text-[11px] text-gray-500 uppercase">
+                                        <th className="py-1 text-left font-medium">Medication</th>
+                                        <th className="py-1 text-right font-medium">Qty</th>
+                                        <th className="py-1 text-right font-medium">Unit Cost</th>
+                                        <th className="py-1 text-right font-medium">Total</th>
+                                        <th className="py-1 text-left font-medium pl-4">Batch</th>
+                                        <th className="py-1 text-center font-medium">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {items.map((purchase: any) => (
+                                        <tr key={purchase.id} className="text-sm">
+                                          <td className="py-1.5 text-gray-900">{purchase.medication_name}</td>
+                                          <td className="py-1.5 text-right text-gray-900">{purchase.quantity}</td>
+                                          <td className="py-1.5 text-right text-gray-600">
+                                            GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
+                                          </td>
+                                          <td className="py-1.5 text-right font-medium text-gray-900">
+                                            GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
+                                          </td>
+                                          <td className="py-1.5 text-gray-600 pl-4">{purchase.batch_number || '—'}</td>
+                                          <td className="py-1.5 text-center">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); handleDeletePurchase(purchase.id); }}
+                                              disabled={deletingPurchaseId === purchase.id}
+                                              className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors p-1"
+                                              title="Delete this line (reverses its inventory change)"
+                                            >
+                                              {deletingPurchaseId === purchase.id ? (
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
+                                              ) : (
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                              )}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
