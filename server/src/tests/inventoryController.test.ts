@@ -15,6 +15,7 @@ import {
   calculatePrice,
   getRevenueSummary,
   getPatientDrugHistory,
+  dispenseFromBatches,
 } from '../controllers/inventoryController';
 
 // Mock response object
@@ -595,6 +596,58 @@ describe('Inventory Controller', () => {
       const queryCall = vi.mocked(pool.query).mock.calls[0][0] as string;
       expect(queryCall).toContain('ordered_date >=');
       expect(queryCall).toContain('ordered_date <=');
+    });
+  });
+
+  describe('dispenseFromBatches', () => {
+    // hasQty: what the single open batch holds.
+    const dispenseClient = (hasQty: number, resyncTo: number) => ({
+      query: vi.fn().mockImplementation((sql: any) => {
+        const q = String(sql);
+        if (q.includes('FROM pharmacy_inventory') && q.includes('FOR UPDATE')) {
+          return Promise.resolve({
+            rows: [{ medication_name: 'Paracetamol', quantity_on_hand: 10, expiry_date: null }],
+          });
+        }
+        if (q.includes('SELECT 1') && q.includes('FROM inventory_batches')) {
+          return Promise.resolve({ rows: [{ ok: 1 }] }); // a batch already exists
+        }
+        if (q.includes('FROM inventory_batches') && q.includes('FOR UPDATE')) {
+          return Promise.resolve({
+            rows: [{ id: 1, batch_number: 'B1', quantity: hasQty, expiry_date: null }],
+          });
+        }
+        if (q.includes('UPDATE pharmacy_inventory')) {
+          return Promise.resolve({ rows: [{ quantity_on_hand: resyncTo }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    });
+
+    it('recomputes the count from batches instead of blind-subtracting', async () => {
+      const client = dispenseClient(10, 4);
+      const res = await dispenseFromBatches(client as any, 1, 6, 27);
+
+      expect(res.success).toBe(true);
+      expect(res.shortfall).toBe(0);
+
+      const sql = client.query.mock.calls.map((c: any[]) => String(c[0]));
+      // The old blind subtraction is what drove the count below the batch total
+      // (and NIFEDIPINE to -1) — it must be gone.
+      expect(sql.some(q => q.includes('quantity_on_hand = quantity_on_hand - '))).toBe(false);
+      expect(sql.some(q => q.includes('SELECT SUM(quantity) FROM inventory_batches'))).toBe(true);
+    });
+
+    it('reports a shortfall when the batches cannot cover the dispense', async () => {
+      const client = dispenseClient(4, 0);
+      const res = await dispenseFromBatches(client as any, 1, 10, 27);
+
+      expect(res.success).toBe(false);
+      expect(res.shortfall).toBe(6);
+      // Still resyncs, so the count lands at what the batches actually hold
+      // rather than going negative.
+      const sql = client.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(q => q.includes('SELECT SUM(quantity) FROM inventory_batches'))).toBe(true);
     });
   });
 });

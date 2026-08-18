@@ -2212,9 +2212,15 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           );
 
           // Record inventory transaction for the dispense
+          // Note any shortfall on the transaction itself — if the batches could
+          // not cover the dispense, the count and the shelf disagree and that
+          // needs to be visible in the audit trail, not just the server log.
           const batchInfo = dispenseResult.dispensedBatches
             .map(b => `${b.batch_number}(${b.quantity_dispensed})`)
-            .join(', ');
+            .join(', ')
+            + (dispenseResult.shortfall > 0
+                ? ` [SHORT ${dispenseResult.shortfall} — batch records did not cover this dispense; needs a stock-take]`
+                : '');
 
           await client.query(
             `INSERT INTO inventory_transactions

@@ -1242,9 +1242,27 @@ export const dispenseFromBatches = async (
   inventoryId: number,
   quantityToDispense: number,
   userId: number | null
-): Promise<{ success: boolean; dispensedBatches: any[] }> => {
+): Promise<{ success: boolean; dispensedBatches: any[]; shortfall: number }> => {
   const dispensedBatches: any[] = [];
   let remainingQty = quantityToDispense;
+
+  // Stock that predates the batch layer would otherwise be invisible to FEFO —
+  // materialise it first, both so it can actually be dispensed and so the resync
+  // at the end can't read "no batches" as zero and wipe the count.
+  const itemRes = await client.query(
+    `SELECT medication_name, quantity_on_hand, expiry_date
+       FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
+    [inventoryId]
+  );
+  if (itemRes.rows.length > 0) {
+    await ensureBatchForExistingStock(
+      client,
+      inventoryId,
+      itemRes.rows[0].medication_name,
+      parseInt(String(itemRes.rows[0].quantity_on_hand)) || 0,
+      itemRes.rows[0].expiry_date
+    );
+  }
 
   // Get batches ordered by expiry date (FEFO). FOR UPDATE locks the batch rows
   // so two concurrent dispenses can't both read the same batch and over-draw it
@@ -1281,21 +1299,27 @@ export const dispenseFromBatches = async (
     remainingQty -= dispenseFromThisBatch;
   }
 
-  // Update the main inventory quantity
-  await client.query(
-    `UPDATE pharmacy_inventory
-     SET quantity_on_hand = quantity_on_hand - $1,
-         expiry_date = (
-           SELECT MIN(expiry_date)
-           FROM inventory_batches
-           WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-         ),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2`,
-    [quantityToDispense, inventoryId]
-  );
+  // Recompute the cached count from what the batches actually hold, rather than
+  // blind-subtracting the requested amount. Subtracting unconditionally drove
+  // quantity_on_hand BELOW the batch total whenever the batches couldn't cover
+  // the request — it is how TAB NIFEDIPINE SR 30MG reached -1 on hand, and it
+  // kept re-creating the very drift the batch-layer fix repaired. The resync
+  // cannot go negative and cannot drift.
+  await resyncItemFromBatches(client, inventoryId);
 
-  return { success: remainingQty === 0, dispensedBatches };
+  // Short dispense (batches couldn't cover the request). Callers guard against
+  // this with their own stock check, which is now trustworthy because the count
+  // is truthful — but a race or a stale record can still land here, so make it
+  // loud in the log and hand the shortfall back rather than swallowing it.
+  if (remainingQty > 0) {
+    console.error(
+      `Short dispense on inventory ${inventoryId}: requested ${quantityToDispense}, ` +
+      `batches only covered ${quantityToDispense - remainingQty} (short ${remainingQty}). ` +
+      `Stock records need a physical count.`
+    );
+  }
+
+  return { success: remainingQty === 0, dispensedBatches, shortfall: remainingQty };
 };
 
 // Get purchase history
