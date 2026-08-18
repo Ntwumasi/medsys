@@ -3039,6 +3039,22 @@ const NurseDashboard: React.FC = () => {
 
                   {/* Tab Content */}
                   <div className="p-6">
+                    {/* AI-suggested tests — history + demographics driven. Read-only
+                        for nurses; ordering authority stays with the doctor.
+                        Deliberately ABOVE the tab content rather than inside the
+                        Orders tab: buried there, nurses never found it, while the
+                        doctor's copy sits inline on the encounter view. */}
+                    {selectedPatient && (
+                      <div className="mb-6">
+                        <SuggestedTestsPanel
+                          patientId={selectedPatient.patient_id}
+                          encounterId={selectedPatient.id}
+                          mode="nurse"
+                          alreadyOrdered={labOrders.map(l => l.test_name || '')}
+                        />
+                      </div>
+                    )}
+
                     {/* SOAP Tab */}
                     {activeTab === 'hp' && selectedPatient && (
                       <div>
@@ -3578,19 +3594,6 @@ const NurseDashboard: React.FC = () => {
                             Create Lab Order
                           </button>
                         </div>
-
-                        {/* AI-suggested tests — history + demographics driven.
-                            Read-only for nurses; ordering stays with the doctor. */}
-                        {selectedPatient && (
-                          <div className="mb-4">
-                            <SuggestedTestsPanel
-                              patientId={selectedPatient.patient_id}
-                              encounterId={selectedPatient.id}
-                              mode="nurse"
-                              alreadyOrdered={labOrders.map(l => l.test_name || '')}
-                            />
-                          </div>
-                        )}
 
                         {/* Doctor's Instructions for Nurse */}
                         {clinicalNotes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (
