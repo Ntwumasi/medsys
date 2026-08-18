@@ -2,6 +2,15 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, differenceInMonths, differenceInYears } from 'date-fns';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
@@ -149,6 +158,15 @@ interface RevenueTotals {
   dispensed_orders: number;
   pending_orders: number;
   unique_patients: number;
+  // Returned by /pharmacy/revenue all along; the dashboard just wasn't reading
+  // it, which is why pharmacy saw order counts but no money.
+  total_revenue?: number | string;
+}
+
+interface DailyRevenue {
+  date: string;
+  orders_count: number | string;
+  revenue: number | string;
 }
 
 interface RevenueOrder {
@@ -170,6 +188,7 @@ interface RevenueData {
   totals: RevenueTotals;
   top_medications: TopMedication[];
   orders?: RevenueOrder[];
+  daily_revenue?: DailyRevenue[];
 }
 
 interface Diagnosis {
@@ -669,7 +688,10 @@ const PharmacyDashboard: React.FC = () => {
 
   // Date range state - default to today for dispensed orders
   const today = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(today);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  // Last 30 days, matching the Analytics tab. Both ends previously defaulted to
+  // today, so the revenue tab opened showing a single day — usually zeros.
+  const [startDate, setStartDate] = useState(thirtyDaysAgo);
   const [endDate, setEndDate] = useState(today);
 
   // Date range for the active queue (Pending / In Progress / Ready) — defaults
@@ -2128,7 +2150,7 @@ const PharmacyDashboard: React.FC = () => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
       </svg>
     )},
-    { id: 'revenue' as const, label: 'Order History', icon: (
+    { id: 'revenue' as const, label: 'Revenue & Orders', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
@@ -3659,7 +3681,24 @@ const PharmacyDashboard: React.FC = () => {
             {revenueData ? (
               <>
                 {/* Summary Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+                  {/* Revenue leads the row — it's the number pharmacy actually
+                      came here for, and it was being fetched then discarded. */}
+                  <div className="bg-white rounded-xl shadow-lg border border-success-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-success-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-500">Revenue</p>
+                        <p className="text-2xl font-bold text-gray-900 tabular-nums truncate">
+                          GH₵ {Number(revenueData.totals?.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
                     <div className="flex items-center gap-3">
                       <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
@@ -3787,6 +3826,45 @@ const PharmacyDashboard: React.FC = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Revenue over time — daily_revenue was already being returned
+                    by the endpoint and thrown away, so pharmacy had no way to
+                    see whether takings were rising or falling. */}
+                {(revenueData.daily_revenue?.length ?? 0) > 0 && (
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
+                    <h3 className="text-lg font-semibold mb-4">Revenue Over Time</h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={(revenueData.daily_revenue || []).map((d) => ({
+                            date: format(new Date(d.date), 'MMM dd'),
+                            revenue: Number(d.revenue) || 0,
+                            orders: Number(d.orders_count) || 0,
+                          }))}
+                        >
+                          <defs>
+                            <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                          <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" width={70}
+                                 tickFormatter={(v) => `₵${Number(v).toLocaleString()}`} />
+                          <RechartsTooltip
+                            formatter={(value: any, name: any) =>
+                              name === 'revenue'
+                                ? [`GH₵ ${Number(value).toFixed(2)}`, 'Revenue']
+                                : [value, 'Orders']
+                            }
+                          />
+                          <Area type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} fill="url(#revFill)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
 
                 {/* Top Medications */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200">
