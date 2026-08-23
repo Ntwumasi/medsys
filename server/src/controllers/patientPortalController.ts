@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import pool from '../database/db';
 import { generateResetToken, hashResetToken } from '../utils/passwordValidation';
 import { validatePhoneNumber, sendSMS } from '../services/smsService';
+import { sendEmail, validateEmail, textToHtml } from '../services/emailService';
 import { auditService } from '../services/auditService';
 
 const LINK_EXPIRY_MS = 15 * 60 * 1000; // 15 min one-time link
@@ -51,10 +52,20 @@ const issuePatientSession = (
   return token;
 };
 
-// Create + store an access token for a patient and SMS the link. Shared by self-service and staff.
+// Placeholder address auto-assigned at registration when a patient gives no
+// email. 940 of ~1140 patients carry one, so it must never be treated as a
+// reachable address or matched against a login attempt.
+const PLACEHOLDER_EMAIL_DOMAIN = 'noemail.medsys.local';
+
+export const isRealEmail = (email: string | null | undefined): boolean =>
+  !!email && validateEmail(email) && !email.toLowerCase().endsWith(`@${PLACEHOLDER_EMAIL_DOMAIN}`);
+
+// Create + store an access token for a patient and send the link. Shared by
+// self-service and staff; `channel` picks SMS or email as the delivery route.
 const createAndSendLink = async (
   patientId: number,
-  phone: string,
+  destination: string,
+  channel: 'sms' | 'email',
   deliveryMethod: 'self' | 'staff',
   sentBy: number | null,
   req: Request
@@ -79,7 +90,30 @@ const createAndSendLink = async (
 
   const link = `${getBaseUrl()}/portal/verify?token=${token}`;
   const message = `Access your clinic records: ${link} (valid 15 min). You'll confirm your date of birth.`;
-  const result = await sendSMS(phone, message);
+
+  let success: boolean;
+  let provider: string;
+
+  if (channel === 'email') {
+    const subject = 'Your clinic records access link';
+    const body = [
+      'Hello,',
+      '',
+      'Use the link below to view your clinic records. It is valid for 15 minutes',
+      "and you'll be asked to confirm your date of birth.",
+      '',
+      link,
+      '',
+      "If you didn't request this, you can ignore this email.",
+    ].join('\n');
+    const result = await sendEmail(destination, subject, body, textToHtml(body));
+    success = result.success;
+    provider = result.provider;
+  } else {
+    const result = await sendSMS(destination, message);
+    success = result.success;
+    provider = result.provider;
+  }
 
   // Resolve the patient's user_id for the audit entry
   const userRow = await pool.query('SELECT user_id FROM patients WHERE id = $1', [patientId]);
@@ -88,30 +122,70 @@ const createAndSendLink = async (
     action: 'create',
     entityType: 'patient_portal_link',
     entityId: patientId,
-    details: { delivery: deliveryMethod, sms_provider: result.provider, sms_success: result.success },
+    details: { delivery: deliveryMethod, channel, provider, success },
     ipAddress: getClientIP(req),
     userAgent: req.headers['user-agent'] || undefined,
   });
 
-  return result.success;
+  return success;
 };
 
 /**
  * POST /api/patient-portal/request-link  (public, rate-limited)
- * Self-service: patient enters their phone; we SMS a one-time access link.
- * Always returns a generic success (anti-enumeration).
+ * Self-service: patient enters their email OR phone; we send a one-time access
+ * link by the matching channel. Always returns a generic success
+ * (anti-enumeration).
+ *
+ * Accepts `identifier`; `phone` is still honoured so any older client keeps
+ * working.
  */
 export const requestLink = async (req: Request, res: Response): Promise<void> => {
-  const generic = { message: 'If an account exists for that number, a login link has been sent.' };
+  const generic = { message: 'If an account exists for that email or phone number, a login link has been sent.' };
   try {
-    const { phone } = req.body;
-    if (!phone || typeof phone !== 'string') {
+    const raw = req.body?.identifier ?? req.body?.phone;
+    if (!raw || typeof raw !== 'string' || !raw.trim()) {
+      res.json(generic);
+      return;
+    }
+    const identifier = raw.trim();
+
+    if (identifier.includes('@')) {
+      // ---- Email route ----
+      if (!isRealEmail(identifier)) {
+        res.json(generic);
+        return;
+      }
+
+      const byEmail = await pool.query(
+        `SELECT p.id AS patient_id, u.email
+         FROM patients p
+         JOIN users u ON p.user_id = u.id
+         WHERE u.role = 'patient' AND u.is_active = true
+           AND LOWER(u.email) = LOWER($1)`,
+        [identifier]
+      );
+
+      // A handful of records share an address (e.g. a couple using one inbox).
+      // The token is bound to ONE patient, so sending on a shared address could
+      // hand someone the wrong person's chart — the date-of-birth gate wouldn't
+      // catch it. Refuse to guess; those patients sign in by phone.
+      if (byEmail.rows.length > 1) {
+        console.warn(`[portal] ambiguous login email shared by ${byEmail.rows.length} patients — not sent`);
+        res.json(generic);
+        return;
+      }
+
+      if (byEmail.rows.length === 1) {
+        await createAndSendLink(byEmail.rows[0].patient_id, byEmail.rows[0].email, 'email', 'self', null, req);
+      }
+
       res.json(generic);
       return;
     }
 
+    // ---- Phone route ----
     // Match on the trailing 9 significant digits (stored phones are unnormalized).
-    const digits = phone.replace(/\D/g, '');
+    const digits = identifier.replace(/\D/g, '');
     const last9 = digits.slice(-9);
     if (last9.length < 9) {
       res.json(generic);
@@ -131,7 +205,7 @@ export const requestLink = async (req: Request, res: Response): Promise<void> =>
     if (patientResult.rows.length > 0) {
       const { patient_id, phone: storedPhone } = patientResult.rows[0];
       const formatted = validatePhoneNumber(storedPhone).formatted;
-      await createAndSendLink(patient_id, formatted, 'self', null, req);
+      await createAndSendLink(patient_id, formatted, 'sms', 'self', null, req);
     }
 
     res.json(generic);
@@ -155,7 +229,7 @@ export const staffSendLink = async (req: Request, res: Response): Promise<void> 
     }
 
     const result = await pool.query(
-      `SELECT p.id AS patient_id, u.phone
+      `SELECT p.id AS patient_id, u.phone, u.email
        FROM patients p
        JOIN users u ON p.user_id = u.id
        WHERE p.id = $1`,
@@ -167,24 +241,53 @@ export const staffSendLink = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { phone } = result.rows[0];
+    const { phone, email } = result.rows[0];
     const check = phone ? validatePhoneNumber(phone) : { valid: false, formatted: '' };
-    if (!phone || !check.valid) {
-      res.status(400).json({ error: 'No valid phone number on file for this patient.' });
+    const emailUsable = isRealEmail(email);
+
+    // Staff may force a channel; otherwise prefer SMS (94% of patients have a
+    // usable phone, only ~17% a real email) and fall back to email.
+    const requested = req.body?.channel as 'sms' | 'email' | undefined;
+    let channel: 'sms' | 'email';
+    if (requested === 'email') {
+      if (!emailUsable) {
+        res.status(400).json({ error: 'No valid email address on file for this patient.' });
+        return;
+      }
+      channel = 'email';
+    } else if (requested === 'sms') {
+      if (!check.valid) {
+        res.status(400).json({ error: 'No valid phone number on file for this patient.' });
+        return;
+      }
+      channel = 'sms';
+    } else if (check.valid) {
+      channel = 'sms';
+    } else if (emailUsable) {
+      channel = 'email';
+    } else {
+      res.status(400).json({ error: 'No valid phone number or email address on file for this patient.' });
       return;
     }
 
+    const destination = channel === 'email' ? email : check.formatted;
     const sentBy = (req as any).user?.id || null;
-    const sent = await createAndSendLink(patient_id, check.formatted, 'staff', sentBy, req);
+    const sent = await createAndSendLink(patient_id, destination, channel, 'staff', sentBy, req);
 
     // Don't tell the user it was sent unless it actually was.
     if (!sent) {
-      res.status(502).json({ error: 'Text could not be sent (SMS service not configured or the send failed). The link was created but not delivered — check SMS setup.' });
+      res.status(502).json({
+        error: channel === 'email'
+          ? 'Email could not be sent (email service not configured or the send failed). The link was created but not delivered — check SMTP setup.'
+          : 'Text could not be sent (SMS service not configured or the send failed). The link was created but not delivered — check SMS setup.',
+      });
       return;
     }
 
-    const masked = check.formatted.slice(0, -6).replace(/\d/g, '•') + check.formatted.slice(-4);
-    res.json({ message: `Portal login link sent to ${masked}.` });
+    const masked = channel === 'email'
+      ? email.replace(/^(.)(.*)(@.*)$/, (_m: string, a: string, b: string, c: string) => a + '•'.repeat(Math.max(b.length, 1)) + c)
+      : check.formatted.slice(0, -6).replace(/\d/g, '•') + check.formatted.slice(-4);
+    res.json({ message: `Portal login link sent to ${masked}.`, channel });
   } catch (error) {
     console.error('Portal staff-send error:', error);
     res.status(500).json({ error: 'Internal server error' });

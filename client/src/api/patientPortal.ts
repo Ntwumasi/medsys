@@ -24,9 +24,10 @@ export interface PortalMe {
 }
 
 export const patientPortalAPI = {
-  // Self-service: request an SMS access link by phone number.
-  requestLink: async (phone: string): Promise<{ message: string }> => {
-    const response = await apiClient.post('/patient-portal/request-link', { phone });
+  // Self-service: request an access link. `identifier` is an email address or a
+  // phone number; the server picks email or SMS to match.
+  requestLink: async (identifier: string): Promise<{ message: string }> => {
+    const response = await apiClient.post('/patient-portal/request-link', { identifier });
     return response.data;
   },
 
@@ -36,9 +37,10 @@ export const patientPortalAPI = {
     return response.data;
   },
 
-  // Front desk: send the access link from a patient's record.
-  staffSend: async (patientId: number): Promise<{ message: string }> => {
-    const response = await apiClient.post('/patient-portal/staff-send', { patient_id: patientId });
+  // Front desk: send the access link from a patient's record. Channel defaults
+  // to SMS when a valid phone is on file, falling back to email.
+  staffSend: async (patientId: number, channel?: 'sms' | 'email'): Promise<{ message: string; channel?: string }> => {
+    const response = await apiClient.post('/patient-portal/staff-send', { patient_id: patientId, channel });
     return response.data;
   },
 

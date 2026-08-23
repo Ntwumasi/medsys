@@ -308,7 +308,6 @@ export const sendReminder = async (req: Request, res: Response) => {
         const subject = replaceVars(templates['reminder_template_email_subject'] || 'Payment Reminder');
         const body = customMessage || replaceVars(templates['reminder_template_email_body'] || '');
 
-        // Send Email (stub)
         const emailResult = await sendEmail(email, subject, body, textToHtml(body));
 
         // Record the reminder
