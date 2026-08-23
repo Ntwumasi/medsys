@@ -285,6 +285,9 @@ const DoctorDashboard: React.FC = () => {
   // Diagnosis state
   const [encounterDiagnoses, setEncounterDiagnoses] = useState<Array<{id: number; diagnosis_code: string; diagnosis_description: string; type: string; status: string}>>([]);
   const [currentDiagnosis, setCurrentDiagnosis] = useState({diagnosis_description: '', diagnosis_code: '', type: 'primary' as 'primary' | 'secondary'});
+  // Set when the server rejects sign-off for a payer-billed patient with no
+  // diagnosis; drives the banner on the Diagnoses card.
+  const [diagnosisRequired, setDiagnosisRequired] = useState(false);
 
   // Follow-up modal state
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
@@ -1146,6 +1149,18 @@ const DoctorDashboard: React.FC = () => {
       console.error('Error alerting nurse:', error);
       const detail = error.response?.data?.detail ? ` (${error.response.data.detail})` : '';
       const errorMessage = error.response?.data?.error || error.message || 'Failed to alert nurse';
+
+      // The server blocks sign-off for insurer/corporate-billed patients with no
+      // diagnosis. A toast alone would leave the doctor staring at a modal that
+      // won't close, so send them straight to the field that's missing.
+      if (error.response?.data?.code === 'DIAGNOSIS_REQUIRED') {
+        setShowFollowUpModal(false);
+        setDiagnosisRequired(true);
+        setTimeout(() => {
+          document.getElementById('diagnoses-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+
       showToast(`${errorMessage}${detail}`, 'error');
     }
   };
@@ -1155,6 +1170,8 @@ const DoctorDashboard: React.FC = () => {
     try {
       const response = await apiClient.get(`/encounters/${encounterId}`);
       setEncounterDiagnoses(response.data.encounter?.diagnoses || response.data.diagnoses || []);
+      // Fresh chart — drop any warning left over from the previous patient.
+      setDiagnosisRequired(false);
     } catch (error) {
       console.error('Error loading diagnoses:', error);
     }
@@ -1175,6 +1192,7 @@ const DoctorDashboard: React.FC = () => {
       });
       showToast('Diagnosis added', 'success');
       setCurrentDiagnosis({diagnosis_description: '', diagnosis_code: '', type: 'primary'});
+      setDiagnosisRequired(false);
       loadEncounterDiagnoses(selectedEncounter.id);
     } catch (error) {
       showToast('Failed to add diagnosis', 'error');
@@ -2103,7 +2121,10 @@ const DoctorDashboard: React.FC = () => {
                 />
 
                 {/* Diagnoses */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div
+                  id="diagnoses-section"
+                  className={`bg-white rounded-xl shadow-sm border p-6 ${diagnosisRequired ? 'border-rose-400 ring-2 ring-rose-200' : 'border-gray-200'}`}
+                >
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2115,6 +2136,16 @@ const DoctorDashboard: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {diagnosisRequired && encounterDiagnoses.length === 0 && (
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                      <p className="text-sm font-semibold text-rose-800">A diagnosis is required to close this visit</p>
+                      <p className="text-sm text-rose-700 mt-1">
+                        This patient's bill goes to an insurer or corporate client, and they reject claims with no
+                        diagnosis. Add one below, then complete the visit. Including the ICD-10 code speeds up payment.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Current Diagnoses */}
                   {encounterDiagnoses.length > 0 && (

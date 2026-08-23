@@ -30,6 +30,7 @@ import {
   alertDoctor,
   getNurseAssignedPatients,
   checkoutPatient,
+  doctorCompleteEncounter,
 } from '../controllers/workflowController';
 
 // Helper to create a mock client (for functions that use pool.connect)
@@ -429,6 +430,85 @@ describe('workflowController', () => {
   });
 
   // ─── checkoutPatient ─────────────────────────────────────────────────
+  // Insurers and corporate clients reject claims with no diagnosis, which is why
+  // sign-off is blocked for those patients. Self-pay must stay unblocked.
+  describe('doctorCompleteEncounter — diagnosis requirement', () => {
+    const encounterRow = {
+      rows: [{ nurse_id: 4, patient_id: 1, room_number: '101', patient_name: 'John Doe' }],
+    };
+
+    it('blocks sign-off for an insured patient with no diagnosis', async () => {
+      vi.mocked(pool.query)
+        // 1. SELECT encounter
+        .mockResolvedValueOnce(encounterRow as any)
+        // 2. payer lookup -> insurance
+        .mockResolvedValueOnce({ rows: [{ payer_type: 'insurance' }] } as any)
+        // 3. diagnosis lookup -> none
+        .mockResolvedValueOnce({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED', payer_type: 'insurance' })
+      );
+      // Must not have written the status update.
+      expect(vi.mocked(pool.query).mock.calls.length).toBe(3);
+    });
+
+    it('blocks sign-off for a corporate-billed patient with no diagnosis', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce({ rows: [{ payer_type: 'corporate' }] } as any)
+        .mockResolvedValueOnce({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED', payer_type: 'corporate' })
+      );
+    });
+
+    it('allows sign-off for an insured patient WITH a diagnosis', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce({ rows: [{ payer_type: 'insurance' }] } as any)
+        // diagnosis present
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as any)
+        // UPDATE encounter + INSERT alert
+        .mockResolvedValue({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
+    });
+
+    it('does NOT block a self-pay patient with no diagnosis', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        // payer lookup returns nothing (query filters to insurance/corporate)
+        .mockResolvedValueOnce({ rows: [] } as any)
+        .mockResolvedValue({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
+    });
+  });
+
   describe('checkoutPatient', () => {
     it('should successfully discharge patient', async () => {
       const mockClient = createMockClient();

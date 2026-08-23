@@ -1406,6 +1406,40 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
 
     const { nurse_id, patient_id, room_number, patient_name } = encounterResult.rows[0];
 
+    // A bill that goes to an insurer or a corporate client is rejected without a
+    // diagnosis on it — Dr. Sedo reported exactly this, and 79% of encounters in
+    // the last 90 days had none recorded. Block sign-off for payer-billed
+    // patients until the doctor enters one, while they're still in the chart.
+    // Self-pay visits are deliberately NOT blocked: nobody is adjudicating those
+    // claims, and hard-stopping every visit at once would stall the clinic.
+    const payerResult = await pool.query(
+      `SELECT payer_type FROM patient_payer_sources
+       WHERE patient_id = $1 AND payer_type IN ('insurance', 'corporate')
+       ORDER BY is_primary DESC
+       LIMIT 1`,
+      [patient_id]
+    );
+
+    if (payerResult.rows.length > 0) {
+      const diagnosisResult = await pool.query(
+        `SELECT 1 FROM diagnoses
+         WHERE encounter_id = $1
+           AND COALESCE(TRIM(diagnosis_description), '') <> ''
+         LIMIT 1`,
+        [encounter_id]
+      );
+
+      if (diagnosisResult.rows.length === 0) {
+        const payerType = payerResult.rows[0].payer_type;
+        res.status(400).json({
+          error: `A diagnosis is required before completing this visit — this patient is billed to ${payerType === 'insurance' ? 'an insurer' : 'a corporate client'}, who will not pay a claim without one.`,
+          code: 'DIAGNOSIS_REQUIRED',
+          payer_type: payerType,
+        });
+        return;
+      }
+    }
+
     // Update encounter status to 'with_nurse' - patient goes back to nurse
     // Include follow-up data if provided
     await pool.query(
