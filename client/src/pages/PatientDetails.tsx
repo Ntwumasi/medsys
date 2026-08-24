@@ -7,6 +7,7 @@ import type { PatientSummary } from '../types';
 import { safeFormatDate } from '../utils/age';
 import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import LabResultsInline from '../components/LabResultsInline';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
@@ -1519,7 +1520,13 @@ const PatientDetails: React.FC = () => {
                           {lab.results && lab.results.trim() && (
                             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
                               <h4 className="text-sm font-bold text-emerald-800 mb-2">Results:</h4>
-                              <p className="text-gray-900 whitespace-pre-wrap">{lab.results}</p>
+                              {/* Structured results are stored as {parameter_code: value} JSON.
+                                  Printing the raw string dumped things like
+                                  {"HBA1C_NGSP":"8.2","HBA1C_IFCC":"66"} on screen. LabResultsInline
+                                  renders the parameter names, units, reference ranges and
+                                  abnormal flags, and falls through to plain text for
+                                  single-value or legacy results. */}
+                              <LabResultsInline result={lab.results} orderId={lab.id} />
                             </div>
                           )}
 

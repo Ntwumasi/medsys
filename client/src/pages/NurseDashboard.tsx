@@ -11,6 +11,7 @@ import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import LabResultsInline from '../components/LabResultsInline';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
@@ -3706,7 +3707,7 @@ const NurseDashboard: React.FC = () => {
                                               </span>
                                             )}
                                           </div>
-                                          <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans">{order.results}</pre>
+                                          <LabResultsInline result={order.results} orderId={order.id} compact />
                                         </div>
                                       )}
                                       {order.notes && !order.results && (

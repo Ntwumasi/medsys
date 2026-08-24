@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import AppLayout from '../components/AppLayout';
+import LabResultsInline from '../components/LabResultsInline';
 import apiClient from '../api/client';
 import { setActiveToken } from '../api/client';
 import { patientPortalAPI } from '../api/patientPortal';
@@ -98,7 +99,12 @@ const PatientPortal: React.FC = () => {
               <StatusPill status={o.verification_status === 'verified' ? 'Verified' : o.status} />
             </div>
             {o.results ? (
-              <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{o.results}</p>
+              // No orderId: the parameters endpoint isn't open to the patient
+              // role, so passing one would just 403 per result. Names are still
+              // humanised; only the reference-range column is absent.
+              <div className="mt-2">
+                <LabResultsInline result={o.results} compact />
+              </div>
             ) : (
               <p className="mt-2 text-sm text-gray-400">Result pending — your provider will discuss it with you.</p>
             )}
