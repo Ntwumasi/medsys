@@ -64,6 +64,24 @@ describe('patient registration validation messages', () => {
     expect(msg).not.toContain('String must contain');
   });
 
+  // The Staff payer checkbox shipped 2026-07-15 with both DB CHECK constraints
+  // migrated to accept 'staff', but this enum was left behind — so every staff
+  // registration 400'd. Zero staff rows existed in production as a result.
+  it.each(['self_pay', 'corporate', 'insurance', 'staff'])(
+    'accepts the %s payer type the registration form can send',
+    (payerType) => {
+      const extra =
+        payerType === 'corporate' ? { corporate_client_id: 1 }
+        : payerType === 'insurance' ? { insurance_provider_id: 1 }
+        : {};
+      const result = createPatientSchema.safeParse({
+        ...validPatient,
+        payer_sources: [{ payer_type: payerType, ...extra }],
+      });
+      expect(result.success).toBe(true);
+    }
+  );
+
   it('humanizes nested payer source paths', () => {
     const msg = messageFor({ ...validPatient, payer_sources: [{ payer_type: '' }] });
     expect(msg).toContain('Payer source 1');

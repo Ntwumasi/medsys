@@ -92,7 +92,12 @@ const genderSchema = z
   );
 
 const payerSourceSchema = z.object({
-  payer_type: z.enum(['self_pay', 'corporate', 'insurance']).optional(),
+  // 'staff' (clinic employees seen as patients) shipped in PR #17 on 2026-07-15:
+  // the registration form got a Staff checkbox and BOTH database CHECK
+  // constraints were migrated to accept it — but this enum wasn't, so every
+  // staff registration since has been rejected as "Validation failed" with no
+  // field named. Keep in step with `valid_payer_source` on patient_payer_sources.
+  payer_type: z.enum(['self_pay', 'corporate', 'insurance', 'staff']).optional(),
   corporate_client_id: z.number().int().positive().optional().nullable(),
   insurance_provider_id: z.number().int().positive().optional().nullable(),
 }).passthrough();
