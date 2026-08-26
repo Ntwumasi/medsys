@@ -709,6 +709,11 @@ const PharmacyDashboard: React.FC = () => {
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [revenueSearch, setRevenueSearch] = useState('');
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  // A failed fetch used to be console.error-only, leaving the panel on its
+  // "click Generate Report" empty state — which reads as "there is no revenue"
+  // rather than "the request failed". Irene reported exactly that.
+  const [revenueError, setRevenueError] = useState<string | null>(null);
 
   // Medication pricing state
   const [pricingSearch, setPricingSearch] = useState('');
@@ -1833,6 +1838,8 @@ const PharmacyDashboard: React.FC = () => {
   };
 
   const fetchRevenueSummary = async () => {
+    setRevenueLoading(true);
+    setRevenueError(null);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('start_date', startDate);
@@ -1841,8 +1848,19 @@ const PharmacyDashboard: React.FC = () => {
       const qs = params.toString();
       const response = await apiClient.get('/pharmacy/revenue' + (qs ? `?${qs}` : ''));
       setRevenueData(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching revenue:', error);
+      const message =
+        error.response?.status === 403
+          ? "Your account doesn't have permission to view pharmacy revenue."
+          : error.response?.data?.error || error.message || 'Could not load revenue.';
+      setRevenueError(message);
+      // Don't leave stale figures on screen next to an error — they'd read as
+      // current.
+      setRevenueData(null);
+      showToast(`Revenue: ${message}`, 'error');
+    } finally {
+      setRevenueLoading(false);
     }
   };
 
@@ -3895,6 +3913,24 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </>
+            ) : revenueLoading ? (
+              <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-success-600" />
+                <p className="mt-3">Loading revenue…</p>
+              </div>
+            ) : revenueError ? (
+              // Say the request failed, rather than showing the "click Generate
+              // Report" prompt — which looks identical to having no revenue.
+              <div className="bg-white rounded-xl shadow p-12 text-center border border-danger-200">
+                <p className="text-danger-700 font-semibold">Couldn't load revenue</p>
+                <p className="text-gray-600 mt-1 text-sm">{revenueError}</p>
+                <button
+                  onClick={fetchRevenueSummary}
+                  className="mt-4 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium"
+                >
+                  Try again
+                </button>
+              </div>
             ) : (
               <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
                 Select a date range and click "Generate Report" to view revenue summary
