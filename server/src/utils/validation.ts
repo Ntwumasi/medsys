@@ -9,8 +9,22 @@ import { z } from 'zod';
 import { Request, Response, NextFunction } from 'express';
 
 // Common validation patterns
-const emailSchema = z.string().email('Invalid email format').max(255);
-const phoneSchema = z.string().regex(/^[\d\s\-\+\(\)]*$/, 'Invalid phone number format').max(20).optional().or(z.literal(''));
+const emailSchema = z
+  .string()
+  .email("doesn't look like an email address (e.g. name@example.com) — leave it blank if there isn't one")
+  .max(255);
+// Message says what IS allowed — staff were hitting this with placeholder text
+// like "PENDING" or two numbers in one box, and "Invalid phone number format"
+// doesn't tell them what to do about it. Leave it blank if there's no number.
+const phoneSchema = z
+  .string()
+  .regex(
+    /^[\d\s\-\+\(\)]*$/,
+    'can only contain digits, spaces and + - ( ) — leave blank if there is no number, and record a second number in the notes'
+  )
+  .max(20)
+  .optional()
+  .or(z.literal(''));
 const uuidSchema = z.string().uuid('Invalid ID format');
 const positiveIntSchema = z.number().int().positive();
 const dateSchema = z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid date format');
@@ -206,6 +220,69 @@ export const clinicalNoteSchema = z.object({
   content: z.string().min(1, 'Note content is required').max(50000),
 }).passthrough();
 
+// ============ Error Formatting ============
+
+// Turns a Zod path into something a receptionist can act on:
+// 'first_name' -> 'First name', 'payer_sources.0.payer_type' -> 'Payer source 1 payer type'.
+const humanizeFieldPath = (path: string): string => {
+  if (!path) return 'Form';
+  const parts = path.split('.').map((seg) =>
+    /^\d+$/.test(seg) ? `${parseInt(seg, 10) + 1}` : seg.replace(/_/g, ' ')
+  );
+  const joined = parts
+    .join(' ')
+    // 'payer sources 1 payer type' reads better singular before an index
+    .replace(/\bsources (\d+)\b/, 'source $1');
+  return joined.charAt(0).toUpperCase() + joined.slice(1);
+};
+
+/**
+ * Builds a single human-readable sentence naming the fields that failed.
+ *
+ * The 400 body has always carried a `details` array, but the registration
+ * screens only rendered the top-level `error` — so staff saw a bare
+ * "Validation failed" with no indication of WHICH field was wrong, and no way
+ * to fix it. Sending a populated `message` means any client that shows
+ * `data.message` (most already prefer it) surfaces something actionable.
+ */
+// Zod's defaults are written for developers ("String must contain at most 20
+// character(s)"). Rewrite the ones staff actually hit.
+const humanizeZodMessage = (message: string): string => {
+  const tooLong = message.match(/String must contain at most (\d+) character\(s\)/);
+  if (tooLong) return `must be ${tooLong[1]} characters or fewer`;
+
+  const tooShort = message.match(/String must contain at least (\d+) character\(s\)/);
+  if (tooShort) return `must be at least ${tooShort[1]} characters`;
+
+  if (/^Invalid enum value.*received ''$/.test(message)) return 'please choose an option';
+
+  const enumMatch = message.match(/^Invalid enum value\. Expected (.*?), received/);
+  if (enumMatch) return `must be one of: ${enumMatch[1].replace(/'/g, '')}`;
+
+  if (message === 'Required') return 'is required';
+  if (message === 'Invalid input') return 'is not a valid choice';
+
+  return message;
+};
+
+export const formatValidationMessage = (
+  errors: Array<{ field: string; message: string }>
+): string => {
+  if (errors.length === 0) return 'Validation failed';
+
+  // One line per field. A single bad phone can trip both the format regex and
+  // the length cap, and naming it twice reads like two separate problems.
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const e of errors) {
+    if (seen.has(e.field)) continue;
+    seen.add(e.field);
+    parts.push(`${humanizeFieldPath(e.field)} — ${humanizeZodMessage(e.message)}`);
+  }
+
+  return `Please check: ${parts.join('; ')}`;
+};
+
 // ============ Middleware Factory ============
 
 /**
@@ -231,6 +308,7 @@ export const validateBody = <T extends z.ZodType>(schema: T) => {
 
         res.status(400).json({
           error: 'Validation failed',
+          message: formatValidationMessage(errors),
           details: errors,
         });
         return;

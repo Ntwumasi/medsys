@@ -11,6 +11,7 @@ import PrintableInvoice from '../components/PrintableInvoice';
 import UnbilledPayerEncounters from '../components/UnbilledPayerEncounters';
 import PatientStatement from '../components/PatientStatement';
 import SearchBar from '../components/SearchBar';
+import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -1261,8 +1262,10 @@ const ReceptionistDashboard: React.FC = () => {
       setActiveView('queue');
     } catch (error) {
       console.error('Error creating new patient:', error);
-      const apiError = error as ApiError;
-      const errorMessage = apiError.response?.data?.message || apiError.response?.data?.error || 'Failed to register new patient';
+      // Prefer the field-level detail from a validation 400 — the top-level
+      // error is just "Validation failed", which left reception with no idea
+      // which field to correct.
+      const errorMessage = getApiError(error, 'Failed to register new patient');
       showToast(errorMessage, 'error');
     }
   };

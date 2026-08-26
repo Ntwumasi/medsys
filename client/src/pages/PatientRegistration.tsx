@@ -5,6 +5,7 @@ import type { ApiError } from '../types';
 import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Select } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
+import { formatApiValidationError } from '../utils/apiError';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
@@ -69,7 +70,15 @@ const PatientRegistration: React.FC = () => {
         });
         setError(responseData.message || 'A patient with this information already exists.');
       } else {
-        setError(responseData?.error || 'Failed to register patient');
+        // A 400 from validateBody carries `details` naming each offending
+        // field. Showing only `error` rendered a bare "Validation failed",
+        // which told reception nothing about what to correct.
+        setError(
+          responseData?.message ||
+            formatApiValidationError(responseData) ||
+            responseData?.error ||
+            'Failed to register patient'
+        );
       }
     } finally {
       setLoading(false);
