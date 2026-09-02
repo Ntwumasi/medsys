@@ -186,8 +186,10 @@ const ReceiptsPage: React.FC = () => {
     return map[method] || 'bg-gray-100 text-gray-800';
   };
 
-  const safeDate = (dateStr: string) => {
-    try { return format(new Date(dateStr), 'MMM d, yyyy'); } catch { return dateStr; }
+  // Receipts issued to patients carry the TIME as well as the date, so two
+  // payments on the same day can be told apart (office manager's request).
+  const safeDateTime = (dateStr: string) => {
+    try { return format(new Date(dateStr), 'MMM d, yyyy h:mm a'); } catch { return dateStr; }
   };
 
   return (
@@ -283,7 +285,7 @@ const ReceiptsPage: React.FC = () => {
                   {receipts.map((receipt) => (
                     <tr key={receipt.id} className="hover:bg-gray-50">
                       <td className="px-6 py-3 text-sm font-mono text-gray-600">RCP{String(receipt.id).padStart(6, '0')}</td>
-                      <td className="px-6 py-3 text-sm text-gray-700">{safeDate(receipt.payment_date)}</td>
+                      <td className="px-6 py-3 text-sm text-gray-700">{safeDateTime(receipt.payment_date)}</td>
                       <td className="px-6 py-3">
                         <div className="text-sm font-medium text-gray-900">{receipt.patient_name}</div>
                         <div className="text-xs text-gray-500">{receipt.patient_number}</div>
@@ -363,7 +365,7 @@ const ReceiptsPage: React.FC = () => {
                       <span className="font-semibold">Receipt #:</span> RCP{String(selectedReceipt.id).padStart(6, '0')}
                     </p>
                     <p className="text-sm text-gray-600">
-                      <span className="font-semibold">Date:</span> {safeDate(selectedReceipt.payment_date)}
+                      <span className="font-semibold">Date:</span> {safeDateTime(selectedReceipt.payment_date)}
                     </p>
                     <p className="text-sm text-gray-600">
                       <span className="font-semibold">Invoice:</span> {selectedReceipt.invoice_number}

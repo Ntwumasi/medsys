@@ -1262,7 +1262,12 @@ export const generateReceipt = async (req: Request, res: Response): Promise<void
     // Receipt Details - compact
     doc.fontSize(9).font('Helvetica');
     doc.text(`Receipt #: ${payment.reference_number || `RCP-${payment.id}`}`);
-    doc.text(`Date: ${new Date(payment.payment_date).toLocaleDateString()}`);
+    // Date AND time — patients can pay twice in one day, and a date-only
+    // receipt can't be told apart from the other (office manager's request).
+    doc.text(`Date: ${new Date(payment.payment_date).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    })}`);
     doc.moveDown(0.5);
 
     // Patient Info - compact

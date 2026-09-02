@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
 import apiClient from '../api/client';
+import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
@@ -446,6 +447,7 @@ const AccountantDashboard: React.FC = () => {
   // Aging
   const [agingInvoices, setAgingInvoices] = useState<AgingInvoice[]>([]);
   const [agingSummary, setAgingSummary] = useState<AgingSummary[]>([]);
+  const [agingError, setAgingError] = useState<string | null>(null);
   const [agingLoading, setAgingLoading] = useState(false);
   // Financial summary
   const [financials, setFinancials] = useState<FinancialStatement | null>(null);
@@ -587,12 +589,23 @@ const AccountantDashboard: React.FC = () => {
 
   const loadAgingReport = async () => {
     setAgingLoading(true);
+    setAgingError(null);
     try {
       const response = await apiClient.get('/accountant/reports/aging');
       setAgingInvoices(response.data.invoices || []);
       setAgingSummary(response.data.summary || []);
-    } catch (error) {
+    } catch (error: any) {
+      // Was console.error-only: a failure left an empty table that looks
+      // identical to "no outstanding invoices", which is how this got reported
+      // as "aging payments not working" with nothing to go on.
       console.error('Error loading aging report:', error);
+      const message =
+        error.response?.status === 403
+          ? "Your account doesn't have permission to view the aging report."
+          : getApiError(error, 'Could not load the aging report.');
+      setAgingError(message);
+      setAgingInvoices([]);
+      setAgingSummary([]);
     } finally {
       setAgingLoading(false);
     }
@@ -1824,6 +1837,21 @@ const AccountantDashboard: React.FC = () => {
               <div className="space-y-6">
                 {agingLoading ? (
                   <AgingSkeleton />
+                ) : agingError ? (
+                  <div className="bg-white rounded-xl shadow p-12 text-center border border-red-200">
+                    <p className="text-red-700 font-semibold">Couldn't load the aging report</p>
+                    <p className="text-gray-600 mt-1 text-sm">{agingError}</p>
+                    <button
+                      onClick={loadAgingReport}
+                      className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : agingSummary.length === 0 ? (
+                  <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                    No outstanding invoices to age — every invoice is settled.
+                  </div>
                 ) : (
                   <>
                     {/* Aging Summary */}
