@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
+import apiClient from '../api/client';
 import type { ApiError } from '../types';
 import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Select } from '../components/ui';
@@ -104,23 +105,22 @@ const PatientRegistration: React.FC = () => {
     { value: 'Savannah', label: 'Savannah' },
   ];
 
-  const clinics = [
-    { value: 'General Practice', label: 'General Practice' },
-    { value: 'ENT (Ear, Nose & Throat)', label: 'ENT (Ear, Nose & Throat)' },
-    { value: 'Urology', label: 'Urology' },
-    { value: 'Cardiology', label: 'Cardiology' },
-    { value: 'Dermatology', label: 'Dermatology' },
-    { value: 'Gastroenterology', label: 'Gastroenterology' },
-    { value: 'Neurology', label: 'Neurology' },
-    { value: 'Obstetrics & Gynecology', label: 'Obstetrics & Gynecology' },
-    { value: 'Ophthalmology', label: 'Ophthalmology' },
-    { value: 'Orthopedics', label: 'Orthopedics' },
-    { value: 'Pediatrics', label: 'Pediatrics' },
-    { value: 'Psychiatry', label: 'Psychiatry' },
-    { value: 'Pulmonology', label: 'Pulmonology' },
-    { value: 'Rheumatology', label: 'Rheumatology' },
-    { value: 'Endocrinology', label: 'Endocrinology' },
-  ];
+  // Loaded from the clinics table rather than hardcoded. The fixed list here
+  // held 15 entries while 30 clinics were active, so Family Medicine, Health
+  // and Wellness, Internal Medicine and others could never be picked as a
+  // patient's preferred clinic.
+  const [clinics, setClinics] = useState<Array<{ value: string; label: string }>>([]);
+  useEffect(() => {
+    apiClient.get('/clinics')
+      .then((res) => {
+        setClinics(
+          (res.data.clinics || [])
+            .filter((c: { name: string; is_active?: boolean }) => c.is_active !== false)
+            .map((c: { name: string }) => ({ value: c.name, label: c.name }))
+        );
+      })
+      .catch(() => setClinics([]));
+  }, []);
 
   const genderOptions = [
     { value: 'Male', label: 'Male' },

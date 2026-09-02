@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
+import { getApiError } from '../utils/apiError';
 import { taskDueMeta } from '../utils/taskDue';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SystemUpdates from '../components/SystemUpdates';
@@ -544,6 +545,10 @@ const Dashboard: React.FC = () => {
   const [loadingCorporateClients, setLoadingCorporateClients] = useState(true);
   const [showCorporateForm, setShowCorporateForm] = useState(false);
   const [corporateForm, setCorporateForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
+  // Set while editing an existing client; null means the form is creating a new
+  // one. The PUT endpoint already existed — only the UI to reach it was missing,
+  // so details could be added but never corrected.
+  const [editingCorporateId, setEditingCorporateId] = useState<number | null>(null);
 
   // Doctors state
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -553,6 +558,7 @@ const Dashboard: React.FC = () => {
   const [loadingInsuranceProviders, setLoadingInsuranceProviders] = useState(true);
   const [showInsuranceForm, setShowInsuranceForm] = useState(false);
   const [insuranceForm, setInsuranceForm] = useState({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+  const [editingInsuranceId, setEditingInsuranceId] = useState<number | null>(null);
   // --- Per-insurer tariff editor ---
   interface TariffRow { id: number; service_name: string; service_code: string; category: string; cash_price: string | number; payer_price: string | number | null; is_excluded: boolean; }
   const [tariffPayer, setTariffPayer] = useState<{ id: number; name: string; payer_type: 'insurance' | 'corporate' } | null>(null);
@@ -579,6 +585,24 @@ const Dashboard: React.FC = () => {
     clinic: '', // only relevant when role === 'doctor'
     display_title: '', // optional per-user dashboard/role label override
   });
+
+  // Clinic options come from the clinics table, NOT a hardcoded list. The list
+  // here used to be 15 fixed entries while the clinic table held 30 active
+  // ones, so Family Medicine, Health and Wellness, Internal Medicine and 14
+  // others simply could not be assigned to a doctor — which is why those
+  // clinics "didn't show" for Richardson, Aiyenigba and Essel. Anything the
+  // admin adds under Clinic Management is now assignable immediately.
+  const [clinicOptions, setClinicOptions] = useState<string[]>([]);
+  useEffect(() => {
+    apiClient.get('/clinics')
+      .then((res) => {
+        const names = (res.data.clinics || [])
+          .filter((c: { name: string; is_active?: boolean }) => c.is_active !== false)
+          .map((c: { name: string }) => c.name);
+        setClinicOptions(names);
+      })
+      .catch(() => setClinicOptions([]));
+  }, []);
 
   // Staff filtering, sorting, and pagination state
   const [staffSearchTerm, setStaffSearchTerm] = useState('');
@@ -1058,31 +1082,75 @@ const Dashboard: React.FC = () => {
         ...corporateForm,
         assigned_doctor_id: Number(corporateForm.assigned_doctor_id),
       };
-      await apiClient.post('/payer-sources/corporate-clients', payload);
+      if (editingCorporateId) {
+        await apiClient.put(`/payer-sources/corporate-clients/${editingCorporateId}`, payload);
+      } else {
+        await apiClient.post('/payer-sources/corporate-clients', payload);
+      }
+      const wasEditing = editingCorporateId !== null;
       setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
+      setEditingCorporateId(null);
       setShowCorporateForm(false);
       loadCorporateClients();
-      showToast('Corporate client added successfully!', 'success');
+      showToast(wasEditing ? 'Corporate client updated.' : 'Corporate client added successfully!', 'success');
     } catch (err) {
-      const error = err as ApiError;
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add corporate client';
-      showToast(`Error: ${errorMessage}`, 'error');
+      showToast(getApiError(err, 'Failed to save corporate client'), 'error');
     }
+  };
+
+  // Load an existing client into the form and switch it to edit mode.
+  const startEditCorporateClient = (client: CorporateClient) => {
+    setEditingCorporateId(client.id);
+    setCorporateForm({
+      name: client.name || '',
+      contact_person: client.contact_person || '',
+      contact_email: client.contact_email || '',
+      contact_phone: client.contact_phone || '',
+      assigned_doctor_id: client.assigned_doctor_id ? String(client.assigned_doctor_id) : '',
+    });
+    setShowCorporateForm(true);
+  };
+
+  const cancelCorporateEdit = () => {
+    setEditingCorporateId(null);
+    setCorporateForm({ name: '', contact_person: '', contact_email: '', contact_phone: '', assigned_doctor_id: '' });
+    setShowCorporateForm(false);
   };
 
   const handleCreateInsuranceProvider = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await apiClient.post('/payer-sources/insurance-providers', insuranceForm);
+      if (editingInsuranceId) {
+        await apiClient.put(`/payer-sources/insurance-providers/${editingInsuranceId}`, insuranceForm);
+      } else {
+        await apiClient.post('/payer-sources/insurance-providers', insuranceForm);
+      }
+      const wasEditing = editingInsuranceId !== null;
       setInsuranceForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+      setEditingInsuranceId(null);
       setShowInsuranceForm(false);
       loadInsuranceProviders();
-      showToast('Insurance provider added successfully!', 'success');
+      showToast(wasEditing ? 'Insurance provider updated.' : 'Insurance provider added successfully!', 'success');
     } catch (err) {
-      const error = err as ApiError;
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to add insurance provider';
-      showToast(`Error: ${errorMessage}`, 'error');
+      showToast(getApiError(err, 'Failed to save insurance provider'), 'error');
     }
+  };
+
+  const startEditInsuranceProvider = (provider: InsuranceProvider) => {
+    setEditingInsuranceId(provider.id);
+    setInsuranceForm({
+      name: provider.name || '',
+      contact_person: provider.contact_person || '',
+      contact_email: provider.contact_email || '',
+      contact_phone: provider.contact_phone || '',
+    });
+    setShowInsuranceForm(true);
+  };
+
+  const cancelInsuranceEdit = () => {
+    setEditingInsuranceId(null);
+    setInsuranceForm({ name: '', contact_person: '', contact_email: '', contact_phone: '' });
+    setShowInsuranceForm(false);
   };
 
   const handleDeleteCorporateClient = async (id: number) => {
@@ -2143,7 +2211,7 @@ const Dashboard: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Corporate Clients</h2>
               <button
-                onClick={() => setShowCorporateForm(!showCorporateForm)}
+                onClick={() => (showCorporateForm ? cancelCorporateEdit() : setShowCorporateForm(true))}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 {showCorporateForm ? 'Cancel' : 'Add New Client'}
@@ -2152,6 +2220,9 @@ const Dashboard: React.FC = () => {
 
             {showCorporateForm && (
               <form onSubmit={handleCreateCorporateClient} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                  {editingCorporateId ? 'Edit corporate client' : 'New corporate client'}
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2217,7 +2288,7 @@ const Dashboard: React.FC = () => {
                     type="submit"
                     className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
                   >
-                    Save Corporate Client
+                    {editingCorporateId ? 'Update Corporate Client' : 'Save Corporate Client'}
                   </button>
                 </div>
               </form>
@@ -2277,6 +2348,12 @@ const Dashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
+                          onClick={() => startEditCorporateClient(client)}
+                          className="text-primary-600 hover:text-primary-900 mr-4"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => handleDeleteCorporateClient(client.id)}
                           className="text-danger-600 hover:text-danger-900"
                         >
@@ -2297,7 +2374,7 @@ const Dashboard: React.FC = () => {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Insurance Providers</h2>
               <button
-                onClick={() => setShowInsuranceForm(!showInsuranceForm)}
+                onClick={() => (showInsuranceForm ? cancelInsuranceEdit() : setShowInsuranceForm(true))}
                 className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
               >
                 {showInsuranceForm ? 'Cancel' : 'Add New Provider'}
@@ -2306,6 +2383,9 @@ const Dashboard: React.FC = () => {
 
             {showInsuranceForm && (
               <form onSubmit={handleCreateInsuranceProvider} className="mb-6 p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+                  {editingInsuranceId ? 'Edit insurance provider' : 'New insurance provider'}
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -2358,7 +2438,7 @@ const Dashboard: React.FC = () => {
                     type="submit"
                     className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
                   >
-                    Save Insurance Provider
+                    {editingInsuranceId ? 'Update Insurance Provider' : 'Save Insurance Provider'}
                   </button>
                 </div>
               </form>
@@ -2410,6 +2490,12 @@ const Dashboard: React.FC = () => {
                           className="text-primary-600 hover:text-primary-900"
                         >
                           Tariffs
+                        </button>
+                        <button
+                          onClick={() => startEditInsuranceProvider(provider)}
+                          className="text-primary-600 hover:text-primary-900 mx-4"
+                        >
+                          Edit
                         </button>
                         <button
                           onClick={() => handleDeleteInsuranceProvider(provider.id)}
@@ -2763,24 +2849,19 @@ const Dashboard: React.FC = () => {
                         onChange={(val) => setStaffForm({ ...staffForm, clinic: val })}
                         placeholder="— Select clinic —"
                         options={[
-                          { value: 'General Practice', label: 'General Practice' },
-                          { value: 'ENT (Ear, Nose & Throat)', label: 'ENT (Ear, Nose & Throat)' },
-                          { value: 'Urology', label: 'Urology' },
-                          { value: 'Cardiology', label: 'Cardiology' },
-                          { value: 'Dermatology', label: 'Dermatology' },
-                          { value: 'Gastroenterology', label: 'Gastroenterology' },
-                          { value: 'Neurology', label: 'Neurology' },
-                          { value: 'Obstetrics & Gynecology', label: 'Obstetrics & Gynecology' },
-                          { value: 'Ophthalmology', label: 'Ophthalmology' },
-                          { value: 'Orthopedics', label: 'Orthopedics' },
-                          { value: 'Pediatrics', label: 'Pediatrics' },
-                          { value: 'Psychiatry', label: 'Psychiatry' },
-                          { value: 'Pulmonology', label: 'Pulmonology' },
-                          { value: 'Rheumatology', label: 'Rheumatology' },
-                          { value: 'Endocrinology', label: 'Endocrinology' },
+                          // Keep whatever the doctor already has, even if that
+                          // clinic was since deactivated — otherwise opening the
+                          // edit form silently blanks their existing assignment.
+                          ...(staffForm.clinic && !clinicOptions.includes(staffForm.clinic)
+                            ? [{ value: staffForm.clinic, label: `${staffForm.clinic} (inactive)` }]
+                            : []),
+                          ...clinicOptions.map((c) => ({ value: c, label: c })),
                         ]}
                       />
-                      <p className="text-xs text-gray-500 mt-1">Which clinic this doctor practices in.</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Which clinic this doctor practices in. The list comes from Clinic Management — add a clinic
+                        there and it appears here.
+                      </p>
                     </div>
                   )}
                   <div>
