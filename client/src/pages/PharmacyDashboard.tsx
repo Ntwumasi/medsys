@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, differenceInMonths, differenceInYears } from 'date-fns';
@@ -1836,6 +1836,17 @@ const PharmacyDashboard: React.FC = () => {
       setLoadingDrugHistory(false);
     }
   };
+
+  // Built once per inventory change, not on every render. This list is 443
+  // items; rebuilding it while the pharmacist types into the procurement
+  // medication picker is part of why that search felt frozen.
+  const inventoryOptions = useMemo(
+    () => inventory.map((inv) => ({
+      value: String(inv.id),
+      label: `${inv.medication_name} (${inv.quantity_on_hand} in stock)`,
+    })),
+    [inventory]
+  );
 
   const fetchRevenueSummary = async () => {
     setRevenueLoading(true);
@@ -4026,7 +4037,7 @@ const PharmacyDashboard: React.FC = () => {
                             value={item.inventory_id}
                             onChange={(val) => updateLineItem(idx, 'inventory_id', val)}
                             placeholder="Select medication..."
-                            options={inventory.map((inv) => ({ value: String(inv.id), label: `${inv.medication_name} (${inv.quantity_on_hand} in stock)` }))}
+                            options={inventoryOptions}
                           />
                         </div>
                         <div>

@@ -226,6 +226,17 @@ export const transcribeAudio = async (req: Request, res: Response): Promise<void
       return;
     }
 
+    // The transcription API rejects anything over 25 MB. A long dictation hits
+    // this, and the failure used to surface as a bare "Failed to transcribe
+    // audio." with no hint that length was the problem.
+    const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+    if (buffer.length > MAX_AUDIO_BYTES) {
+      res.status(413).json({
+        error: `That recording is too long to transcribe (${(buffer.length / 1024 / 1024).toFixed(1)} MB, limit 25 MB). Record it in shorter sections.`,
+      });
+      return;
+    }
+
     const ext = (mime_type || '').includes('mp4') ? 'mp4'
               : (mime_type || '').includes('wav') ? 'wav'
               : (mime_type || '').includes('mpeg') ? 'mp3'
@@ -242,15 +253,39 @@ export const transcribeAudio = async (req: Request, res: Response): Promise<void
       language: 'en',
     });
 
-    res.json({ text: (result.text || '').trim() });
+    const text = (result.text || '').trim();
+    if (!text) {
+      // A silent or unintelligible recording transcribes to an empty string.
+      // Say so, rather than handing back a blank box that reads as a failure.
+      res.status(422).json({ error: 'Nothing could be heard in that recording — check the microphone and try again.' });
+      return;
+    }
+
+    res.json({ text });
   } catch (error: any) {
-    console.error('Transcribe audio error:', error);
+    // Log everything useful; production logs are the only way to see this
+    // after the fact.
+    console.error('Transcribe audio error:', {
+      status: error?.status,
+      code: error?.code,
+      type: error?.type,
+      message: error?.message,
+    });
+
     if (error.code === 'rate_limit_exceeded') {
       res.status(429).json({ error: 'AI service rate limit exceeded. Please try again.' });
     } else if (error.code === 'insufficient_quota') {
-      res.status(402).json({ error: 'AI service quota exceeded.' });
+      res.status(402).json({ error: 'AI service quota exceeded — the OpenAI account needs topping up.' });
+    } else if (error?.status === 401) {
+      res.status(500).json({ error: 'The AI service rejected our credentials (OPENAI_API_KEY invalid or revoked).' });
+    } else if (error?.status === 404) {
+      res.status(500).json({ error: 'The transcription model is unavailable to this account.' });
     } else {
-      res.status(500).json({ error: 'Failed to transcribe audio.' });
+      // Include the provider's own message. Doctors reported only "Failed to
+      // transcribe audio.", which named no cause and left nothing to act on;
+      // this endpoint is staff-only (doctor/nurse), so the detail is safe here.
+      const detail = error?.message ? ` (${error.message})` : '';
+      res.status(500).json({ error: `Failed to transcribe audio.${detail}` });
     }
   }
 };
