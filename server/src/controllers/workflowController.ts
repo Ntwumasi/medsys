@@ -8,6 +8,7 @@ import { getNextMonOrThu } from './nurseFollowUpTaskController';
 import { resolveLabCatalogItem } from './ordersController';
 import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 import { nextInvoiceNumber } from '../services/sequences';
+import { encounterHasDiagnosis, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 
 // Clinic string → department queue, for the four walk-in desks that bill per
 // service. Single source of truth: the duplicate-check-in guard and the routing
@@ -1406,38 +1407,14 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
 
     const { nurse_id, patient_id, room_number, patient_name } = encounterResult.rows[0];
 
-    // A bill that goes to an insurer or a corporate client is rejected without a
-    // diagnosis on it — Dr. Sedo reported exactly this, and 79% of encounters in
-    // the last 90 days had none recorded. Block sign-off for payer-billed
-    // patients until the doctor enters one, while they're still in the chart.
-    // Self-pay visits are deliberately NOT blocked: nobody is adjudicating those
-    // claims, and hard-stopping every visit at once would stall the clinic.
-    const payerResult = await pool.query(
-      `SELECT payer_type FROM patient_payer_sources
-       WHERE patient_id = $1 AND payer_type IN ('insurance', 'corporate')
-       ORDER BY is_primary DESC
-       LIMIT 1`,
-      [patient_id]
-    );
-
-    if (payerResult.rows.length > 0) {
-      const diagnosisResult = await pool.query(
-        `SELECT 1 FROM diagnoses
-         WHERE encounter_id = $1
-           AND COALESCE(TRIM(diagnosis_description), '') <> ''
-         LIMIT 1`,
-        [encounter_id]
-      );
-
-      if (diagnosisResult.rows.length === 0) {
-        const payerType = payerResult.rows[0].payer_type;
-        res.status(400).json({
-          error: `A diagnosis is required before completing this visit — this patient is billed to ${payerType === 'insurance' ? 'an insurer' : 'a corporate client'}, who will not pay a claim without one.`,
-          code: 'DIAGNOSIS_REQUIRED',
-          payer_type: payerType,
-        });
-        return;
-      }
+    // HARD STOP: no diagnosis, no sign-off — for every patient, not just
+    // payer-billed ones. The earlier insurer/corporate-only rule left compliance
+    // in that very group at 39%, because this endpoint is not the only way out
+    // of an encounter (see diagnosisGuard). Cancellation stays exempt and is
+    // handled in updateEncounter.
+    if (!(await encounterHasDiagnosis(encounter_id))) {
+      res.status(400).json(diagnosisRequiredResponse);
+      return;
     }
 
     // Update encounter status to 'with_nurse' - patient goes back to nurse

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+import { encounterHasDiagnosis, isClosingStatus, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 
 export const createEncounter = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -140,6 +141,15 @@ export const updateEncounter = async (req: Request, res: Response): Promise<void
   try {
     const { id } = req.params;
     const updateData = req.body;
+
+    // Same diagnosis hard stop as doctor sign-off. This endpoint sets status
+    // directly, so without the check it was a way round the block — which is
+    // why compliance stayed low even for the patients that were "blocked".
+    // 'cancelled' is exempt: a no-show has nothing to diagnose.
+    if (isClosingStatus(updateData?.status) && !(await encounterHasDiagnosis(String(id)))) {
+      res.status(400).json(diagnosisRequiredResponse);
+      return;
+    }
 
     const { setClause, values } = buildSafeUpdateClause('encounters', updateData, 2);
 

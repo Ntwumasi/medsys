@@ -430,20 +430,19 @@ describe('workflowController', () => {
   });
 
   // ─── checkoutPatient ─────────────────────────────────────────────────
-  // Insurers and corporate clients reject claims with no diagnosis, which is why
-  // sign-off is blocked for those patients. Self-pay must stay unblocked.
+  // A diagnosis is now required to close ANY encounter, not just payer-billed
+  // ones — the insurer-only rule left compliance at 39% even inside the blocked
+  // group, because sign-off is not the only exit.
   describe('doctorCompleteEncounter — diagnosis requirement', () => {
     const encounterRow = {
       rows: [{ nurse_id: 4, patient_id: 1, room_number: '101', patient_name: 'John Doe' }],
     };
 
-    it('blocks sign-off for an insured patient with no diagnosis', async () => {
+    it('blocks sign-off when no diagnosis is recorded', async () => {
       vi.mocked(pool.query)
         // 1. SELECT encounter
         .mockResolvedValueOnce(encounterRow as any)
-        // 2. payer lookup -> insurance
-        .mockResolvedValueOnce({ rows: [{ payer_type: 'insurance' }] } as any)
-        // 3. diagnosis lookup -> none
+        // 2. diagnosis lookup -> none
         .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
@@ -453,16 +452,15 @@ describe('workflowController', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED', payer_type: 'insurance' })
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
       );
       // Must not have written the status update.
-      expect(vi.mocked(pool.query).mock.calls.length).toBe(3);
+      expect(vi.mocked(pool.query).mock.calls.length).toBe(2);
     });
 
-    it('blocks sign-off for a corporate-billed patient with no diagnosis', async () => {
+    it('blocks a self-pay patient too — the rule is no longer payer-dependent', async () => {
       vi.mocked(pool.query)
         .mockResolvedValueOnce(encounterRow as any)
-        .mockResolvedValueOnce({ rows: [{ payer_type: 'corporate' }] } as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
@@ -472,32 +470,16 @@ describe('workflowController', () => {
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED', payer_type: 'corporate' })
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
       );
     });
 
-    it('allows sign-off for an insured patient WITH a diagnosis', async () => {
+    it('allows sign-off once a diagnosis exists', async () => {
       vi.mocked(pool.query)
         .mockResolvedValueOnce(encounterRow as any)
-        .mockResolvedValueOnce({ rows: [{ payer_type: 'insurance' }] } as any)
         // diagnosis present
         .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as any)
         // UPDATE encounter + INSERT alert
-        .mockResolvedValue({ rows: [] } as any);
-
-      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
-      const res = mockResponse();
-
-      await doctorCompleteEncounter(req, res);
-
-      expect(res.status).not.toHaveBeenCalledWith(400);
-    });
-
-    it('does NOT block a self-pay patient with no diagnosis', async () => {
-      vi.mocked(pool.query)
-        .mockResolvedValueOnce(encounterRow as any)
-        // payer lookup returns nothing (query filters to insurance/corporate)
-        .mockResolvedValueOnce({ rows: [] } as any)
         .mockResolvedValue({ rows: [] } as any);
 
       const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });

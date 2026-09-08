@@ -2141,8 +2141,9 @@ const DoctorDashboard: React.FC = () => {
                     <div className="mb-4 p-3 bg-rose-50 border border-rose-300 rounded-lg">
                       <p className="text-sm font-semibold text-rose-800">A diagnosis is required to close this visit</p>
                       <p className="text-sm text-rose-700 mt-1">
-                        This patient's bill goes to an insurer or corporate client, and they reject claims with no
-                        diagnosis. Add one below, then complete the visit. Including the ICD-10 code speeds up payment.
+                        Every visit needs a recorded diagnosis before it can be closed or the patient sent back to the
+                        nurse. Add one below, then complete the visit. Including the ICD-10 code speeds up insurer
+                        payment.
                       </p>
                     </div>
                   )}
@@ -3866,6 +3867,17 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
             <div className="p-6 space-y-4">
+              {/* Say it up front rather than letting them fill in the follow-up
+                  details and then be rejected on submit. */}
+              {encounterDiagnoses.length === 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                  <p className="text-sm font-semibold text-rose-800">A diagnosis is required</p>
+                  <p className="text-sm text-rose-700 mt-1">
+                    This visit can't be closed until a diagnosis is recorded. Close this box, add one under
+                    Diagnoses, then complete the encounter.
+                  </p>
+                </div>
+              )}
               <p className="text-gray-600">
                 The patient will be sent back to the nurse for follow-up care.
               </p>
@@ -3963,7 +3975,9 @@ const DoctorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmCompleteEncounter}
-                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                disabled={encounterDiagnoses.length === 0}
+                title={encounterDiagnoses.length === 0 ? 'Record a diagnosis before completing this visit' : undefined}
+                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
