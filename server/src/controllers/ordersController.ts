@@ -414,30 +414,98 @@ const ensureLabResultAudit = async (): Promise<void> => {
 // Resolve a typed lab test (and optional code) to a lab_test_catalog row.
 // Priority: exact test_code > exact (case-insensitive) name > fuzzy keyword.
 // Single source of truth for lab pricing — charge_master is no longer used.
+// Comparison key: lowercase, drop every non-alphanumeric character. Makes the
+// punctuation doctors vary on irrelevant, so "URINE RE", "Urine R/E" and
+// "urine r.e" all collapse to the same key as the catalog's "URINE R/E".
+const labKey = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/**
+ * Resolve a lab order to its catalog entry.
+ *
+ * Ordered strictest-first, and it REFUSES TO GUESS when several catalog entries
+ * are equally plausible — an unpriced line flagged [PRICE PENDING] is safe and
+ * visible, whereas silently billing a different test is a clinical and billing
+ * error on the patient's invoice.
+ *
+ * The previous version did neither. It built a keyword regex, stripped a
+ * trailing "s" from each keyword, and took LIMIT 1 from an untied ORDER BY:
+ *   - "URINE RE" kept only the keyword "URINE" (the 2-letter "RE" was dropped),
+ *     matched 53 urine tests, and the arbitrary winner was URINE PREGNANCY TEST
+ *     — which is how urine R/E orders were billed, and shown to patients, as
+ *     pregnancy tests.
+ *   - "RBS" was truncated to "RB" and matched BIOCA-RB-ONATE.
+ * Both were seen on a real GLICO-insured invoice on 2026-09-08.
+ */
 export async function resolveLabCatalogItem(
   testCode: string | null | undefined,
   testName: string | null | undefined
 ): Promise<{ match: any | null; matchType: 'code' | 'name' | 'fuzzy' | 'none' }> {
   const name = (testName || '').trim();
-  const keywords = name.split(/\s+/).filter((w) => w.length > 2).slice(0, 3).map((k) => k.replace(/s$/i, ''));
-  const keywordPattern = keywords.length > 0 ? keywords.map((k) => `(?=.*${k})`).join('') : name;
+  const code = (testCode || '').trim();
+  if (!name && !code) return { match: null, matchType: 'none' };
+
+  const SELECT = `SELECT id, test_code, test_name, base_price FROM lab_test_catalog WHERE is_active = true`;
+
   try {
-    const r = await pool.query(
-      `SELECT id, test_code, test_name, base_price,
-         CASE WHEN test_code = $1 THEN 'code'
-              WHEN test_name ILIKE $2 THEN 'name'
-              ELSE 'fuzzy' END AS match_type
-       FROM lab_test_catalog
-       WHERE is_active = true
-         AND ( test_code = $1 OR test_name ILIKE $2 OR test_name ILIKE $3 OR $2 ILIKE '%' || test_name || '%' OR test_name ~* $4 )
-       ORDER BY CASE WHEN test_code = $1 THEN 1 WHEN test_name ILIKE $2 THEN 2 ELSE 3 END
-       LIMIT 1`,
-      [testCode || '', name, `%${name}%`, keywordPattern]
-    );
-    const row = r.rows[0];
-    if (!row) return { match: null, matchType: 'none' };
-    return { match: row, matchType: row.match_type };
-  } catch {
+    // 1. Exact catalog code — the order already carries a resolved code.
+    if (code) {
+      const byCode = await pool.query(`${SELECT} AND test_code = $1 LIMIT 1`, [code]);
+      if (byCode.rows[0]) return { match: byCode.rows[0], matchType: 'code' };
+    }
+
+    if (!name) return { match: null, matchType: 'none' };
+
+    // 2. Exact name.
+    const byName = await pool.query(`${SELECT} AND test_name ILIKE $1 LIMIT 1`, [name]);
+    if (byName.rows[0]) return { match: byName.rows[0], matchType: 'name' };
+
+    // 3. The doctor typed a catalog CODE into the name box ("RBS", "L148").
+    const nameAsCode = await pool.query(`${SELECT} AND UPPER(test_code) = UPPER($1) LIMIT 1`, [name]);
+    if (nameAsCode.rows[0]) return { match: nameAsCode.rows[0], matchType: 'name' };
+
+    // Everything below compares on the punctuation-free key, so pull the
+    // (small) active catalog once rather than guessing in SQL.
+    const all = await pool.query(SELECT);
+    const key = labKey(name);
+    if (!key) return { match: null, matchType: 'none' };
+
+    // 4. Same key ignoring punctuation: "URINE RE" == "URINE R/E".
+    const keyed = all.rows.filter((r: any) => labKey(r.test_name) === key);
+    if (keyed.length === 1) return { match: keyed[0], matchType: 'name' };
+    if (keyed.length > 1) return { match: null, matchType: 'none' }; // ambiguous — do not guess
+
+    // 5. Catalog name begins with what was typed: "URINE CS" -> "URINE C/S
+    //    (CULTURE & SENSITIVITY)". Only when exactly one entry qualifies.
+    const prefixed = all.rows.filter((r: any) => labKey(r.test_name).startsWith(key));
+    if (prefixed.length === 1) return { match: prefixed[0], matchType: 'name' };
+
+    // 6. Last resort: every whole word the doctor typed appears in the catalog
+    //    name. No stemming — truncating "RBS" to "RB" is what matched
+    //    BIOCARBONATE. Accepted ONLY if it identifies exactly one test.
+    const words = name
+      .split(/\s+/)
+      .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      // Single letters match almost everything ("e" is in half the catalog),
+      // so they can't be evidence of anything.
+      .filter((w) => w.length >= 2);
+    if (words.length > 0) {
+      const fuzzy = all.rows.filter((r: any) => {
+        const hay = labKey(r.test_name);
+        return words.every((w) => hay.includes(w));
+      });
+      if (fuzzy.length === 1) return { match: fuzzy[0], matchType: 'fuzzy' };
+      if (fuzzy.length > 1) {
+        console.warn(
+          `⚠️ Lab billing: "${name}" is ambiguous across ${fuzzy.length} catalog tests ` +
+          `(e.g. ${fuzzy.slice(0, 3).map((r: any) => r.test_name).join(', ')}). ` +
+          `Left unmatched and flagged [PRICE PENDING] rather than billing the wrong test.`
+        );
+      }
+    }
+
+    return { match: null, matchType: 'none' };
+  } catch (e) {
+    console.error('resolveLabCatalogItem failed:', e);
     return { match: null, matchType: 'none' };
   }
 }
