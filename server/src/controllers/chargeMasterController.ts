@@ -316,8 +316,16 @@ export const updateInvoiceItem = async (req: Request, res: Response): Promise<vo
 
     const newUnitPrice = unit_price !== undefined ? parseFloat(unit_price) : oldUnitPrice;
     const newQty = quantity !== undefined ? quantity : oldQty;
-    const newDescription = description !== undefined ? description : oldDescription;
+    let newDescription = description !== undefined ? description : oldDescription;
     const newTotalPrice = newUnitPrice * newQty;
+
+    // "[PRICE PENDING]" means exactly that — nobody has priced this line yet.
+    // Once reception sets a price the tag is stale, and it was being kept, so
+    // settled invoices went out still reading "PRICE PENDING" beside a real
+    // amount. Drop it as soon as the line has a price.
+    if (newUnitPrice > 0 && /\s*\[PRICE PENDING\]/i.test(newDescription)) {
+      newDescription = newDescription.replace(/\s*\[PRICE PENDING\]/gi, '').trim();
+    }
 
     // Update the item
     const updateResult = await pool.query(

@@ -436,9 +436,50 @@ const labKey = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]
  *   - "RBS" was truncated to "RB" and matched BIOCA-RB-ONATE.
  * Both were seen on a real GLICO-insured invoice on 2026-09-08.
  */
+/**
+ * Narrow several equally-plausible candidates down to one, or give up.
+ *
+ * Refusing to guess is right when the choice CHANGES THE BILL, but it was too
+ * blunt: "lipid profile" has three catalog entries all priced GHS 180, and
+ * "liver function test" three all priced GHS 220. Flagging those [PRICE PENDING]
+ * bought no safety and handed reception avoidable work — the whole point of the
+ * flag is that a human decision is genuinely needed.
+ */
+const narrowCandidates = (
+  candidates: any[],
+  patientSex?: string | null
+): any | null => {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  // Sex-specific variants (Lipid Profile (Male)/(Female), LFT_M/LFT_F): the
+  // patient's sex is known, so this isn't ambiguous at all.
+  const sex = (patientSex || '').trim().toUpperCase().charAt(0);
+  if (sex === 'M' || sex === 'F') {
+    const want = sex === 'M' ? /\b(male|_m)\b|\(male\)/i : /\b(female|_f)\b|\(female\)/i;
+    const other = sex === 'M' ? /female/i : /\bmale\b/i;
+    const sexMatched = candidates.filter(
+      (c) => want.test(c.test_name) || want.test(c.test_code) || (!other.test(c.test_name) && false)
+    );
+    if (sexMatched.length === 1) return sexMatched[0];
+  }
+
+  // Identical price across every candidate — whichever is chosen, the patient
+  // is billed the same, so there is nothing for a human to decide.
+  const prices = new Set(candidates.map((c) => Number(c.base_price)));
+  if (prices.size === 1 && !Number.isNaN([...prices][0])) {
+    // Prefer a generic entry over a sex-specific one when sex is unknown.
+    const generic = candidates.find((c) => !/male|female|_m$|_f$/i.test(`${c.test_name} ${c.test_code}`));
+    return generic || candidates[0];
+  }
+
+  return null;
+};
+
 export async function resolveLabCatalogItem(
   testCode: string | null | undefined,
-  testName: string | null | undefined
+  testName: string | null | undefined,
+  opts: { patientSex?: string | null } = {}
 ): Promise<{ match: any | null; matchType: 'code' | 'name' | 'fuzzy' | 'none' }> {
   const name = (testName || '').trim();
   const code = (testCode || '').trim();
@@ -471,17 +512,25 @@ export async function resolveLabCatalogItem(
 
     // 4. Same key ignoring punctuation: "URINE RE" == "URINE R/E".
     const keyed = all.rows.filter((r: any) => labKey(r.test_name) === key);
-    if (keyed.length === 1) return { match: keyed[0], matchType: 'name' };
-    if (keyed.length > 1) return { match: null, matchType: 'none' }; // ambiguous — do not guess
+    if (keyed.length >= 1) {
+      const picked = narrowCandidates(keyed, opts.patientSex);
+      if (picked) return { match: picked, matchType: 'name' };
+      return { match: null, matchType: 'none' };
+    }
 
     // 5. Catalog name begins with what was typed: "URINE CS" -> "URINE C/S
-    //    (CULTURE & SENSITIVITY)". Only when exactly one entry qualifies.
+    //    (CULTURE & SENSITIVITY)".
     const prefixed = all.rows.filter((r: any) => labKey(r.test_name).startsWith(key));
-    if (prefixed.length === 1) return { match: prefixed[0], matchType: 'name' };
+    if (prefixed.length >= 1) {
+      const picked = narrowCandidates(prefixed, opts.patientSex);
+      if (picked) return { match: picked, matchType: 'name' };
+    }
 
-    // 6. Last resort: every whole word the doctor typed appears in the catalog
-    //    name. No stemming — truncating "RBS" to "RB" is what matched
-    //    BIOCARBONATE. Accepted ONLY if it identifies exactly one test.
+    // 6. Word overlap. No stemming — truncating "RBS" to "RB" is what matched
+    //    BIOCARBONATE. Candidates are RANKED by how many of the doctor's words
+    //    they contain rather than requiring all of them: "malaria thick and
+    //    thin film" should still find "MALARIA THICK AND THIN", which the
+    //    all-words rule rejected over the single word "film".
     const words = name
       .split(/\s+/)
       .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ''))
@@ -489,15 +538,26 @@ export async function resolveLabCatalogItem(
       // so they can't be evidence of anything.
       .filter((w) => w.length >= 2);
     if (words.length > 0) {
-      const fuzzy = all.rows.filter((r: any) => {
-        const hay = labKey(r.test_name);
-        return words.every((w) => hay.includes(w));
-      });
-      if (fuzzy.length === 1) return { match: fuzzy[0], matchType: 'fuzzy' };
-      if (fuzzy.length > 1) {
+      const scored = all.rows
+        .map((r: any) => {
+          const hay = labKey(r.test_name);
+          const hits = words.filter((w) => hay.includes(w)).length;
+          return { row: r, hits };
+        })
+        // Require a clear majority of the typed words, so a single incidental
+        // word can't drag in an unrelated test.
+        .filter((s) => s.hits > 0 && s.hits >= Math.ceil(words.length * 0.6))
+        .sort((a, b) => b.hits - a.hits);
+
+      const best = scored.length > 0 ? scored[0].hits : 0;
+      const top = scored.filter((s) => s.hits === best).map((s) => s.row);
+
+      if (top.length >= 1) {
+        const picked = narrowCandidates(top, opts.patientSex);
+        if (picked) return { match: picked, matchType: 'fuzzy' };
         console.warn(
-          `⚠️ Lab billing: "${name}" is ambiguous across ${fuzzy.length} catalog tests ` +
-          `(e.g. ${fuzzy.slice(0, 3).map((r: any) => r.test_name).join(', ')}). ` +
+          `⚠️ Lab billing: "${name}" is ambiguous across ${top.length} catalog tests ` +
+          `(e.g. ${top.slice(0, 3).map((r: any) => r.test_name).join(', ')}) at different prices. ` +
           `Left unmatched and flagged [PRICE PENDING] rather than billing the wrong test.`
         );
       }
@@ -508,6 +568,72 @@ export async function resolveLabCatalogItem(
     console.error('resolveLabCatalogItem failed:', e);
     return { match: null, matchType: 'none' };
   }
+}
+
+/**
+ * Resolve one lab order to EVERY catalog test it covers.
+ *
+ * Doctors routinely order two tests in one line — "urine r/e & c/s" is both a
+ * routine examination (GHS 90) and a culture (GHS 230). Matching the whole
+ * string picked C/S alone, so the R/E was never billed and the front desk had no
+ * way to add it: reception reported exactly this on 2026-09-09.
+ *
+ * The combined name is split on "&", "+", "," and " and ", each part resolved
+ * independently, and duplicates dropped. If splitting doesn't produce a cleaner
+ * answer than the whole string, the whole-string result is kept — so a genuine
+ * catalog name containing a comma is not shredded.
+ */
+export async function resolveLabCatalogItems(
+  testCode: string | null | undefined,
+  testName: string | null | undefined,
+  opts: { patientSex?: string | null } = {}
+): Promise<{ matches: any[]; unmatchedParts: string[] }> {
+  const whole = await resolveLabCatalogItem(testCode, testName, opts);
+  const wholeResult = whole.match
+    ? { matches: [whole.match], unmatchedParts: [] as string[] }
+    : { matches: [] as any[], unmatchedParts: [(testName || '').trim()].filter(Boolean) };
+
+  // An explicit code is already unambiguous.
+  if (whole.match && whole.matchType === 'code') return wholeResult;
+
+  const name = (testName || '').trim();
+  const parts = name
+    .split(/\s*(?:&|\+|,|\band\b)\s*/i)
+    .map((p) => p.trim())
+    .filter((p) => p.replace(/[^a-z0-9]/gi, '').length >= 2);
+
+  if (parts.length < 2) return wholeResult;
+
+  // A trailing fragment usually inherits the specimen from the first part:
+  // "urine r/e & c/s" means urine c/s, not the 36 other things "c/s" could be.
+  const contextWord = (parts[0].split(/\s+/)[0] || '').trim();
+
+  const matches: any[] = [];
+  const unmatchedParts: string[] = [];
+  const seen = new Set<string>();
+
+  for (const part of parts) {
+    let r = await resolveLabCatalogItem(null, part, opts);
+    if (!r.match && contextWord && !part.toLowerCase().startsWith(contextWord.toLowerCase())) {
+      r = await resolveLabCatalogItem(null, `${contextWord} ${part}`, opts);
+    }
+    if (r.match) {
+      if (!seen.has(r.match.test_code)) {
+        seen.add(r.match.test_code);
+        matches.push(r.match);
+      }
+    } else {
+      unmatchedParts.push(part);
+    }
+  }
+
+  // Splitting only earns its keep when it finds MORE than the whole string did.
+  // Otherwise the name was one test that merely contains "and" or a comma —
+  // "malaria thick and thin film" is a single catalog entry, not two tests.
+  const splitFoundMore = matches.length > wholeResult.matches.length;
+  if (!splitFoundMore) return wholeResult;
+
+  return { matches, unmatchedParts };
 }
 
 // Resolve a free-typed lab test name to a catalog test_code at order time, so
@@ -645,49 +771,72 @@ const runLabCompletionSideEffects = async (
 
   // 2. Billing — lab_test_catalog is the single source of truth; bill by code.
   try {
-    const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
-    const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
-    const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
-    // Flag the line [PRICE PENDING] whenever it would bill at 0 — whether from no
-    // catalog match OR a matched row whose base_price is still 0/unset. Either way
-    // it must be VISIBLE for reception to price manually, never a silent free lab.
-    const unpriced = !(labPrice > 0);
-    const lineDescription = unpriced
-      ? `Lab: ${chargeDescription} [PRICE PENDING]`
-      : `Lab: ${chargeDescription}`;
+    // The patient's sex resolves variants that differ only by it (Lipid Profile
+    // (Male)/(Female), LFT_M/LFT_F) instead of leaving them "ambiguous".
+    const sexRow = await pool.query(
+      `SELECT p.gender FROM lab_orders lo JOIN patients p ON lo.patient_id = p.id WHERE lo.id = $1`,
+      [orderId]
+    );
+    const patientSex = sexRow.rows[0]?.gender || null;
 
-    if (labItem.matchType === 'fuzzy') {
-      console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
-    } else if (labItem.matchType === 'none') {
-      console.warn(`⚠️ Lab billing: NO catalog match for "${order.test_name}" (code ${order.test_code}). Billed 0 — needs review.`);
-    } else if (unpriced) {
-      console.warn(`⚠️ Lab billing: catalog test "${chargeDescription}" (code ${labItem.match?.test_code}) has base_price 0 — billed 0 [PRICE PENDING], set its price.`);
+    // One order can cover more than one test ("urine r/e & c/s"), and billing
+    // only the first meant the rest was never charged.
+    const { matches, unmatchedParts } = await resolveLabCatalogItems(
+      order.test_code,
+      order.test_name,
+      { patientSex }
+    );
+
+    // Each billable line: a matched catalog test, plus any part that couldn't be
+    // matched, flagged so reception can price it rather than it vanishing.
+    const lines: Array<{ description: string; price: number }> = [
+      ...matches.map((m: any) => {
+        const price = Number(m.base_price) || 0;
+        return {
+          description: price > 0 ? `Lab: ${m.test_name}` : `Lab: ${m.test_name} [PRICE PENDING]`,
+          price,
+        };
+      }),
+      ...unmatchedParts.map((p) => ({ description: `Lab: ${p} [PRICE PENDING]`, price: 0 })),
+    ];
+
+    if (lines.length === 0) {
+      lines.push({ description: `Lab: ${order.test_name || 'Lab test'} [PRICE PENDING]`, price: 0 });
+    }
+
+    if (matches.length > 1) {
+      console.log(`Lab billing: "${order.test_name}" covers ${matches.length} tests — billing each: ${matches.map((m: any) => m.test_name).join(', ')}`);
+    }
+    if (unmatchedParts.length > 0) {
+      console.warn(`⚠️ Lab billing: no catalog match for ${JSON.stringify(unmatchedParts)} from "${order.test_name}" — billed 0 [PRICE PENDING], needs review.`);
     }
 
     const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);
 
     if (invoiceId) {
-      // Dedup by the canonical catalog name so the same test can't be billed
-      // twice under different spellings.
-      const existingItem = await pool.query(
-        `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-        [invoiceId, lineDescription]
-      );
+      for (const line of lines) {
+        // Dedup by the canonical catalog name so the same test can't be billed
+        // twice under different spellings.
+        const existingItem = await pool.query(
+          `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
+          [invoiceId, line.description]
+        );
 
-      if (existingItem.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
-           VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
-          [invoiceId, lineDescription, labPrice, orderId]
-        );
-        await pool.query(
-          `UPDATE invoices
-           SET subtotal = subtotal + $2,
-               total_amount = total_amount + $2,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [invoiceId, labPrice]
-        );
+        if (existingItem.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+            [invoiceId, line.description, line.price, orderId]
+          );
+          await pool.query(
+            `UPDATE invoices
+             SET subtotal = subtotal + $2,
+                 total_amount = total_amount + $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [invoiceId, line.price]
+          );
+        }
       }
     }
   } catch (billingError) {
