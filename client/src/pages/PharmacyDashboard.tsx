@@ -531,6 +531,8 @@ const PharmacyDashboard: React.FC = () => {
       resetWalkInModal();
       fetchWalkIns();
     } catch (error: any) {
+      // check-in 409s with a helpful `message` when the patient already has an
+      // open encounter today (e.g. they saw a doctor earlier) — surface that.
       showToast(error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient', 'error');
     } finally {
       setCreatingWalkIn(false);
