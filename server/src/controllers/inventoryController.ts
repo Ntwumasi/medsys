@@ -822,15 +822,39 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     // (Gmail-style: search narrows what you see, totals reflect the full set).
     const searchTerm = (search as string || '').trim();
 
-    // Revenue by day. inventory_transactions has no unit_cost column — the
-    // price lives on pharmacy_inventory.selling_price. Join to get it.
+    // Price a past sale at what it was ACTUALLY BILLED, not today's price.
+    //
+    // inventory_transactions stores no price, so every figure here used to be
+    // computed from the CURRENT pharmacy_inventory.selling_price — meaning a
+    // procurement that changed a price silently rewrote the history of every
+    // past sale of that drug. Irene: "if you are looking at an order
+    // retrospectively, it computes the bill based on current pricing and not
+    // what it was at the time it was served". On production that overstated
+    // pharmacy revenue by GHS 778.92 across 63 affected orders.
+    //
+    // The billed price lives on the invoice line for the order, so take it from
+    // there and fall back to the current price only when a sale never produced
+    // one (about a third of dispenses, mostly older records).
+    const BILLED_PRICE = `
+      LEFT JOIN LATERAL (
+        SELECT ii.unit_price
+          FROM invoice_items ii
+         WHERE ii.reference_type = 'pharmacy_order'
+           AND ii.reference_id = it.reference_id
+           AND ii.unit_price > 0
+         ORDER BY ii.id
+         LIMIT 1
+      ) billed ON it.reference_type = 'pharmacy_order'`;
+    const PRICE_AT_TIME = `COALESCE(billed.unit_price, pi.selling_price)`;
+
     const dailyRevenue = await pool.query(
       `SELECT
         DATE(it.created_at) as date,
         COUNT(*) as orders_count,
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
        GROUP BY DATE(it.created_at)
        ORDER BY date DESC
@@ -853,9 +877,10 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     // Total revenue from dispense transactions
     const revenueTotal = await pool.query(
       `SELECT
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as total_revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}`,
       params
     );
@@ -866,9 +891,10 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
         pi.medication_name,
         COUNT(*) as order_count,
         SUM(ABS(it.quantity)) as total_quantity,
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as total_revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
        GROUP BY pi.medication_name
        ORDER BY total_revenue DESC
@@ -896,15 +922,33 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
               p.patient_number,
               pu.first_name || ' ' || pu.last_name AS patient_name,
               du.first_name || ' ' || du.last_name AS dispensed_by_name,
-              pi.selling_price,
-              (CASE WHEN pi.selling_price IS NOT NULL
-                    THEN pi.selling_price * COALESCE(NULLIF(po.quantity,'')::numeric, 0)
-                    ELSE NULL END) AS line_total
+              -- What this sale was BILLED at, falling back to the current price
+              -- only when it never produced an invoice line. Showing today's
+              -- price against a past order misstates what the patient paid.
+              COALESCE(billed.unit_price, pi.selling_price) AS selling_price,
+              -- quantity is free text and not always a number: production holds
+              -- '-', '1 MONTH SUPPLY' and '28 '. Casting those blows the whole
+              -- query up with "invalid input syntax for numeric", so only cast
+              -- what actually is one and leave the rest without a line total.
+              (CASE WHEN COALESCE(billed.unit_price, pi.selling_price) IS NOT NULL
+                     AND BTRIM(COALESCE(po.quantity, '')) ~ '^[0-9]+(\\.[0-9]+)?$'
+                    THEN COALESCE(billed.unit_price, pi.selling_price) * BTRIM(po.quantity)::numeric
+                    ELSE NULL END) AS line_total,
+              (billed.unit_price IS NOT NULL) AS price_is_historical
          FROM pharmacy_orders po
          LEFT JOIN patients p ON po.patient_id = p.id
          LEFT JOIN users pu ON p.user_id = pu.id
          LEFT JOIN users du ON po.dispensed_by = du.id
          LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
+         LEFT JOIN LATERAL (
+           SELECT ii.unit_price
+             FROM invoice_items ii
+            WHERE ii.reference_type = 'pharmacy_order'
+              AND ii.reference_id = po.id
+              AND ii.unit_price > 0
+            ORDER BY ii.id
+            LIMIT 1
+         ) billed ON TRUE
         WHERE po.is_manual_reminder IS NOT TRUE ${dateFilter} ${ordersSearchClause}
         ORDER BY COALESCE(po.dispensed_date, po.ordered_date) DESC
         LIMIT 200`,
