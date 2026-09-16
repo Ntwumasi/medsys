@@ -197,6 +197,11 @@ import {
   quickSearch,
 } from '../controllers/searchController';
 import {
+  getPatientContacts,
+  exportPatientContacts,
+  setMarketingOptOut,
+} from '../controllers/marketingController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -913,6 +918,14 @@ router.use('/notifications', notificationRoutes);
 router.use('/audit', auditRoutes);
 
 // Accountant routes
+// Marketing — the patient contact list. Restricted to marketing and admin: it
+// exposes every active patient's phone and email in bulk, and every download is
+// written to the audit log.
+router.get('/marketing/contacts', authenticateToken, authorizeRoles('marketing', 'admin'), getPatientContacts);
+router.get('/marketing/contacts/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportPatientContacts);
+// Reception and admin record the opt-out, since they're the ones a patient tells.
+router.put('/patients/:id/marketing-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'marketing'), setMarketingOptOut);
+
 router.use('/accountant', accountantRoutes);
 
 // Insurance claims routes

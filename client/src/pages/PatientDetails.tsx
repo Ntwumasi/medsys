@@ -8,6 +8,7 @@ import { safeFormatDate } from '../utils/age';
 import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
 import LabResultsInline from '../components/LabResultsInline';
+import { getApiError } from '../utils/apiError';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
@@ -206,6 +207,31 @@ const PatientDetails: React.FC = () => {
   const [sendingLink, setSendingLink] = useState(false);
   const [expandedVisit, setExpandedVisit] = useState<number | null>(null);
 
+  // Recording "don't send me marketing" is front-desk work — they're who the
+  // patient tells. Marketing can set it too, from a campaign reply.
+  const canSetMarketingOptOut =
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'marketing' ||
+    user?.role === 'office_manager' || user?.is_super_admin === true;
+  const [marketingOptOut, setMarketingOptOut] = useState(false);
+  const [savingOptOut, setSavingOptOut] = useState(false);
+
+  const handleToggleMarketingOptOut = async () => {
+    if (!summary?.patient?.id) return;
+    const next = !marketingOptOut;
+    setSavingOptOut(true);
+    try {
+      const res = await apiClient.put(`/patients/${summary.patient.id}/marketing-opt-out`, {
+        marketing_opt_out: next,
+      });
+      setMarketingOptOut(next);
+      showToast(res.data?.message || 'Marketing preference updated', 'success');
+    } catch (err) {
+      showToast(getApiError(err, 'Could not update the marketing preference'), 'error');
+    } finally {
+      setSavingOptOut(false);
+    }
+  };
+
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
     setSendingLink(true);
@@ -307,6 +333,7 @@ const PatientDetails: React.FC = () => {
     try {
       const data = await patientsAPI.getPatientSummary(patientId);
       setSummary(data);
+      setMarketingOptOut(Boolean((data as any)?.patient?.marketing_opt_out));
     } catch (error) {
       console.error('Error loading patient summary:', error);
     } finally {
@@ -565,6 +592,26 @@ const PatientDetails: React.FC = () => {
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex justify-end gap-2 mb-2">
+            {/* Marketing opt-out. Reception is who the patient tells, so the
+                switch lives on the record rather than in the marketing screen. */}
+            {canSetMarketingOptOut && (
+              <button
+                onClick={handleToggleMarketingOptOut}
+                disabled={savingOptOut}
+                className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                  marketingOptOut
+                    ? 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+                title={
+                  marketingOptOut
+                    ? 'This patient is excluded from marketing lists — click to include them again'
+                    : 'Exclude this patient from marketing lists'
+                }
+              >
+                {savingOptOut ? 'Saving…' : marketingOptOut ? 'No marketing ✓' : 'No marketing'}
+              </button>
+            )}
             {canSendPortalLink && (
               <button
                 onClick={handleSendPortalLink}
