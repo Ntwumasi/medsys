@@ -2440,15 +2440,19 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
                 : '');
 
           await client.query(
+            // unit_price is stamped here, at the moment the stock moves. Without
+            // it, reporting had to multiply by the CURRENT catalogue price, so
+            // repricing a drug rewrote the history of every past sale of it.
             `INSERT INTO inventory_transactions
-              (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-             VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5)`,
+              (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+             VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5, $6)`,
             [
               inventoryItem.id,
               -quantity,
               parseInt(id),
               `Dispensed for ${updatedOrder.patient_name || 'patient'}. Price: ${unitPrice}. Batches: ${batchInfo}`,
-              authReq.user?.id
+              authReq.user?.id,
+              Number(unitPrice) > 0 ? unitPrice : null,
             ]
           );
 
@@ -2635,10 +2639,20 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         [order.inventory_id, qty]
       );
 
+      // A return is refunded at what the patient PAID, so carry the original
+      // dispense price across rather than re-reading the catalogue.
+      const dispensedAt = await client.query(
+        `SELECT unit_price FROM inventory_transactions
+          WHERE reference_type = 'pharmacy_order' AND reference_id = $1
+            AND transaction_type = 'dispense' AND unit_price IS NOT NULL
+          ORDER BY id DESC LIMIT 1`,
+        [parseInt(id)]
+      );
+
       await client.query(
-        `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-         VALUES ($1, 'return', $2, 'pharmacy_order', $3, $4, $5)`,
-        [order.inventory_id, qty, parseInt(id), `Return: ${return_reason}`, userId]
+        `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+         VALUES ($1, 'return', $2, 'pharmacy_order', $3, $4, $5, $6)`,
+        [order.inventory_id, qty, parseInt(id), `Return: ${return_reason}`, userId, dispensedAt.rows[0]?.unit_price ?? null]
       );
     }
 

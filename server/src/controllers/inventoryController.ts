@@ -607,12 +607,14 @@ export const dispenseMedication = async (req: Request, res: Response): Promise<v
       [quantity, inventory_id]
     );
 
-    // Log the transaction
+    // Log the transaction, stamping the price it sold at so later reporting
+    // never has to fall back to whatever the catalogue says today.
+    const sellingPrice = Number(item.selling_price);
     await client.query(
       `INSERT INTO inventory_transactions
-       (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-       VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5)`,
-      [inventory_id, -quantity, pharmacy_order_id, notes, authReq.user?.id]
+       (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+       VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5, $6)`,
+      [inventory_id, -quantity, pharmacy_order_id, notes, authReq.user?.id, sellingPrice > 0 ? sellingPrice : null]
     );
 
     // Update pharmacy order status if provided
@@ -835,6 +837,11 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     // The billed price lives on the invoice line for the order, so take it from
     // there and fall back to the current price only when a sale never produced
     // one (about a third of dispenses, mostly older records).
+    // Preference order, strongest evidence first:
+    //   1. it.unit_price   — stamped on the transaction when the stock moved
+    //   2. billed.unit_price — what the invoice line charged
+    //   3. pi.selling_price  — today's catalogue price, and the only one that
+    //                          drifts. Used only for old rows that have neither.
     const BILLED_PRICE = `
       LEFT JOIN LATERAL (
         SELECT ii.unit_price
@@ -845,7 +852,7 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
          ORDER BY ii.id
          LIMIT 1
       ) billed ON it.reference_type = 'pharmacy_order'`;
-    const PRICE_AT_TIME = `COALESCE(billed.unit_price, pi.selling_price)`;
+    const PRICE_AT_TIME = `COALESCE(it.unit_price, billed.unit_price, pi.selling_price)`;
 
     const dailyRevenue = await pool.query(
       `SELECT
@@ -941,13 +948,23 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
          LEFT JOIN users du ON po.dispensed_by = du.id
          LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
          LEFT JOIN LATERAL (
-           SELECT ii.unit_price
-             FROM invoice_items ii
-            WHERE ii.reference_type = 'pharmacy_order'
-              AND ii.reference_id = po.id
-              AND ii.unit_price > 0
-            ORDER BY ii.id
-            LIMIT 1
+           -- The price stamped on the dispense transaction wins; the invoice
+           -- line is the fallback for rows recorded before that existed.
+           SELECT COALESCE(
+                    (SELECT itx.unit_price
+                       FROM inventory_transactions itx
+                      WHERE itx.reference_type = 'pharmacy_order'
+                        AND itx.reference_id = po.id
+                        AND itx.transaction_type = 'dispense'
+                        AND itx.unit_price IS NOT NULL
+                      ORDER BY itx.id DESC LIMIT 1),
+                    (SELECT ii.unit_price
+                       FROM invoice_items ii
+                      WHERE ii.reference_type = 'pharmacy_order'
+                        AND ii.reference_id = po.id
+                        AND ii.unit_price > 0
+                      ORDER BY ii.id LIMIT 1)
+                  ) AS unit_price
          ) billed ON TRUE
         WHERE po.is_manual_reminder IS NOT TRUE ${dateFilter} ${ordersSearchClause}
         ORDER BY COALESCE(po.dispensed_date, po.ordered_date) DESC
