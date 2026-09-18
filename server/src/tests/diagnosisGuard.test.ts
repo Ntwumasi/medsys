@@ -30,9 +30,14 @@ describe('diagnosis hard stop', () => {
   });
 
   describe('updateEncounter', () => {
+    const clinicalEncounter = { rows: [{ clinic: 'Family Medicine', is_otc: false, provider_id: 7 }] };
+
     it('blocks closing an encounter that has no diagnosis', async () => {
-      // diagnosis lookup -> none
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+      vi.mocked(pool.query)
+        // does it need one?
+        .mockResolvedValueOnce(clinicalEncounter as any)
+        // diagnosis lookup -> none
+        .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({ status: 'completed' }, { id: '10' }, {}, { id: 3 });
       const res = mockResponse();
@@ -44,7 +49,20 @@ describe('diagnosis hard stop', () => {
         expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
       );
       // The UPDATE must never have run.
-      expect(vi.mocked(pool.query).mock.calls.length).toBe(1);
+      expect(vi.mocked(pool.query).mock.calls.length).toBe(2);
+    });
+
+    it('does not block a department walk-in', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({ rows: [{ clinic: 'Lab (Walk-in)', is_otc: false, provider_id: null }] } as any)
+        .mockResolvedValue({ rows: [{ id: 10 }] } as any);
+
+      const req = mockRequest({ status: 'completed' }, { id: '10' }, {}, { id: 3 });
+      const res = mockResponse();
+
+      await updateEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
     });
 
     it('allows cancelling without a diagnosis', async () => {
@@ -60,6 +78,7 @@ describe('diagnosis hard stop', () => {
 
     it('allows closing once a diagnosis exists', async () => {
       vi.mocked(pool.query)
+        .mockResolvedValueOnce(clinicalEncounter as any)
         // diagnosis present
         .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as any)
         .mockResolvedValue({ rows: [{ id: 10, status: 'completed' }] } as any);

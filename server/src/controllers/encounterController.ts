@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
-import { encounterHasDiagnosis, isClosingStatus, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
+import { shouldBlockForDiagnosis, isClosingStatus, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 
 export const createEncounter = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -146,7 +146,7 @@ export const updateEncounter = async (req: Request, res: Response): Promise<void
     // directly, so without the check it was a way round the block — which is
     // why compliance stayed low even for the patients that were "blocked".
     // 'cancelled' is exempt: a no-show has nothing to diagnose.
-    if (isClosingStatus(updateData?.status) && !(await encounterHasDiagnosis(String(id)))) {
+    if (isClosingStatus(updateData?.status) && (await shouldBlockForDiagnosis(String(id)))) {
       res.status(400).json(diagnosisRequiredResponse);
       return;
     }

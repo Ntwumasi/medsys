@@ -438,11 +438,19 @@ describe('workflowController', () => {
       rows: [{ nurse_id: 4, patient_id: 1, room_number: '101', patient_name: 'John Doe' }],
     };
 
+    // A clinical encounter: real clinic, doctor assigned, not OTC. This is what
+    // encounterNeedsDiagnosis reads before the diagnosis check itself.
+    const clinicalEncounter = {
+      rows: [{ clinic: 'Family Medicine', is_otc: false, provider_id: 7 }],
+    };
+
     it('blocks sign-off when no diagnosis is recorded', async () => {
       vi.mocked(pool.query)
         // 1. SELECT encounter
         .mockResolvedValueOnce(encounterRow as any)
-        // 2. diagnosis lookup -> none
+        // 2. does this encounter need a diagnosis at all?
+        .mockResolvedValueOnce(clinicalEncounter as any)
+        // 3. diagnosis lookup -> none
         .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
@@ -455,12 +463,13 @@ describe('workflowController', () => {
         expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
       );
       // Must not have written the status update.
-      expect(vi.mocked(pool.query).mock.calls.length).toBe(2);
+      expect(vi.mocked(pool.query).mock.calls.length).toBe(3);
     });
 
     it('blocks a self-pay patient too — the rule is no longer payer-dependent', async () => {
       vi.mocked(pool.query)
         .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce(clinicalEncounter as any)
         .mockResolvedValueOnce({ rows: [] } as any);
 
       const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
@@ -474,9 +483,25 @@ describe('workflowController', () => {
       );
     });
 
+    it('does NOT block an OTC walk-in — there is nothing to diagnose', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        // Pharmacy OTC walk-in, no doctor
+        .mockResolvedValueOnce({ rows: [{ clinic: 'Pharmacy (OTC/Walk-in)', is_otc: true, provider_id: null }] } as any)
+        .mockResolvedValue({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
+    });
+
     it('allows sign-off once a diagnosis exists', async () => {
       vi.mocked(pool.query)
         .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce(clinicalEncounter as any)
         // diagnosis present
         .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as any)
         // UPDATE encounter + INSERT alert

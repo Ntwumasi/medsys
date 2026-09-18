@@ -8,7 +8,7 @@ import { getNextMonOrThu } from './nurseFollowUpTaskController';
 import { resolveLabCatalogItem } from './ordersController';
 import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 import { nextInvoiceNumber } from '../services/sequences';
-import { encounterHasDiagnosis, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
+import { shouldBlockForDiagnosis, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 
 // Clinic string → department queue, for the four walk-in desks that bill per
 // service. Single source of truth: the duplicate-check-in guard and the routing
@@ -1412,7 +1412,7 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     // in that very group at 39%, because this endpoint is not the only way out
     // of an encounter (see diagnosisGuard). Cancellation stays exempt and is
     // handled in updateEncounter.
-    if (!(await encounterHasDiagnosis(encounter_id))) {
+    if (await shouldBlockForDiagnosis(encounter_id)) {
       res.status(400).json(diagnosisRequiredResponse);
       return;
     }
@@ -1736,6 +1736,16 @@ export const releaseRoom = async (req: Request, res: Response): Promise<void> =>
       res.json({
         message: 'Room released successfully',
       });
+      return;
+    }
+
+    // Same diagnosis hard stop as doctor sign-off. Releasing the room COMPLETES
+    // the encounter, so without this it was a way round the block — measured on
+    // production two weeks after the rule shipped, every clinical encounter that
+    // closed without a diagnosis had come through here rather than sign-off.
+    // Department walk-ins and encounters with no doctor are exempt.
+    if (await shouldBlockForDiagnosis(encounter_id)) {
+      res.status(400).json(diagnosisRequiredResponse);
       return;
     }
 
