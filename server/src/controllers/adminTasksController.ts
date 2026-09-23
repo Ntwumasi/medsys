@@ -94,7 +94,7 @@ export const listAdminTasks = async (req: Request, res: Response): Promise<void>
 
     const sql = `
       SELECT t.id, t.category, t.task, t.contact_person, t.responsibility, t.status,
-             t.remarks, t.cost, t.due_date, t.assigned_to,
+             t.remarks, t.cost, t.due_date, t.assigned_to, t.created_by,
              au.first_name || ' ' || au.last_name AS assigned_to_name,
              t.created_at, t.updated_at
         FROM admin_tasks t
@@ -130,8 +130,18 @@ export const createAdminTask = async (req: Request, res: Response): Promise<void
   try {
     await ensureAdminTasks();
     const authReq = req as any;
-    const userId = authReq.user?.id;
-    const { category, task, contact_person, responsibility, status, remarks, cost, due_date, assigned_to } = req.body;
+    const user = authReq.user || {};
+    const userId = user.id;
+    const { contact_person, responsibility, status, remarks, cost, due_date } = req.body;
+    let { category, task, assigned_to } = req.body;
+    // A marketing user adds tasks/reminders for themselves only — the assignee
+    // is forced to them so the task lands on their own dashboard, and category
+    // defaults to Marketing (their form doesn't ask for one).
+    if (user.role === 'marketing' && !user.is_super_admin) {
+      assigned_to = userId;
+      category = category || 'Marketing';
+    }
+    task = typeof task === 'string' ? task.trim() : task;
     if (!category || !task) {
       res.status(400).json({ error: 'category and task are required' });
       return;
@@ -220,7 +230,22 @@ export const updateAdminTask = async (req: Request, res: Response): Promise<void
 export const deleteAdminTask = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureAdminTasks();
+    const authReq = req as any;
+    const user = authReq.user || {};
     const id = parseInt(String(req.params.id), 10);
+    // Marketing may delete only the tasks they created themselves, never ones
+    // an admin assigned to them.
+    if (user.role === 'marketing' && !user.is_super_admin) {
+      const own = await pool.query('SELECT created_by FROM admin_tasks WHERE id = $1', [id]);
+      if (own.rows.length === 0) {
+        res.status(404).json({ error: 'Task not found' });
+        return;
+      }
+      if (own.rows[0].created_by !== user.id) {
+        res.status(403).json({ error: 'You can only delete tasks you added yourself' });
+        return;
+      }
+    }
     const r = await pool.query('DELETE FROM admin_tasks WHERE id = $1 RETURNING id', [id]);
     if (r.rows.length === 0) {
       res.status(404).json({ error: 'Task not found' });
