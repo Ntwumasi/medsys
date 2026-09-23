@@ -135,8 +135,10 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
           // Price from the lab catalog (single source of truth), by code then name.
           const labItem = await resolveLabCatalogItem(resolvedCode, test_name);
           if (labItem.match) {
-            const desc = `Lab: ${labItem.match.test_name}`;
             const price = Number(labItem.match.base_price);
+            // A matched-but-unpriced (base_price 0) test must still be flagged so
+            // it isn't billed silently free at the walk-in counter.
+            const desc = price > 0 ? `Lab: ${labItem.match.test_name}` : `Lab: ${labItem.match.test_name} [PRICE PENDING]`;
             const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
             if (exists.rows.length === 0) {
               await pool.query(
@@ -412,32 +414,226 @@ const ensureLabResultAudit = async (): Promise<void> => {
 // Resolve a typed lab test (and optional code) to a lab_test_catalog row.
 // Priority: exact test_code > exact (case-insensitive) name > fuzzy keyword.
 // Single source of truth for lab pricing — charge_master is no longer used.
+// Comparison key: lowercase, drop every non-alphanumeric character. Makes the
+// punctuation doctors vary on irrelevant, so "URINE RE", "Urine R/E" and
+// "urine r.e" all collapse to the same key as the catalog's "URINE R/E".
+const labKey = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+/**
+ * Resolve a lab order to its catalog entry.
+ *
+ * Ordered strictest-first, and it REFUSES TO GUESS when several catalog entries
+ * are equally plausible — an unpriced line flagged [PRICE PENDING] is safe and
+ * visible, whereas silently billing a different test is a clinical and billing
+ * error on the patient's invoice.
+ *
+ * The previous version did neither. It built a keyword regex, stripped a
+ * trailing "s" from each keyword, and took LIMIT 1 from an untied ORDER BY:
+ *   - "URINE RE" kept only the keyword "URINE" (the 2-letter "RE" was dropped),
+ *     matched 53 urine tests, and the arbitrary winner was URINE PREGNANCY TEST
+ *     — which is how urine R/E orders were billed, and shown to patients, as
+ *     pregnancy tests.
+ *   - "RBS" was truncated to "RB" and matched BIOCA-RB-ONATE.
+ * Both were seen on a real GLICO-insured invoice on 2026-09-08.
+ */
+/**
+ * Narrow several equally-plausible candidates down to one, or give up.
+ *
+ * Refusing to guess is right when the choice CHANGES THE BILL, but it was too
+ * blunt: "lipid profile" has three catalog entries all priced GHS 180, and
+ * "liver function test" three all priced GHS 220. Flagging those [PRICE PENDING]
+ * bought no safety and handed reception avoidable work — the whole point of the
+ * flag is that a human decision is genuinely needed.
+ */
+const narrowCandidates = (
+  candidates: any[],
+  patientSex?: string | null
+): any | null => {
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  // Sex-specific variants (Lipid Profile (Male)/(Female), LFT_M/LFT_F): the
+  // patient's sex is known, so this isn't ambiguous at all.
+  const sex = (patientSex || '').trim().toUpperCase().charAt(0);
+  if (sex === 'M' || sex === 'F') {
+    const want = sex === 'M' ? /\b(male|_m)\b|\(male\)/i : /\b(female|_f)\b|\(female\)/i;
+    const other = sex === 'M' ? /female/i : /\bmale\b/i;
+    const sexMatched = candidates.filter(
+      (c) => want.test(c.test_name) || want.test(c.test_code) || (!other.test(c.test_name) && false)
+    );
+    if (sexMatched.length === 1) return sexMatched[0];
+  }
+
+  // Identical price across every candidate — whichever is chosen, the patient
+  // is billed the same, so there is nothing for a human to decide.
+  const prices = new Set(candidates.map((c) => Number(c.base_price)));
+  if (prices.size === 1 && !Number.isNaN([...prices][0])) {
+    // Prefer a generic entry over a sex-specific one when sex is unknown.
+    const generic = candidates.find((c) => !/male|female|_m$|_f$/i.test(`${c.test_name} ${c.test_code}`));
+    return generic || candidates[0];
+  }
+
+  return null;
+};
+
 export async function resolveLabCatalogItem(
   testCode: string | null | undefined,
-  testName: string | null | undefined
+  testName: string | null | undefined,
+  opts: { patientSex?: string | null } = {}
 ): Promise<{ match: any | null; matchType: 'code' | 'name' | 'fuzzy' | 'none' }> {
   const name = (testName || '').trim();
-  const keywords = name.split(/\s+/).filter((w) => w.length > 2).slice(0, 3).map((k) => k.replace(/s$/i, ''));
-  const keywordPattern = keywords.length > 0 ? keywords.map((k) => `(?=.*${k})`).join('') : name;
+  const code = (testCode || '').trim();
+  if (!name && !code) return { match: null, matchType: 'none' };
+
+  const SELECT = `SELECT id, test_code, test_name, base_price FROM lab_test_catalog WHERE is_active = true`;
+
   try {
-    const r = await pool.query(
-      `SELECT id, test_code, test_name, base_price,
-         CASE WHEN test_code = $1 THEN 'code'
-              WHEN test_name ILIKE $2 THEN 'name'
-              ELSE 'fuzzy' END AS match_type
-       FROM lab_test_catalog
-       WHERE is_active = true
-         AND ( test_code = $1 OR test_name ILIKE $2 OR test_name ILIKE $3 OR $2 ILIKE '%' || test_name || '%' OR test_name ~* $4 )
-       ORDER BY CASE WHEN test_code = $1 THEN 1 WHEN test_name ILIKE $2 THEN 2 ELSE 3 END
-       LIMIT 1`,
-      [testCode || '', name, `%${name}%`, keywordPattern]
-    );
-    const row = r.rows[0];
-    if (!row) return { match: null, matchType: 'none' };
-    return { match: row, matchType: row.match_type };
-  } catch {
+    // 1. Exact catalog code — the order already carries a resolved code.
+    if (code) {
+      const byCode = await pool.query(`${SELECT} AND test_code = $1 LIMIT 1`, [code]);
+      if (byCode.rows[0]) return { match: byCode.rows[0], matchType: 'code' };
+    }
+
+    if (!name) return { match: null, matchType: 'none' };
+
+    // 2. Exact name.
+    const byName = await pool.query(`${SELECT} AND test_name ILIKE $1 LIMIT 1`, [name]);
+    if (byName.rows[0]) return { match: byName.rows[0], matchType: 'name' };
+
+    // 3. The doctor typed a catalog CODE into the name box ("RBS", "L148").
+    const nameAsCode = await pool.query(`${SELECT} AND UPPER(test_code) = UPPER($1) LIMIT 1`, [name]);
+    if (nameAsCode.rows[0]) return { match: nameAsCode.rows[0], matchType: 'name' };
+
+    // Everything below compares on the punctuation-free key, so pull the
+    // (small) active catalog once rather than guessing in SQL.
+    const all = await pool.query(SELECT);
+    const key = labKey(name);
+    if (!key) return { match: null, matchType: 'none' };
+
+    // 4. Same key ignoring punctuation: "URINE RE" == "URINE R/E".
+    const keyed = all.rows.filter((r: any) => labKey(r.test_name) === key);
+    if (keyed.length >= 1) {
+      const picked = narrowCandidates(keyed, opts.patientSex);
+      if (picked) return { match: picked, matchType: 'name' };
+      return { match: null, matchType: 'none' };
+    }
+
+    // 5. Catalog name begins with what was typed: "URINE CS" -> "URINE C/S
+    //    (CULTURE & SENSITIVITY)".
+    const prefixed = all.rows.filter((r: any) => labKey(r.test_name).startsWith(key));
+    if (prefixed.length >= 1) {
+      const picked = narrowCandidates(prefixed, opts.patientSex);
+      if (picked) return { match: picked, matchType: 'name' };
+    }
+
+    // 6. Word overlap. No stemming — truncating "RBS" to "RB" is what matched
+    //    BIOCARBONATE. Candidates are RANKED by how many of the doctor's words
+    //    they contain rather than requiring all of them: "malaria thick and
+    //    thin film" should still find "MALARIA THICK AND THIN", which the
+    //    all-words rule rejected over the single word "film".
+    const words = name
+      .split(/\s+/)
+      .map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, ''))
+      // Single letters match almost everything ("e" is in half the catalog),
+      // so they can't be evidence of anything.
+      .filter((w) => w.length >= 2);
+    if (words.length > 0) {
+      const scored = all.rows
+        .map((r: any) => {
+          const hay = labKey(r.test_name);
+          const hits = words.filter((w) => hay.includes(w)).length;
+          return { row: r, hits };
+        })
+        // Require a clear majority of the typed words, so a single incidental
+        // word can't drag in an unrelated test.
+        .filter((s) => s.hits > 0 && s.hits >= Math.ceil(words.length * 0.6))
+        .sort((a, b) => b.hits - a.hits);
+
+      const best = scored.length > 0 ? scored[0].hits : 0;
+      const top = scored.filter((s) => s.hits === best).map((s) => s.row);
+
+      if (top.length >= 1) {
+        const picked = narrowCandidates(top, opts.patientSex);
+        if (picked) return { match: picked, matchType: 'fuzzy' };
+        console.warn(
+          `⚠️ Lab billing: "${name}" is ambiguous across ${top.length} catalog tests ` +
+          `(e.g. ${top.slice(0, 3).map((r: any) => r.test_name).join(', ')}) at different prices. ` +
+          `Left unmatched and flagged [PRICE PENDING] rather than billing the wrong test.`
+        );
+      }
+    }
+
+    return { match: null, matchType: 'none' };
+  } catch (e) {
+    console.error('resolveLabCatalogItem failed:', e);
     return { match: null, matchType: 'none' };
   }
+}
+
+/**
+ * Resolve one lab order to EVERY catalog test it covers.
+ *
+ * Doctors routinely order two tests in one line — "urine r/e & c/s" is both a
+ * routine examination (GHS 90) and a culture (GHS 230). Matching the whole
+ * string picked C/S alone, so the R/E was never billed and the front desk had no
+ * way to add it: reception reported exactly this on 2026-09-09.
+ *
+ * The combined name is split on "&", "+", "," and " and ", each part resolved
+ * independently, and duplicates dropped. If splitting doesn't produce a cleaner
+ * answer than the whole string, the whole-string result is kept — so a genuine
+ * catalog name containing a comma is not shredded.
+ */
+export async function resolveLabCatalogItems(
+  testCode: string | null | undefined,
+  testName: string | null | undefined,
+  opts: { patientSex?: string | null } = {}
+): Promise<{ matches: any[]; unmatchedParts: string[] }> {
+  const whole = await resolveLabCatalogItem(testCode, testName, opts);
+  const wholeResult = whole.match
+    ? { matches: [whole.match], unmatchedParts: [] as string[] }
+    : { matches: [] as any[], unmatchedParts: [(testName || '').trim()].filter(Boolean) };
+
+  // An explicit code is already unambiguous.
+  if (whole.match && whole.matchType === 'code') return wholeResult;
+
+  const name = (testName || '').trim();
+  const parts = name
+    .split(/\s*(?:&|\+|,|\band\b)\s*/i)
+    .map((p) => p.trim())
+    .filter((p) => p.replace(/[^a-z0-9]/gi, '').length >= 2);
+
+  if (parts.length < 2) return wholeResult;
+
+  // A trailing fragment usually inherits the specimen from the first part:
+  // "urine r/e & c/s" means urine c/s, not the 36 other things "c/s" could be.
+  const contextWord = (parts[0].split(/\s+/)[0] || '').trim();
+
+  const matches: any[] = [];
+  const unmatchedParts: string[] = [];
+  const seen = new Set<string>();
+
+  for (const part of parts) {
+    let r = await resolveLabCatalogItem(null, part, opts);
+    if (!r.match && contextWord && !part.toLowerCase().startsWith(contextWord.toLowerCase())) {
+      r = await resolveLabCatalogItem(null, `${contextWord} ${part}`, opts);
+    }
+    if (r.match) {
+      if (!seen.has(r.match.test_code)) {
+        seen.add(r.match.test_code);
+        matches.push(r.match);
+      }
+    } else {
+      unmatchedParts.push(part);
+    }
+  }
+
+  // Splitting only earns its keep when it finds MORE than the whole string did.
+  // Otherwise the name was one test that merely contains "and" or a comma —
+  // "malaria thick and thin film" is a single catalog entry, not two tests.
+  const splitFoundMore = matches.length > wholeResult.matches.length;
+  if (!splitFoundMore) return wholeResult;
+
+  return { matches, unmatchedParts };
 }
 
 // Resolve a free-typed lab test name to a catalog test_code at order time, so
@@ -575,45 +771,72 @@ const runLabCompletionSideEffects = async (
 
   // 2. Billing — lab_test_catalog is the single source of truth; bill by code.
   try {
-    const labItem = await resolveLabCatalogItem(order.test_code, order.test_name);
-    const chargeDescription = labItem.match ? labItem.match.test_name : (order.test_name || 'Lab test');
-    const labPrice = labItem.match ? Number(labItem.match.base_price) : 0;
-    // On no catalog match the price is 0 — mark the line so it's VISIBLE on the
-    // invoice for reception to price manually, instead of a silent free lab.
-    const lineDescription = labItem.matchType === 'none'
-      ? `Lab: ${chargeDescription} [PRICE PENDING]`
-      : `Lab: ${chargeDescription}`;
+    // The patient's sex resolves variants that differ only by it (Lipid Profile
+    // (Male)/(Female), LFT_M/LFT_F) instead of leaving them "ambiguous".
+    const sexRow = await pool.query(
+      `SELECT p.gender FROM lab_orders lo JOIN patients p ON lo.patient_id = p.id WHERE lo.id = $1`,
+      [orderId]
+    );
+    const patientSex = sexRow.rows[0]?.gender || null;
 
-    if (labItem.matchType === 'fuzzy') {
-      console.warn(`⚠️ Lab billing: fuzzy-matched "${order.test_name}" → "${chargeDescription}" (code ${labItem.match?.test_code}). Review — order had no test_code.`);
-    } else if (labItem.matchType === 'none') {
-      console.warn(`⚠️ Lab billing: NO catalog match for "${order.test_name}" (code ${order.test_code}). Billed 0 — needs review.`);
+    // One order can cover more than one test ("urine r/e & c/s"), and billing
+    // only the first meant the rest was never charged.
+    const { matches, unmatchedParts } = await resolveLabCatalogItems(
+      order.test_code,
+      order.test_name,
+      { patientSex }
+    );
+
+    // Each billable line: a matched catalog test, plus any part that couldn't be
+    // matched, flagged so reception can price it rather than it vanishing.
+    const lines: Array<{ description: string; price: number }> = [
+      ...matches.map((m: any) => {
+        const price = Number(m.base_price) || 0;
+        return {
+          description: price > 0 ? `Lab: ${m.test_name}` : `Lab: ${m.test_name} [PRICE PENDING]`,
+          price,
+        };
+      }),
+      ...unmatchedParts.map((p) => ({ description: `Lab: ${p} [PRICE PENDING]`, price: 0 })),
+    ];
+
+    if (lines.length === 0) {
+      lines.push({ description: `Lab: ${order.test_name || 'Lab test'} [PRICE PENDING]`, price: 0 });
+    }
+
+    if (matches.length > 1) {
+      console.log(`Lab billing: "${order.test_name}" covers ${matches.length} tests — billing each: ${matches.map((m: any) => m.test_name).join(', ')}`);
+    }
+    if (unmatchedParts.length > 0) {
+      console.warn(`⚠️ Lab billing: no catalog match for ${JSON.stringify(unmatchedParts)} from "${order.test_name}" — billed 0 [PRICE PENDING], needs review.`);
     }
 
     const invoiceId = await resolveEncounterInvoiceId(order.encounter_id, pool);
 
     if (invoiceId) {
-      // Dedup by the canonical catalog name so the same test can't be billed
-      // twice under different spellings.
-      const existingItem = await pool.query(
-        `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-        [invoiceId, lineDescription]
-      );
+      for (const line of lines) {
+        // Dedup by the canonical catalog name so the same test can't be billed
+        // twice under different spellings.
+        const existingItem = await pool.query(
+          `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
+          [invoiceId, line.description]
+        );
 
-      if (existingItem.rows.length === 0) {
-        await pool.query(
-          `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
-           VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
-          [invoiceId, lineDescription, labPrice, orderId]
-        );
-        await pool.query(
-          `UPDATE invoices
-           SET subtotal = subtotal + $2,
-               total_amount = total_amount + $2,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [invoiceId, labPrice]
-        );
+        if (existingItem.rows.length === 0) {
+          await pool.query(
+            `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
+             VALUES ($1, NULL, $2, 1, $3, $3, 'lab', 'lab_order', $4)`,
+            [invoiceId, line.description, line.price, orderId]
+          );
+          await pool.query(
+            `UPDATE invoices
+             SET subtotal = subtotal + $2,
+                 total_amount = total_amount + $2,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [invoiceId, line.price]
+          );
+        }
       }
     }
   } catch (billingError) {
@@ -635,6 +858,40 @@ const runLabCompletionSideEffects = async (
     }
   } catch (notifyError) {
     console.error('Error notifying lab completion:', notifyError);
+  }
+};
+
+// Take a cancelled lab test back off the bill. Imaging has always done this
+// (removeImagingOrderFromInvoice); labs never did, so a test cancelled after it
+// had been billed stayed on the patient's invoice as a charge for work that was
+// never performed. Matched on the source order rather than the description, so
+// a re-worded catalog name can't strand the line.
+const removeLabOrderFromInvoice = async (orderId: number): Promise<void> => {
+  try {
+    const del = await pool.query(
+      `DELETE FROM invoice_items
+        WHERE reference_type = 'lab_order' AND reference_id = $1
+        RETURNING invoice_id, total_price`,
+      [orderId]
+    );
+    if (del.rows.length === 0) return;
+
+    // Recompute from the surviving items rather than subtracting — a decrement
+    // drifts if the same order was ever billed twice.
+    const invoiceIds = [...new Set(del.rows.map((r: any) => r.invoice_id))];
+    for (const invoiceId of invoiceIds) {
+      await pool.query(
+        `UPDATE invoices
+            SET subtotal = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0),
+                total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0)
+                               + COALESCE(tax, 0),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1`,
+        [invoiceId]
+      );
+    }
+  } catch (err) {
+    console.error(`Lab billing reversal failed for order ${orderId} (non-fatal):`, err);
   }
 };
 
@@ -816,6 +1073,12 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     }
 
     const updatedOrder = result.rows[0];
+
+    // Cancelling the test cancels the charge — the patient must not be billed
+    // for a lab that was never run. Mirrors the imaging cancel path.
+    if (updateData.status === 'cancelled' && before.status !== 'cancelled') {
+      await removeLabOrderFromInvoice(parseInt(id as string, 10));
+    }
 
     // Log to audit trail if a completed result's text changed.
     // (File replacement is logged in documentsController when the new
@@ -1567,6 +1830,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       quantity,
       refills,
       days_supply,
+      is_long_term,
       priority,
       notes,
       inventory_id,
@@ -1599,8 +1863,8 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
     const result = await pool.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, days_supply, priority, notes, inventory_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        dosage, frequency, route, quantity, refills, days_supply, is_long_term, priority, notes, inventory_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *`,
       [
         patient_id,
@@ -1613,6 +1877,7 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
         quantity,
         refills || 0,
         days_supply || null,
+        is_long_term === true,
         priority || 'routine',
         notes,
         inventory_id || null,
@@ -1665,6 +1930,13 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         e.chief_complaint,
         p.patient_number,
         p.allergies as patient_allergies,
+        -- 1900-01-01 is the sentinel patientController writes when a real DOB
+        -- isn't known, so don't hand the UI an age of 125 — send NULL and let it
+        -- show "unknown".
+        CASE WHEN p.date_of_birth > DATE '1900-01-01' THEN p.date_of_birth END as patient_date_of_birth,
+        vw.weight as latest_weight,
+        vw.weight_unit as latest_weight_unit,
+        vw.recorded_at as latest_weight_recorded_at,
         pu.first_name || ' ' || pu.last_name as patient_name,
         du.first_name || ' ' || du.last_name as dispensed_by_name,
         COALESCE(pi.quantity_on_hand, pim.quantity_on_hand) as inventory_quantity,
@@ -1768,6 +2040,17 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
           pi2.quantity_on_hand DESC
         LIMIT 1
       ) pim ON true
+      -- Most recent recorded weight for the patient, for the Patient Details
+      -- panel (pharmacists need it to sanity-check paediatric and weight-based
+      -- doses). Lateral so it stays one indexed lookup per row rather than three
+      -- correlated subqueries.
+      LEFT JOIN LATERAL (
+        SELECT vsh.weight, vsh.weight_unit, vsh.recorded_at
+        FROM vital_signs_history vsh
+        WHERE vsh.patient_id = p.id AND vsh.weight IS NOT NULL
+        ORDER BY vsh.recorded_at DESC
+        LIMIT 1
+      ) vw ON true
       WHERE 1=1
         -- Manual refill reminders live in pharmacy_orders as status='dispensed'
         -- only to drive the refills calendar; they are not real orders/dispenses
@@ -2146,20 +2429,30 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           );
 
           // Record inventory transaction for the dispense
+          // Note any shortfall on the transaction itself — if the batches could
+          // not cover the dispense, the count and the shelf disagree and that
+          // needs to be visible in the audit trail, not just the server log.
           const batchInfo = dispenseResult.dispensedBatches
             .map(b => `${b.batch_number}(${b.quantity_dispensed})`)
-            .join(', ');
+            .join(', ')
+            + (dispenseResult.shortfall > 0
+                ? ` [SHORT ${dispenseResult.shortfall} — batch records did not cover this dispense; needs a stock-take]`
+                : '');
 
           await client.query(
+            // unit_price is stamped here, at the moment the stock moves. Without
+            // it, reporting had to multiply by the CURRENT catalogue price, so
+            // repricing a drug rewrote the history of every past sale of it.
             `INSERT INTO inventory_transactions
-              (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-             VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5)`,
+              (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+             VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5, $6)`,
             [
               inventoryItem.id,
               -quantity,
               parseInt(id),
               `Dispensed for ${updatedOrder.patient_name || 'patient'}. Price: ${unitPrice}. Batches: ${batchInfo}`,
-              authReq.user?.id
+              authReq.user?.id,
+              Number(unitPrice) > 0 ? unitPrice : null,
             ]
           );
 
@@ -2346,10 +2639,20 @@ export const processReturn = async (req: Request, res: Response): Promise<void> 
         [order.inventory_id, qty]
       );
 
+      // A return is refunded at what the patient PAID, so carry the original
+      // dispense price across rather than re-reading the catalogue.
+      const dispensedAt = await client.query(
+        `SELECT unit_price FROM inventory_transactions
+          WHERE reference_type = 'pharmacy_order' AND reference_id = $1
+            AND transaction_type = 'dispense' AND unit_price IS NOT NULL
+          ORDER BY id DESC LIMIT 1`,
+        [parseInt(id)]
+      );
+
       await client.query(
-        `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-         VALUES ($1, 'return', $2, 'pharmacy_order', $3, $4, $5)`,
-        [order.inventory_id, qty, parseInt(id), `Return: ${return_reason}`, userId]
+        `INSERT INTO inventory_transactions (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+         VALUES ($1, 'return', $2, 'pharmacy_order', $3, $4, $5, $6)`,
+        [order.inventory_id, qty, parseInt(id), `Return: ${return_reason}`, userId, dispensedAt.rows[0]?.unit_price ?? null]
       );
     }
 
@@ -2499,17 +2802,56 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // A refill must bill onto the patient's CURRENT visit so the dispensed
+    // medication shows on the front-desk invoice. Copying the original
+    // prescription's encounter_id (often a long-closed past visit) stranded the
+    // charge on that old invoice — the med appeared on pharmacy's Dispensed tab
+    // but never reached reception (Irene's report). Resolve today's open
+    // encounter; if the patient has none, open a Pharmacy (OTC/Walk-in) visit so
+    // the sale still bills and reaches checkout (is_otc → no consultation fee).
+    let billingEncounterId: number;
+    const openEnc = await client.query(
+      `SELECT id FROM encounters
+        WHERE patient_id = $1
+          AND DATE(checked_in_at) = CURRENT_DATE
+          AND status NOT IN ('completed', 'discharged', 'cancelled')
+        ORDER BY id DESC LIMIT 1`,
+      [original.patient_id]
+    );
+    if (openEnc.rows.length > 0) {
+      billingEncounterId = openEnc.rows[0].id;
+    } else {
+      const walkIn = await client.query(
+        `INSERT INTO encounters (
+           patient_id, provider_id, encounter_date, encounter_type, chief_complaint,
+           status, checked_in_at, triage_time, triage_priority, clinic, is_otc
+         ) VALUES ($1, NULL, CURRENT_TIMESTAMP, 'walk-in', 'OTC Purchase',
+           'in-progress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'green',
+           'Pharmacy (OTC/Walk-in)', true)
+         RETURNING id`,
+        [original.patient_id]
+      );
+      billingEncounterId = walkIn.rows[0].id;
+      // Surface the auto-created visit in the reception queue as a pharmacy walk-in.
+      await client.query(
+        `INSERT INTO department_routing (
+           encounter_id, patient_id, department, priority, notes, routed_by, is_walk_in
+         ) VALUES ($1, $2, 'pharmacy', 'routine', 'Medication refill walk-in', $3, true)`,
+        [billingEncounterId, original.patient_id, userId]
+      );
+    }
+
     // Create a new order as the refill (copies the prescription)
     const newOrderResult = await client.query(
       `INSERT INTO pharmacy_orders (
         patient_id, encounter_id, ordering_provider, medication_name,
-        dosage, frequency, route, quantity, refills, days_supply, priority,
-        status, parent_order_id, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        dosage, frequency, route, quantity, refills, days_supply, is_long_term, priority,
+        status, parent_order_id, notes, inventory_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *`,
       [
         original.patient_id,
-        original.encounter_id,
+        billingEncounterId,
         original.ordering_provider,
         original.medication_name,
         original.dosage,
@@ -2518,10 +2860,17 @@ export const processRefill = async (req: Request, res: Response): Promise<void> 
         original.quantity,
         0, // Refill order has no refills of its own
         original.days_supply,
+        // Carry the long-term flag forward so a chronic med keeps cycling on the
+        // refills calendar (the calendar gate is is_long_term OR refills>0, and a
+        // refill order deliberately has 0 refills of its own).
+        original.is_long_term === true,
         'routine', // Refills are typically routine priority
         'ordered',
         parseInt(id), // Link to parent order
         `Refill of prescription #${id}`,
+        // Carry the inventory link forward too, or the refill prices as "—" in
+        // Order History even though the parent prescription priced fine.
+        original.inventory_id,
       ]
     );
 
@@ -2909,7 +3258,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
         u_provider.first_name || ' ' || u_provider.last_name as ordering_provider_name,
         u_ack.first_name || ' ' || u_ack.last_name as acknowledged_by_name,
         e.encounter_number,
-        e.room_number
+        rm.room_number
       FROM critical_result_alerts cra
       JOIN lab_orders lo ON cra.lab_order_id = lo.id
       JOIN patients p ON lo.patient_id = p.id
@@ -2917,6 +3266,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
       JOIN users u_provider ON cra.ordering_provider_id = u_provider.id
       LEFT JOIN users u_ack ON cra.acknowledged_by = u_ack.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
+      LEFT JOIN rooms rm ON e.room_id = rm.id
       WHERE 1=1
     `;
     const params: any[] = [];
@@ -3090,10 +3440,15 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
 
       // Create pharmacy order for this medication (already dispensed)
       const orderResult = await client.query(
+        // inventory_id must be stored, not just used for the stock check below:
+        // Order History prices each row by joining pharmacy_inventory on it, so
+        // leaving it NULL made every OTC sale show its price as "—" even though
+        // the sale was billed correctly (Irene).
         `INSERT INTO pharmacy_orders (
           patient_id, encounter_id, ordering_provider, medication_name,
-          dosage, frequency, route, quantity, refills, days_supply, priority, notes, status, dispensed_by, dispensed_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, $8, $9, 'routine', $10, 'dispensed', $11, CURRENT_TIMESTAMP)
+          dosage, frequency, route, quantity, refills, days_supply, priority, notes, status, dispensed_by, dispensed_date,
+          inventory_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'oral', $7, $8, $9, 'routine', $10, 'dispensed', $11, CURRENT_TIMESTAMP, $12)
         RETURNING *`,
         [
           patient_id,
@@ -3106,7 +3461,8 @@ export const dispenseWalkInOrder = async (req: Request, res: Response): Promise<
           med.refills || 0,
           med.duration_days || null,
           [med.duration_days ? `${med.duration_days} days` : '', med.instructions].filter(Boolean).join(' - ') || 'OTC Walk-in',
-          dispensed_by
+          dispensed_by,
+          med.inventory_id
         ]
       );
 

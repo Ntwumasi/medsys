@@ -7,8 +7,11 @@ import path from 'path';
 // Vercel serverless — files vanish between function invocations — so
 // the canonical storage is now the database.
 
-// Security: File upload configuration
-const MAX_FILE_SIZE_MB = 10;
+// Security: File upload configuration.
+// This is the backstop, not the binding limit — the client compresses images to
+// ~3MB so they clear Vercel's ~4.5MB serverless request-body cap. Keeping this
+// higher means a self-hosted deployment isn't artificially throttled.
+const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 // Allowed MIME types for medical documents

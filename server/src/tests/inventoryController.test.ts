@@ -15,6 +15,7 @@ import {
   calculatePrice,
   getRevenueSummary,
   getPatientDrugHistory,
+  dispenseFromBatches,
 } from '../controllers/inventoryController';
 
 // Mock response object
@@ -167,9 +168,13 @@ describe('Inventory Controller', () => {
       };
       const createdItem = { id: 1, ...newItem };
 
-      vi.mocked(pool.query)
-        .mockResolvedValueOnce({ rows: [createdItem] } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+      // SQL-aware so the test doesn't break every time a query is added.
+      vi.mocked(pool.query).mockImplementation(((sql: any) => {
+        const q = String(sql);
+        if (q.includes('INSERT INTO pharmacy_inventory')) return Promise.resolve({ rows: [createdItem] });
+        if (q.includes('FROM inventory_batches') && q.includes('COUNT(*)')) return Promise.resolve({ rows: [{ next_seq: 1 }] });
+        return Promise.resolve({ rows: [] });
+      }) as any);
 
       const req = mockRequest(newItem);
       const res = mockResponse();
@@ -181,6 +186,13 @@ describe('Inventory Controller', () => {
         message: 'Inventory item created successfully',
         item: createdItem,
       });
+
+      // The opening balance must also open a batch, or the new item shows stock
+      // that FEFO dispensing cannot draw from.
+      expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO inventory_batches'),
+        expect.arrayContaining([createdItem.id, 100])
+      );
     });
   });
 
@@ -214,17 +226,32 @@ describe('Inventory Controller', () => {
   });
 
   describe('adjustStock', () => {
-    it('should adjust stock and log transaction', async () => {
-      const mockClient = {
-        query: vi.fn()
-          .mockResolvedValueOnce({}) // BEGIN
-          .mockResolvedValueOnce({ rows: [{ quantity_on_hand: 100 }] }) // Get current stock
-          .mockResolvedValueOnce({ rows: [{ id: 1, quantity_on_hand: 150 }] }) // Update stock
-          .mockResolvedValueOnce({}) // Log transaction
-          .mockResolvedValueOnce({}), // COMMIT
-        release: vi.fn(),
-      };
+    // SQL-aware mock: `hasBatch` toggles whether the item already has a
+    // dispensable batch behind its on-hand count.
+    const adjustMockClient = (hasBatch: boolean) => ({
+      query: vi.fn().mockImplementation((sql: any) => {
+        const q = String(sql);
+        if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(q.trim())) return Promise.resolve({});
+        if (q.includes('FROM pharmacy_inventory') && q.includes('FOR UPDATE')) {
+          return Promise.resolve({
+            rows: [{ quantity_on_hand: 100, medication_name: 'Paracetamol', expiry_date: null }],
+          });
+        }
+        if (q.includes('FROM inventory_batches')) {
+          if (q.includes('COUNT(*)')) return Promise.resolve({ rows: [{ next_seq: 1 }] });
+          return Promise.resolve({ rows: hasBatch ? [{ id: 9, quantity: 100 }] : [] });
+        }
+        if (q.includes('UPDATE pharmacy_inventory')) return Promise.resolve({ rows: [{ quantity_on_hand: 150 }] });
+        if (q.includes('SELECT * FROM pharmacy_inventory')) {
+          return Promise.resolve({ rows: [{ id: 1, quantity_on_hand: 150, medication_name: 'Paracetamol' }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      release: vi.fn(),
+    });
 
+    it('should adjust stock and log transaction', async () => {
+      const mockClient = adjustMockClient(true);
       vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
 
       const req = mockRequest(
@@ -240,6 +267,40 @@ describe('Inventory Controller', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         message: 'Stock adjusted successfully',
       }));
+
+      // The adjustment must reach the batch layer, not just the cached count —
+      // otherwise the added stock is undispensable and the next stock-take
+      // (which resyncs the count from batches) erases it.
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE inventory_batches'),
+        expect.arrayContaining([50, 9])
+      );
+      // ...and the count is recomputed from the batches rather than assumed.
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT SUM(quantity) FROM inventory_batches'),
+        expect.anything()
+      );
+    });
+
+    // The live METFORMIN case: on-hand said 186 with zero batches behind it.
+    it('should open a batch when adding stock to an item that has none', async () => {
+      const mockClient = adjustMockClient(false);
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
+
+      const req = mockRequest({ adjustment: 50, notes: 'Recount' }, { id: '1' });
+      const res = mockResponse();
+
+      await adjustStock(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        message: 'Stock adjusted successfully',
+      }));
+      // The pre-existing 100 on hand is materialised as a batch so the resync
+      // cannot wipe it, and the +50 lands on top.
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO inventory_batches'),
+        expect.arrayContaining([100])
+      );
     });
 
     it('should reject adjustment if insufficient stock', async () => {
@@ -535,6 +596,58 @@ describe('Inventory Controller', () => {
       const queryCall = vi.mocked(pool.query).mock.calls[0][0] as string;
       expect(queryCall).toContain('ordered_date >=');
       expect(queryCall).toContain('ordered_date <=');
+    });
+  });
+
+  describe('dispenseFromBatches', () => {
+    // hasQty: what the single open batch holds.
+    const dispenseClient = (hasQty: number, resyncTo: number) => ({
+      query: vi.fn().mockImplementation((sql: any) => {
+        const q = String(sql);
+        if (q.includes('FROM pharmacy_inventory') && q.includes('FOR UPDATE')) {
+          return Promise.resolve({
+            rows: [{ medication_name: 'Paracetamol', quantity_on_hand: 10, expiry_date: null }],
+          });
+        }
+        if (q.includes('SELECT 1') && q.includes('FROM inventory_batches')) {
+          return Promise.resolve({ rows: [{ ok: 1 }] }); // a batch already exists
+        }
+        if (q.includes('FROM inventory_batches') && q.includes('FOR UPDATE')) {
+          return Promise.resolve({
+            rows: [{ id: 1, batch_number: 'B1', quantity: hasQty, expiry_date: null }],
+          });
+        }
+        if (q.includes('UPDATE pharmacy_inventory')) {
+          return Promise.resolve({ rows: [{ quantity_on_hand: resyncTo }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    });
+
+    it('recomputes the count from batches instead of blind-subtracting', async () => {
+      const client = dispenseClient(10, 4);
+      const res = await dispenseFromBatches(client as any, 1, 6, 27);
+
+      expect(res.success).toBe(true);
+      expect(res.shortfall).toBe(0);
+
+      const sql = client.query.mock.calls.map((c: any[]) => String(c[0]));
+      // The old blind subtraction is what drove the count below the batch total
+      // (and NIFEDIPINE to -1) — it must be gone.
+      expect(sql.some(q => q.includes('quantity_on_hand = quantity_on_hand - '))).toBe(false);
+      expect(sql.some(q => q.includes('SELECT SUM(quantity) FROM inventory_batches'))).toBe(true);
+    });
+
+    it('reports a shortfall when the batches cannot cover the dispense', async () => {
+      const client = dispenseClient(4, 0);
+      const res = await dispenseFromBatches(client as any, 1, 10, 27);
+
+      expect(res.success).toBe(false);
+      expect(res.shortfall).toBe(6);
+      // Still resyncs, so the count lands at what the batches actually hold
+      // rather than going negative.
+      const sql = client.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(q => q.includes('SELECT SUM(quantity) FROM inventory_batches'))).toBe(true);
     });
   });
 });

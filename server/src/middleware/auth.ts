@@ -20,7 +20,7 @@ export interface AuthRequest extends Request {
  */
 export const STAFF_ROLES = [
   'doctor', 'nurse', 'admin', 'office_manager', 'receptionist', 'lab',
-  'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant',
+  'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant', 'marketing',
 ] as const;
 
 const getJwtSecret = (): string => {

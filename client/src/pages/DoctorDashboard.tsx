@@ -13,6 +13,8 @@ import { parseMedicationName, calculateQuantity, FREQUENCY_OPTIONS } from '../ut
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import PatientQuickView from '../components/PatientQuickView';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import PastVisitsPanel from '../components/PastVisitsPanel';
+import SuggestedTestsPanel from '../components/SuggestedTestsPanel';
 import AllergyWarningModal from '../components/AllergyWarningModal';
 import { playNotificationSound } from '../utils/notificationSound';
 import AppSelect from '../components/ui/AppSelect';
@@ -168,16 +170,16 @@ const DoctorDashboard: React.FC = () => {
   const [proceduralNoteContent, setProceduralNoteContent] = useState('');
 
   // Multi-order state - arrays to hold pending orders
-  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number, customFrequency?: string}>>([]);
+  const [pendingLabOrders, setPendingLabOrders] = useState<Array<{test_name: string, test_code?: string, priority: string, notes?: string, scheduled_time?: string, frequency?: string, occurrences?: number, customFrequency?: string}>>([]);
   // Guards against a double-click / double-submit creating duplicate orders.
   const [submittingOrders, setSubmittingOrders] = useState(false);
   const [pendingImagingOrders, setPendingImagingOrders] = useState<Array<{imaging_type: string, body_part: string, priority: string, notes?: string}>>([]);
-  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
+  const [pendingPharmacyOrders, setPendingPharmacyOrders] = useState<Array<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes?: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number, allow_duplicate?: boolean}>>([]);
 
   // Current order being added
   const [currentLabOrder, setCurrentLabOrder] = useState({test_name: '', priority: 'routine', notes: '', scheduled_time: '', frequency: 'once', occurrences: 1, customFrequency: ''});
   const [currentImagingOrder, setCurrentImagingOrder] = useState({imaging_type: '', body_part: '', priority: 'routine', notes: ''});
-  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
+  const [currentPharmacyOrder, setCurrentPharmacyOrder] = useState<{medication_name: string, dosage: string, frequency: string, route: string, quantity: string, refills: string, days_supply: string, is_long_term: boolean, priority: string, notes: string, inventory_id?: number, selling_price?: number, quantity_on_hand?: number}>({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', is_long_term: false, priority: 'routine', notes: ''});
 
   // Medication search state
   const [medSearchResults, setMedSearchResults] = useState<Array<{id: number, medication_name: string, generic_name: string, selling_price: number, quantity_on_hand: number, unit: string}>>([]);
@@ -283,6 +285,9 @@ const DoctorDashboard: React.FC = () => {
   // Diagnosis state
   const [encounterDiagnoses, setEncounterDiagnoses] = useState<Array<{id: number; diagnosis_code: string; diagnosis_description: string; type: string; status: string}>>([]);
   const [currentDiagnosis, setCurrentDiagnosis] = useState({diagnosis_description: '', diagnosis_code: '', type: 'primary' as 'primary' | 'secondary'});
+  // Set when the server rejects sign-off for a payer-billed patient with no
+  // diagnosis; drives the banner on the Diagnoses card.
+  const [diagnosisRequired, setDiagnosisRequired] = useState(false);
 
   // Follow-up modal state
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
@@ -974,7 +979,7 @@ const DoctorDashboard: React.FC = () => {
     // salbutamol dose) instead of hard-blocking it with a 409.
     const orderToAdd = isDuplicate ? { ...baseOrder, allow_duplicate: true } : baseOrder;
     setPendingPharmacyOrders([...pendingPharmacyOrders, orderToAdd]);
-    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', priority: 'routine', notes: ''});
+    setCurrentPharmacyOrder({medication_name: '', dosage: '', frequency: '', route: '', quantity: '', refills: '', days_supply: '', is_long_term: false, priority: 'routine', notes: ''});
     setDrugInteractions([]);
     setShowInteractionModal(false);
   };
@@ -1144,6 +1149,18 @@ const DoctorDashboard: React.FC = () => {
       console.error('Error alerting nurse:', error);
       const detail = error.response?.data?.detail ? ` (${error.response.data.detail})` : '';
       const errorMessage = error.response?.data?.error || error.message || 'Failed to alert nurse';
+
+      // The server blocks sign-off for insurer/corporate-billed patients with no
+      // diagnosis. A toast alone would leave the doctor staring at a modal that
+      // won't close, so send them straight to the field that's missing.
+      if (error.response?.data?.code === 'DIAGNOSIS_REQUIRED') {
+        setShowFollowUpModal(false);
+        setDiagnosisRequired(true);
+        setTimeout(() => {
+          document.getElementById('diagnoses-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
+
       showToast(`${errorMessage}${detail}`, 'error');
     }
   };
@@ -1153,6 +1170,8 @@ const DoctorDashboard: React.FC = () => {
     try {
       const response = await apiClient.get(`/encounters/${encounterId}`);
       setEncounterDiagnoses(response.data.encounter?.diagnoses || response.data.diagnoses || []);
+      // Fresh chart — drop any warning left over from the previous patient.
+      setDiagnosisRequired(false);
     } catch (error) {
       console.error('Error loading diagnoses:', error);
     }
@@ -1173,6 +1192,7 @@ const DoctorDashboard: React.FC = () => {
       });
       showToast('Diagnosis added', 'success');
       setCurrentDiagnosis({diagnosis_description: '', diagnosis_code: '', type: 'primary'});
+      setDiagnosisRequired(false);
       loadEncounterDiagnoses(selectedEncounter.id);
     } catch (error) {
       showToast('Failed to add diagnosis', 'error');
@@ -2071,8 +2091,40 @@ const DoctorDashboard: React.FC = () => {
                   )}
                 </div>
 
+                {/* Past Visits — inline history so the doctor needn't leave to search Past Patients */}
+                <PastVisitsPanel
+                  patientId={selectedEncounter.patient_id}
+                  currentEncounterId={selectedEncounter.id}
+                />
+
+                {/* AI-suggested tests — history/demographics driven; "Add" stages a
+                    real lab order alongside anything typed manually. */}
+                <SuggestedTestsPanel
+                  patientId={selectedEncounter.patient_id}
+                  encounterId={selectedEncounter.id}
+                  mode="doctor"
+                  alreadyOrdered={[
+                    ...encounterLabOrders.filter(o => o.status !== 'cancelled').map(o => o.test_name || ''),
+                    ...pendingLabOrders.map(o => o.test_name),
+                  ]}
+                  onAddOrder={(test) =>
+                    setPendingLabOrders(prev => [
+                      ...prev,
+                      {
+                        test_name: test.test_name,
+                        test_code: test.test_code,
+                        priority: test.priority,
+                        notes: test.rationale ? `AI suggestion: ${test.rationale}` : '',
+                      },
+                    ])
+                  }
+                />
+
                 {/* Diagnoses */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div
+                  id="diagnoses-section"
+                  className={`bg-white rounded-xl shadow-sm border p-6 ${diagnosisRequired ? 'border-rose-400 ring-2 ring-rose-200' : 'border-gray-200'}`}
+                >
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
                       <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2084,6 +2136,17 @@ const DoctorDashboard: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {diagnosisRequired && encounterDiagnoses.length === 0 && (
+                    <div className="mb-4 p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                      <p className="text-sm font-semibold text-rose-800">A diagnosis is required to close this visit</p>
+                      <p className="text-sm text-rose-700 mt-1">
+                        Every visit needs a recorded diagnosis before it can be closed or the patient sent back to the
+                        nurse. Add one below, then complete the visit. Including the ICD-10 code speeds up insurer
+                        payment.
+                      </p>
+                    </div>
+                  )}
 
                   {/* Current Diagnoses */}
                   {encounterDiagnoses.length > 0 && (
@@ -3035,6 +3098,34 @@ const DoctorDashboard: React.FC = () => {
                             placeholder="Refill"
                           />
                         </div>
+                        {/* One-time vs Long-term. Long-term = chronic/refillable →
+                            surfaces on the pharmacy refills calendar so the patient
+                            gets a refill reminder. One-time = a single course. */}
+                        <div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: false})}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              aria-pressed={!currentPharmacyOrder.is_long_term}
+                            >
+                              One-time
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: true})}
+                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              aria-pressed={currentPharmacyOrder.is_long_term}
+                            >
+                              Long-term (refillable)
+                            </button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {currentPharmacyOrder.is_long_term
+                              ? 'Chronic medication — will appear on the pharmacy refills calendar for reminders.'
+                              : 'Single course — no automatic refill reminder.'}
+                          </p>
+                        </div>
                         <AppSelect
                           value={currentPharmacyOrder.priority}
                           onChange={(val) => setCurrentPharmacyOrder({...currentPharmacyOrder, priority: val})}
@@ -3090,6 +3181,9 @@ const DoctorDashboard: React.FC = () => {
                                     {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
                                   </div>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                      {order.is_long_term ? 'Long-term' : 'One-time'}
+                                    </span>
                                     <span className="text-[10px] font-bold uppercase tracking-wide text-success-600">{order.priority}</span>
                                     {order.selling_price && (
                                       <span className="text-xs text-gray-500">GHS {Number(order.selling_price).toFixed(2)}/unit</span>
@@ -3773,6 +3867,17 @@ const DoctorDashboard: React.FC = () => {
               </div>
             </div>
             <div className="p-6 space-y-4">
+              {/* Say it up front rather than letting them fill in the follow-up
+                  details and then be rejected on submit. */}
+              {encounterDiagnoses.length === 0 && (
+                <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg">
+                  <p className="text-sm font-semibold text-rose-800">A diagnosis is required</p>
+                  <p className="text-sm text-rose-700 mt-1">
+                    This visit can't be closed until a diagnosis is recorded. Close this box, add one under
+                    Diagnoses, then complete the encounter.
+                  </p>
+                </div>
+              )}
               <p className="text-gray-600">
                 The patient will be sent back to the nurse for follow-up care.
               </p>
@@ -3870,7 +3975,9 @@ const DoctorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleConfirmCompleteEncounter}
-                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                disabled={encounterDiagnoses.length === 0}
+                title={encounterDiagnoses.length === 0 ? 'Record a diagnosis before completing this visit' : undefined}
+                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />

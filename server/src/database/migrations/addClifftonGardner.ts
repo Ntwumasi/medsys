@@ -26,9 +26,13 @@ export async function addClifftonGardner() {
       const saltRounds = 10;
       const passwordHash = await bcrypt.hash('demo123', saltRounds);
 
+      // NOTE: no department/position columns here — the users table has never
+      // had them (not even in production). Including them made this migration
+      // fail with 42703 on any fresh database, which halted the whole
+      // migration run and left every later migration unapplied.
       await client.query(
-        `INSERT INTO users (first_name, last_name, email, username, password_hash, role, department, position, is_active, is_super_admin, must_change_password)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, TRUE, TRUE)`,
+        `INSERT INTO users (first_name, last_name, email, username, password_hash, role, is_active, is_super_admin, must_change_password)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, TRUE, TRUE)`,
         [
           'Cliffton',
           'Gardner',
@@ -36,8 +40,6 @@ export async function addClifftonGardner() {
           'cgardner',
           passwordHash,
           'admin',
-          'ADMINISTRATION',
-          'System Administrator',
         ]
       );
       console.log('Created user cgardner (Cliffton Gardner) as admin + super admin');

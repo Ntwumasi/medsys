@@ -5,12 +5,47 @@ import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import * as qbxmlBuilder from './qbxmlBuilder';
+import * as qbRevenueMap from './qbRevenueMapService';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
 const APP_VERSION = '1.0.0';
+
+// Name of the QuickBooks item used for invoice lines whose charge isn't mapped
+// to a specific QB item. Configurable via quickbooks_config.default_item_name;
+// falls back to a sensible default. This item must exist in QuickBooks.
+async function getDefaultItemName(): Promise<string> {
+  try {
+    const r = await pool.query(`SELECT default_item_name FROM quickbooks_config WHERE id = 1`);
+    return r.rows[0]?.default_item_name || 'Medical Services';
+  } catch {
+    return 'Medical Services';
+  }
+}
+
+// Tag each invoice line with the QB item that routes it to the right income
+// account (see qbRevenueMapService). Lines the rules don't classify are left
+// untagged and fall through to the default item, which keeps them visible as
+// unclassified rather than filed under a plausible-looking account.
+async function attachRevenueRouting<T extends { category?: string | null; description?: string | null }>(
+  lines: T[]
+): Promise<Array<T & { qb_item_name: string | null; qb_item_listid: string | null }>> {
+  try {
+    const rules = await qbRevenueMap.loadRules();
+    const catalogs = await qbRevenueMap.loadCatalogs();
+    return lines.map((line) => {
+      const resolved = qbRevenueMap.resolveLine(rules, line.category, line.description, catalogs);
+      return { ...line, qb_item_name: resolved.itemName, qb_item_listid: resolved.itemListId };
+    });
+  } catch (err) {
+    // Routing is an enhancement, never a reason to drop an invoice on the floor —
+    // without it lines just use the default item, which is the old behaviour.
+    console.error('[QBWC] Revenue routing unavailable, falling back to the default item:', err);
+    return lines.map((line) => ({ ...line, qb_item_name: null, qb_item_listid: null }));
+  }
+}
 
 // ===== QBWC SOAP Method Implementations =====
 
@@ -119,14 +154,29 @@ export async function sendRequestXML(
     if (!qbxml) {
       qbxml = await generateQBXML(request);
       if (!qbxml) {
-        console.error(`[QBWC] Failed to generate QBXML for ${request.entity_type} ${request.operation} #${request.medsys_id}`);
-        // Mark as error and move on
-        await pool.query(`
-          UPDATE quickbooks_request_queue SET
-            status = 'error',
-            error_message = 'Failed to generate QBXML'
-          WHERE id = $1
-        `, [request.id]);
+        // generateQBXML returns null for TWO different reasons:
+        //  1. It deferred the row on purpose (a dependency isn't in QuickBooks
+        //     yet) and already set its status to 'waiting' — must be left alone
+        //     so it can be reactivated once the dependency syncs.
+        //  2. A genuine failure — mark it 'error'.
+        // The old code blindly overwrote (1) with 'error: Failed to generate
+        // QBXML', which is why hundreds of invoices/payments errored and no row
+        // ever stayed 'waiting'. Only error the row if it wasn't deferred.
+        const cur = await pool.query(
+          `SELECT status FROM quickbooks_request_queue WHERE id = $1`,
+          [request.id]
+        );
+        if (cur.rows[0]?.status !== 'waiting') {
+          console.error(`[QBWC] Failed to generate QBXML for ${request.entity_type} ${request.operation} #${request.medsys_id}`);
+          await pool.query(`
+            UPDATE quickbooks_request_queue SET
+              status = 'error',
+              error_message = 'Failed to generate QBXML'
+            WHERE id = $1
+          `, [request.id]);
+        } else {
+          console.log(`[QBWC] Deferred ${request.entity_type} #${request.medsys_id} (waiting on a dependency)`);
+        }
         // Try next request
         return sendRequestXML(ticket, strHCPResponse, strCompanyFileName, qbXMLCountry, qbXMLMajorVers, qbXMLMinorVers);
       }
@@ -160,6 +210,87 @@ export async function sendRequestXML(
 }
 
 // Generate QBXML based on request type
+// Resolve which QuickBooks customer an invoice/payment for this patient should
+// be booked under.
+//
+// Payer-based mode (use_payer_based_customers) — what the accountant wants:
+//   self_pay / none -> the single "Cash Sales" customer
+//   corporate       -> the corporate client's mapped QB customer
+//   insurance       -> the insurer's mapped QB customer
+//   staff           -> SKIPPED entirely: the staff health-package perk is an
+//                      internal employee benefit (GHS cap tracked in-app), not
+//                      external revenue, so it must never post to QuickBooks.
+// All referenced by FullName, so they point at customers QB already has. If a
+// payer isn't mapped yet we return null so the caller can hold the row rather
+// than post it under the wrong (or a duplicate) customer.
+//
+// Legacy mode (flag off) — one QB customer per patient, resolved from the
+// patient's ListID in quickbooks_sync_map (null until the patient syncs).
+type CustomerResolution =
+  | { ref: { listId: string } | { fullName: string } }
+  | { skip: 'staff_perk'; detail: string }
+  | { unresolved: 'patient_not_synced' | 'payer_not_mapped' | 'cash_sales_not_set'; detail: string };
+
+async function resolveCustomerForPatient(patientId: number): Promise<CustomerResolution> {
+  const cfg = await pool.query(
+    `SELECT use_payer_based_customers, cash_sales_customer_name FROM quickbooks_config WHERE id = 1`
+  );
+  const config = cfg.rows[0] || {};
+
+  if (!config.use_payer_based_customers) {
+    const syncMap = await pool.query(
+      `SELECT quickbooks_id FROM quickbooks_sync_map WHERE entity_type = 'patient' AND medsys_id = $1`,
+      [patientId]
+    );
+    if (syncMap.rows.length === 0) {
+      return { unresolved: 'patient_not_synced', detail: `Patient ${patientId} not synced to QB yet` };
+    }
+    return { ref: { listId: syncMap.rows[0].quickbooks_id } };
+  }
+
+  // Payer-based: look at the patient's PRIMARY payer source.
+  const payer = await pool.query(
+    `SELECT pps.payer_type,
+            COALESCE(cc.quickbooks_customer_name, cc.name)  AS corporate_name,
+            COALESCE(ip.quickbooks_customer_name, ip.name)  AS insurance_name,
+            cc.quickbooks_customer_name AS corporate_mapped,
+            ip.quickbooks_customer_name AS insurance_mapped
+       FROM patient_payer_sources pps
+       LEFT JOIN corporate_clients cc     ON pps.corporate_client_id = cc.id
+       LEFT JOIN insurance_providers ip   ON pps.insurance_provider_id = ip.id
+      WHERE pps.patient_id = $1
+      ORDER BY pps.is_primary DESC
+      LIMIT 1`,
+    [patientId]
+  );
+  const type = payer.rows[0]?.payer_type || 'self_pay';
+
+  if (type === 'staff') {
+    // Staff health-package perk — internal benefit, never goes to QuickBooks.
+    return { skip: 'staff_perk', detail: 'Staff health-package perk — excluded from QuickBooks' };
+  }
+  if (type === 'corporate') {
+    // Require an explicit QB mapping — the corporate name in MedSys may not
+    // match the QB customer name, so don't guess.
+    if (!payer.rows[0]?.corporate_mapped) {
+      return { unresolved: 'payer_not_mapped', detail: `Corporate payer for patient ${patientId} has no QuickBooks customer mapped` };
+    }
+    return { ref: { fullName: payer.rows[0].corporate_name } };
+  }
+  if (type === 'insurance') {
+    if (!payer.rows[0]?.insurance_mapped) {
+      return { unresolved: 'payer_not_mapped', detail: `Insurance payer for patient ${patientId} has no QuickBooks customer mapped` };
+    }
+    return { ref: { fullName: payer.rows[0].insurance_name } };
+  }
+
+  // self_pay or no payer source -> single Cash Sales customer.
+  if (!config.cash_sales_customer_name) {
+    return { unresolved: 'cash_sales_not_set', detail: 'Self-pay customer name not configured in QuickBooks settings' };
+  }
+  return { ref: { fullName: config.cash_sales_customer_name } };
+}
+
 async function generateQBXML(request: any): Promise<string | null> {
   const { entity_type, operation, medsys_id } = request;
 
@@ -219,18 +350,20 @@ async function generateQBXML(request: any): Promise<string | null> {
         WHERE ii.invoice_id = $1
       `, [medsys_id]);
 
-      // Get QB customer ID
-      const syncMap = await pool.query(`
-        SELECT quickbooks_id FROM quickbooks_sync_map
-        WHERE entity_type = 'patient' AND medsys_id = $1
-      `, [invoiceResult.rows[0].patient_id]);
-
-      if (syncMap.rows.length === 0) {
-        console.log(`[QBWC] Patient ${invoiceResult.rows[0].patient_id} not synced to QB yet`);
-        // Queue patient first, mark invoice as waiting
+      // Resolve the QB customer (payer-based or legacy per-patient).
+      const customer = await resolveCustomerForPatient(invoiceResult.rows[0].patient_id);
+      if ('skip' in customer) {
+        console.log(`[QBWC] Invoice ${medsys_id} skipped: ${customer.detail}`);
         await pool.query(`
-          UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1
-        `, [request.id]);
+          UPDATE quickbooks_request_queue SET status = 'completed', error_message = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $1
+        `, [request.id, customer.detail]);
+        return null;
+      }
+      if ('unresolved' in customer) {
+        console.log(`[QBWC] Invoice ${medsys_id} held: ${customer.detail}`);
+        await pool.query(`
+          UPDATE quickbooks_request_queue SET status = 'waiting', error_message = $2 WHERE id = $1
+        `, [request.id, customer.detail]);
         return null;
       }
 
@@ -252,10 +385,11 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       return qbxmlBuilder.buildInvoiceAddRq(
         invoiceResult.rows[0],
-        itemsResult.rows,
-        syncMap.rows[0].quickbooks_id,
+        await attachRevenueRouting(itemsResult.rows),
+        customer.ref,
         itemListIds,
-        request.id.toString()
+        request.id.toString(),
+        await getDefaultItemName()
       );
     }
 
@@ -272,19 +406,20 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       const payment = paymentResult.rows[0];
 
-      // Get QB customer ID
-      const customerSync = await pool.query(`
-        SELECT quickbooks_id FROM quickbooks_sync_map
-        WHERE entity_type = 'patient' AND medsys_id = $1
-      `, [payment.patient_id]);
-
-      if (customerSync.rows.length === 0) {
-        console.log(`[QBWC] Customer for payment ${medsys_id} not synced to QB yet`);
-        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+      // Resolve the QB customer (payer-based or legacy per-patient).
+      const customer = await resolveCustomerForPatient(payment.patient_id);
+      if ('skip' in customer) {
+        console.log(`[QBWC] Payment ${medsys_id} skipped: ${customer.detail}`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'completed', error_message = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $1`, [request.id, customer.detail]);
+        return null;
+      }
+      if ('unresolved' in customer) {
+        console.log(`[QBWC] Payment ${medsys_id} held: ${customer.detail}`);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting', error_message = $2 WHERE id = $1`, [request.id, customer.detail]);
         return null;
       }
 
-      // Get QB invoice ID
+      // Payment must apply to an already-synced invoice (needs its QB TxnID).
       const invoiceSync = await pool.query(`
         SELECT quickbooks_id FROM quickbooks_sync_map
         WHERE entity_type = 'invoice' AND medsys_id = $1
@@ -292,13 +427,13 @@ async function generateQBXML(request: any): Promise<string | null> {
 
       if (invoiceSync.rows.length === 0) {
         console.log(`[QBWC] Invoice for payment ${medsys_id} not synced to QB yet`);
-        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting' WHERE id = $1`, [request.id]);
+        await pool.query(`UPDATE quickbooks_request_queue SET status = 'waiting', error_message = 'Waiting for invoice to sync' WHERE id = $1`, [request.id]);
         return null;
       }
 
       return qbxmlBuilder.buildReceivePaymentAddRq(
         payment,
-        customerSync.rows[0].quickbooks_id,
+        customer.ref,
         invoiceSync.rows[0].quickbooks_id,
         request.id.toString()
       );
@@ -360,6 +495,61 @@ export async function receiveResponseXML(
         errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}, Errors: ${importResult.errors.join('; ').substring(0, 500)}`;
       } else {
         errorMessage = `Imported: ${importResult.imported}, Skipped: ${importResult.skipped}`;
+      }
+    } else if (request.entity_type === 'discover_accounts') {
+      // Resolve each mapped revenue account name to its QuickBooks ListID.
+      const accounts = qbxmlBuilder.parseAccountsFromResponse(response || '');
+      let matched = 0;
+      for (const account of accounts) {
+        const upd = await pool.query(
+          `UPDATE quickbooks_revenue_map
+              SET qb_account_listid = $2, updated_at = CURRENT_TIMESTAMP
+            WHERE qb_account_full_name = $1 AND qb_account_listid IS DISTINCT FROM $2`,
+          [account.fullName, account.listId]
+        );
+        matched += upd.rowCount || 0;
+      }
+      qbRevenueMap.invalidateRuleCache();
+
+      const unresolved = await pool.query(
+        `SELECT DISTINCT qb_account_full_name FROM quickbooks_revenue_map
+          WHERE is_active AND qb_account_listid IS NULL`
+      );
+      errorMessage = `Found ${accounts.length} income accounts; matched ${matched} mapping row(s).`;
+      if (unresolved.rows.length > 0) {
+        // Not an error — the accountant may not have created these yet. Naming
+        // them beats a silent partial mapping that misfiles revenue later.
+        const names = unresolved.rows.map((r: any) => r.qb_account_full_name);
+        console.warn('[QBWC] Revenue accounts not found in QuickBooks:', names);
+        errorMessage += ` Not found in QuickBooks: ${names.join('; ')}`.substring(0, 500);
+      }
+    } else if (request.entity_type === 'revenue_item') {
+      if (!response || !response.includes('ItemServiceAddRs')) {
+        status = 'error';
+        errorMessage = 'Empty or invalid response from QuickBooks';
+      } else {
+        const parsed = qbxmlBuilder.parseItemResponse(response);
+        if (!qbxmlBuilder.isSuccessResponse(parsed.statusCode)) {
+          status = 'error';
+          errorCode = parsed.statusCode;
+          errorMessage = parsed.statusMessage;
+        } else if (!parsed.listId) {
+          status = 'error';
+          errorMessage = 'No ListID returned from QuickBooks';
+        } else {
+          // The item name was parked in error_message when the request was queued.
+          const itemName = request.error_message;
+          await pool.query(
+            `UPDATE quickbooks_revenue_map
+                SET qb_item_listid = $2, updated_at = CURRENT_TIMESTAMP
+              WHERE qb_item_name = $1`,
+            [itemName, parsed.listId]
+          );
+          qbRevenueMap.invalidateRuleCache();
+          qbListId = parsed.listId;
+          errorMessage = `Created revenue item "${itemName}"`;
+          console.log(`[QBWC] Created revenue item "${itemName}" (ListID ${parsed.listId})`);
+        }
       }
     } else if (request.entity_type === 'patient' || request.entity_type === 'customer') {
       // Check for empty/invalid response
@@ -445,26 +635,105 @@ export async function receiveResponseXML(
           sync_status = 'synced',
           error_message = NULL
       `, [request.entity_type, request.medsys_id, qbListId || qbTxnId, qbEditSequence]);
+
+      // Payment sync status is surfaced on the dashboard from the payments row
+      // itself (payments.quickbooks_txn_id), NOT the sync map — mirror it there
+      // so synced payments actually show as synced. medsys_id is the payment id
+      // (see qbDataController recordPayment enqueue).
+      if (request.entity_type === 'payment' && qbTxnId) {
+        await pool.query(
+          `UPDATE payments SET quickbooks_txn_id = $2, quickbooks_synced_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [request.medsys_id, qbTxnId]
+        );
+      }
+
+      // Now that this entity exists in QuickBooks, wake up any dependent rows
+      // that were parked waiting on it (or that previously mis-errored while it
+      // was missing) so they retry on the next poll.
+      await reactivateDependents(request.entity_type, request.medsys_id);
     }
 
     console.log(`[QBWC] Processed response for request ${request.id}: ${status}`);
 
-    // Check for more pending requests
-    const pendingCount = await pool.query(`
-      SELECT COUNT(*) FROM quickbooks_request_queue WHERE status = 'pending'
+    // Report progress back to the Web Connector. Its contract: return 100 when
+    // the batch is done, a value in (0,100) to be polled again for the next
+    // item, and NEVER a negative value — the connector treats <0 as a fatal
+    // error and aborts the session. The old `100 - remaining` went negative
+    // for any queue larger than one item, so the connector quit after a single
+    // record and the queue never drained. Clamp to a real 1–99 progress %.
+    const counts = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+        COUNT(*) FILTER (WHERE status IN ('completed', 'error')) AS done
+      FROM quickbooks_request_queue
     `);
+    const pending = parseInt(counts.rows[0].pending);
+    const done = parseInt(counts.rows[0].done);
 
-    const remaining = parseInt(pendingCount.rows[0].count);
-    if (remaining === 0) {
-      return 100; // Complete
+    if (pending === 0) {
+      return 100; // No more pending work — batch complete
     }
 
-    // Return percentage (just estimate)
-    return Math.min(99, 100 - remaining);
+    // Monotonic-ish progress out of everything that's been queued and resolved.
+    const total = pending + done;
+    const pct = total > 0 ? Math.floor((done / total) * 100) : 0;
+    return Math.max(1, Math.min(99, pct)); // keep polling: strictly 1–99
 
   } catch (error) {
     console.error('[QBWC] receiveResponseXML error:', error);
     return -1;
+  }
+}
+
+// When an entity finishes syncing, promote the rows that were waiting on it
+// back to 'pending'. This also recovers rows that errored as "Failed to
+// generate QBXML" while the dependency was missing (the pre-fix behaviour that
+// burned deferred rows). Scoped by the specific patient/invoice so each success
+// only touches its own dependents.
+async function reactivateDependents(entityType: string, medsysId: number): Promise<void> {
+  // Rows eligible to wake up: those parked as 'waiting', plus the historically
+  // mis-burned "Failed to generate QBXML" errors.
+  const wakeable = `(
+    status = 'waiting'
+    OR (status = 'error' AND error_message = 'Failed to generate QBXML')
+  )`;
+
+  try {
+    if (entityType === 'patient' || entityType === 'customer') {
+      // A customer synced → its invoices and payments can go.
+      const inv = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'invoice' AND ${wakeable}
+            AND EXISTS (SELECT 1 FROM invoices i WHERE i.id = q.medsys_id AND i.patient_id = $1)`,
+        [medsysId]
+      );
+      const pay = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'payment' AND ${wakeable}
+            AND EXISTS (
+              SELECT 1 FROM payments p JOIN invoices i ON p.invoice_id = i.id
+              WHERE p.id = q.medsys_id AND i.patient_id = $1
+            )`,
+        [medsysId]
+      );
+      const n = (inv.rowCount || 0) + (pay.rowCount || 0);
+      if (n > 0) console.log(`[QBWC] Reactivated ${n} dependent(s) after patient ${medsysId} synced`);
+    } else if (entityType === 'invoice') {
+      // An invoice synced → its payments can go.
+      const pay = await pool.query(
+        `UPDATE quickbooks_request_queue q
+            SET status = 'pending', error_message = NULL, error_code = NULL
+          WHERE q.entity_type = 'payment' AND ${wakeable}
+            AND EXISTS (SELECT 1 FROM payments p WHERE p.id = q.medsys_id AND p.invoice_id = $1)`,
+        [medsysId]
+      );
+      if ((pay.rowCount || 0) > 0) console.log(`[QBWC] Reactivated ${pay.rowCount} payment(s) after invoice ${medsysId} synced`);
+    }
+  } catch (error) {
+    // Reactivation is best-effort — never let it break response processing.
+    console.error('[QBWC] reactivateDependents error:', error);
   }
 }
 
@@ -683,9 +952,11 @@ export async function queueInvoiceSync(invoiceId: number): Promise<void> {
 
   const qbxml = qbxmlBuilder.buildInvoiceAddRq(
     invoice,
-    itemsResult.rows,
+    await attachRevenueRouting(itemsResult.rows),
     customerListId,
-    itemListIds
+    itemListIds,
+    undefined,
+    await getDefaultItemName()
   );
 
   await pool.query(`
@@ -899,6 +1170,54 @@ export async function queueImportServiceItems(): Promise<void> {
   `, [qbxml]);
 
   console.log('[QBWC] Queued import service items query');
+}
+
+// ===== Revenue account routing (see qbRevenueMapService) =====
+
+// Step 1: ask QuickBooks for its income accounts so we can resolve each mapped
+// account name to a ListID. Nothing is written to the company file here.
+export async function queueRevenueAccountDiscovery(): Promise<void> {
+  const qbxml = qbxmlBuilder.buildAccountQueryRq('Income', 'discover-accounts');
+
+  await pool.query(`
+    INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority)
+    VALUES ('discover_accounts', 0, 'query', $1, 21)
+  `, [qbxml]);
+
+  console.log('[QBWC] Queued income account discovery');
+}
+
+// Step 2: create the service items the revenue map needs, each pointing at its
+// income account. Only items that are still missing a ListID and whose account
+// has been resolved are queued, so this is safe to re-run.
+export async function queueRevenueItemCreation(): Promise<{ queued: number; blocked: string[] }> {
+  const items = await qbRevenueMap.requiredItems();
+  const blocked: string[] = [];
+  let queued = 0;
+
+  for (const item of items) {
+    if (item.itemListId) continue; // already exists in QB
+    if (!item.accountListId) {
+      blocked.push(`${item.itemName} → ${item.accountFullName} (account not found in QuickBooks)`);
+      continue;
+    }
+
+    const qbxml = qbxmlBuilder.buildItemServiceAddRq(
+      { id: 0, service_code: item.itemName, service_name: item.itemName, price: 0 },
+      item.accountListId,
+      `revenue-item-${item.itemName}`
+    );
+
+    await pool.query(`
+      INSERT INTO quickbooks_request_queue (entity_type, medsys_id, operation, qbxml_request, priority, error_message)
+      VALUES ('revenue_item', 0, 'add', $1, 20, $2)
+    `, [qbxml, item.itemName]); // item name parked in error_message so the response handler knows which row to update
+    queued++;
+  }
+
+  console.log(`[QBWC] Queued ${queued} revenue service item(s); ${blocked.length} blocked`);
+  if (blocked.length) console.warn('[QBWC] Blocked revenue items:', blocked);
+  return { queued, blocked };
 }
 
 export async function queueImportInvoices(fromDate?: string, toDate?: string): Promise<void> {

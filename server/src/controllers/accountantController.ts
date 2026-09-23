@@ -47,30 +47,58 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 
     const categoryResult = await pool.query(categoryQuery, params);
 
-    // Daily revenue for chart (last 30 days)
+    // Daily revenue for chart — respects the selected date range (falls back to
+    // last 30 days when no range is supplied, matching the other cards).
     const dailyQuery = `
       SELECT
         DATE(i.invoice_date) as date,
         COALESCE(SUM(total_amount), 0) as billed,
         COALESCE(SUM(amount_paid), 0) as collected
       FROM invoices i
-      WHERE i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE 1=1 ${dateFilter}
       GROUP BY DATE(i.invoice_date)
       ORDER BY date
     `;
 
-    const dailyResult = await pool.query(dailyQuery);
+    const dailyResult = await pool.query(dailyQuery, params);
 
-    // Top services by revenue
+    // Top services by revenue. Excludes dispensed products (medication/pharmacy)
+    // — this is a *services* ranking, and a single expensive one-off drug was
+    // otherwise outranking real services. Medication revenue is still shown on
+    // the Revenue by Category card.
+    //
+    // Lab and imaging are rolled up to a single line each ("Lab Tests (all)",
+    // "Imaging (all)"). These categories are naturally spread across dozens of
+    // individual test names, each small, so a per-description ranking buried
+    // them even though lab is one of the top revenue sources overall. Rolling
+    // them up makes Top Services an honest picture of what's driving revenue;
+    // the per-test breakdown lives on the Lab/Imaging dashboards. Consultations,
+    // procedures, registration and other services stay broken out by name.
     const topServicesQuery = `
+      WITH grouped AS (
+        SELECT
+          CASE
+            WHEN LOWER(COALESCE(ii.category, '')) = 'lab' THEN 'Lab Tests (all)'
+            WHEN LOWER(COALESCE(ii.category, '')) = 'imaging' THEN 'Imaging (all)'
+            ELSE ii.description
+          END AS description,
+          CASE
+            WHEN LOWER(COALESCE(ii.category, '')) IN ('lab', 'imaging') THEN LOWER(ii.category)
+            ELSE COALESCE(ii.category, 'other')
+          END AS category,
+          ii.total_price
+        FROM invoice_items ii
+        JOIN invoices i ON ii.invoice_id = i.id
+        WHERE 1=1 ${dateFilter.replace('i.invoice_date', 'i.invoice_date')}
+          AND LOWER(COALESCE(ii.category, '')) NOT IN ('medication', 'pharmacy')
+      )
       SELECT
-        ii.description,
+        description,
+        category,
         COUNT(*) as times_billed,
-        COALESCE(SUM(ii.total_price), 0) as total_revenue
-      FROM invoice_items ii
-      JOIN invoices i ON ii.invoice_id = i.id
-      WHERE 1=1 ${dateFilter.replace('i.invoice_date', 'i.invoice_date')}
-      GROUP BY ii.description
+        COALESCE(SUM(total_price), 0) as total_revenue
+      FROM grouped
+      GROUP BY description, category
       ORDER BY total_revenue DESC
       LIMIT 10
     `;
@@ -125,7 +153,7 @@ export const getFinancialSummary = async (req: Request, res: Response): Promise<
 // Export invoices to Excel
 export const exportInvoicesToExcel = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { start_date, end_date, status } = req.query;
+    const { start_date, end_date, status, payer_type } = req.query;
 
     let query = `
       SELECT
@@ -141,11 +169,29 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
         i.amount_paid,
         (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
         i.status,
+        COALESCE(pp.payer_type, 'self_pay') as payer_type,
+        CASE COALESCE(pp.payer_type, 'self_pay')
+          WHEN 'corporate' THEN COALESCE(pp.corporate_client_name, 'Corporate')
+          WHEN 'insurance' THEN COALESCE(pp.insurance_provider_name, 'Insurance')
+          WHEN 'staff' THEN 'Staff'
+          ELSE 'Self Pay'
+        END as payer_label,
         i.created_at
       FROM invoices i
       JOIN patients p ON i.patient_id = p.id
       JOIN users u ON p.user_id = u.id
       LEFT JOIN encounters e ON i.encounter_id = e.id
+      LEFT JOIN LATERAL (
+        SELECT pps.payer_type,
+               cc.name as corporate_client_name,
+               ip.name as insurance_provider_name
+        FROM patient_payer_sources pps
+        LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+        LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+        WHERE pps.patient_id = i.patient_id
+        ORDER BY pps.is_primary DESC, pps.id ASC
+        LIMIT 1
+      ) pp ON true
       WHERE 1=1
     `;
 
@@ -170,6 +216,16 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
       params.push(status);
     }
 
+    if (payer_type && payer_type !== 'all') {
+      if (payer_type === 'self_pay') {
+        query += ` AND COALESCE(pp.payer_type, 'self_pay') = 'self_pay'`;
+      } else {
+        paramCount++;
+        query += ` AND pp.payer_type = $${paramCount}`;
+        params.push(payer_type);
+      }
+    }
+
     query += ` ORDER BY i.invoice_date DESC, i.id DESC`;
 
     const result = await pool.query(query, params);
@@ -191,6 +247,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
       { header: 'Phone', key: 'patient_phone', width: 15 },
       { header: 'Encounter #', key: 'encounter_number', width: 15 },
       { header: 'Chief Complaint', key: 'chief_complaint', width: 30 },
+      { header: 'Payer', key: 'payer_label', width: 22 },
       { header: 'Total (GHS)', key: 'total_amount', width: 12 },
       { header: 'Paid (GHS)', key: 'amount_paid', width: 12 },
       { header: 'Balance (GHS)', key: 'balance', width: 12 },
@@ -216,6 +273,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
         patient_phone: row.patient_phone || '',
         encounter_number: row.encounter_number || '',
         chief_complaint: row.chief_complaint || '',
+        payer_label: row.payer_label || 'Self Pay',
         total_amount: parseFloat(row.total_amount) || 0,
         amount_paid: parseFloat(row.amount_paid) || 0,
         balance: parseFloat(row.balance) || 0,
@@ -226,9 +284,9 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
     // Add totals row
     const totalRow = summarySheet.addRow({
       invoice_number: 'TOTALS',
-      total_amount: { formula: `SUM(H2:H${result.rows.length + 1})` },
-      amount_paid: { formula: `SUM(I2:I${result.rows.length + 1})` },
-      balance: { formula: `SUM(J2:J${result.rows.length + 1})` },
+      total_amount: { formula: `SUM(I2:I${result.rows.length + 1})` },
+      amount_paid: { formula: `SUM(J2:J${result.rows.length + 1})` },
+      balance: { formula: `SUM(K2:K${result.rows.length + 1})` },
     });
     totalRow.font = { bold: true };
     totalRow.fill = {
@@ -238,7 +296,7 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
     };
 
     // Format currency columns
-    ['H', 'I', 'J'].forEach((col) => {
+    ['I', 'J', 'K'].forEach((col) => {
       summarySheet.getColumn(col).numFmt = '#,##0.00';
     });
 
@@ -254,6 +312,77 @@ export const exportInvoicesToExcel = async (req: Request, res: Response): Promis
   } catch (error) {
     console.error('Export invoices error:', error);
     res.status(500).json({ error: 'Failed to export invoices' });
+  }
+};
+
+// Export the Revenue Trend (billed vs collected per day) to Excel
+export const exportRevenueTrendToExcel = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start_date, end_date } = req.query;
+
+    const dateFilter = start_date && end_date
+      ? `AND i.invoice_date BETWEEN $1 AND $2`
+      : `AND i.invoice_date >= CURRENT_DATE - INTERVAL '30 days'`;
+    const params = start_date && end_date ? [start_date, end_date] : [];
+
+    const result = await pool.query(`
+      SELECT
+        DATE(i.invoice_date) as date,
+        COALESCE(SUM(total_amount), 0) as billed,
+        COALESCE(SUM(amount_paid), 0) as collected,
+        COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as outstanding,
+        COUNT(*) as invoices
+      FROM invoices i
+      WHERE 1=1 ${dateFilter}
+      GROUP BY DATE(i.invoice_date)
+      ORDER BY date
+    `, params);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'MedSys';
+    workbook.created = new Date();
+    const sheet = workbook.addWorksheet('Revenue Trend');
+
+    sheet.columns = [
+      { header: 'Date', key: 'date', width: 14 },
+      { header: 'Invoices', key: 'invoices', width: 10 },
+      { header: 'Billed (GHS)', key: 'billed', width: 14 },
+      { header: 'Collected (GHS)', key: 'collected', width: 16 },
+      { header: 'Outstanding (GHS)', key: 'outstanding', width: 16 },
+    ];
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+
+    result.rows.forEach((row) => {
+      sheet.addRow({
+        date: row.date ? new Date(row.date).toLocaleDateString() : '',
+        invoices: parseInt(row.invoices) || 0,
+        billed: parseFloat(row.billed) || 0,
+        collected: parseFloat(row.collected) || 0,
+        outstanding: parseFloat(row.outstanding) || 0,
+      });
+    });
+
+    const n = result.rows.length;
+    const totalRow = sheet.addRow({
+      date: 'TOTALS',
+      invoices: { formula: `SUM(B2:B${n + 1})` },
+      billed: { formula: `SUM(C2:C${n + 1})` },
+      collected: { formula: `SUM(D2:D${n + 1})` },
+      outstanding: { formula: `SUM(E2:E${n + 1})` },
+    });
+    totalRow.font = { bold: true };
+    totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2EFDA' } };
+    ['C', 'D', 'E'].forEach((col) => { sheet.getColumn(col).numFmt = '#,##0.00'; });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `revenue_trend_${start_date || 'last30'}_to_${end_date || 'now'}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Export revenue trend error:', error);
+    res.status(500).json({ error: 'Failed to export revenue trend' });
   }
 };
 
@@ -451,20 +580,29 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
 
     const result = await pool.query(query);
 
-    // Calculate summary by bucket
+    // Calculate summary by bucket. The bucketing CASE is computed in a CTE so
+    // that `aging_bucket` is a real column downstream — Postgres rejects a
+    // SELECT alias used *inside an expression* in ORDER BY (CASE aging_bucket …)
+    // with "column aging_bucket does not exist", which is what broke this report.
     const summaryQuery = `
+      WITH aged AS (
+        SELECT
+          CASE
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
+            WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
+            ELSE '90+ days'
+          END AS aging_bucket,
+          (total_amount - COALESCE(amount_paid, 0)) AS balance
+        FROM invoices
+        WHERE status IN ('pending', 'partial')
+          AND (total_amount - COALESCE(amount_paid, 0)) > 0
+      )
       SELECT
-        CASE
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
-          WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
-          ELSE '90+ days'
-        END as aging_bucket,
-        COUNT(*) as invoice_count,
-        COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) as total_balance
-      FROM invoices
-      WHERE status IN ('pending', 'partial')
-        AND (total_amount - COALESCE(amount_paid, 0)) > 0
+        aging_bucket,
+        COUNT(*) AS invoice_count,
+        COALESCE(SUM(balance), 0) AS total_balance
+      FROM aged
       GROUP BY aging_bucket
       ORDER BY
         CASE aging_bucket
@@ -484,6 +622,135 @@ export const getAgingReport = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('Get aging report error:', error);
     res.status(500).json({ error: 'Failed to fetch aging report' });
+  }
+};
+
+// Operational Financial Summary — the clinic's revenue-and-cash picture for a
+// date range. NOT a GAAP balance sheet / income statement (the EMR doesn't
+// track expenses, cash accounts or equity — those live in QuickBooks). This is
+// billed vs collected revenue by category/payer, collections by method, a
+// monthly trend, and the current A/R aging snapshot.
+export const getFinancialStatement = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { start_date, end_date } = req.query as { start_date?: string; end_date?: string };
+    // Default to the last 12 months when no range is supplied.
+    const hasRange = !!(start_date && end_date);
+    const invFilter = hasRange ? `AND i.invoice_date BETWEEN $1 AND $2` : `AND i.invoice_date >= CURRENT_DATE - INTERVAL '12 months'`;
+    const payFilter = hasRange ? `AND pay.payment_date BETWEEN $1 AND $2` : `AND pay.payment_date >= CURRENT_DATE - INTERVAL '12 months'`;
+    const params = hasRange ? [start_date, end_date] : [];
+
+    // Headline: billed (invoices in range, excl. cancelled) vs collected
+    // (payments in range). Outstanding A/R is a current snapshot (all-time).
+    const billed = await pool.query(
+      `SELECT COALESCE(SUM(i.total_amount), 0) AS total_billed, COUNT(*) AS invoice_count
+         FROM invoices i WHERE i.status <> 'cancelled' ${invFilter}`, params);
+    const collected = await pool.query(
+      `SELECT COALESCE(SUM(pay.amount), 0) AS total_collected, COUNT(*) AS payment_count
+         FROM payments pay WHERE 1=1 ${payFilter}`, params);
+    const outstanding = await pool.query(
+      `SELECT COALESCE(SUM(total_amount - COALESCE(amount_paid, 0)), 0) AS total_outstanding
+         FROM invoices WHERE status IN ('pending', 'partial') AND (total_amount - COALESCE(amount_paid, 0)) > 0`);
+
+    // Billed revenue by service category (lab/imaging rolled up like Top Services)
+    const byCategory = await pool.query(
+      `SELECT
+         CASE WHEN LOWER(COALESCE(ii.category, '')) = 'lab' THEN 'Lab'
+              WHEN LOWER(COALESCE(ii.category, '')) = 'imaging' THEN 'Imaging'
+              ELSE INITCAP(COALESCE(NULLIF(ii.category, ''), 'other')) END AS category,
+         COALESCE(SUM(ii.total_price), 0) AS billed
+       FROM invoice_items ii
+       JOIN invoices i ON ii.invoice_id = i.id
+       WHERE i.status <> 'cancelled' ${invFilter}
+       GROUP BY 1 ORDER BY billed DESC`, params);
+
+    // Billed by payer type (invoices) — via the patient's primary payer source.
+    const billedByPayer = await pool.query(
+      `SELECT COALESCE(pps.payer_type, 'self_pay') AS payer_type,
+              COALESCE(SUM(i.total_amount), 0) AS billed
+         FROM invoices i
+         LEFT JOIN patient_payer_sources pps ON i.patient_id = pps.patient_id AND pps.is_primary = true
+        WHERE i.status <> 'cancelled' ${invFilter}
+        GROUP BY 1`, params);
+    // Collected by payer type (payments)
+    const collectedByPayer = await pool.query(
+      `SELECT COALESCE(pps.payer_type, 'self_pay') AS payer_type,
+              COALESCE(SUM(pay.amount), 0) AS collected
+         FROM payments pay
+         JOIN invoices i ON pay.invoice_id = i.id
+         LEFT JOIN patient_payer_sources pps ON i.patient_id = pps.patient_id AND pps.is_primary = true
+        WHERE 1=1 ${payFilter}
+        GROUP BY 1`, params);
+
+    // Collections by payment method
+    const byMethod = await pool.query(
+      `SELECT COALESCE(NULLIF(pay.payment_method, ''), 'Unknown') AS method,
+              COALESCE(SUM(pay.amount), 0) AS amount, COUNT(*) AS count
+         FROM payments pay WHERE 1=1 ${payFilter}
+        GROUP BY 1 ORDER BY amount DESC`, params);
+
+    // Monthly billed vs collected trend
+    const billedMonthly = await pool.query(
+      `SELECT TO_CHAR(DATE_TRUNC('month', i.invoice_date), 'YYYY-MM') AS month,
+              COALESCE(SUM(i.total_amount), 0) AS billed
+         FROM invoices i WHERE i.status <> 'cancelled' ${invFilter}
+        GROUP BY 1 ORDER BY 1`, params);
+    const collectedMonthly = await pool.query(
+      `SELECT TO_CHAR(DATE_TRUNC('month', pay.payment_date), 'YYYY-MM') AS month,
+              COALESCE(SUM(pay.amount), 0) AS collected
+         FROM payments pay WHERE 1=1 ${payFilter}
+        GROUP BY 1 ORDER BY 1`, params);
+
+    // Current A/R aging snapshot (CTE so the alias is a real column in ORDER BY)
+    const aging = await pool.query(
+      `WITH aged AS (
+         SELECT CASE WHEN CURRENT_DATE - DATE(invoice_date) <= 30 THEN '0-30 days'
+                     WHEN CURRENT_DATE - DATE(invoice_date) <= 60 THEN '31-60 days'
+                     WHEN CURRENT_DATE - DATE(invoice_date) <= 90 THEN '61-90 days'
+                     ELSE '90+ days' END AS aging_bucket,
+                (total_amount - COALESCE(amount_paid, 0)) AS balance
+           FROM invoices
+          WHERE status IN ('pending', 'partial') AND (total_amount - COALESCE(amount_paid, 0)) > 0)
+       SELECT aging_bucket, COUNT(*) AS invoice_count, COALESCE(SUM(balance), 0) AS total_balance
+         FROM aged GROUP BY aging_bucket
+        ORDER BY CASE aging_bucket WHEN '0-30 days' THEN 1 WHEN '31-60 days' THEN 2 WHEN '61-90 days' THEN 3 ELSE 4 END`);
+
+    // Merge billed + collected by payer into one row set
+    const payerMap: Record<string, { payer_type: string; billed: number; collected: number }> = {};
+    for (const r of billedByPayer.rows) payerMap[r.payer_type] = { payer_type: r.payer_type, billed: parseFloat(r.billed) || 0, collected: 0 };
+    for (const r of collectedByPayer.rows) {
+      payerMap[r.payer_type] = payerMap[r.payer_type] || { payer_type: r.payer_type, billed: 0, collected: 0 };
+      payerMap[r.payer_type].collected = parseFloat(r.collected) || 0;
+    }
+    // Merge monthly billed + collected
+    const monthMap: Record<string, { month: string; billed: number; collected: number }> = {};
+    for (const r of billedMonthly.rows) monthMap[r.month] = { month: r.month, billed: parseFloat(r.billed) || 0, collected: 0 };
+    for (const r of collectedMonthly.rows) {
+      monthMap[r.month] = monthMap[r.month] || { month: r.month, billed: 0, collected: 0 };
+      monthMap[r.month].collected = parseFloat(r.collected) || 0;
+    }
+
+    const totalBilled = parseFloat(billed.rows[0].total_billed) || 0;
+    const totalCollected = parseFloat(collected.rows[0].total_collected) || 0;
+
+    res.json({
+      period: hasRange ? { start: start_date, end: end_date } : { start: null, end: null, label: 'Last 12 months' },
+      headline: {
+        total_billed: totalBilled,
+        total_collected: totalCollected,
+        total_outstanding: parseFloat(outstanding.rows[0].total_outstanding) || 0,
+        collection_rate: totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 1000) / 10 : 0,
+        invoice_count: parseInt(billed.rows[0].invoice_count) || 0,
+        payment_count: parseInt(collected.rows[0].payment_count) || 0,
+      },
+      revenue_by_category: byCategory.rows.map((r: any) => ({ category: r.category, billed: parseFloat(r.billed) || 0 })),
+      revenue_by_payer: Object.values(payerMap).sort((a, b) => b.billed - a.billed),
+      collections_by_method: byMethod.rows.map((r: any) => ({ method: r.method, amount: parseFloat(r.amount) || 0, count: parseInt(r.count) || 0 })),
+      monthly_trend: Object.values(monthMap).sort((a, b) => a.month.localeCompare(b.month)),
+      aging: aging.rows.map((r: any) => ({ aging_bucket: r.aging_bucket, invoice_count: parseInt(r.invoice_count) || 0, total_balance: parseFloat(r.total_balance) || 0 })),
+    });
+  } catch (error) {
+    console.error('Get financial statement error:', error);
+    res.status(500).json({ error: 'Failed to fetch financial statement' });
   }
 };
 
@@ -995,7 +1262,12 @@ export const generateReceipt = async (req: Request, res: Response): Promise<void
     // Receipt Details - compact
     doc.fontSize(9).font('Helvetica');
     doc.text(`Receipt #: ${payment.reference_number || `RCP-${payment.id}`}`);
-    doc.text(`Date: ${new Date(payment.payment_date).toLocaleDateString()}`);
+    // Date AND time — patients can pay twice in one day, and a date-only
+    // receipt can't be told apart from the other (office manager's request).
+    doc.text(`Date: ${new Date(payment.payment_date).toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: true,
+    })}`);
     doc.moveDown(0.5);
 
     // Patient Info - compact

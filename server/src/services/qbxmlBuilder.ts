@@ -34,6 +34,22 @@ function formatQBDate(date: Date | string): string {
   return d.toISOString().split('T')[0];
 }
 
+// A QuickBooks customer can be referenced either by its ListID (a customer we
+// created and mapped) or by FullName (an existing customer the accountant made
+// — e.g. a payer like "Acacia Insurance" or a single "Cash Sales" bucket).
+// Referencing by FullName lets us point at customers QB already has without
+// creating or ListID-mapping them. A plain string is treated as a ListID for
+// backward compatibility with the legacy per-patient callers.
+export type QBCustomerRef = { listId: string } | { fullName: string };
+
+function buildCustomerRefXML(customer: string | QBCustomerRef): string {
+  const ref: QBCustomerRef = typeof customer === 'string' ? { listId: customer } : customer;
+  if ('fullName' in ref) {
+    return `<CustomerRef><FullName>${escapeXML(ref.fullName)}</FullName></CustomerRef>`;
+  }
+  return `<CustomerRef><ListID>${escapeXML(ref.listId)}</ListID></CustomerRef>`;
+}
+
 // ===== Customer (Patient) Builders =====
 
 interface PatientData {
@@ -172,19 +188,42 @@ interface InvoiceItemData {
   quantity: number;
   unit_price: number;
   charge_master_id?: number;
+  // Item resolved from the revenue map (qbRevenueMapService) so the line books
+  // to the right income account. Set by the caller before building.
+  qb_item_name?: string | null;
+  qb_item_listid?: string | null;
 }
 
 export function buildInvoiceAddRq(
   invoice: InvoiceData,
   items: InvoiceItemData[],
-  customerListId: string,
+  customer: string | QBCustomerRef, // ListID (legacy) or {listId}/{fullName}
   itemListIds: Map<number, string>, // charge_master_id -> QB ListID
-  requestId?: string
+  requestId?: string,
+  defaultItemFullName: string = 'Medical Services', // fallback item for unmapped lines
 ): string {
-  const lineItems = items.map((item, index) => {
-    const itemRef = item.charge_master_id && itemListIds.has(item.charge_master_id)
-      ? `<ItemRef><ListID>${escapeXML(itemListIds.get(item.charge_master_id)!)}</ListID></ItemRef>`
-      : '';
+  const lineItems = items.map((item) => {
+    // QuickBooks REQUIRES every InvoiceLineAdd to reference an existing Item —
+    // a line with no ItemRef is invalid qbXML and (with stopOnError) aborts the
+    // whole Web Connector batch ("Unexpected error, check qbsdklog.txt"). When a
+    // line's charge item isn't mapped to a QB ListID, fall back to a named
+    // default item so the request stays valid; if that item is missing in QB,
+    // only this one invoice errors instead of the entire connection.
+    //
+    // Resolution order: the line's own charge_master mapping (most specific),
+    // then the revenue-map item that routes it to the correct income account,
+    // then the global default. Without the middle step nearly every line lands
+    // on the default item and all revenue collapses into one account.
+    let itemRef: string;
+    if (item.charge_master_id && itemListIds.has(item.charge_master_id)) {
+      itemRef = `<ItemRef><ListID>${escapeXML(itemListIds.get(item.charge_master_id)!)}</ListID></ItemRef>`;
+    } else if (item.qb_item_listid) {
+      itemRef = `<ItemRef><ListID>${escapeXML(item.qb_item_listid)}</ListID></ItemRef>`;
+    } else if (item.qb_item_name) {
+      itemRef = `<ItemRef><FullName>${escapeXML(item.qb_item_name)}</FullName></ItemRef>`;
+    } else {
+      itemRef = `<ItemRef><FullName>${escapeXML(defaultItemFullName)}</FullName></ItemRef>`;
+    }
 
     return `
       <InvoiceLineAdd>
@@ -198,9 +237,7 @@ export function buildInvoiceAddRq(
   const requestXML = `
     <InvoiceAddRq${requestId ? ` requestID="${requestId}"` : ''}>
       <InvoiceAdd>
-        <CustomerRef>
-          <ListID>${escapeXML(customerListId)}</ListID>
-        </CustomerRef>
+        ${buildCustomerRefXML(customer)}
         <TxnDate>${formatQBDate(invoice.invoice_date)}</TxnDate>
         ${invoice.due_date ? `<DueDate>${formatQBDate(invoice.due_date)}</DueDate>` : ''}
         <RefNumber>${escapeXML(invoice.invoice_number.substring(0, 11))}</RefNumber>
@@ -237,16 +274,14 @@ interface PaymentData {
 
 export function buildReceivePaymentAddRq(
   payment: PaymentData,
-  customerListId: string,
+  customer: string | QBCustomerRef,
   invoiceTxnId: string,
   requestId?: string
 ): string {
   const requestXML = `
     <ReceivePaymentAddRq${requestId ? ` requestID="${requestId}"` : ''}>
       <ReceivePaymentAdd>
-        <CustomerRef>
-          <ListID>${escapeXML(customerListId)}</ListID>
-        </CustomerRef>
+        ${buildCustomerRefXML(customer)}
         <TxnDate>${formatQBDate(payment.payment_date)}</TxnDate>
         ${payment.reference_number ? `<RefNumber>${escapeXML(payment.reference_number.substring(0, 11))}</RefNumber>` : ''}
         <TotalAmount>${Number(payment.amount || 0).toFixed(2)}</TotalAmount>
@@ -366,6 +401,52 @@ export function parsePaymentResponse(xml: string): PaymentResponse {
     statusSeverity,
     txnId: extractTag(xml, 'TxnID') || undefined,
   };
+}
+
+export function parseItemResponse(xml: string): CustomerResponse {
+  const statusCode = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusCode') ||
+                     extractTag(xml, 'statusCode') || '0';
+  const statusMessage = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusMessage') ||
+                        extractTag(xml, 'statusMessage') || '';
+  const statusSeverity = extractAttribute(xml, 'ItemServiceAddRs|ItemServiceModRs', 'statusSeverity') ||
+                         extractTag(xml, 'statusSeverity') || 'Info';
+
+  return {
+    statusCode,
+    statusMessage,
+    statusSeverity,
+    listId: extractTag(xml, 'ListID') || undefined,
+    editSequence: extractTag(xml, 'EditSequence') || undefined,
+    name: extractTag(xml, 'Name') || undefined,
+  };
+}
+
+// Parse every account in an AccountQueryRs. FullName is the path form
+// ("Revenue:Lab.Service Fee") and is what the revenue map keys on — Name alone
+// is just the leaf and collides across parents (several "Consultation" leaves).
+export function parseAccountsFromResponse(xml: string): Array<{
+  listId: string;
+  fullName: string;
+  name?: string;
+  accountType?: string;
+}> {
+  const accounts: Array<{ listId: string; fullName: string; name?: string; accountType?: string }> = [];
+  const matches = xml.match(/<AccountRet>[\s\S]*?<\/AccountRet>/g) || [];
+
+  for (const accountXml of matches) {
+    const listId = extractTag(accountXml, 'ListID');
+    const fullName = extractTag(accountXml, 'FullName') || extractTag(accountXml, 'Name');
+    if (listId && fullName) {
+      accounts.push({
+        listId,
+        fullName,
+        name: extractTag(accountXml, 'Name') || undefined,
+        accountType: extractTag(accountXml, 'AccountType') || undefined,
+      });
+    }
+  }
+
+  return accounts;
 }
 
 export function parseAccountResponse(xml: string): AccountResponse {

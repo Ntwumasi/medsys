@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import * as qbwcService from '../services/qbwcService';
+import * as qbRevenueMap from '../services/qbRevenueMapService';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -41,6 +42,8 @@ export const getStatus = async (req: Request, res: Response): Promise<void> => {
       useCashSalesCustomer: qbConfig.use_cash_sales_customer ?? true,
       cashSalesCustomerName: qbConfig.cash_sales_customer_name || 'Cash Sales',
       cashSalesCustomerListId: qbConfig.cash_sales_customer_listid,
+      usePayerBasedCustomers: qbConfig.use_payer_based_customers ?? false,
+      defaultItemName: qbConfig.default_item_name || 'Medical Services',
       ownerId: qbConfig.owner_id,
       fileId: qbConfig.file_id,
       queueStatus,
@@ -59,6 +62,8 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       autoSyncPayments,
       useCashSalesCustomer,
       cashSalesCustomerName,
+      usePayerBasedCustomers,
+      defaultItemName,
       username,
       companyFilePath,
       pollIntervalMinutes,
@@ -90,6 +95,14 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       // Clear the ListID when name changes so it gets re-looked up
       updates.push(`cash_sales_customer_listid = NULL`);
     }
+    if (usePayerBasedCustomers !== undefined) {
+      updates.push(`use_payer_based_customers = $${paramIndex++}`);
+      values.push(usePayerBasedCustomers);
+    }
+    if (defaultItemName !== undefined) {
+      updates.push(`default_item_name = $${paramIndex++}`);
+      values.push(defaultItemName);
+    }
     if (username) {
       updates.push(`qbwc_username = $${paramIndex++}`);
       values.push(username);
@@ -112,6 +125,70 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('Update settings error:', error);
     res.status(500).json({ error: 'Failed to update settings' });
+  }
+};
+
+// ===== Payer -> QuickBooks customer mapping =====
+
+// List every corporate client and insurance provider with the exact QB customer
+// name it should be booked under (payer-based mode). Null means "not mapped yet".
+export const getPayerMappings = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const corporate = await pool.query(
+      `SELECT id, name, quickbooks_customer_name FROM corporate_clients ORDER BY name`
+    );
+    const insurance = await pool.query(
+      `SELECT id, name, quickbooks_customer_name FROM insurance_providers ORDER BY name`
+    );
+    res.json({
+      corporate: corporate.rows,
+      insurance: insurance.rows,
+    });
+  } catch (error) {
+    console.error('Get payer mappings error:', error);
+    res.status(500).json({ error: 'Failed to get payer mappings' });
+  }
+};
+
+// Set (or clear) a payer's QB customer name. Body: { type: 'corporate'|'insurance', id, quickbooksCustomerName }
+export const updatePayerMapping = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { type, id, quickbooksCustomerName } = req.body;
+    if (type !== 'corporate' && type !== 'insurance') {
+      res.status(400).json({ error: "type must be 'corporate' or 'insurance'" });
+      return;
+    }
+    if (!id) {
+      res.status(400).json({ error: 'id is required' });
+      return;
+    }
+    const table = type === 'corporate' ? 'corporate_clients' : 'insurance_providers';
+    const name = (quickbooksCustomerName ?? '').trim() || null;
+    await pool.query(`UPDATE ${table} SET quickbooks_customer_name = $1 WHERE id = $2`, [name, id]);
+    res.json({ message: 'Payer mapping updated' });
+  } catch (error) {
+    console.error('Update payer mapping error:', error);
+    res.status(500).json({ error: 'Failed to update payer mapping' });
+  }
+};
+
+// Re-drive held/errored transactions: reset invoice + payment rows that are
+// 'waiting' or 'error' back to 'pending' so the next Web Connector sync retries
+// them. Use after filling in payer mappings / creating the QB item, so the
+// backlog that failed under the old config gets another shot.
+export const redriveTransactions = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await pool.query(
+      `UPDATE quickbooks_request_queue
+          SET status = 'pending', error_message = NULL, error_code = NULL, retry_count = 0
+        WHERE entity_type IN ('invoice', 'payment')
+          AND status IN ('waiting', 'error')
+        RETURNING id`
+    );
+    res.json({ message: `Re-queued ${result.rowCount} transaction(s) for the next sync`, count: result.rowCount });
+  } catch (error) {
+    console.error('Re-drive transactions error:', error);
+    res.status(500).json({ error: 'Failed to re-drive transactions' });
   }
 };
 
@@ -393,6 +470,77 @@ export const importServiceItems = async (req: Request, res: Response): Promise<v
   } catch (error) {
     console.error('Import service items error:', error);
     res.status(500).json({ error: 'Failed to queue service items import' });
+  }
+};
+
+// ===== Revenue account routing =====
+
+// Dry run: how would every billed line be split across her revenue accounts?
+// Meant to be approved BEFORE any item is created in the live company file.
+export const getRevenueRoutingReport = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const lines = await pool.query(`
+      SELECT ii.category, ii.description, ii.total_price
+        FROM invoice_items ii
+        JOIN invoices i ON i.id = ii.invoice_id
+       WHERE i.status <> 'cancelled'
+    `);
+    const routing = await qbRevenueMap.summariseRouting(lines.rows);
+    const items = await qbRevenueMap.requiredItems();
+
+    res.json({
+      lines_considered: lines.rows.length,
+      total_amount: routing.reduce((s, r) => s + r.amount, 0),
+      routing,
+      items: items.map((i) => ({
+        item_name: i.itemName,
+        account: i.accountFullName,
+        exists_in_quickbooks: !!i.itemListId,
+        account_found: !!i.accountListId,
+      })),
+    });
+  } catch (error) {
+    console.error('Revenue routing report error:', error);
+    res.status(500).json({ error: 'Failed to build revenue routing report' });
+  }
+};
+
+export const discoverRevenueAccounts = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    await qbwcService.queueRevenueAccountDiscovery();
+    res.json({ message: 'Income account discovery queued. Web Connector will fetch the accounts on next sync (read-only).' });
+  } catch (error) {
+    console.error('Discover revenue accounts error:', error);
+    res.status(500).json({ error: 'Failed to queue account discovery' });
+  }
+};
+
+export const createRevenueItems = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await qbwcService.queueRevenueItemCreation();
+    res.json({
+      message: result.queued > 0
+        ? `${result.queued} service item(s) queued for creation in QuickBooks.`
+        : 'Nothing to create — every mapped item already exists or is waiting on its account.',
+      ...result,
+    });
+  } catch (error) {
+    console.error('Create revenue items error:', error);
+    res.status(500).json({ error: 'Failed to queue revenue item creation' });
+  }
+};
+
+export const getRevenueMap = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const r = await pool.query(
+      `SELECT id, rule_order, match_category, match_pattern, qb_account_full_name,
+              qb_item_name, qb_account_listid, qb_item_listid, is_active, notes
+         FROM quickbooks_revenue_map ORDER BY rule_order, id`
+    );
+    res.json({ rules: r.rows });
+  } catch (error) {
+    console.error('Get revenue map error:', error);
+    res.status(500).json({ error: 'Failed to fetch revenue map' });
   }
 };
 

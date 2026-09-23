@@ -100,7 +100,19 @@ export const billingService = {
       // 1. Check for consultation/registration fee (should already exist from check-in)
       // Skip consultation fee for department walk-ins (pharmacy OTC, lab, imaging, nurse procedures)
       const departmentClinics = ['Pharmacy (OTC/Walk-in)', 'Lab (Walk-in)', 'Imaging (Walk-in)', 'Nurse (Procedures/Walk-in)'];
-      const isDepartmentWalkIn = departmentClinics.includes(encounter.clinic);
+      // Fee-exempt if the clinic matches, the encounter is flagged OTC, it's an
+      // "OTC Purchase" walk-in, or it was routed to a department as a walk-in —
+      // so an OTC/walk-in whose `clinic` string drifted (null/legacy/a real
+      // clinic) still never gets a consultation fee auto-added here.
+      const walkInRouting = await client.query(
+        `SELECT 1 FROM department_routing WHERE encounter_id = $1 AND is_walk_in = true LIMIT 1`,
+        [encounterId]
+      );
+      const isDepartmentWalkIn =
+        departmentClinics.includes(encounter.clinic) ||
+        encounter.is_otc === true ||
+        String(encounter.chief_complaint || '').trim().toLowerCase() === 'otc purchase' ||
+        walkInRouting.rows.length > 0;
       const hasConsultation = existingItems.rows.some(r => r.category === 'consultation' || r.category === 'registration');
       if (!hasConsultation && !isDepartmentWalkIn) {
         // Look up consultation fee from charge_master using new codes
@@ -283,11 +295,13 @@ export const billingService = {
 
       // Auto-queue to QuickBooks if connected
       const qbConfig = await client.query(
-        'SELECT is_connected, use_cash_sales_customer FROM quickbooks_config WHERE id = 1'
+        'SELECT is_connected, use_cash_sales_customer, use_payer_based_customers FROM quickbooks_config WHERE id = 1'
       );
       if (qbConfig.rows[0]?.is_connected) {
-        // Only sync individual patients if NOT using Cash Sales mode
-        if (!qbConfig.rows[0]?.use_cash_sales_customer) {
+        // Only sync individual patients as their own QB customer in legacy mode
+        // — payer-based and Cash Sales modes book under a shared/payer customer,
+        // so per-patient customers aren't needed.
+        if (!qbConfig.rows[0]?.use_cash_sales_customer && !qbConfig.rows[0]?.use_payer_based_customers) {
           const patientSynced = await client.query(
             `SELECT quickbooks_id FROM quickbooks_sync_map
              WHERE entity_type = 'patient' AND medsys_id = $1`,

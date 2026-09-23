@@ -30,6 +30,7 @@ import {
   alertDoctor,
   getNurseAssignedPatients,
   checkoutPatient,
+  doctorCompleteEncounter,
 } from '../controllers/workflowController';
 
 // Helper to create a mock client (for functions that use pool.connect)
@@ -84,6 +85,109 @@ describe('workflowController', () => {
         })
       );
       expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    // A pharmacy OTC sale for a patient who is already seeing a doctor must
+    // attach to that open visit, not be refused as a duplicate check-in —
+    // otherwise the pharmacist simply cannot ring up the sale.
+    it('should attach an OTC walk-in to the open visit instead of 409ing', async () => {
+      const mockClient = createMockClient();
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
+
+      // 1. SELECT users WHERE id = receptionist_id
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }] } as any);
+      // 2. BEGIN
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 3. SELECT active encounter today — patient is mid-visit with a doctor
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{
+          id: 99,
+          encounter_number: 'ENC000099',
+          checked_in_at: new Date().toISOString(),
+          patient_number: 'P0001',
+          patient_name: 'John Doe',
+        }],
+      } as any);
+      // 4. SELECT existing pharmacy routing row (none yet)
+      mockClient.query.mockResolvedValueOnce({ rows: [] } as any);
+      // 5. INSERT department_routing
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 7 }] } as any);
+      // 6. COMMIT
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+
+      const req = mockRequest(
+        {
+          patient_id: 1,
+          chief_complaint: 'OTC Purchase',
+          encounter_type: 'walk-in',
+          billing_amount: 0,
+          clinic: 'Pharmacy (OTC/Walk-in)',
+        },
+        {},
+        {},
+        { id: 1 }
+      );
+      const res = mockResponse();
+
+      await checkInPatient(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          encounter_id: 99,
+          encounter_number: 'ENC000099',
+          routed_to: 'pharmacy',
+          reused_encounter: true,
+        })
+      );
+
+      // The sale must bill onto the existing visit, so no second encounter and
+      // no ROLLBACK — and the routing row points at the open encounter.
+      const sql = mockClient.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(s => s.includes('INSERT INTO encounters'))).toBe(false);
+      expect(sql.some(s => s.includes('ROLLBACK'))).toBe(false);
+      expect(sql.some(s => s.includes('COMMIT'))).toBe(true);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO department_routing'),
+        expect.arrayContaining([99, 1, 'pharmacy'])
+      );
+    });
+
+    it('should not queue an OTC walk-in twice when already at the pharmacy desk', async () => {
+      const mockClient = createMockClient();
+      vi.mocked(pool.connect).mockResolvedValueOnce(mockClient as any);
+
+      // 1. SELECT users, 2. BEGIN
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 1 }] } as any);
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+      // 3. Active encounter today
+      mockClient.query.mockResolvedValueOnce({
+        rows: [{
+          id: 99,
+          encounter_number: 'ENC000099',
+          checked_in_at: new Date().toISOString(),
+          patient_number: 'P0001',
+          patient_name: 'John Doe',
+        }],
+      } as any);
+      // 4. SELECT existing pharmacy routing row — already queued
+      mockClient.query.mockResolvedValueOnce({ rows: [{ id: 7 }] } as any);
+      // 5. COMMIT
+      mockClient.query.mockResolvedValueOnce(undefined as any);
+
+      const req = mockRequest(
+        { patient_id: 1, chief_complaint: 'OTC Purchase', clinic: 'Pharmacy (OTC/Walk-in)' },
+        {},
+        {},
+        { id: 1 }
+      );
+      const res = mockResponse();
+
+      await checkInPatient(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const sql = mockClient.query.mock.calls.map((c: any[]) => String(c[0]));
+      expect(sql.some(s => s.includes('INSERT INTO department_routing'))).toBe(false);
     });
 
     it('should successfully create encounter and invoice for a returning patient', async () => {
@@ -326,6 +430,92 @@ describe('workflowController', () => {
   });
 
   // ─── checkoutPatient ─────────────────────────────────────────────────
+  // A diagnosis is now required to close ANY encounter, not just payer-billed
+  // ones — the insurer-only rule left compliance at 39% even inside the blocked
+  // group, because sign-off is not the only exit.
+  describe('doctorCompleteEncounter — diagnosis requirement', () => {
+    const encounterRow = {
+      rows: [{ nurse_id: 4, patient_id: 1, room_number: '101', patient_name: 'John Doe' }],
+    };
+
+    // A clinical encounter: real clinic, doctor assigned, not OTC. This is what
+    // encounterNeedsDiagnosis reads before the diagnosis check itself.
+    const clinicalEncounter = {
+      rows: [{ clinic: 'Family Medicine', is_otc: false, provider_id: 7 }],
+    };
+
+    it('blocks sign-off when no diagnosis is recorded', async () => {
+      vi.mocked(pool.query)
+        // 1. SELECT encounter
+        .mockResolvedValueOnce(encounterRow as any)
+        // 2. does this encounter need a diagnosis at all?
+        .mockResolvedValueOnce(clinicalEncounter as any)
+        // 3. diagnosis lookup -> none
+        .mockResolvedValueOnce({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
+      );
+      // Must not have written the status update.
+      expect(vi.mocked(pool.query).mock.calls.length).toBe(3);
+    });
+
+    it('blocks a self-pay patient too — the rule is no longer payer-dependent', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce(clinicalEncounter as any)
+        .mockResolvedValueOnce({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ code: 'DIAGNOSIS_REQUIRED' })
+      );
+    });
+
+    it('does NOT block an OTC walk-in — there is nothing to diagnose', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        // Pharmacy OTC walk-in, no doctor
+        .mockResolvedValueOnce({ rows: [{ clinic: 'Pharmacy (OTC/Walk-in)', is_otc: true, provider_id: null }] } as any)
+        .mockResolvedValue({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
+    });
+
+    it('allows sign-off once a diagnosis exists', async () => {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce(encounterRow as any)
+        .mockResolvedValueOnce(clinicalEncounter as any)
+        // diagnosis present
+        .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] } as any)
+        // UPDATE encounter + INSERT alert
+        .mockResolvedValue({ rows: [] } as any);
+
+      const req = mockRequest({ encounter_id: 10 }, {}, {}, { id: 3 });
+      const res = mockResponse();
+
+      await doctorCompleteEncounter(req, res);
+
+      expect(res.status).not.toHaveBeenCalledWith(400);
+    });
+  });
+
   describe('checkoutPatient', () => {
     it('should successfully discharge patient', async () => {
       const mockClient = createMockClient();

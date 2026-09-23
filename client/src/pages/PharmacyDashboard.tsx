@@ -1,7 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
-import { format } from 'date-fns';
+import { format, differenceInMonths, differenceInYears } from 'date-fns';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
@@ -12,6 +21,7 @@ import AllergyWarningModal from '../components/AllergyWarningModal';
 import AIPharmacistAssist from '../components/ai/AIPharmacistAssist';
 import VoiceCommandBar from '../components/ai/VoiceCommandBar';
 import { parseMedicationName, calculateQuantity } from '../utils/medicationParser';
+import { prepareFileForUpload, UploadTooLargeError } from '../utils/fileUpload';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import AppSelect from '../components/ui/AppSelect';
@@ -55,6 +65,12 @@ interface PharmacyOrder {
   patient_name?: string;
   patient_number?: string;
   patient_allergies?: string;
+  // NULL when the patient's real DOB isn't on file (the server filters out its
+  // 1900-01-01 sentinel), so treat absence as "unknown", not "newborn".
+  patient_date_of_birth?: string | null;
+  latest_weight?: number | string | null;
+  latest_weight_unit?: string | null;
+  latest_weight_recorded_at?: string | null;
   encounter_number?: string;
   chief_complaint?: string;
   primary_diagnosis?: string;
@@ -76,6 +92,8 @@ interface PharmacyOrder {
   /** True when inventory_quantity/price came from a fuzzy name match, not a hard link. */
   inventory_name_matched?: boolean;
   days_supply?: number;
+  /** Doctor-set: true = chronic/refillable (on refills calendar), false = one-time course. */
+  is_long_term?: boolean;
   substitute_medication?: string;
   substitute_reason?: string;
   /** Cumulative quantity returned so far. The original `quantity` is never
@@ -140,6 +158,15 @@ interface RevenueTotals {
   dispensed_orders: number;
   pending_orders: number;
   unique_patients: number;
+  // Returned by /pharmacy/revenue all along; the dashboard just wasn't reading
+  // it, which is why pharmacy saw order counts but no money.
+  total_revenue?: number | string;
+}
+
+interface DailyRevenue {
+  date: string;
+  orders_count: number | string;
+  revenue: number | string;
 }
 
 interface RevenueOrder {
@@ -161,6 +188,7 @@ interface RevenueData {
   totals: RevenueTotals;
   top_medications: TopMedication[];
   orders?: RevenueOrder[];
+  daily_revenue?: DailyRevenue[];
 }
 
 interface Diagnosis {
@@ -397,6 +425,25 @@ const PharmacyDashboard: React.FC = () => {
   const [showNewWalkInModal, setShowNewWalkInModal] = useState(false);
   const [newWalkInForm, setNewWalkInForm] = useState({ firstName: '', lastName: '', phone: '' });
   const [creatingWalkIn, setCreatingWalkIn] = useState(false);
+  // Walk-in modal has two modes: look up an EXISTING patient (default, avoids
+  // creating duplicate records) or quick-register a brand-new one.
+  const [walkInMode, setWalkInMode] = useState<'search' | 'new'>('search');
+  const [walkInSearchQuery, setWalkInSearchQuery] = useState('');
+  const [walkInSearchResults, setWalkInSearchResults] = useState<Array<{
+    id: number; full_name?: string; first_name?: string; last_name?: string;
+    patient_number?: string; phone?: string; date_of_birth?: string; gender?: string;
+  }>>([]);
+  const [searchingPatients, setSearchingPatients] = useState(false);
+  const [walkInSearched, setWalkInSearched] = useState(false);
+
+  const resetWalkInModal = () => {
+    setShowNewWalkInModal(false);
+    setWalkInMode('search');
+    setNewWalkInForm({ firstName: '', lastName: '', phone: '' });
+    setWalkInSearchQuery('');
+    setWalkInSearchResults([]);
+    setWalkInSearched(false);
+  };
 
   const handleCreateWalkIn = async () => {
     const { firstName, lastName, phone } = newWalkInForm;
@@ -412,7 +459,11 @@ const PharmacyDashboard: React.FC = () => {
         phone: phone.trim() || undefined,
         gender: '',
         date_of_birth: '',
-        registration_payment: 'pay_later',
+        // OTC walk-ins must NOT incur a registration fee — they're buying
+        // over-the-counter meds, not registering as a clinic patient. Passing
+        // 'pay_later' here minted a standalone GHS 75 "Patient Registration Fee"
+        // invoice alongside the OTC sale (Sharon: pharmacy purchase spawns a
+        // second 75 invoice). Omit registration_payment so no fee is created.
       });
       const patient = patientRes.data.patient;
       await apiClient.post('/workflow/check-in', {
@@ -423,11 +474,66 @@ const PharmacyDashboard: React.FC = () => {
         clinic: 'Pharmacy (OTC/Walk-in)',
       });
       showToast(`${firstName} ${lastName} added as walk-in patient`, 'success');
-      setShowNewWalkInModal(false);
-      setNewWalkInForm({ firstName: '', lastName: '', phone: '' });
+      resetWalkInModal();
       fetchWalkIns();
     } catch (error: any) {
       showToast(error.response?.data?.error || error.response?.data?.message || 'Failed to create walk-in patient', 'error');
+    } finally {
+      setCreatingWalkIn(false);
+    }
+  };
+
+  // Debounced patient lookup for the walk-in modal's "existing patient" mode.
+  // Reuses the shared /search/patients endpoint (name, patient number, phone).
+  useEffect(() => {
+    if (!showNewWalkInModal || walkInMode !== 'search') return;
+    const q = walkInSearchQuery.trim();
+    if (q.length < 2) {
+      setWalkInSearchResults([]);
+      setWalkInSearched(false);
+      return;
+    }
+    setSearchingPatients(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await apiClient.get('/search/patients', { params: { q } });
+        setWalkInSearchResults(res.data.patients || []);
+      } catch {
+        setWalkInSearchResults([]);
+      } finally {
+        setSearchingPatients(false);
+        setWalkInSearched(true);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [walkInSearchQuery, walkInMode, showNewWalkInModal]);
+
+  // Check an EXISTING patient in as an OTC walk-in (no new patient record).
+  const handleSelectExistingPatient = async (patient: { id: number; full_name?: string; first_name?: string; last_name?: string }) => {
+    const name = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Patient';
+    setCreatingWalkIn(true);
+    try {
+      const { data } = await apiClient.post('/workflow/check-in', {
+        patient_id: patient.id,
+        chief_complaint: 'OTC Purchase',
+        encounter_type: 'walk-in',
+        billing_amount: 0,
+        clinic: 'Pharmacy (OTC/Walk-in)',
+      });
+      // A patient already seeing a doctor is attached to that open visit rather
+      // than refused, so say which visit the sale will bill onto.
+      showToast(
+        data?.reused_encounter
+          ? `${name} added for OTC on their open visit (${data.encounter_number}) — the sale bills onto that invoice`
+          : `${name} checked in for OTC purchase`,
+        'success'
+      );
+      resetWalkInModal();
+      fetchWalkIns();
+    } catch (error: any) {
+      // check-in 409s with a helpful `message` when the patient already has an
+      // open encounter today (e.g. they saw a doctor earlier) — surface that.
+      showToast(error.response?.data?.message || error.response?.data?.error || 'Failed to check in patient', 'error');
     } finally {
       setCreatingWalkIn(false);
     }
@@ -584,7 +690,10 @@ const PharmacyDashboard: React.FC = () => {
 
   // Date range state - default to today for dispensed orders
   const today = new Date().toISOString().split('T')[0];
-  const [startDate, setStartDate] = useState(today);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+  // Last 30 days, matching the Analytics tab. Both ends previously defaulted to
+  // today, so the revenue tab opened showing a single day — usually zeros.
+  const [startDate, setStartDate] = useState(thirtyDaysAgo);
   const [endDate, setEndDate] = useState(today);
 
   // Date range for the active queue (Pending / In Progress / Ready) — defaults
@@ -602,6 +711,11 @@ const PharmacyDashboard: React.FC = () => {
   // Revenue state
   const [revenueData, setRevenueData] = useState<RevenueData | null>(null);
   const [revenueSearch, setRevenueSearch] = useState('');
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  // A failed fetch used to be console.error-only, leaving the panel on its
+  // "click Generate Report" empty state — which reads as "there is no revenue"
+  // rather than "the request failed". Irene reported exactly that.
+  const [revenueError, setRevenueError] = useState<string | null>(null);
 
   // Medication pricing state
   const [pricingSearch, setPricingSearch] = useState('');
@@ -625,6 +739,13 @@ const PharmacyDashboard: React.FC = () => {
   };
   const [procurementItems, setProcurementItems] = useState([{ ...emptyLineItem }]);
   const [purchaseHistory, setPurchaseHistory] = useState<any[]>([]);
+  // Procurement history filters. Purchases are grouped by invoice, so these
+  // page over invoices rather than individual line items.
+  const [purchaseStart, setPurchaseStart] = useState('');
+  const [purchaseEnd, setPurchaseEnd] = useState('');
+  const [purchaseTruncated, setPurchaseTruncated] = useState(false);
+  const [purchaseTotalGroups, setPurchaseTotalGroups] = useState(0);
+  const [expandedPurchases, setExpandedPurchases] = useState<string[]>([]);
   const [submittingProcurement, setSubmittingProcurement] = useState(false);
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<number | null>(null);
 
@@ -1010,25 +1131,25 @@ const PharmacyDashboard: React.FC = () => {
         let uploadedCount = 0;
         for (const file of walkInPrescriptionFiles) {
           try {
-            const dataUrl: string = await new Promise((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(file);
-            });
+            // Photos of prescriptions are usually multi-megabyte — compress
+            // them to fit the request-body limit before sending.
+            const prepared = await prepareFileForUpload(file);
 
             await apiClient.post('/documents', {
               patient_id: servingWalkIn.patient_id,
               encounter_id: servingWalkIn.encounter_id,
               document_type: 'prescription',
-              document_name: file.name,
-              file_type: file.type,
-              file_data: dataUrl,
+              document_name: prepared.fileName,
+              file_type: prepared.fileType,
+              file_data: prepared.dataUrl,
               description: 'Walk-in prescription',
             });
             uploadedCount++;
           } catch (uploadErr) {
             console.error(`Failed to upload ${file.name}:`, uploadErr);
+            if (uploadErr instanceof UploadTooLargeError) {
+              showToast(uploadErr.message, 'error');
+            }
           }
         }
 
@@ -1718,7 +1839,20 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Built once per inventory change, not on every render. This list is 443
+  // items; rebuilding it while the pharmacist types into the procurement
+  // medication picker is part of why that search felt frozen.
+  const inventoryOptions = useMemo(
+    () => inventory.map((inv) => ({
+      value: String(inv.id),
+      label: `${inv.medication_name} (${inv.quantity_on_hand} in stock)`,
+    })),
+    [inventory]
+  );
+
   const fetchRevenueSummary = async () => {
+    setRevenueLoading(true);
+    setRevenueError(null);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('start_date', startDate);
@@ -1727,8 +1861,19 @@ const PharmacyDashboard: React.FC = () => {
       const qs = params.toString();
       const response = await apiClient.get('/pharmacy/revenue' + (qs ? `?${qs}` : ''));
       setRevenueData(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching revenue:', error);
+      const message =
+        error.response?.status === 403
+          ? "Your account doesn't have permission to view pharmacy revenue."
+          : error.response?.data?.error || error.message || 'Could not load revenue.';
+      setRevenueError(message);
+      // Don't leave stale figures on screen next to an error — they'd read as
+      // current.
+      setRevenueData(null);
+      showToast(`Revenue: ${message}`, 'error');
+    } finally {
+      setRevenueLoading(false);
     }
   };
 
@@ -1761,12 +1906,24 @@ const PharmacyDashboard: React.FC = () => {
   // Procurement functions
   const fetchPurchaseHistory = async () => {
     try {
-      const response = await apiClient.get('/inventory/purchases');
+      const params: string[] = [];
+      if (purchaseStart) params.push(`start_date=${purchaseStart}`);
+      if (purchaseEnd) params.push(`end_date=${purchaseEnd}`);
+      const url = `/inventory/purchases${params.length ? `?${params.join('&')}` : ''}`;
+      const response = await apiClient.get(url);
       setPurchaseHistory(response.data.purchases || []);
+      setPurchaseTotalGroups(response.data.total_groups ?? 0);
+      setPurchaseTruncated(Boolean(response.data.truncated));
+      setExpandedPurchases([]);
     } catch (error) {
       console.error('Error fetching purchase history:', error);
     }
   };
+
+  const togglePurchaseGroup = (key: string) =>
+    setExpandedPurchases(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
 
   // A procurement row is "complete" (countable) when a medication is selected,
   // quantity > 0, and a unit cost is entered. Cost MAY be 0 (free sample /
@@ -1930,6 +2087,23 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Age for the Patient Details panel. Months matter under 2 (paediatric dosing),
+  // so show them; returns null when no real DOB is on file rather than guessing.
+  const formatPatientAge = (dob?: string | null): string | null => {
+    if (!dob) return null;
+    const born = new Date(dob);
+    if (isNaN(born.getTime())) return null;
+    const now = new Date();
+    if (born > now) return null;
+
+    const years = differenceInYears(now, born);
+    if (years >= 2) return `${years} yr`;
+
+    const months = differenceInMonths(now, born);
+    if (months >= 1) return `${months} mo`;
+    return '<1 mo';
+  };
+
   const getSeverityColor = (severity: string) => {
     switch (severity?.toLowerCase()) {
       case 'severe': return 'bg-danger-100 text-danger-800 border-danger-300';
@@ -2007,7 +2181,7 @@ const PharmacyDashboard: React.FC = () => {
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
       </svg>
     )},
-    { id: 'revenue' as const, label: 'Order History', icon: (
+    { id: 'revenue' as const, label: 'Revenue & Orders', icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
@@ -2453,6 +2627,9 @@ const PharmacyDashboard: React.FC = () => {
                                       {order.days_supply}-day supply
                                     </span>
                                   )}
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    {order.is_long_term ? 'Long-term' : 'One-time'}
+                                  </span>
                                   {order.inventory_price != null && (
                                     <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
                                   )}
@@ -2609,6 +2786,33 @@ const PharmacyDashboard: React.FC = () => {
                       <div className="bg-gray-50 rounded p-3 space-y-2">
                         <div className="font-semibold text-gray-900">{selectedOrder.patient_name}</div>
                         <div className="text-sm text-gray-600">{selectedOrder.patient_number}</div>
+                        {/* Age and current weight — pharmacy needs both to sanity-check
+                            paediatric and weight-based doses before dispensing. */}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-gray-200 text-sm">
+                          <div>
+                            <span className="text-gray-500">Age: </span>
+                            <span className="font-medium text-gray-900">
+                              {formatPatientAge(selectedOrder.patient_date_of_birth) || 'Unknown'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Weight: </span>
+                            {selectedOrder.latest_weight != null ? (
+                              <span
+                                className="font-medium text-gray-900"
+                                title={
+                                  selectedOrder.latest_weight_recorded_at
+                                    ? `Recorded ${format(new Date(selectedOrder.latest_weight_recorded_at), 'MMM dd, yyyy')}`
+                                    : undefined
+                                }
+                              >
+                                {Number(selectedOrder.latest_weight)} {selectedOrder.latest_weight_unit || 'kg'}
+                              </span>
+                            ) : (
+                              <span className="font-medium text-gray-400">Not recorded</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -3508,7 +3712,24 @@ const PharmacyDashboard: React.FC = () => {
             {revenueData ? (
               <>
                 {/* Summary Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+                  {/* Revenue leads the row — it's the number pharmacy actually
+                      came here for, and it was being fetched then discarded. */}
+                  <div className="bg-white rounded-xl shadow-lg border border-success-200 p-6 hover:shadow-xl transition-shadow">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
+                        <svg className="h-6 w-6 text-success-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-500">Revenue</p>
+                        <p className="text-2xl font-bold text-gray-900 tabular-nums truncate">
+                          GH₵ {Number(revenueData.totals?.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
                     <div className="flex items-center gap-3">
                       <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
@@ -3637,6 +3858,45 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Revenue over time — daily_revenue was already being returned
+                    by the endpoint and thrown away, so pharmacy had no way to
+                    see whether takings were rising or falling. */}
+                {(revenueData.daily_revenue?.length ?? 0) > 0 && (
+                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
+                    <h3 className="text-lg font-semibold mb-4">Revenue Over Time</h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                          data={(revenueData.daily_revenue || []).map((d) => ({
+                            date: format(new Date(d.date), 'MMM dd'),
+                            revenue: Number(d.revenue) || 0,
+                            orders: Number(d.orders_count) || 0,
+                          }))}
+                        >
+                          <defs>
+                            <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
+                          <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" width={70}
+                                 tickFormatter={(v) => `₵${Number(v).toLocaleString()}`} />
+                          <RechartsTooltip
+                            formatter={(value: any, name: any) =>
+                              name === 'revenue'
+                                ? [`GH₵ ${Number(value).toFixed(2)}`, 'Revenue']
+                                : [value, 'Orders']
+                            }
+                          />
+                          <Area type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} fill="url(#revFill)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
                 {/* Top Medications */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200">
                   <div className="px-6 py-4 border-b">
@@ -3666,6 +3926,24 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 </div>
               </>
+            ) : revenueLoading ? (
+              <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-success-600" />
+                <p className="mt-3">Loading revenue…</p>
+              </div>
+            ) : revenueError ? (
+              // Say the request failed, rather than showing the "click Generate
+              // Report" prompt — which looks identical to having no revenue.
+              <div className="bg-white rounded-xl shadow p-12 text-center border border-danger-200">
+                <p className="text-danger-700 font-semibold">Couldn't load revenue</p>
+                <p className="text-gray-600 mt-1 text-sm">{revenueError}</p>
+                <button
+                  onClick={fetchRevenueSummary}
+                  className="mt-4 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium"
+                >
+                  Try again
+                </button>
+              </div>
             ) : (
               <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
                 Select a date range and click "Generate Report" to view revenue summary
@@ -3761,7 +4039,7 @@ const PharmacyDashboard: React.FC = () => {
                             value={item.inventory_id}
                             onChange={(val) => updateLineItem(idx, 'inventory_id', val)}
                             placeholder="Select medication..."
-                            options={inventory.map((inv) => ({ value: String(inv.id), label: `${inv.medication_name} (${inv.quantity_on_hand} in stock)` }))}
+                            options={inventoryOptions}
                           />
                         </div>
                         <div>
@@ -3904,60 +4182,151 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Purchase History */}
             <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-              <div className="px-6 py-4 border-b">
-                <h2 className="text-lg font-semibold">Recent Purchases</h2>
+              <div className="px-6 py-4 border-b flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Purchases</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {purchaseTotalGroups > 0
+                      ? `${purchaseTotalGroups} purchase${purchaseTotalGroups === 1 ? '' : 's'}${purchaseStart || purchaseEnd ? ' in range' : ''} — one line per invoice, click to see the items`
+                      : 'One line per invoice, click to see the items'}
+                  </p>
+                </div>
+                {/* Date range — the list used to be capped at the 50 most recent
+                    line items, which hid older purchases entirely. */}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">From</label>
+                    <input
+                      type="date"
+                      value={purchaseStart}
+                      onChange={(e) => setPurchaseStart(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-500 mb-1">To</label>
+                    <input
+                      type="date"
+                      value={purchaseEnd}
+                      onChange={(e) => setPurchaseEnd(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                  </div>
+                  <button
+                    onClick={fetchPurchaseHistory}
+                    className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                  >
+                    Search
+                  </button>
+                  {(purchaseStart || purchaseEnd) && (
+                    <button
+                      onClick={() => { setPurchaseStart(''); setPurchaseEnd(''); setTimeout(fetchPurchaseHistory, 0); }}
+                      className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
+              {purchaseTruncated && (
+                <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
+                  Showing the most recent {purchaseHistory.length} of {purchaseTotalGroups} purchases. Narrow the date range to see older ones.
+                </div>
+              )}
               {purchaseHistory.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 py-3 w-8"></th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {purchaseHistory.map((purchase) => (
-                        <tr key={purchase.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">
-                            {format(new Date(purchase.created_at), 'MMM dd, yyyy')}
-                          </td>
-                          <td className="px-4 py-3 font-medium text-gray-900">{purchase.medication_name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.supplier_name || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.invoice_number || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{purchase.quantity}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-600">
-                            GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
-                            GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{purchase.batch_number || '—'}</td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => handleDeletePurchase(purchase.id)}
-                              disabled={deletingPurchaseId === purchase.id}
-                              className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors p-1"
-                              title="Delete purchase"
+                      {purchaseHistory.map((group) => {
+                        const open = expandedPurchases.includes(group.group_key);
+                        const items = Array.isArray(group.items) ? group.items : [];
+                        return (
+                          <React.Fragment key={group.group_key}>
+                            <tr
+                              className="hover:bg-gray-50 cursor-pointer"
+                              onClick={() => togglePurchaseGroup(group.group_key)}
                             >
-                              {deletingPurchaseId === purchase.id ? (
-                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
-                              ) : (
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              <td className="px-4 py-3 text-gray-400">
+                                <svg
+                                  className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`}
+                                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-600">
+                                {format(new Date(group.purchase_date), 'MMM dd, yyyy')}
+                              </td>
+                              <td className="px-4 py-3 font-medium text-gray-900">{group.invoice_number || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-gray-600">{group.supplier_name || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-right text-gray-900">{group.item_count}</td>
+                              <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                                GH₵ {parseFloat(group.total_cost || 0).toFixed(2)}
+                              </td>
+                            </tr>
+                            {open && (
+                              <tr className="bg-gray-50">
+                                <td></td>
+                                <td colSpan={5} className="px-4 py-3">
+                                  <table className="min-w-full">
+                                    <thead>
+                                      <tr className="text-[11px] text-gray-500 uppercase">
+                                        <th className="py-1 text-left font-medium">Medication</th>
+                                        <th className="py-1 text-right font-medium">Qty</th>
+                                        <th className="py-1 text-right font-medium">Unit Cost</th>
+                                        <th className="py-1 text-right font-medium">Total</th>
+                                        <th className="py-1 text-left font-medium pl-4">Batch</th>
+                                        <th className="py-1 text-center font-medium">Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {items.map((purchase: any) => (
+                                        <tr key={purchase.id} className="text-sm">
+                                          <td className="py-1.5 text-gray-900">{purchase.medication_name}</td>
+                                          <td className="py-1.5 text-right text-gray-900">{purchase.quantity}</td>
+                                          <td className="py-1.5 text-right text-gray-600">
+                                            GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
+                                          </td>
+                                          <td className="py-1.5 text-right font-medium text-gray-900">
+                                            GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
+                                          </td>
+                                          <td className="py-1.5 text-gray-600 pl-4">{purchase.batch_number || '—'}</td>
+                                          <td className="py-1.5 text-center">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); handleDeletePurchase(purchase.id); }}
+                                              disabled={deletingPurchaseId === purchase.id}
+                                              className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors p-1"
+                                              title="Delete this line (reverses its inventory change)"
+                                            >
+                                              {deletingPurchaseId === purchase.id ? (
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
+                                              ) : (
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                              )}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -5886,65 +6255,138 @@ const PharmacyDashboard: React.FC = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">New Walk-in Patient</h3>
-                  <p className="text-sm text-gray-600">Quick registration for OTC purchases</p>
+                  <h3 className="text-lg font-bold text-gray-900">Walk-in for OTC</h3>
+                  <p className="text-sm text-gray-600">Find an existing patient or register a new one</p>
                 </div>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                <input
-                  type="text"
-                  value={newWalkInForm.firstName}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Enter first name"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                <input
-                  type="text"
-                  value={newWalkInForm.lastName}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="Enter last name"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
-                <input
-                  type="tel"
-                  value={newWalkInForm.phone}
-                  onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  placeholder="e.g., 0244123456"
-                />
+            {/* Mode tabs: look up existing patient (default) or register new */}
+            <div className="px-6 pt-4">
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode('search')}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'search' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                  Existing Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWalkInMode('new')}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'new' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                >
+                  New Patient
+                </button>
               </div>
             </div>
+
+            {walkInMode === 'search' ? (
+              <div className="p-6 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search patient</label>
+                  <input
+                    type="text"
+                    value={walkInSearchQuery}
+                    onChange={(e) => setWalkInSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Name, patient number, or phone"
+                    autoFocus
+                  />
+                </div>
+                {searchingPatients && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 px-1">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-500 border-t-transparent"></div>
+                    Searching…
+                  </div>
+                )}
+                {!searchingPatients && walkInSearchQuery.trim().length >= 2 && walkInSearched && walkInSearchResults.length === 0 && (
+                  <p className="text-sm text-gray-500 px-1">
+                    No patients found. Try the <span className="font-medium">New Patient</span> tab to register.
+                  </p>
+                )}
+                {walkInSearchResults.length > 0 && (
+                  <div className="max-h-64 overflow-y-auto -mx-1 divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                    {walkInSearchResults.map((p) => {
+                      const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown';
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => handleSelectExistingPatient(p)}
+                          disabled={creatingWalkIn}
+                          className="w-full text-left px-3 py-2.5 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <div className="font-medium text-gray-900 text-sm">{name}</div>
+                          <div className="text-xs text-gray-500">
+                            {p.patient_number || 'No patient #'}{p.phone ? ` • ${p.phone}` : ''}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {walkInSearchQuery.trim().length < 2 && (
+                  <p className="text-xs text-gray-400 px-1">Type at least 2 characters to search.</p>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <input
+                    type="text"
+                    value={newWalkInForm.firstName}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter first name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <input
+                    type="text"
+                    value={newWalkInForm.lastName}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="Enter last name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                  <input
+                    type="tel"
+                    value={newWalkInForm.phone}
+                    onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    placeholder="e.g., 0244123456"
+                  />
+                </div>
+              </div>
+            )}
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
               <button
-                onClick={() => { setShowNewWalkInModal(false); setNewWalkInForm({ firstName: '', lastName: '', phone: '' }); }}
+                onClick={resetWalkInModal}
                 className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Cancel
               </button>
-              <button
-                onClick={handleCreateWalkIn}
-                disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
-                className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {creatingWalkIn ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                    Creating...
-                  </>
-                ) : (
-                  'Add Patient'
-                )}
-              </button>
+              {walkInMode === 'new' && (
+                <button
+                  onClick={handleCreateWalkIn}
+                  disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
+                  className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {creatingWalkIn ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Creating...
+                    </>
+                  ) : (
+                    'Add Patient'
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

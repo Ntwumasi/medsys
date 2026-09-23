@@ -266,10 +266,14 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     // Handle specific database errors
     if (error.code === '23505') {
       // Unique constraint violation
-      if (error.constraint === 'users_email_key') {
+      // Patients may now share an address (a parent's email covering several
+      // children) — only STAFF emails stay unique, via the partial index
+      // users_email_unique_staff. Reaching this means the address belongs to a
+      // staff account, which a patient record must not reuse.
+      if (error.constraint === 'users_email_key' || error.constraint === 'users_email_unique_staff') {
         res.status(409).json({
           error: 'Email already registered',
-          message: 'A patient with this email address already exists in the system. Please use a different email or search for the existing patient to check them in.'
+          message: 'That email address belongs to a staff account. Use a different address for the patient, or leave it blank.'
         });
         return;
       }

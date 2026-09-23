@@ -132,6 +132,9 @@ const PatientRegistrationPage: React.FC = () => {
       if (selectedPayerTypes.includes('insurance') && selectedInsuranceProvider) {
         payer_sources.push({ payer_type: 'insurance', insurance_provider_id: selectedInsuranceProvider });
       }
+      if (selectedPayerTypes.includes('staff')) {
+        payer_sources.push({ payer_type: 'staff' });
+      }
 
       // 1. Create patient
       const patientRes = await apiClient.post('/patients', { ...patient, payer_sources });
@@ -407,6 +410,10 @@ const PatientRegistrationPage: React.FC = () => {
                       <AppSelect value={selectedInsuranceProvider || ''} onChange={(val) => setSelectedInsuranceProvider(val ? Number(val) : null)} required placeholder="Select Insurance Provider" options={insuranceProviders.map(p => ({ value: String(p.id), label: p.name }))} />
                     </div>
                   )}
+                </div>
+                <div className="flex items-start">
+                  <input type="checkbox" id="reg-payer-staff" checked={selectedPayerTypes.includes('staff')} onChange={(e) => e.target.checked ? setSelectedPayerTypes([...selectedPayerTypes, 'staff']) : setSelectedPayerTypes(selectedPayerTypes.filter(t => t !== 'staff'))} className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded" />
+                  <label htmlFor="reg-payer-staff" className="ml-3 text-sm text-gray-700 font-medium">Staff <span className="text-gray-400 font-normal">(hospital employee)</span></label>
                 </div>
               </div>
             </div>

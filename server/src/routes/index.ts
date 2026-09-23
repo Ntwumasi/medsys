@@ -146,17 +146,23 @@ import {
   deleteInsuranceProvider,
   getPatientPayerSources,
   updatePatientPayerSources,
+  getStaffBenefit,
+  upsertStaffBenefit,
 } from '../controllers/payerSourcesController';
 import {
   getAllInvoices,
   getInvoiceById,
   getInvoicesByPatient,
+  getPatientStatement,
   getInvoiceByEncounter,
   createOrGetInvoice,
   updateInvoice,
   deferPayment,
   getPendingPayments,
   createSpecialInvoice,
+  submitInvoiceToPayer,
+  settlePayerInvoice,
+  getUnbilledPayerInvoices,
 } from '../controllers/invoiceController';
 import {
   getAllCharges,
@@ -191,6 +197,11 @@ import {
   quickSearch,
 } from '../controllers/searchController';
 import {
+  getPatientContacts,
+  exportPatientContacts,
+  setMarketingOptOut,
+} from '../controllers/marketingController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -217,6 +228,7 @@ import {
   getAIStatus,
   suggestTriagePriority,
   suggestTestOrders,
+  getPatientTestSuggestions,
   generateEncounterSummary,
 } from '../controllers/aiController';
 import {
@@ -465,10 +477,10 @@ router.get('/doctor/trends',     authenticateToken, authorizeRoles('doctor', 'ad
 
 // Admin clinic-operations task tracker
 import { listAdminTasks, createAdminTask, updateAdminTask, deleteAdminTask } from '../controllers/adminTasksController';
-router.get   ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), listAdminTasks);
-router.post  ('/admin/tasks',      authenticateToken, authorizeRoles('admin'), createAdminTask);
-router.put   ('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), updateAdminTask);
-router.delete('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin'), deleteAdminTask);
+router.get   ('/admin/tasks',      authenticateToken, authorizeRoles('admin', 'marketing'), listAdminTasks);
+router.post  ('/admin/tasks',      authenticateToken, authorizeRoles('admin', 'marketing'), createAdminTask);
+router.put   ('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin', 'marketing'), updateAdminTask);
+router.delete('/admin/tasks/:id',  authenticateToken, authorizeRoles('admin', 'marketing'), deleteAdminTask);
 
 // Admin security routes
 router.get('/admin/login-attempts', authenticateToken, authorizeRoles('admin'), getAllLoginAttempts);
@@ -556,6 +568,7 @@ router.put('/patients/:id',             authenticateToken, authorizeRoles('docto
 router.get('/patients/:id/summary',     authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientSummary);
 router.get('/patients/:id/medication-interactions', authenticateToken, authorizeRoles('doctor', 'nurse', 'pharmacist', 'pharmacy', 'pharmacy_tech', 'admin'), getMedicationInteractions);
 router.get('/patients/:id/ai-summary',  authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), getAISummary);
+router.get('/patients/:id/suggested-tests', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin'), getPatientTestSuggestions);
 
 // Encounter routes
 router.post('/encounters',              authenticateToken, authorizeRoles('doctor', 'nurse', 'lab', 'pharmacist', 'pharmacy_tech'), createEncounter);
@@ -696,16 +709,24 @@ router.delete('/payer-sources/insurance-providers/:id', authenticateToken, autho
 router.get('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientPayerSources);
 router.put('/payer-sources/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), updatePatientPayerSources);
 
+// Staff health-package benefit (cap + live usage) for staff-payer patients
+router.get('/staff-benefits/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), getStaffBenefit);
+router.put('/staff-benefits/patient/:patient_id', authenticateToken, authorizeRoles(...CLINICAL_STAFF), upsertStaffBenefit);
+
 // Invoice routes
 router.get('/invoices',                         authenticateToken, authorizeRoles(...BILLING_VIEWERS), getAllInvoices);
+router.get('/invoices/unbilled-payer',          authenticateToken, authorizeRoles(...BILLING_STAFF), getUnbilledPayerInvoices);
 router.get('/invoices/pending-payments',        authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPendingPayments);
 router.post('/invoices/special',                authenticateToken, authorizeRoles(...BILLING_STAFF), createSpecialInvoice);
 router.get('/invoices/:id',                     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceById);
+router.get('/invoices/patient/:patient_id/statement', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getPatientStatement);
 router.get('/invoices/patient/:patient_id',     authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoicesByPatient);
 router.get('/invoices/encounter/:encounter_id', authenticateToken, authorizeRoles(...BILLING_VIEWERS), getInvoiceByEncounter);
 router.post('/invoices', authenticateToken, authorizeRoles('receptionist', 'admin'), createOrGetInvoice);
 router.put('/invoices/:id', authenticateToken, authorizeRoles('receptionist', 'admin'), updateInvoice);
 router.post('/invoices/:id/defer-payment', authenticateToken, authorizeRoles('receptionist', 'admin'), deferPayment);
+router.post('/invoices/:id/submit-to-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), submitInvoiceToPayer);
+router.post('/invoices/:id/settle-payer', authenticateToken, authorizeRoles(...BILLING_STAFF), settlePayerInvoice);
 
 // Receipts
 router.get('/receipts', authenticateToken, authorizeRoles('receptionist', 'admin', 'accountant'), getAllReceipts);
@@ -897,6 +918,14 @@ router.use('/notifications', notificationRoutes);
 router.use('/audit', auditRoutes);
 
 // Accountant routes
+// Marketing — the patient contact list. Restricted to marketing and admin: it
+// exposes every active patient's phone and email in bulk, and every download is
+// written to the audit log.
+router.get('/marketing/contacts', authenticateToken, authorizeRoles('marketing', 'admin'), getPatientContacts);
+router.get('/marketing/contacts/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportPatientContacts);
+// Reception and admin record the opt-out, since they're the ones a patient tells.
+router.put('/patients/:id/marketing-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'marketing'), setMarketingOptOut);
+
 router.use('/accountant', accountantRoutes);
 
 // Insurance claims routes
@@ -1007,6 +1036,10 @@ router.get('/nurse/call-log/history', authenticateToken, authorizeRoles('nurse',
 router.get('/nurse/follow-up-tasks', authenticateToken, authorizeRoles('nurse', 'admin'), getFollowUpTasks);
 router.get('/nurse/follow-up-tasks/due', authenticateToken, authorizeRoles('nurse', 'admin'), getDueTasks);
 router.post('/nurse/follow-up-tasks/complete', authenticateToken, authorizeRoles('nurse', 'admin'), completeFollowUpTask);
+
+// Nurse QA review — which patients a doctor saw in a period, with callback numbers
+import { getPatientsSeenByDoctor } from '../controllers/nurseQAController';
+router.get('/nurse/qa/patients-seen', authenticateToken, authorizeRoles('nurse', 'admin'), getPatientsSeenByDoctor);
 
 // Nurse inventory & procurement (head nurse manages procurement, all nurses see stock)
 router.get('/nurse/inventory', authenticateToken, authorizeRoles('nurse', 'admin'), getNurseInventory);

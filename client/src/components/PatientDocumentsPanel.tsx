@@ -2,6 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import {
+  formatBytes,
+  prepareFileForUpload,
+  MAX_IMAGE_INPUT_BYTES,
+  MAX_UPLOAD_BYTES,
+  UploadTooLargeError,
+} from '../utils/fileUpload';
 import type { ApiError } from '../types';
 
 export type DocumentType = 'lab_result' | 'imaging' | 'prescription' | 'referral' | 'other';
@@ -60,22 +67,6 @@ const CATEGORIES: { value: DocumentType; label: string; iconPath: string }[] = [
 ];
 
 const ALLOWED_MIME_PREFIXES = ['application/pdf', 'image/'];
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-
-const formatBytes = (bytes: number): string => {
-  if (!bytes) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-};
-
-const fileToBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 
 const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
   const { showToast } = useNotification();
@@ -110,10 +101,6 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
     if (list.length === 0) return;
 
     for (const file of list) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        showToast(`${file.name} exceeds 10MB limit`, 'error');
-        continue;
-      }
       if (!ALLOWED_MIME_PREFIXES.some((p) => file.type.startsWith(p))) {
         showToast(`${file.name} is not a PDF or image`, 'error');
         continue;
@@ -121,22 +108,31 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
 
       setUploading(true);
       try {
-        const dataUrl = await fileToBase64(file);
+        // Large photos/scans are downscaled here so they fit the request-body
+        // limit; PDFs can't be shrunk client-side and throw if oversized.
+        const prepared = await prepareFileForUpload(file);
         await apiClient.post('/documents', {
           patient_id: patientId,
           encounter_id: encounterId ?? null,
           document_type: pendingCategory,
-          document_name: file.name,
-          file_type: file.type,
-          file_data: dataUrl,
+          document_name: prepared.fileName,
+          file_type: prepared.fileType,
+          file_data: prepared.dataUrl,
         });
+        const categoryLabel = CATEGORIES.find((c) => c.value === pendingCategory)?.label;
         showToast(
-          `${file.name} uploaded to ${
-            CATEGORIES.find((c) => c.value === pendingCategory)?.label
-          }`,
+          prepared.compressed
+            ? `${file.name} uploaded to ${categoryLabel} (compressed ${formatBytes(
+                prepared.originalBytes
+              )} → ${formatBytes(prepared.bytes)})`
+            : `${file.name} uploaded to ${categoryLabel}`,
           'success'
         );
       } catch (err) {
+        if (err instanceof UploadTooLargeError) {
+          showToast(err.message, 'error');
+          continue;
+        }
         const apiError = err as ApiError;
         const msg =
           apiError.response?.data?.error ||
@@ -316,7 +312,10 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
               }
             }}
           />
-          <p className="text-xs text-gray-400 mt-2">PDF, JPG, PNG up to 10MB each</p>
+          <p className="text-xs text-gray-400 mt-2">
+            Photos &amp; scans (JPG, PNG) up to {formatBytes(MAX_IMAGE_INPUT_BYTES)} — automatically
+            compressed. PDFs up to {formatBytes(MAX_UPLOAD_BYTES)}.
+          </p>
         </div>
 
         {/* Per-category buckets */}

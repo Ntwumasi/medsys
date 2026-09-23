@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+import { shouldBlockForDiagnosis, isClosingStatus, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
 
 export const createEncounter = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -141,6 +142,15 @@ export const updateEncounter = async (req: Request, res: Response): Promise<void
     const { id } = req.params;
     const updateData = req.body;
 
+    // Same diagnosis hard stop as doctor sign-off. This endpoint sets status
+    // directly, so without the check it was a way round the block — which is
+    // why compliance stayed low even for the patients that were "blocked".
+    // 'cancelled' is exempt: a no-show has nothing to diagnose.
+    if (isClosingStatus(updateData?.status) && (await shouldBlockForDiagnosis(String(id)))) {
+      res.status(400).json(diagnosisRequiredResponse);
+      return;
+    }
+
     const { setClause, values } = buildSafeUpdateClause('encounters', updateData, 2);
 
     const result = await pool.query(
@@ -153,6 +163,42 @@ export const updateEncounter = async (req: Request, res: Response): Promise<void
     if (result.rows.length === 0) {
       res.status(404).json({ error: 'Encounter not found' });
       return;
+    }
+
+    // When a visit is cancelled, void its invoice so the (unbilled) charge
+    // stops showing as a pending invoice and inflating revenue. Guardrails:
+    //  - only if nothing has been paid (amount_paid = 0) — a partly-paid
+    //    invoice is a real transaction and must be handled by an accountant;
+    //  - only if the invoice isn't SHARED with another still-active encounter
+    //    (same-day multi-specialist single-invoice model) — else we'd wrongly
+    //    void the other provider's charges.
+    if (updateData.status === 'cancelled') {
+      const encId = result.rows[0].id;
+      // Resolve the invoice linked to this encounter (direct link or legacy).
+      const invRow = await pool.query(
+        `SELECT COALESCE(e.invoice_id,
+                  (SELECT iv.id FROM invoices iv WHERE iv.encounter_id = e.id ORDER BY iv.id LIMIT 1)) AS invoice_id
+           FROM encounters e WHERE e.id = $1`,
+        [encId]
+      );
+      const invoiceId: number | null = invRow.rows[0]?.invoice_id ?? null;
+      if (invoiceId) {
+        // Is the invoice still used by another non-cancelled encounter?
+        const shared = await pool.query(
+          `SELECT 1 FROM encounters
+            WHERE id <> $1 AND status <> 'cancelled'
+              AND (invoice_id = $2 OR id = (SELECT encounter_id FROM invoices WHERE id = $2))
+            LIMIT 1`,
+          [encId, invoiceId]
+        );
+        if (shared.rows.length === 0) {
+          await pool.query(
+            `UPDATE invoices SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+              WHERE id = $1 AND status IN ('pending', 'partial') AND COALESCE(amount_paid, 0) = 0`,
+            [invoiceId]
+          );
+        }
+      }
     }
 
     res.json({

@@ -7,6 +7,8 @@ import type { PatientSummary } from '../types';
 import { safeFormatDate } from '../utils/age';
 import InteractionExplainButton from '../components/ai/InteractionExplainButton';
 import VitalSignsHistory from '../components/VitalSignsHistory';
+import LabResultsInline from '../components/LabResultsInline';
+import { getApiError } from '../utils/apiError';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
 import { Card, EmptyState } from '../components/ui';
@@ -183,6 +185,8 @@ const PatientDetails: React.FC = () => {
   const [interactionData, setInteractionData] = useState<{ aiAvailable: boolean; summary: string; loaded: boolean }>({ aiAvailable: false, summary: '', loaded: false });
   const [interactionsLoading, setInteractionsLoading] = useState(false);
   const [editPayerType, setEditPayerType] = useState<string>('self_pay');
+  const [editStaffLimit, setEditStaffLimit] = useState<string>('');
+  const [staffBenefit, setStaffBenefit] = useState<{ annual_limit: number; used: number; remaining: number } | null>(null);
   const [editPayerId, setEditPayerId] = useState<number | null>(null);
   const [corporateClients, setCorporateClients] = useState<Array<{id: number; name: string}>>([]);
   const [insuranceProviders, setInsuranceProviders] = useState<Array<{id: number; name: string}>>([]);
@@ -202,6 +206,31 @@ const PatientDetails: React.FC = () => {
     user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'office_manager' || user?.is_super_admin === true;
   const [sendingLink, setSendingLink] = useState(false);
   const [expandedVisit, setExpandedVisit] = useState<number | null>(null);
+
+  // Recording "don't send me marketing" is front-desk work — they're who the
+  // patient tells. Marketing can set it too, from a campaign reply.
+  const canSetMarketingOptOut =
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'marketing' ||
+    user?.role === 'office_manager' || user?.is_super_admin === true;
+  const [marketingOptOut, setMarketingOptOut] = useState(false);
+  const [savingOptOut, setSavingOptOut] = useState(false);
+
+  const handleToggleMarketingOptOut = async () => {
+    if (!summary?.patient?.id) return;
+    const next = !marketingOptOut;
+    setSavingOptOut(true);
+    try {
+      const res = await apiClient.put(`/patients/${summary.patient.id}/marketing-opt-out`, {
+        marketing_opt_out: next,
+      });
+      setMarketingOptOut(next);
+      showToast(res.data?.message || 'Marketing preference updated', 'success');
+    } catch (err) {
+      showToast(getApiError(err, 'Could not update the marketing preference'), 'error');
+    } finally {
+      setSavingOptOut(false);
+    }
+  };
 
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
@@ -304,6 +333,7 @@ const PatientDetails: React.FC = () => {
     try {
       const data = await patientsAPI.getPatientSummary(patientId);
       setSummary(data);
+      setMarketingOptOut(Boolean((data as any)?.patient?.marketing_opt_out));
     } catch (error) {
       console.error('Error loading patient summary:', error);
     } finally {
@@ -390,6 +420,17 @@ const PatientDetails: React.FC = () => {
       console.error('Error loading payer options:', e);
     }
 
+    // Load the staff package amount (if any) so it can be edited.
+    try {
+      const { data } = await apiClient.get(`/staff-benefits/patient/${summary.patient.id}`);
+      setStaffBenefit(data.benefit ? { annual_limit: data.benefit.annual_limit, used: data.used, remaining: data.remaining } : null);
+      setEditStaffLimit(data.benefit ? String(data.benefit.annual_limit) : '');
+    } catch (e) {
+      console.error('Error loading staff benefit:', e);
+      setStaffBenefit(null);
+      setEditStaffLimit('');
+    }
+
     setShowEditModal(true);
   };
 
@@ -410,6 +451,14 @@ const PatientDetails: React.FC = () => {
       await apiClient.put(`/payer-sources/patient/${summary.patient.id}`, {
         payer_sources: [payerSource],
       });
+
+      // Save the staff package amount when this patient is billed as staff.
+      if (editPayerType === 'staff' && editStaffLimit.trim() !== '') {
+        const limit = parseFloat(editStaffLimit);
+        if (Number.isFinite(limit) && limit >= 0) {
+          await apiClient.put(`/staff-benefits/patient/${summary.patient.id}`, { annual_limit: limit });
+        }
+      }
 
       showToast('Patient information updated', 'success');
       setShowEditModal(false);
@@ -543,6 +592,26 @@ const PatientDetails: React.FC = () => {
         {/* Patient Info Card */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
           <div className="flex justify-end gap-2 mb-2">
+            {/* Marketing opt-out. Reception is who the patient tells, so the
+                switch lives on the record rather than in the marketing screen. */}
+            {canSetMarketingOptOut && (
+              <button
+                onClick={handleToggleMarketingOptOut}
+                disabled={savingOptOut}
+                className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                  marketingOptOut
+                    ? 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+                title={
+                  marketingOptOut
+                    ? 'This patient is excluded from marketing lists — click to include them again'
+                    : 'Exclude this patient from marketing lists'
+                }
+              >
+                {savingOptOut ? 'Saving…' : marketingOptOut ? 'No marketing ✓' : 'No marketing'}
+              </button>
+            )}
             {canSendPortalLink && (
               <button
                 onClick={handleSendPortalLink}
@@ -663,6 +732,7 @@ const PatientDetails: React.FC = () => {
                         <div key={ps.id} className="font-semibold text-gray-900 capitalize">
                           {ps.payer_type === 'corporate' ? ps.corporate_client_name :
                            ps.payer_type === 'insurance' ? ps.insurance_provider_name :
+                           ps.payer_type === 'staff' ? 'Staff' :
                            'Self Pay'}
                           {ps.is_primary && <span className="text-xs text-primary-500 ml-1">(Primary)</span>}
                         </div>
@@ -1497,7 +1567,13 @@ const PatientDetails: React.FC = () => {
                           {lab.results && lab.results.trim() && (
                             <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
                               <h4 className="text-sm font-bold text-emerald-800 mb-2">Results:</h4>
-                              <p className="text-gray-900 whitespace-pre-wrap">{lab.results}</p>
+                              {/* Structured results are stored as {parameter_code: value} JSON.
+                                  Printing the raw string dumped things like
+                                  {"HBA1C_NGSP":"8.2","HBA1C_IFCC":"66"} on screen. LabResultsInline
+                                  renders the parameter names, units, reference ranges and
+                                  abnormal flags, and falls through to plain text for
+                                  single-value or legacy results. */}
+                              <LabResultsInline result={lab.results} orderId={lab.id} />
                             </div>
                           )}
 
@@ -1760,7 +1836,7 @@ const PatientDetails: React.FC = () => {
                   label="Payer Type"
                   value={editPayerType}
                   onChange={(val) => { setEditPayerType(val); setEditPayerId(null); }}
-                  options={[{value:'self_pay',label:'Self Pay'},{value:'corporate',label:'Corporate / Employer'},{value:'insurance',label:'Health Insurance'}]}
+                  options={[{value:'self_pay',label:'Self Pay'},{value:'corporate',label:'Corporate / Employer'},{value:'insurance',label:'Health Insurance'},{value:'staff',label:'Staff (Hospital Employee)'}]}
                 />
                 {editPayerType === 'corporate' && (
                   <AppSelect
@@ -1777,6 +1853,24 @@ const PatientDetails: React.FC = () => {
                     onChange={(val) => setEditPayerId(val ? Number(val) : null)}
                     options={[{value:'',label:'Select insurance provider'}, ...insuranceProviders.map((ip) => ({value:ip.id,label:ip.name}))]}
                   />
+                )}
+                {editPayerType === 'staff' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Annual staff package (GHS)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={editStaffLimit}
+                      onChange={(e) => setEditStaffLimit(e.target.value)}
+                      placeholder="e.g. 1000"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    {staffBenefit && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Used GHS {staffBenefit.used.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Remaining GHS {staffBenefit.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} this year
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

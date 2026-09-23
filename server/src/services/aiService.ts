@@ -790,6 +790,103 @@ ${request.recentLabTests?.length ? `Recent Lab Tests (already done): ${request.r
   },
 
   /**
+   * Suggest tests from the patient's history + demographics rather than from a
+   * single complaint. Two tracks: what today's visit warrants, and what routine
+   * health maintenance is due for someone of this age/sex/history.
+   *
+   * `catalog` is the clinic's orderable lab menu — the model is told to pick
+   * ONLY from it so every suggestion is real, priced and one-click orderable.
+   * Codes are re-validated against the catalog by the caller regardless; a model
+   * that invents a code should lose the suggestion, not create a dead order.
+   */
+  async suggestPatientTests(request: {
+    patientAge?: number;
+    patientGender?: string;
+    chiefComplaint?: string;
+    existingDiagnoses?: string[];
+    currentMedications?: string[];
+    allergies?: string;
+    latestVitals?: Record<string, unknown>;
+    testHistory?: { test_name: string; test_code?: string; months_ago: number }[];
+    catalog: { test_code: string; test_name: string; category?: string }[];
+  }, userId?: number): Promise<AIResponse> {
+    if (!openai) {
+      return { success: false, error: 'AI service not configured' };
+    }
+
+    const hash = generateRequestHash('patient_test_suggestion', request);
+    const cached = await checkCache('patient_test_suggestion', hash);
+    if (cached) {
+      return { success: true, data: cached, cached: true };
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a clinical decision support assistant for an outpatient clinic. You suggest tests for a clinician to CONSIDER. You never diagnose, and you never state that a test must be done.
+
+You produce two separate lists:
+
+1. "visit_tests" — tests relevant to the patient's CURRENT presenting complaint. If no chief complaint is given, return an empty array.
+2. "screening_tests" — routine health-maintenance / preventive screening this patient is due for based on AGE, SEX and PAST MEDICAL HISTORY, independent of why they came in today. Follow mainstream international preventive-care guidance (USPSTF / NICE style): e.g. lipid profile and glycaemic screening by age and risk, blood pressure and renal monitoring for hypertensives, HbA1c monitoring for diabetics, cervical and prostate screening by age and sex, anaemia screening in pregnancy. Chronic-disease MONITORING for an existing diagnosis belongs here, not in visit_tests.
+
+Hard rules:
+- Choose lab tests ONLY from the provided catalog. Copy test_code and test_name EXACTLY as they appear in the catalog. Never invent a code.
+- If a test appears in "Test history" and was done recently enough that repeating it now adds nothing, DO NOT suggest it. Repeat it only if the monitoring interval has genuinely elapsed (e.g. HbA1c ~3 monthly in diabetes, annual lipids).
+- Suggest sex-appropriate tests only.
+- Keep it short: at most 4 visit tests, at most 4 screening tests, at most 2 imaging studies.
+- rationale must be ONE short clause a clinician can scan (max ~12 words), stating why THIS patient.
+- Return an empty array rather than padding with marginal tests.
+
+Respond with JSON only:
+{
+  "visit_tests": [
+    { "test_name": "Full Blood Count", "test_code": "FBC", "priority": "routine" | "urgent" | "stat", "rationale": "..." }
+  ],
+  "screening_tests": [
+    { "test_name": "Lipid Profile", "test_code": "LIPID", "rationale": "...", "interval": "e.g. every 5 years / annually" }
+  ],
+  "imaging_tests": [
+    { "study_type": "X-Ray", "body_part": "Chest", "priority": "routine" | "urgent" | "stat", "rationale": "..." }
+  ],
+  "clinical_note": "One sentence on the overall picture, or empty string."
+}`
+          },
+          {
+            role: 'user',
+            content: `Age: ${request.patientAge ?? 'unknown'}
+Sex: ${request.patientGender || 'unknown'}
+${request.chiefComplaint ? `Chief Complaint (today): ${request.chiefComplaint}` : 'Chief Complaint (today): none recorded'}
+${request.existingDiagnoses?.length ? `Past/Active Diagnoses: ${request.existingDiagnoses.join(', ')}` : 'Past/Active Diagnoses: none recorded'}
+${request.currentMedications?.length ? `Current Medications: ${request.currentMedications.join(', ')}` : ''}
+${request.allergies ? `Allergies: ${request.allergies}` : ''}
+${request.latestVitals && Object.keys(request.latestVitals).length ? `Latest Vitals: ${JSON.stringify(request.latestVitals)}` : ''}
+${request.testHistory?.length
+  ? `Test history (most recent first):\n${request.testHistory.map(t => `- ${t.test_name}${t.test_code ? ` [${t.test_code}]` : ''} — ${t.months_ago === 0 ? 'this month' : `${t.months_ago} month(s) ago`}`).join('\n')}`
+  : 'Test history: none on record'}
+
+Orderable lab catalog (choose only from these):
+${request.catalog.map(c => `${c.test_code} | ${c.test_name}${c.category ? ` | ${c.category}` : ''}`).join('\n')}`
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 1000,
+        response_format: { type: 'json_object' },
+      });
+
+      const response = JSON.parse(completion.choices[0].message.content || '{}');
+      await saveToCache('patient_test_suggestion', hash, request, response, userId);
+      return { success: true, data: response };
+    } catch (error: any) {
+      console.error('Patient test suggestion AI error:', error);
+      return { success: false, error: error.message || 'AI processing failed' };
+    }
+  },
+
+  /**
    * Generate encounter discharge summary from clinical data
    */
   async generateEncounterSummary(request: {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
 import apiClient from '../api/client';
+import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
 import PrintableInvoice from '../components/PrintableInvoice';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
@@ -97,6 +98,16 @@ interface AgingSummary {
   total_balance: number;
 }
 
+interface FinancialStatement {
+  period: { start: string | null; end: string | null; label?: string };
+  headline: { total_billed: number; total_collected: number; total_outstanding: number; collection_rate: number; invoice_count: number; payment_count: number };
+  revenue_by_category: { category: string; billed: number }[];
+  revenue_by_payer: { payer_type: string; billed: number; collected: number }[];
+  collections_by_method: { method: string; amount: number; count: number }[];
+  monthly_trend: { month: string; billed: number; collected: number }[];
+  aging: { aging_bucket: string; invoice_count: number; total_balance: number }[];
+}
+
 interface InvoiceData {
   id: number;
   invoice_number: string;
@@ -118,7 +129,27 @@ interface InvoiceData {
   status: string;
   chief_complaint?: string;
   encounter_date?: string;
+  payer_type?: string;
+  corporate_client_name?: string;
+  insurance_provider_name?: string;
+  payer_submitted_at?: string | null;
 }
+
+// An invoice with a corporate/insurance payer that's been submitted but not yet
+// paid reads as "Submitted — awaiting payer" (it's a receivable, not settled).
+const isSubmittedAwaitingPayer = (inv: InvoiceData): boolean =>
+  !!inv.payer_submitted_at && inv.status !== 'paid';
+
+// Human label for an invoice's payer (the specific corporate client / insurer,
+// or the payer-type name for self-pay / staff).
+const payerLabel = (inv: InvoiceData): string => {
+  switch (inv.payer_type) {
+    case 'corporate': return inv.corporate_client_name || 'Corporate';
+    case 'insurance': return inv.insurance_provider_name || 'Insurance';
+    case 'staff': return 'Staff';
+    default: return 'Self Pay';
+  }
+};
 
 interface InvoiceItem {
   id: number;
@@ -316,12 +347,33 @@ const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, a
   );
 };
 
+// The four invoice tabs are the same table filtered by payer type. 'Invoices'
+// means fee-paying (self-pay) only; the rest split out insurance / corporate /
+// staff billing.
+const INVOICE_TABS = ['invoices', 'insuranceInvoices', 'corporateInvoices', 'staffInvoices'] as const;
+const TAB_PAYER_TYPE: Record<string, string> = {
+  invoices: 'self_pay',
+  insuranceInvoices: 'insurance',
+  corporateInvoices: 'corporate',
+  staffInvoices: 'staff',
+};
+const PAYER_TAB_LABEL: Record<string, string> = {
+  invoices: 'fee-paying',
+  insuranceInvoices: 'insurance',
+  corporateInvoices: 'corporate',
+  staffInvoices: 'staff',
+};
+
 const AccountantDashboard: React.FC = () => {
   const { showToast } = useNotification();
-  const { prompt: promptDialog } = useDialog();
-  const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
+  const { prompt: promptDialog, confirm: confirmDialog } = useDialog();
+  const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [exportingTrend, setExportingTrend] = useState(false);
+  const [unbilledInvoices, setUnbilledInvoices] = useState<InvoiceData[]>([]);
+  const [unbilledLoading, setUnbilledLoading] = useState(false);
+  const [submittingId, setSubmittingId] = useState<number | null>(null);
 
   // Date filters
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
@@ -395,7 +447,11 @@ const AccountantDashboard: React.FC = () => {
   // Aging
   const [agingInvoices, setAgingInvoices] = useState<AgingInvoice[]>([]);
   const [agingSummary, setAgingSummary] = useState<AgingSummary[]>([]);
+  const [agingError, setAgingError] = useState<string | null>(null);
   const [agingLoading, setAgingLoading] = useState(false);
+  // Financial summary
+  const [financials, setFinancials] = useState<FinancialStatement | null>(null);
+  const [financialsLoading, setFinancialsLoading] = useState(false);
 
   // Invoice modal
   const [showInvoice, setShowInvoice] = useState(false);
@@ -460,10 +516,14 @@ const AccountantDashboard: React.FC = () => {
   }, [startDate, endDate]);
 
   useEffect(() => {
-    if (activeTab === 'invoices') {
+    if ((INVOICE_TABS as readonly string[]).includes(activeTab)) {
       loadInvoices();
+    } else if (activeTab === 'unbilled') {
+      loadUnbilledInvoices();
     } else if (activeTab === 'aging') {
       loadAgingReport();
+    } else if (activeTab === 'financials') {
+      loadFinancialStatement();
     } else if (activeTab === 'claims') {
       loadClaims();
     } else if (activeTab === 'reminders') {
@@ -501,6 +561,7 @@ const AccountantDashboard: React.FC = () => {
           search: invoiceSearch || undefined,
           start_date: startDate,
           end_date: endDate,
+          payer_type: TAB_PAYER_TYPE[activeTab] || undefined,
           limit: 100,
         },
       });
@@ -512,14 +573,39 @@ const AccountantDashboard: React.FC = () => {
     }
   };
 
+  const loadFinancialStatement = async () => {
+    setFinancialsLoading(true);
+    try {
+      const response = await apiClient.get('/accountant/reports/financial-statement', {
+        params: { start_date: startDate, end_date: endDate },
+      });
+      setFinancials(response.data);
+    } catch (error) {
+      console.error('Error loading financial statement:', error);
+    } finally {
+      setFinancialsLoading(false);
+    }
+  };
+
   const loadAgingReport = async () => {
     setAgingLoading(true);
+    setAgingError(null);
     try {
       const response = await apiClient.get('/accountant/reports/aging');
       setAgingInvoices(response.data.invoices || []);
       setAgingSummary(response.data.summary || []);
-    } catch (error) {
+    } catch (error: any) {
+      // Was console.error-only: a failure left an empty table that looks
+      // identical to "no outstanding invoices", which is how this got reported
+      // as "aging payments not working" with nothing to go on.
       console.error('Error loading aging report:', error);
+      const message =
+        error.response?.status === 403
+          ? "Your account doesn't have permission to view the aging report."
+          : getApiError(error, 'Could not load the aging report.');
+      setAgingError(message);
+      setAgingInvoices([]);
+      setAgingSummary([]);
     } finally {
       setAgingLoading(false);
     }
@@ -547,11 +633,16 @@ const AccountantDashboard: React.FC = () => {
 
   const loadInsuranceInvoices = async () => {
     try {
+      // Only insurance-payer invoices can become claims — createClaim rejects
+      // any other invoice with "Patient has no insurance on record". Also drop
+      // zero-value invoices (nothing to claim).
       const response = await apiClient.get('/invoices', {
-        params: { status: 'all', limit: 100 },
+        params: { status: 'all', payer_type: 'insurance', limit: 100 },
       });
-      // Filter to only show invoices that can have claims (with insurance payer)
-      setInsuranceInvoices(response.data.invoices || []);
+      const eligible = (response.data.invoices || []).filter(
+        (inv: InvoiceData) => (parseFloat(inv.total_amount as unknown as string) || 0) > 0
+      );
+      setInsuranceInvoices(eligible);
     } catch (error) {
       console.error('Error loading invoices:', error);
     }
@@ -569,6 +660,76 @@ const AccountantDashboard: React.FC = () => {
       console.error('Error loading outstanding invoices:', error);
     } finally {
       setRemindersLoading(false);
+    }
+  };
+
+  const loadUnbilledInvoices = async () => {
+    setUnbilledLoading(true);
+    try {
+      const response = await apiClient.get('/invoices/unbilled-payer');
+      setUnbilledInvoices(response.data.invoices || []);
+    } catch (error) {
+      console.error('Error loading unbilled encounters:', error);
+    } finally {
+      setUnbilledLoading(false);
+    }
+  };
+
+  const handleSubmitToPayer = async (invoiceId: number) => {
+    setSubmittingId(invoiceId);
+    try {
+      const res = await apiClient.post(`/invoices/${invoiceId}/submit-to-payer`);
+      showToast(res.data?.message || 'Invoice submitted to payer', 'success');
+      loadUnbilledInvoices();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to submit to payer', 'error');
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
+  const handleSettlePayer = async (inv: InvoiceData) => {
+    const balance = (parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0);
+    const payerName = payerLabel(inv);
+    const entered = await promptDialog({
+      title: `Record ${payerName} settlement`,
+      message: `How much did ${payerName} pay for invoice ${inv.invoice_number}? Outstanding balance: ${formatCurrency(balance)}.`,
+      defaultValue: balance.toFixed(2),
+      confirmLabel: 'Record settlement',
+    });
+    if (entered === null) return;
+    const amount = parseFloat(entered);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      showToast('Enter a valid settlement amount', 'error');
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/invoices/${inv.id}/settle-payer`, { amount });
+      showToast(res.data?.message || 'Settlement recorded', 'success');
+      loadInvoices();
+    } catch (error: any) {
+      showToast(error.response?.data?.error || 'Failed to record settlement', 'error');
+    }
+  };
+
+  const [afreshing, setAfreshing] = useState(false);
+  const handleStartAfresh = async () => {
+    const ok = await confirmDialog({
+      title: 'Start afresh on reminders?',
+      message: 'This clears every current outstanding invoice from the reminders list so it starts empty. The invoices are not changed — they still count as outstanding in the aging report and statements — they just drop off the reminders workflow. New invoices going forward will still appear.',
+      confirmLabel: 'Start Afresh',
+    });
+    if (!ok) return;
+    setAfreshing(true);
+    try {
+      const res = await apiClient.post('/reminders/start-afresh');
+      showToast(res.data?.message || 'Reminders list cleared', 'success');
+      loadOutstandingInvoices();
+    } catch (error) {
+      console.error('Error starting afresh:', error);
+      showToast('Failed to clear reminders list', 'error');
+    } finally {
+      setAfreshing(false);
     }
   };
 
@@ -794,11 +955,13 @@ const AccountantDashboard: React.FC = () => {
   const handleExportInvoices = async () => {
     setExporting(true);
     try {
+      const payerType = TAB_PAYER_TYPE[activeTab];
       const response = await apiClient.get('/accountant/export/invoices', {
         params: {
           start_date: startDate,
           end_date: endDate,
           status: invoiceFilter !== 'all' ? invoiceFilter : undefined,
+          payer_type: payerType || undefined,
         },
         responseType: 'blob',
       });
@@ -807,7 +970,8 @@ const AccountantDashboard: React.FC = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `invoices_${startDate}_to_${endDate}.xlsx`);
+      const payerTag = payerType && payerType !== 'self_pay' ? `${payerType}_` : '';
+      link.setAttribute('download', `${payerTag}invoices_${startDate}_to_${endDate}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -819,6 +983,30 @@ const AccountantDashboard: React.FC = () => {
       showToast('Failed to export invoices', 'error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportRevenueTrend = async () => {
+    setExportingTrend(true);
+    try {
+      const response = await apiClient.get('/accountant/export/revenue-trend', {
+        params: { start_date: startDate, end_date: endDate },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `revenue_trend_${startDate}_to_${endDate}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showToast('Revenue trend exported', 'success');
+    } catch (error) {
+      console.error('Error exporting revenue trend:', error);
+      showToast('Failed to export revenue trend', 'error');
+    } finally {
+      setExportingTrend(false);
     }
   };
 
@@ -924,7 +1112,12 @@ const AccountantDashboard: React.FC = () => {
             <nav className="flex -mb-px">
               {[
                 { id: 'overview', label: 'Overview' },
+                { id: 'financials', label: 'Financial Summary' },
                 { id: 'invoices', label: 'Invoices' },
+                { id: 'insuranceInvoices', label: 'Insurance Invoices' },
+                { id: 'corporateInvoices', label: 'Corporate Invoices' },
+                { id: 'staffInvoices', label: 'Staff Invoices' },
+                { id: 'unbilled', label: 'Awaiting Submission' },
                 { id: 'aging', label: 'Aging Report' },
                 { id: 'claims', label: 'Insurance Claims' },
                 { id: 'reminders', label: 'Payment Reminders' },
@@ -1029,7 +1222,23 @@ const AccountantDashboard: React.FC = () => {
 
                     {/* Revenue Trend Chart */}
                     <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">Revenue Trend</h3>
+                        <button
+                          onClick={handleExportRevenueTrend}
+                          disabled={exportingTrend || dailyRevenue.length === 0}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                        >
+                          {exportingTrend ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          )}
+                          Export to Excel
+                        </button>
+                      </div>
                       {dailyRevenue.length > 0 ? (
                         <div className="h-72">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1053,7 +1262,7 @@ const AccountantDashboard: React.FC = () => {
                                 fontSize={12}
                               />
                               <Tooltip
-                                formatter={(value) => [formatCurrency(value as number), '']}
+                                formatter={(value, name) => [formatCurrency(value as number), name as string]}
                                 labelFormatter={(label) => {
                                   try {
                                     return format(parseISO(label), 'MMMM d, yyyy');
@@ -1168,7 +1377,7 @@ const AccountantDashboard: React.FC = () => {
                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Services</h3>
                         {topServices.length > 0 ? (
                           <div className="space-y-3">
-                            {topServices.slice(0, 5).map((service, idx) => {
+                            {topServices.slice(0, 8).map((service, idx) => {
                               const maxRevenue = Math.max(...topServices.map(s => s.total_revenue));
                               const percentage = (service.total_revenue / maxRevenue) * 100;
                               return (
@@ -1275,8 +1484,13 @@ const AccountantDashboard: React.FC = () => {
             )}
 
             {/* Invoices Tab */}
-            {activeTab === 'invoices' && (
+            {(INVOICE_TABS as readonly string[]).includes(activeTab) && (
               <div className="space-y-4">
+                {activeTab !== 'invoices' && (
+                  <div className="text-sm text-gray-600">
+                    Showing <span className="font-semibold text-gray-900">{PAYER_TAB_LABEL[activeTab]}</span> invoices only.
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-4 items-center justify-between">
                   <div className="flex gap-4 items-center flex-1">
                     <input
@@ -1290,7 +1504,7 @@ const AccountantDashboard: React.FC = () => {
                     <AppSelect
                       value={invoiceFilter}
                       onChange={(val) => setInvoiceFilter(val)}
-                      options={[{value:'all',label:'All Status'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'paid',label:'Paid'}]}
+                      options={[{value:'all',label:'All Status'},{value:'pending',label:'Pending'},{value:'partial',label:'Partial'},{value:'submitted',label:'Submitted (awaiting payer)'},{value:'paid',label:'Paid'}]}
                     />
                     <button
                       onClick={loadInvoices}
@@ -1322,6 +1536,9 @@ const AccountantDashboard: React.FC = () => {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        {activeTab !== 'invoices' && (
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                        )}
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
                         <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
@@ -1333,12 +1550,12 @@ const AccountantDashboard: React.FC = () => {
                       {invoicesLoading ? (
                         <>
                           {Array.from({ length: 6 }).map((_, i) => (
-                            <TableRowSkeleton key={i} columns={8} />
+                            <TableRowSkeleton key={i} columns={activeTab !== 'invoices' ? 9 : 8} />
                           ))}
                         </>
                       ) : invoices.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
+                          <td colSpan={activeTab !== 'invoices' ? 9 : 8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
                         </tr>
                       ) : (
                         invoices.map((inv) => (
@@ -1349,19 +1566,28 @@ const AccountantDashboard: React.FC = () => {
                               <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
                               <div className="text-xs text-gray-500">{inv.patient_number}</div>
                             </td>
+                            {activeTab !== 'invoices' && (
+                              <td className="px-4 py-3 text-sm text-gray-700">{payerLabel(inv)}</td>
+                            )}
                             <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(inv.total_amount)}</td>
                             <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(inv.amount_paid)}</td>
                             <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                inv.status === 'paid' ? 'bg-green-100 text-green-800' :
-                                inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                                'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {inv.status.toUpperCase()}
-                              </span>
+                              {isSubmittedAwaitingPayer(inv) ? (
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800" title={`Submitted to payer${inv.payer_submitted_at ? ' on ' + safeFormatDate(inv.payer_submitted_at, 'MMM d, yyyy') : ''} — awaiting settlement`}>
+                                  SUBMITTED
+                                </span>
+                              ) : (
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                  inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {inv.status.toUpperCase()}
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex justify-center gap-2">
@@ -1371,6 +1597,15 @@ const AccountantDashboard: React.FC = () => {
                                 >
                                   View
                                 </button>
+                                {isSubmittedAwaitingPayer(inv) && (
+                                  <button
+                                    onClick={() => handleSettlePayer(inv)}
+                                    className="text-purple-600 hover:text-purple-900 text-sm font-medium"
+                                    title="Record the payer's settlement for this invoice"
+                                  >
+                                    Settle
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleExportSingleInvoice(inv.id)}
                                   className="text-green-600 hover:text-green-900 text-sm font-medium"
@@ -1388,11 +1623,235 @@ const AccountantDashboard: React.FC = () => {
               </div>
             )}
 
+            {/* Awaiting Submission Tab — completed corporate/insurance encounters
+                not yet submitted to their payer (catch what front desk missed). */}
+            {activeTab === 'unbilled' && (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-gray-700 space-y-2">
+                  <div className="font-semibold text-amber-800">What "Awaiting Submission" means</div>
+                  <p>
+                    These are visits for patients paid by a <span className="font-semibold">company (corporate)</span> or an <span className="font-semibold">insurance</span> — not by the patient in cash. The visit is done and billed, but the bill <span className="font-semibold">hasn't been sent to that company/insurer yet</span>, so we can't get paid for it until it is.
+                  </p>
+                  <p>
+                    <span className="font-semibold">Example:</span> a patient covered by "Acme Ltd" is seen and billed GHS 200. Until we submit that invoice to Acme, it sits here — Acme doesn't know they owe us.
+                  </p>
+                  <p>
+                    Click <span className="font-semibold">"Submit to payer"</span> to send it. For insurance it also opens a claim. After that the invoice moves out of this list and stays outstanding until the company/insurer actually pays. An empty list means every corporate/insurance visit has already been sent.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {unbilledLoading ? (
+                        Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} columns={6} />)
+                      ) : unbilledInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                            Nothing awaiting submission — all corporate/insurance encounters have been submitted.
+                          </td>
+                        </tr>
+                      ) : (
+                        unbilledInvoices.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
+                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
+                              </span>
+                              <span className="ml-2">{payerLabel(inv)}</span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
+                              {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleSubmitToPayer(inv.id)}
+                                disabled={submittingId === inv.id}
+                                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                              >
+                                {submittingId === inv.id ? 'Submitting…' : 'Submit to payer'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Financial Summary Tab */}
+            {activeTab === 'financials' && (
+              <div className="space-y-6">
+                {financialsLoading || !financials ? (
+                  <div className="py-12 text-center text-gray-500">Loading financial summary…</div>
+                ) : (
+                  <>
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                      <span className="font-semibold">Operational financial summary</span> — the clinic's revenue and cash position for the selected period{financials.period.label ? ` (${financials.period.label})` : ''}. This is not a GAAP balance sheet, income statement, or cash-flow statement — those come from QuickBooks, which tracks expenses, cash accounts and equity that this system doesn't.
+                    </div>
+
+                    {/* Headline metrics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="rounded-xl p-4 bg-white border border-gray-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-gray-500">Billed</h4>
+                        <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(financials.headline.total_billed)}</p>
+                        <p className="text-xs text-gray-500 mt-1">{financials.headline.invoice_count} invoices</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-green-50 border border-green-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-green-700">Collected</h4>
+                        <p className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(financials.headline.total_collected)}</p>
+                        <p className="text-xs text-green-600 mt-1">{financials.headline.payment_count} payments</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-primary-50 border border-primary-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-primary-700">Collection Rate</h4>
+                        <p className="text-2xl font-bold text-primary-900 mt-1">{financials.headline.collection_rate}%</p>
+                        <p className="text-xs text-primary-600 mt-1">collected ÷ billed</p>
+                      </div>
+                      <div className="rounded-xl p-4 bg-red-50 border border-red-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-red-700">Outstanding (A/R)</h4>
+                        <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
+                        <p className="text-xs text-red-600 mt-1">current, all-time</p>
+                      </div>
+                    </div>
+
+                    {/* Monthly billed vs collected */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed vs Collected by Month</h3>
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={financials.monthly_trend}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                            <Legend />
+                            <Bar dataKey="billed" name="Billed" fill={CHART_COLORS.primary} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="collected" name="Collected" fill={CHART_COLORS.success} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Revenue by category */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed Revenue by Category</h3>
+                        <table className="min-w-full text-sm">
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.revenue_by_category.map((r) => (
+                              <tr key={r.category}>
+                                <td className="py-2 text-gray-700">{r.category}</td>
+                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.billed)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Collections by method */}
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Collections by Payment Method</h3>
+                        <table className="min-w-full text-sm">
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.collections_by_method.map((r) => (
+                              <tr key={r.method}>
+                                <td className="py-2 text-gray-700 capitalize">{r.method.replace(/_/g, ' ')}</td>
+                                <td className="py-2 text-center text-gray-400 text-xs">{r.count}</td>
+                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.amount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Revenue by payer: billed vs collected */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Payer</h3>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Billed</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Collected</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {financials.revenue_by_payer.map((r) => (
+                              <tr key={r.payer_type}>
+                                <td className="px-4 py-2 text-gray-700 capitalize">{r.payer_type.replace(/_/g, ' ')}</td>
+                                <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(r.billed)}</td>
+                                <td className="px-4 py-2 text-right text-green-700">{formatCurrency(r.collected)}</td>
+                                <td className="px-4 py-2 text-right text-red-600">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* A/R aging snapshot */}
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounts Receivable — Aging</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {financials.aging.map((b) => (
+                          <div key={b.aging_bucket} className={`rounded-lg p-3 ${
+                            b.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
+                            b.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
+                            b.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
+                            'bg-green-50 border border-green-200'
+                          }`}>
+                            <h4 className="text-xs font-medium text-gray-700">{b.aging_bucket}</h4>
+                            <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(b.total_balance)}</p>
+                            <p className="text-xs text-gray-500">{b.invoice_count} invoices</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Aging Report Tab */}
             {activeTab === 'aging' && (
               <div className="space-y-6">
                 {agingLoading ? (
                   <AgingSkeleton />
+                ) : agingError ? (
+                  <div className="bg-white rounded-xl shadow p-12 text-center border border-red-200">
+                    <p className="text-red-700 font-semibold">Couldn't load the aging report</p>
+                    <p className="text-gray-600 mt-1 text-sm">{agingError}</p>
+                    <button
+                      onClick={loadAgingReport}
+                      className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : agingSummary.length === 0 ? (
+                  <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                    No outstanding invoices to age — every invoice is settled.
+                  </div>
                 ) : (
                   <>
                     {/* Aging Summary */}
@@ -1577,6 +2036,21 @@ const AccountantDashboard: React.FC = () => {
                         Send to Selected ({selectedForBulk.length})
                       </button>
                     )}
+                    <button
+                      onClick={handleStartAfresh}
+                      disabled={afreshing || outstandingInvoices.length === 0}
+                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                      title="Clear all current outstanding invoices from the reminders list — new invoices going forward still appear"
+                    >
+                      {afreshing ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      )}
+                      Start Afresh
+                    </button>
                   </div>
                 </div>
 
@@ -1860,12 +2334,15 @@ const AccountantDashboard: React.FC = () => {
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Select an invoice to create an insurance claim</p>
+              <p className="text-sm text-gray-500 mt-1">Select an insurance invoice to create a claim. Only invoices billed to an insurance provider appear here.</p>
             </div>
             <div className="p-6">
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {insuranceInvoices.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No invoices available for claims</p>
+                  <p className="text-center text-gray-500 py-8">
+                    No insurance invoices available for claims.<br />
+                    <span className="text-sm text-gray-400">Only invoices for patients whose payer is an insurance provider can become claims.</span>
+                  </p>
                 ) : (
                   insuranceInvoices.map((inv) => (
                     <div
@@ -1877,6 +2354,9 @@ const AccountantDashboard: React.FC = () => {
                         <div>
                           <p className="font-medium text-gray-900">{inv.invoice_number}</p>
                           <p className="text-sm text-gray-600">{inv.patient_name}</p>
+                          {inv.insurance_provider_name && (
+                            <p className="text-xs text-primary-600">{inv.insurance_provider_name}</p>
+                          )}
                           <p className="text-xs text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
                         </div>
                         <div className="text-right">

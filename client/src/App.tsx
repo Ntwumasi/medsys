@@ -20,6 +20,7 @@ const RefillsCalendar = lazy(() => import('./pages/RefillsCalendar'));
 const ImagingDashboard = lazy(() => import('./pages/ImagingDashboard'));
 const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const MarketingDashboard = lazy(() => import('./pages/MarketingDashboard'));
 const PatientList = lazy(() => import('./pages/PatientList'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
@@ -39,6 +40,7 @@ const QuickBooksData = lazy(() => import('./pages/QuickBooksData'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
 const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
+const NurseQA = lazy(() => import('./pages/NurseQA'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage'));
 const FeedPage = lazy(() => import('./pages/FeedPage'));
@@ -116,6 +118,8 @@ const RoleDashboard: React.FC = () => {
         return <ErrorBoundary><ImagingDashboard /></ErrorBoundary>;
       case 'accountant':
         return <ErrorBoundary><AccountantDashboard /></ErrorBoundary>;
+      case 'marketing': // minimal role — only sees its assigned task list
+        return <ErrorBoundary><MarketingDashboard /></ErrorBoundary>;
       case 'admin':
       case 'office_manager': // curated admin view (oversight sections hidden)
         return <ErrorBoundary><Dashboard /></ErrorBoundary>;
@@ -171,6 +175,7 @@ const AppContent: React.FC = () => {
         <Route path="/nurse/inventory" element={<ProtectedRoute><NurseDashboard /></ProtectedRoute>} />
         <Route path="/nurse/follow-up-calls" element={<ProtectedRoute><NurseFollowUpCalls /></ProtectedRoute>} />
         <Route path="/nurse/procurement" element={<ProtectedRoute><NurseProcurement /></ProtectedRoute>} />
+        <Route path="/nurse/qa" element={<ProtectedRoute><NurseQA /></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />

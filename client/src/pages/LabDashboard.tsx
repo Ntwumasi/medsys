@@ -17,6 +17,13 @@ import { AutocompleteInput } from '../components/AutocompleteInput';
 import PrioritySelect from '../components/PrioritySelect';
 import FrequencySelect from '../components/FrequencySelect';
 import AppSelect from '../components/ui/AppSelect';
+import {
+  formatBytes,
+  prepareFileForUpload,
+  MAX_IMAGE_INPUT_BYTES,
+  MAX_UPLOAD_BYTES,
+  UploadTooLargeError,
+} from '../utils/fileUpload';
 import { branding } from '../config/branding';
 
 // Interfaces
@@ -1193,29 +1200,31 @@ const LabDashboard: React.FC = () => {
       // If file is selected, upload it
       if (selectedFile) {
         setUploadingFile(true);
-        const reader = new FileReader();
-        reader.onload = async () => {
-          try {
-            await apiClient.post('/documents', {
-              patient_id: selectedOrderForResult.patient_id,
-              encounter_id: selectedOrderForResult.encounter_id,
-              lab_order_id: selectedOrderForResult.id,
-              document_type: 'lab_result',
-              document_name: selectedFile.name,
-              file_data: reader.result,
-              file_type: selectedFile.type,
-              description: `Lab result for ${selectedOrderForResult.test_name}`,
-              ...(reason ? { reason } : {}),
-            });
-            showToast('Result and document uploaded successfully', 'success');
-          } catch (uploadError) {
-            console.error('Error uploading document:', uploadError);
-            showToast('Result saved but document upload failed', 'warning');
-          } finally {
-            setUploadingFile(false);
-          }
-        };
-        reader.readAsDataURL(selectedFile);
+        try {
+          const prepared = await prepareFileForUpload(selectedFile);
+          await apiClient.post('/documents', {
+            patient_id: selectedOrderForResult.patient_id,
+            encounter_id: selectedOrderForResult.encounter_id,
+            lab_order_id: selectedOrderForResult.id,
+            document_type: 'lab_result',
+            document_name: prepared.fileName,
+            file_data: prepared.dataUrl,
+            file_type: prepared.fileType,
+            description: `Lab result for ${selectedOrderForResult.test_name}`,
+            ...(reason ? { reason } : {}),
+          });
+          showToast('Result and document uploaded successfully', 'success');
+        } catch (uploadError) {
+          console.error('Error uploading document:', uploadError);
+          showToast(
+            uploadError instanceof UploadTooLargeError
+              ? `Result saved, but the file was not attached — ${uploadError.message}`
+              : 'Result saved but document upload failed',
+            'warning'
+          );
+        } finally {
+          setUploadingFile(false);
+        }
       } else {
         showToast(
           alreadyVerified
@@ -1400,9 +1409,13 @@ const LabDashboard: React.FC = () => {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        showToast('File size must be less than 10MB', 'error');
+      // Images are compressed at upload time, so only non-images are capped here.
+      if (!file.type.startsWith('image/') && file.size > MAX_UPLOAD_BYTES) {
+        showToast(`PDFs must be under ${formatBytes(MAX_UPLOAD_BYTES)}`, 'error');
+        return;
+      }
+      if (file.type.startsWith('image/') && file.size > MAX_IMAGE_INPUT_BYTES) {
+        showToast(`Images must be under ${formatBytes(MAX_IMAGE_INPUT_BYTES)}`, 'error');
         return;
       }
       // Check file type
@@ -4402,7 +4415,7 @@ const LabDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">PDF or image files up to 10MB. This will be attached to the patient's profile.</p>
+                <p className="text-xs text-gray-500 mt-1">Images up to {formatBytes(MAX_IMAGE_INPUT_BYTES)} (compressed automatically) or PDFs up to {formatBytes(MAX_UPLOAD_BYTES)}. This will be attached to the patient's profile.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">

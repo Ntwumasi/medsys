@@ -87,8 +87,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
   // Paid invoices are locked — line items, prices and payer can't be changed
   // once the bill is settled (receptionist policy: paid invoices are final).
-  const isPaid = invoice.status === 'paid'
-    || (Number(invoice.amount_paid || 0) > 0 && Number(invoice.amount_paid || 0) >= Number(invoice.total_amount || 0));
+  // Judge that on the balance, not the status string: charges added after a
+  // payment (labs ordered later in the visit) leave money genuinely owing, and
+  // that invoice must stay editable so reception can correct it.
+  const isPaid = Number(invoice.total_amount || 0) > 0
+    && Number(invoice.amount_paid || 0) >= Number(invoice.total_amount || 0) - 0.005;
   const isEditable = !!encounterId && !isPaid;
   const items = editableItems;
 
@@ -423,17 +426,17 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const handleSubmitToPayer = async () => {
     if (!(await confirmDialog({
       title: 'Submit invoice?',
-      message: 'Submit this invoice to the payer and complete the encounter?',
+      message: 'Submit this invoice to the payer and complete the encounter? It stays outstanding until the payer settles.',
       confirmLabel: 'Submit',
     }))) {
       return;
     }
 
-    // 1. Mark the invoice submitted/paid — the money operation.
+    // 1. Record the submission to the corporate/insurance payer. This does NOT
+    //    mark the invoice paid — it stays a receivable until the payer settles
+    //    (and, for insurance, auto-creates a claim).
     try {
-      await apiClient.put(`/invoices/${invoice.id}`, {
-        status: 'paid',
-      });
+      await apiClient.post(`/invoices/${invoice.id}/submit-to-payer`);
     } catch (error) {
       console.error('Error submitting to payer:', error);
       const apiError = error as ApiError;

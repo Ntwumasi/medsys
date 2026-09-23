@@ -161,9 +161,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if user already exists
+    // Check if a STAFF account already uses this email. Patient records are
+    // excluded: they're allowed to share an address, and a patient holding it
+    // shouldn't block creating a staff account.
     const existingUser = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
+      `SELECT id FROM users WHERE email = $1 AND role <> 'patient'`,
       [email]
     );
 
@@ -493,9 +495,13 @@ export const requestPasswordReset = async (req: Request, res: Response): Promise
       return;
     }
 
-    // Find user
+    // Find user. Scoped to staff: patients may now SHARE an email address (a
+    // parent's inbox covering several children), so an unscoped lookup could
+    // take rows[0] and reset the wrong person's account. Patients don't use
+    // this flow — they sign in through the passwordless portal.
     const userResult = await pool.query(
-      'SELECT id, email, first_name FROM users WHERE email = $1 AND is_active = true',
+      `SELECT id, email, first_name FROM users
+        WHERE email = $1 AND is_active = true AND role <> 'patient'`,
       [email]
     );
 

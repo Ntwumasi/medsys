@@ -13,6 +13,7 @@ const roleLabels: Record<string, string> = {
   pharmacy_tech: 'Pharmacy Tech',
   imaging: 'Imaging',
   accountant: 'Accountant',
+  marketing: 'Marketing',
 };
 
 const SuperAdminRoleSwitcher: React.FC = () => {
@@ -27,14 +28,14 @@ const SuperAdminRoleSwitcher: React.FC = () => {
   const isSuperAdminMode =
     user?.is_super_admin || impersonation.originalUser?.is_super_admin;
 
-  if (!isSuperAdminMode) {
-    return null;
-  }
-
-  const currentRole = activeRole || user?.role || '';
-  const currentLabel = roleLabels[currentRole] || currentRole;
-
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside.
+  //
+  // This MUST run before the early return below. It used to sit after it, so a
+  // render where isSuperAdminMode was false registered one hook fewer — and the
+  // next render where it was true made React throw "rendered more hooks than
+  // during the previous render". That flip is precisely what this component
+  // exists to do (entering and leaving impersonation), so the crash was reachable
+  // by the only people who can see the switcher.
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -45,6 +46,13 @@ const SuperAdminRoleSwitcher: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  if (!isSuperAdminMode) {
+    return null;
+  }
+
+  const currentRole = activeRole || user?.role || '';
+  const currentLabel = roleLabels[currentRole] || currentRole;
 
   const handleRoleChange = async (role: string | null) => {
     setError(null);

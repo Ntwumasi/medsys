@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 
 export interface AppSelectOption {
   value: string | number;
@@ -64,9 +64,20 @@ const AppSelect: React.FC<AppSelectProps> = ({
     if (!open) setSearch('');
   }, [open, showSearch]);
 
-  const filtered = search
-    ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
-    : options;
+  // Cap how many options are put in the DOM at once. The pharmacy inventory is
+  // 443 items, and rendering every one on open — then re-rendering the whole
+  // list on each keystroke — is what made the procurement medication picker
+  // feel frozen. Searching still considers ALL options; only the visible slice
+  // is limited, and the count below tells you when to keep typing.
+  const MAX_VISIBLE = 50;
+
+  const allMatches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
+  }, [options, search]);
+
+  const filtered = allMatches.slice(0, MAX_VISIBLE);
+  const hiddenCount = allMatches.length - filtered.length;
 
   // Show the option's label, or the raw value itself when it's a custom entry.
   const selectedLabel = options.find(o => String(o.value) === String(value))?.label
@@ -146,6 +157,11 @@ const AppSelect: React.FC<AppSelectProps> = ({
               )}
               {filtered.length === 0 && !(allowCustom && search.trim()) && (
                 <div className="px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+              )}
+              {hiddenCount > 0 && (
+                <div className="px-4 py-2 text-xs text-gray-500 text-center border-t border-gray-100 bg-gray-50">
+                  +{hiddenCount} more — keep typing to narrow the list
+                </div>
               )}
             </div>
           </div>

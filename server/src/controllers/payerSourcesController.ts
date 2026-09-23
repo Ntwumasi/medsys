@@ -263,31 +263,90 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
       return;
     }
 
+    // Normalise the incoming sources so corp/insurer ids only live on the
+    // matching payer_type (satisfies the valid_payer_source CHECK).
+    const incoming = payer_sources.map((ps: any) => ({
+      payer_type: ps.payer_type,
+      corporate_client_id: ps.payer_type === 'corporate' ? ps.corporate_client_id : null,
+      insurance_provider_id: ps.payer_type === 'insurance' ? ps.insurance_provider_id : null,
+    }));
+    // Exactly ONE may be primary (DB enforces via uniq_primary_payer_per_patient).
+    const explicitPrimary = payer_sources.findIndex((ps: any) => ps.is_primary === true);
+    const primaryIndex = explicitPrimary >= 0 ? explicitPrimary : 0;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      // Delete existing payer sources for this patient
-      await client.query('DELETE FROM patient_payer_sources WHERE patient_id = $1', [patient_id]);
+      // We RECONCILE rather than delete-all-then-reinsert: an invoice's
+      // payer_source_id references these rows (FK is NO ACTION), so blindly
+      // deleting a referenced source throws a FK violation and would also
+      // orphan the invoice's record of which payer it was billed to. Instead:
+      // reuse matching rows, insert genuinely new ones, and only delete rows
+      // that are both no longer wanted AND not referenced by any invoice.
+      const existingRes = await client.query(
+        `SELECT id, payer_type, corporate_client_id, insurance_provider_id
+           FROM patient_payer_sources WHERE patient_id = $1`,
+        [patient_id]
+      );
+      const existing = existingRes.rows as Array<{
+        id: number; payer_type: string; corporate_client_id: number | null; insurance_provider_id: number | null;
+      }>;
 
-      // Insert new payer sources. Exactly ONE may be primary (the DB now
-      // enforces this) — previously each defaulted to is_primary=true, so a
-      // multi-payer patient got several primaries. Pick the first source that's
-      // explicitly flagged primary, else default to the first source.
-      const explicitPrimary = payer_sources.findIndex((ps: any) => ps.is_primary === true);
-      const primaryIndex = explicitPrimary >= 0 ? explicitPrimary : 0;
-      for (let i = 0; i < payer_sources.length; i++) {
-        const ps = payer_sources[i];
+      // Clear all primaries first so we never trip the single-primary unique
+      // index while shuffling rows around.
+      await client.query(
+        `UPDATE patient_payer_sources SET is_primary = false WHERE patient_id = $1`,
+        [patient_id]
+      );
+
+      const matches = (a: typeof incoming[number], b: typeof existing[number]) =>
+        a.payer_type === b.payer_type &&
+        (a.corporate_client_id ?? null) === (b.corporate_client_id ?? null) &&
+        (a.insurance_provider_id ?? null) === (b.insurance_provider_id ?? null);
+
+      const usedExistingIds = new Set<number>();
+      const rowIds: number[] = []; // resolved row id per incoming index
+
+      for (const src of incoming) {
+        const match = existing.find((e) => !usedExistingIds.has(e.id) && matches(src, e));
+        if (match) {
+          usedExistingIds.add(match.id);
+          rowIds.push(match.id);
+        } else {
+          const ins = await client.query(
+            `INSERT INTO patient_payer_sources (patient_id, payer_type, corporate_client_id, insurance_provider_id, is_primary)
+             VALUES ($1, $2, $3, $4, false) RETURNING id`,
+            [patient_id, src.payer_type, src.corporate_client_id, src.insurance_provider_id]
+          );
+          rowIds.push(ins.rows[0].id);
+        }
+      }
+
+      // Remove existing rows that are no longer wanted — but keep any still
+      // referenced by an invoice (they become historical, non-primary rows).
+      const stale = existing.filter((e) => !usedExistingIds.has(e.id));
+      if (stale.length > 0) {
+        const staleIds = stale.map((e) => e.id);
+        const refRes = await client.query(
+          `SELECT DISTINCT payer_source_id FROM invoices WHERE payer_source_id = ANY($1::int[])`,
+          [staleIds]
+        );
+        const referenced = new Set<number>(refRes.rows.map((r: any) => r.payer_source_id));
+        const deletable = staleIds.filter((id) => !referenced.has(id));
+        if (deletable.length > 0) {
+          await client.query(
+            `DELETE FROM patient_payer_sources WHERE id = ANY($1::int[])`,
+            [deletable]
+          );
+        }
+      }
+
+      // Set the single primary among the desired set.
+      if (rowIds.length > 0) {
         await client.query(
-          `INSERT INTO patient_payer_sources (patient_id, payer_type, corporate_client_id, insurance_provider_id, is_primary)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            patient_id,
-            ps.payer_type,
-            ps.payer_type === 'corporate' ? ps.corporate_client_id : null,
-            ps.payer_type === 'insurance' ? ps.insurance_provider_id : null,
-            i === primaryIndex,
-          ]
+          `UPDATE patient_payer_sources SET is_primary = true WHERE id = $1`,
+          [rowIds[Math.min(primaryIndex, rowIds.length - 1)]]
         );
       }
 
@@ -314,5 +373,73 @@ export const updatePatientPayerSources = async (req: Request, res: Response): Pr
   } catch (error) {
     console.error('Update patient payer sources error:', error);
     res.status(500).json({ error: 'Failed to update patient payer sources' });
+  }
+};
+
+// ===== Staff health-package benefit =====
+
+// Get a staff patient's package cap + live usage for the current period.
+export const getStaffBenefit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+
+    const benefit = await pool.query(
+      `SELECT annual_limit, period_start, notes FROM staff_benefits WHERE patient_id = $1`,
+      [patient_id]
+    );
+
+    if (benefit.rows.length === 0) {
+      res.json({ benefit: null, used: 0, remaining: 0 });
+      return;
+    }
+
+    const row = benefit.rows[0];
+    const limit = parseFloat(row.annual_limit) || 0;
+
+    // Usage = total billed to this patient since the period start (live, no counter).
+    const usage = await pool.query(
+      `SELECT COALESCE(SUM(total_amount), 0) as used
+       FROM invoices
+       WHERE patient_id = $1 AND invoice_date >= $2 AND status <> 'cancelled'`,
+      [patient_id, row.period_start]
+    );
+    const used = parseFloat(usage.rows[0].used) || 0;
+
+    res.json({
+      benefit: { annual_limit: limit, period_start: row.period_start, notes: row.notes },
+      used,
+      remaining: Math.max(0, limit - used),
+    });
+  } catch (error) {
+    console.error('Get staff benefit error:', error);
+    res.status(500).json({ error: 'Failed to fetch staff benefit' });
+  }
+};
+
+// Set/clear a staff patient's annual package amount.
+export const upsertStaffBenefit = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { patient_id } = req.params;
+    const { annual_limit, notes } = req.body;
+
+    const limit = parseFloat(annual_limit);
+    if (!Number.isFinite(limit) || limit < 0) {
+      res.status(400).json({ error: 'Invalid package amount.' });
+      return;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO staff_benefits (patient_id, annual_limit, notes, updated_at)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+       ON CONFLICT (patient_id)
+       DO UPDATE SET annual_limit = $2, notes = $3, updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [patient_id, limit, notes || null]
+    );
+
+    res.json({ benefit: result.rows[0] });
+  } catch (error) {
+    console.error('Upsert staff benefit error:', error);
+    res.status(500).json({ error: 'Failed to save staff benefit' });
   }
 };

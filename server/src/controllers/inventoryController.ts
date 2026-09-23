@@ -93,6 +93,63 @@ export const deleteManualReminder = async (req: Request, res: Response): Promise
 };
 
 // Get all inventory items with optional filters
+/**
+ * pharmacy_inventory.quantity_on_hand is a CACHE of the batch layer — batches are
+ * what FEFO dispensing actually draws from, and what stock-take reconciles to.
+ * Any writer that moves stock must move it in the batches and then call this, or
+ * the two drift apart and pharmacy sees stock it cannot dispense (Irene: changes
+ * made in inventory don't show when the medication is checked).
+ */
+const resyncItemFromBatches = async (client: any, inventoryId: string | number): Promise<number> => {
+  const res = await client.query(
+    `UPDATE pharmacy_inventory
+        SET quantity_on_hand = COALESCE((
+              SELECT SUM(quantity) FROM inventory_batches
+               WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+            ), 0),
+            expiry_date = (
+              SELECT MIN(expiry_date) FROM inventory_batches
+               WHERE inventory_id = $1 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
+            ),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING quantity_on_hand`,
+    [inventoryId]
+  );
+  return parseInt(String(res.rows[0]?.quantity_on_hand ?? 0)) || 0;
+};
+
+/**
+ * Stock that predates the batch layer (a CSV import, or an opening balance set
+ * when the item was created) can sit in quantity_on_hand with no batch behind
+ * it. Materialise that count as a batch BEFORE moving stock, otherwise the
+ * resync afterwards would treat "no batches" as zero and wipe the count the
+ * pharmacist is looking at. No-op when a usable batch already exists.
+ */
+const ensureBatchForExistingStock = async (
+  client: any,
+  inventoryId: string | number,
+  medicationName: string,
+  onHand: number,
+  expiryDate: string | null
+): Promise<void> => {
+  if (!onHand || onHand <= 0) return;
+
+  const existing = await client.query(
+    `SELECT 1 FROM inventory_batches
+      WHERE inventory_id = $1 AND is_active = true AND quantity > 0 LIMIT 1`,
+    [inventoryId]
+  );
+  if (existing.rows.length > 0) return;
+
+  const batchNumber = await generateBatchNumber(client, inventoryId, medicationName, expiryDate);
+  await client.query(
+    `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+     VALUES ($1, $2, $3, $4, 'Opened from existing on-hand count')`,
+    [inventoryId, batchNumber, onHand, expiryDate || null]
+  );
+};
+
 export const getInventory = async (req: Request, res: Response): Promise<void> => {
   try {
     const { category, low_stock, expiring_soon, expired, search, include_inactive } = req.query;
@@ -282,6 +339,17 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
          VALUES ($1, 'adjustment', $2, 'Opening balance (item created)', $3)`,
         [result.rows[0].id, quantity_on_hand, authReq.user?.id]
       );
+
+      // Open a batch for the opening balance too. Without it the new item shows
+      // stock in the inventory list that FEFO dispensing cannot draw from, and
+      // the first stock-take resyncs the count down to zero.
+      await ensureBatchForExistingStock(
+        pool,
+        result.rows[0].id,
+        medication_name,
+        parseInt(String(quantity_on_hand)) || 0,
+        expiry
+      );
     }
 
     res.status(201).json({
@@ -379,7 +447,8 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
     // Get current stock — lock the row so two concurrent adjustments can't both
     // read the same value and one silently overwrite the other (lost update).
     const current = await client.query(
-      `SELECT quantity_on_hand FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
+      `SELECT quantity_on_hand, medication_name, expiry_date
+         FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
@@ -389,7 +458,8 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const newQuantity = current.rows[0].quantity_on_hand + adjustment;
+    const onHand = parseInt(String(current.rows[0].quantity_on_hand)) || 0;
+    const newQuantity = onHand + adjustment;
 
     if (newQuantity < 0) {
       await client.query('ROLLBACK');
@@ -397,14 +467,59 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    // Update stock
+    // The adjustment has to land in the BATCHES, not just on the cached count —
+    // writing only quantity_on_hand left the added stock undispensable (FEFO had
+    // no batch to draw from) and the next stock-take, which resyncs the count
+    // from the batches, silently erased it.
+    await ensureBatchForExistingStock(
+      client, String(id), current.rows[0].medication_name, onHand, current.rows[0].expiry_date
+    );
+
+    if (adjustment > 0) {
+      // Correct the earliest-expiry open batch when there is one — an adjustment
+      // is a correction to stock already on the shelf, not a new delivery (a real
+      // delivery goes through Procurement, which opens its own batch).
+      const target = await client.query(
+        `SELECT id FROM inventory_batches
+          WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+          ORDER BY expiry_date ASC NULLS LAST, received_date ASC
+          LIMIT 1 FOR UPDATE`,
+        [id]
+      );
+
+      if (target.rows.length > 0) {
+        await client.query(
+          `UPDATE inventory_batches
+              SET quantity = quantity + $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2`,
+          [adjustment, target.rows[0].id]
+        );
+      } else {
+        // Nothing on the shelf at all (on-hand was 0) — open a batch so the
+        // added stock is immediately dispensable.
+        const batchNumber = await generateBatchNumber(
+          client, String(id), current.rows[0].medication_name, current.rows[0].expiry_date
+        );
+        await client.query(
+          `INSERT INTO inventory_batches (inventory_id, batch_number, quantity, expiry_date, notes)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, batchNumber, adjustment, current.rows[0].expiry_date || null,
+           `Opened via stock adjustment. ${notes || ''}`.trim()]
+        );
+      }
+    } else {
+      // Negative adjustment: draw it down FEFO through the same path dispensing
+      // uses, so batches and the cached count stay in agreement.
+      await dispenseFromBatches(client, parseInt(String(id)), Math.abs(adjustment), authReq.user?.id ?? null);
+    }
+
+    // quantity_on_hand is derived from the batches — recompute rather than trust
+    // the arithmetic above (this also corrects any pre-existing drift on the item).
+    const resyncedQuantity = await resyncItemFromBatches(client, String(id));
+
     const result = await client.query(
-      `UPDATE pharmacy_inventory SET
-        quantity_on_hand = $1,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2
-       RETURNING *`,
-      [newQuantity, id]
+      `SELECT * FROM pharmacy_inventory WHERE id = $1`,
+      [id]
     );
 
     // Log the transaction
@@ -424,7 +539,7 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
       await notificationService.notifyPharmacistOfTechAction(
         authReq.user.id,
         'Inventory Adjusted',
-        `${direction} ${item.medication_name} by ${Math.abs(adjustment)} units (now ${newQuantity}). Reason: ${notes || 'Not specified'}`,
+        `${direction} ${item.medication_name} by ${Math.abs(adjustment)} units (now ${resyncedQuantity}). Reason: ${notes || 'Not specified'}`,
         'pharmacy_inventory',
         parseInt(id as string)
       );
@@ -492,12 +607,14 @@ export const dispenseMedication = async (req: Request, res: Response): Promise<v
       [quantity, inventory_id]
     );
 
-    // Log the transaction
+    // Log the transaction, stamping the price it sold at so later reporting
+    // never has to fall back to whatever the catalogue says today.
+    const sellingPrice = Number(item.selling_price);
     await client.query(
       `INSERT INTO inventory_transactions
-       (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by)
-       VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5)`,
-      [inventory_id, -quantity, pharmacy_order_id, notes, authReq.user?.id]
+       (inventory_id, transaction_type, quantity, reference_type, reference_id, notes, performed_by, unit_price)
+       VALUES ($1, 'dispense', $2, 'pharmacy_order', $3, $4, $5, $6)`,
+      [inventory_id, -quantity, pharmacy_order_id, notes, authReq.user?.id, sellingPrice > 0 ? sellingPrice : null]
     );
 
     // Update pharmacy order status if provided
@@ -707,15 +824,44 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     // (Gmail-style: search narrows what you see, totals reflect the full set).
     const searchTerm = (search as string || '').trim();
 
-    // Revenue by day. inventory_transactions has no unit_cost column — the
-    // price lives on pharmacy_inventory.selling_price. Join to get it.
+    // Price a past sale at what it was ACTUALLY BILLED, not today's price.
+    //
+    // inventory_transactions stores no price, so every figure here used to be
+    // computed from the CURRENT pharmacy_inventory.selling_price — meaning a
+    // procurement that changed a price silently rewrote the history of every
+    // past sale of that drug. Irene: "if you are looking at an order
+    // retrospectively, it computes the bill based on current pricing and not
+    // what it was at the time it was served". On production that overstated
+    // pharmacy revenue by GHS 778.92 across 63 affected orders.
+    //
+    // The billed price lives on the invoice line for the order, so take it from
+    // there and fall back to the current price only when a sale never produced
+    // one (about a third of dispenses, mostly older records).
+    // Preference order, strongest evidence first:
+    //   1. it.unit_price   — stamped on the transaction when the stock moved
+    //   2. billed.unit_price — what the invoice line charged
+    //   3. pi.selling_price  — today's catalogue price, and the only one that
+    //                          drifts. Used only for old rows that have neither.
+    const BILLED_PRICE = `
+      LEFT JOIN LATERAL (
+        SELECT ii.unit_price
+          FROM invoice_items ii
+         WHERE ii.reference_type = 'pharmacy_order'
+           AND ii.reference_id = it.reference_id
+           AND ii.unit_price > 0
+         ORDER BY ii.id
+         LIMIT 1
+      ) billed ON it.reference_type = 'pharmacy_order'`;
+    const PRICE_AT_TIME = `COALESCE(it.unit_price, billed.unit_price, pi.selling_price)`;
+
     const dailyRevenue = await pool.query(
       `SELECT
         DATE(it.created_at) as date,
         COUNT(*) as orders_count,
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
        GROUP BY DATE(it.created_at)
        ORDER BY date DESC
@@ -738,9 +884,10 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
     // Total revenue from dispense transactions
     const revenueTotal = await pool.query(
       `SELECT
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as total_revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}`,
       params
     );
@@ -751,9 +898,10 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
         pi.medication_name,
         COUNT(*) as order_count,
         SUM(ABS(it.quantity)) as total_quantity,
-        COALESCE(SUM(ABS(it.quantity) * pi.selling_price), 0) as total_revenue
+        COALESCE(SUM(ABS(it.quantity) * ${PRICE_AT_TIME}), 0) as total_revenue
        FROM inventory_transactions it
        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+       ${BILLED_PRICE}
        WHERE it.transaction_type = 'dispense' ${transactionDateFilter}
        GROUP BY pi.medication_name
        ORDER BY total_revenue DESC
@@ -781,15 +929,43 @@ export const getRevenueSummary = async (req: Request, res: Response): Promise<vo
               p.patient_number,
               pu.first_name || ' ' || pu.last_name AS patient_name,
               du.first_name || ' ' || du.last_name AS dispensed_by_name,
-              pi.selling_price,
-              (CASE WHEN pi.selling_price IS NOT NULL
-                    THEN pi.selling_price * COALESCE(NULLIF(po.quantity,'')::numeric, 0)
-                    ELSE NULL END) AS line_total
+              -- What this sale was BILLED at, falling back to the current price
+              -- only when it never produced an invoice line. Showing today's
+              -- price against a past order misstates what the patient paid.
+              COALESCE(billed.unit_price, pi.selling_price) AS selling_price,
+              -- quantity is free text and not always a number: production holds
+              -- '-', '1 MONTH SUPPLY' and '28 '. Casting those blows the whole
+              -- query up with "invalid input syntax for numeric", so only cast
+              -- what actually is one and leave the rest without a line total.
+              (CASE WHEN COALESCE(billed.unit_price, pi.selling_price) IS NOT NULL
+                     AND BTRIM(COALESCE(po.quantity, '')) ~ '^[0-9]+(\\.[0-9]+)?$'
+                    THEN COALESCE(billed.unit_price, pi.selling_price) * BTRIM(po.quantity)::numeric
+                    ELSE NULL END) AS line_total,
+              (billed.unit_price IS NOT NULL) AS price_is_historical
          FROM pharmacy_orders po
          LEFT JOIN patients p ON po.patient_id = p.id
          LEFT JOIN users pu ON p.user_id = pu.id
          LEFT JOIN users du ON po.dispensed_by = du.id
          LEFT JOIN pharmacy_inventory pi ON po.inventory_id = pi.id
+         LEFT JOIN LATERAL (
+           -- The price stamped on the dispense transaction wins; the invoice
+           -- line is the fallback for rows recorded before that existed.
+           SELECT COALESCE(
+                    (SELECT itx.unit_price
+                       FROM inventory_transactions itx
+                      WHERE itx.reference_type = 'pharmacy_order'
+                        AND itx.reference_id = po.id
+                        AND itx.transaction_type = 'dispense'
+                        AND itx.unit_price IS NOT NULL
+                      ORDER BY itx.id DESC LIMIT 1),
+                    (SELECT ii.unit_price
+                       FROM invoice_items ii
+                      WHERE ii.reference_type = 'pharmacy_order'
+                        AND ii.reference_id = po.id
+                        AND ii.unit_price > 0
+                      ORDER BY ii.id LIMIT 1)
+                  ) AS unit_price
+         ) billed ON TRUE
         WHERE po.is_manual_reminder IS NOT TRUE ${dateFilter} ${ordersSearchClause}
         ORDER BY COALESCE(po.dispensed_date, po.ordered_date) DESC
         LIMIT 200`,
@@ -898,6 +1074,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
             po.quantity,
             po.refills,
             po.days_supply,
+            po.is_long_term,
             po.dispensed_date,
             po.frequency,
             po.is_manual_reminder,
@@ -911,7 +1088,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN patients p ON po.patient_id = p.id
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
-             AND po.refills > 0
+             AND (po.is_long_term IS TRUE OR po.refills > 0)
              AND po.reminder_cleared IS NOT TRUE
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date >= $1::date
              AND (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)::date <= $2::date
@@ -932,6 +1109,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
             po.quantity,
             po.refills,
             po.days_supply,
+            po.is_long_term,
             po.dispensed_date,
             po.frequency,
             po.is_manual_reminder,
@@ -945,7 +1123,7 @@ export const getRefillsCalendar = async (req: Request, res: Response): Promise<v
            JOIN patients p ON po.patient_id = p.id
            JOIN users u ON p.user_id = u.id
            WHERE po.status = 'dispensed'
-             AND po.refills > 0
+             AND (po.is_long_term IS TRUE OR po.refills > 0)
              AND po.reminder_cleared IS NOT TRUE
              AND EXTRACT(YEAR FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $1
              AND EXTRACT(MONTH FROM (po.dispensed_date + (COALESCE(po.days_supply, po.quantity::int) || ' days')::interval)) = $2
@@ -1125,9 +1303,27 @@ export const dispenseFromBatches = async (
   inventoryId: number,
   quantityToDispense: number,
   userId: number | null
-): Promise<{ success: boolean; dispensedBatches: any[] }> => {
+): Promise<{ success: boolean; dispensedBatches: any[]; shortfall: number }> => {
   const dispensedBatches: any[] = [];
   let remainingQty = quantityToDispense;
+
+  // Stock that predates the batch layer would otherwise be invisible to FEFO —
+  // materialise it first, both so it can actually be dispensed and so the resync
+  // at the end can't read "no batches" as zero and wipe the count.
+  const itemRes = await client.query(
+    `SELECT medication_name, quantity_on_hand, expiry_date
+       FROM pharmacy_inventory WHERE id = $1 FOR UPDATE`,
+    [inventoryId]
+  );
+  if (itemRes.rows.length > 0) {
+    await ensureBatchForExistingStock(
+      client,
+      inventoryId,
+      itemRes.rows[0].medication_name,
+      parseInt(String(itemRes.rows[0].quantity_on_hand)) || 0,
+      itemRes.rows[0].expiry_date
+    );
+  }
 
   // Get batches ordered by expiry date (FEFO). FOR UPDATE locks the batch rows
   // so two concurrent dispenses can't both read the same batch and over-draw it
@@ -1164,65 +1360,139 @@ export const dispenseFromBatches = async (
     remainingQty -= dispenseFromThisBatch;
   }
 
-  // Update the main inventory quantity
-  await client.query(
-    `UPDATE pharmacy_inventory
-     SET quantity_on_hand = quantity_on_hand - $1,
-         expiry_date = (
-           SELECT MIN(expiry_date)
-           FROM inventory_batches
-           WHERE inventory_id = $2 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-         ),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $2`,
-    [quantityToDispense, inventoryId]
-  );
+  // Recompute the cached count from what the batches actually hold, rather than
+  // blind-subtracting the requested amount. Subtracting unconditionally drove
+  // quantity_on_hand BELOW the batch total whenever the batches couldn't cover
+  // the request — it is how TAB NIFEDIPINE SR 30MG reached -1 on hand, and it
+  // kept re-creating the very drift the batch-layer fix repaired. The resync
+  // cannot go negative and cannot drift.
+  await resyncItemFromBatches(client, inventoryId);
 
-  return { success: remainingQty === 0, dispensedBatches };
+  // Short dispense (batches couldn't cover the request). Callers guard against
+  // this with their own stock check, which is now trustworthy because the count
+  // is truthful — but a race or a stale record can still land here, so make it
+  // loud in the log and hand the shortfall back rather than swallowing it.
+  if (remainingQty > 0) {
+    console.error(
+      `Short dispense on inventory ${inventoryId}: requested ${quantityToDispense}, ` +
+      `batches only covered ${quantityToDispense - remainingQty} (short ${remainingQty}). ` +
+      `Stock records need a physical count.`
+    );
+  }
+
+  return { success: remainingQty === 0, dispensedBatches, shortfall: remainingQty };
 };
 
 // Get purchase history
 export const getPurchaseHistory = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Pull purchase history from transactions, joining batches for accurate per-purchase data
+    const { start_date, end_date, limit } = req.query;
+
+    // Purchases are recorded one transaction PER LINE ITEM, all sharing the
+    // invoice header the pharmacist typed once. Returned ungrouped, a single
+    // 30-line delivery buried everything else (invoice ADDP0439/Jul26 really is
+    // 30 rows), and the old flat LIMIT 50 then hid older purchases entirely —
+    // 18 of them at the time of writing. So group by invoice and page over
+    // GROUPS, with the line items nested for expand-on-demand.
+    //
+    // Purchases with no invoice number still group, by supplier + the minute
+    // they were recorded, which is how a multi-item entry lands anyway.
+    const params: any[] = [];
+    const where: string[] = [`it.transaction_type = 'purchase'`];
+
+    if (start_date) {
+      params.push(start_date);
+      where.push(`it.created_at >= $${params.length}::date`);
+    }
+    if (end_date) {
+      params.push(end_date);
+      // End of the chosen day, so a same-day range isn't empty.
+      where.push(`it.created_at < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+
+    const groupLimit = Math.min(Math.max(parseInt(String(limit ?? '100'), 10) || 100, 1), 500);
+    params.push(groupLimit);
+
     const result = await pool.query(
-      `SELECT
-        it.id,
-        it.inventory_id,
-        it.quantity,
-        it.notes,
-        it.created_at,
-        it.invoice_number,
-        it.invoice_date,
-        it.reference_id as batch_id,
-        pi.medication_name,
-        COALESCE(ib.unit_cost, pi.unit_cost) as unit_cost,
-        COALESCE(s2.name, s.name) as supplier_name,
-        COALESCE(ib.supplier_id, pi.supplier_id) as supplier_id,
-        CASE
-          WHEN it.notes LIKE '%Discount: %'
-          THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
-          ELSE NULL
-        END as discount_percent,
-        COALESCE(ib.batch_number,
+      `WITH purchase_rows AS (
+        SELECT
+          it.id,
+          it.inventory_id,
+          it.quantity,
+          it.notes,
+          it.created_at,
+          it.invoice_number,
+          it.invoice_date,
+          it.reference_id as batch_id,
+          pi.medication_name,
+          COALESCE(ib.unit_cost, pi.unit_cost) as unit_cost,
+          COALESCE(s2.name, s.name) as supplier_name,
+          COALESCE(ib.supplier_id, pi.supplier_id) as supplier_id,
           CASE
-            WHEN it.notes LIKE '%Batch: %'
-            THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+            WHEN it.notes LIKE '%Discount: %'
+            THEN SUBSTRING(it.notes FROM 'Discount: ([0-9.]+)%')
             ELSE NULL
-          END
-        ) as batch_number,
-        ib.expiry_date
-       FROM inventory_transactions it
-       JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
-       LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
-       LEFT JOIN suppliers s ON pi.supplier_id = s.id
-       LEFT JOIN suppliers s2 ON ib.supplier_id = s2.id
-       WHERE it.transaction_type = 'purchase'
-       ORDER BY it.created_at DESC
-       LIMIT 50`
+          END as discount_percent,
+          COALESCE(ib.batch_number,
+            CASE
+              WHEN it.notes LIKE '%Batch: %'
+              THEN SUBSTRING(it.notes FROM 'Batch: ([^,]+)')
+              ELSE NULL
+            END
+          ) as batch_number,
+          ib.expiry_date,
+          COALESCE(
+            NULLIF(it.invoice_number, ''),
+            'grp:' || COALESCE(ib.supplier_id, pi.supplier_id, 0)::text || ':' ||
+              to_char(date_trunc('minute', it.created_at), 'YYYYMMDDHH24MI')
+          ) as group_key
+        FROM inventory_transactions it
+        JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+        LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
+        LEFT JOIN suppliers s ON pi.supplier_id = s.id
+        LEFT JOIN suppliers s2 ON ib.supplier_id = s2.id
+        WHERE ${where.join(' AND ')}
+      )
+      SELECT
+        r.group_key,
+        MAX(r.invoice_number)                       AS invoice_number,
+        MAX(r.supplier_name)                        AS supplier_name,
+        MAX(r.created_at)                           AS purchase_date,
+        MAX(r.invoice_date)                         AS invoice_date,
+        COUNT(*)::int                               AS item_count,
+        SUM(r.quantity * COALESCE(r.unit_cost, 0))  AS total_cost,
+        SUM(r.quantity)::int                        AS total_quantity,
+        json_agg(to_jsonb(r) ORDER BY r.medication_name) AS items
+      FROM purchase_rows r
+      GROUP BY r.group_key
+      ORDER BY MAX(r.created_at) DESC
+      LIMIT $${params.length}`,
+      params
     );
 
-    res.json({ purchases: result.rows });
+    // Total number of groups in range, so the UI can say when it is truncated
+    // instead of silently showing a partial list (the old bug, in a new place).
+    const totalRes = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM (
+         SELECT COALESCE(
+                  NULLIF(it.invoice_number, ''),
+                  'grp:' || COALESCE(ib.supplier_id, pi.supplier_id, 0)::text || ':' ||
+                    to_char(date_trunc('minute', it.created_at), 'YYYYMMDDHH24MI')
+                ) AS gk
+           FROM inventory_transactions it
+           JOIN pharmacy_inventory pi ON it.inventory_id = pi.id
+           LEFT JOIN inventory_batches ib ON it.reference_id = ib.id
+          WHERE ${where.join(' AND ')}
+          GROUP BY gk
+       ) g`,
+      params.slice(0, params.length - 1)
+    );
+
+    res.json({
+      purchases: result.rows,
+      total_groups: totalRes.rows[0]?.n ?? result.rows.length,
+      truncated: (totalRes.rows[0]?.n ?? 0) > result.rows.length,
+    });
   } catch (error) {
     console.error('Get purchase history error:', error);
     res.status(500).json({ error: 'Failed to fetch purchase history' });
@@ -1710,20 +1980,7 @@ export const stockTakeItem = async (req: Request, res: Response): Promise<void> 
     }
 
     // Resync the item's on-hand to the sum of its active batches + earliest expiry.
-    await client.query(
-      `UPDATE pharmacy_inventory
-       SET quantity_on_hand = COALESCE((
-             SELECT SUM(quantity) FROM inventory_batches
-             WHERE inventory_id = $1 AND is_active = true AND quantity > 0
-           ), 0),
-           expiry_date = (
-             SELECT MIN(expiry_date) FROM inventory_batches
-             WHERE inventory_id = $1 AND is_active = true AND quantity > 0 AND expiry_date IS NOT NULL
-           ),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [id]
-    );
+    await resyncItemFromBatches(client, String(id));
 
     await client.query('COMMIT');
     res.json({ message: 'Stock-take saved' });

@@ -1,16 +1,19 @@
 /**
- * Email Service - Stub Implementation
+ * Email Service — SMTP delivery via nodemailer.
  *
- * This is a placeholder service that logs emails to the console.
- * When you're ready to integrate with a real email provider, replace the
- * implementation in sendEmail() with your provider's API.
+ * This used to be a stub that console.logged the message and returned
+ * `success: true` unconditionally, while the "real" SendGrid/SMTP functions sat
+ * commented out below and were never called. Every caller (receipts, appointment
+ * reminders, follow-up reminders, and now the patient-portal login link) was
+ * therefore told its mail had been sent when nothing left the building.
  *
- * Recommended providers:
- * - SendGrid (https://sendgrid.com)
- * - Mailgun (https://mailgun.com)
- * - AWS SES (https://aws.amazon.com/ses/)
- * - Nodemailer with SMTP
+ * Now: when SMTP is configured the mail is actually sent, and when it is NOT
+ * configured we return success:false so callers can tell the user the truth
+ * instead of silently dropping it. Set SMTP_HOST, SMTP_USER and SMTP_PASS
+ * (plus optional SMTP_PORT, SMTP_SECURE, EMAIL_FROM) to turn delivery on.
  */
+
+import nodemailer, { type Transporter } from 'nodemailer';
 
 export interface EmailResult {
   success: boolean;
@@ -28,9 +31,32 @@ export interface EmailMessage {
   invoiceId?: number;
 }
 
+// Built once and reused. Serverless keeps the module alive between warm
+// invocations, so we don't want a fresh connection pool per email.
+let transporter: Transporter | null = null;
+
+const getTransporter = (): Transporter | null => {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    return null;
+  }
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT || '587', 10),
+      // Port 465 is implicit TLS; 587 upgrades via STARTTLS.
+      secure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_PORT === '465',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+  }
+  return transporter;
+};
+
 /**
- * Send an email
- * Currently a stub that logs to console - replace with real provider
+ * Send an email over SMTP.
+ *
+ * Returns success:false (rather than throwing) when SMTP isn't configured or the
+ * send fails, so callers can surface an honest "couldn't send" to the user. Do
+ * NOT treat a call to this function as proof of delivery — check `.success`.
  */
 export const sendEmail = async (
   to: string,
@@ -38,29 +64,39 @@ export const sendEmail = async (
   body: string,
   html?: string
 ): Promise<EmailResult> => {
-  // Log the email that would be sent
-  console.log('========================================');
-  console.log('[EMAIL SERVICE - STUB MODE]');
-  console.log(`To: ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log('--- Body ---');
-  console.log(body);
-  if (html) {
-    console.log('--- HTML Version ---');
-    console.log(html);
+  const tx = getTransporter();
+
+  if (!tx) {
+    // No credentials. Log it so the message isn't lost in a dev environment,
+    // but report failure — the old stub claimed success here, which is how
+    // three separate features ended up quietly sending nothing.
+    console.warn(`[email] SMTP not configured — not sent. to=${to} subject="${subject}"`);
+    return {
+      success: false,
+      provider: 'unconfigured',
+      messageId: '',
+      error: 'Email is not configured on this server (SMTP_HOST/SMTP_USER/SMTP_PASS missing).',
+    };
   }
-  console.log(`Timestamp: ${new Date().toISOString()}`);
-  console.log('========================================');
 
-  // Simulate a small delay like a real API would have
-  await new Promise(resolve => setTimeout(resolve, 100));
-
-  // Return success - in production this would be the provider's response
-  return {
-    success: true,
-    provider: 'stub',
-    messageId: `email-stub-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-  };
+  try {
+    const info = await tx.sendMail({
+      from: process.env.EMAIL_FROM || 'noreply@medsys.clinic',
+      to,
+      subject,
+      text: body,
+      html: html || textToHtml(body),
+    });
+    return { success: true, provider: 'smtp', messageId: info.messageId };
+  } catch (error: any) {
+    console.error(`[email] send failed to=${to}:`, error?.message || error);
+    return {
+      success: false,
+      provider: 'smtp',
+      messageId: '',
+      error: error?.message || 'SMTP send failed',
+    };
+  }
 };
 
 /**
@@ -85,13 +121,11 @@ export const sendBulkEmail = async (messages: EmailMessage[]): Promise<EmailResu
  * Returns false until a real provider is integrated
  */
 export const isEmailConfigured = (): boolean => {
-  // Check for provider API keys in environment
-  const hasSendGrid = !!process.env.SENDGRID_API_KEY;
-  const hasMailgun = !!(process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN);
-  const hasSES = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
-  const hasSMTP = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
-
-  return hasSendGrid || hasMailgun || hasSES || hasSMTP;
+  // SMTP is the only transport actually implemented. This used to also return
+  // true for SENDGRID_API_KEY / MAILGUN / SES env vars, none of which were ever
+  // wired to a send path — so it could report "configured" while every send
+  // silently went nowhere.
+  return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 };
 
 /**
@@ -250,88 +284,3 @@ MedSys Healthcare
   return sendEmail(patientEmail, subject, body, html);
 };
 
-// =============================================================
-// INTEGRATION EXAMPLES (uncomment and modify when ready)
-// =============================================================
-
-/*
-// SENDGRID INTEGRATION EXAMPLE:
-import sgMail from '@sendgrid/mail';
-
-export const sendEmail_SendGrid = async (
-  to: string,
-  subject: string,
-  body: string,
-  html?: string
-): Promise<EmailResult> => {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY!);
-
-  try {
-    const response = await sgMail.send({
-      to,
-      from: process.env.EMAIL_FROM || 'noreply@medsys.clinic',
-      subject,
-      text: body,
-      html: html || textToHtml(body)
-    });
-
-    return {
-      success: true,
-      provider: 'sendgrid',
-      messageId: response[0].headers['x-message-id']
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      provider: 'sendgrid',
-      messageId: '',
-      error: error.message
-    };
-  }
-};
-*/
-
-/*
-// NODEMAILER SMTP INTEGRATION EXAMPLE:
-import nodemailer from 'nodemailer';
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
-
-export const sendEmail_SMTP = async (
-  to: string,
-  subject: string,
-  body: string,
-  html?: string
-): Promise<EmailResult> => {
-  try {
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL_FROM || 'noreply@medsys.clinic',
-      to,
-      subject,
-      text: body,
-      html: html || textToHtml(body)
-    });
-
-    return {
-      success: true,
-      provider: 'smtp',
-      messageId: info.messageId
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      provider: 'smtp',
-      messageId: '',
-      error: error.message
-    };
-  }
-};
-*/
