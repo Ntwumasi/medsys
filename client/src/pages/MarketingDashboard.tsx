@@ -12,6 +12,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { taskDueMeta } from '../utils/taskDue';
 import { getApiError } from '../utils/apiError';
+import MarketingContactList from '../components/MarketingContactList';
 
 const localizer = dateFnsLocalizer({
   format,
@@ -92,9 +93,22 @@ const MarketingDashboard: React.FC = () => {
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [contactsSince, setContactsSince] = useState<string>('');
   const [downloading, setDownloading] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [contactSearch, setContactSearch] = useState('');
+  const [contactHas, setContactHas] = useState<'' | 'phone' | 'email'>('');
+  const [showOptedOut, setShowOptedOut] = useState(false);
 
-  const loadContacts = async () => {
-    setContactsLoading(true);
+  // Debounce the search box so the list (and its audit entry) follows typing
+  // pauses, not every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setContactSearch(searchInput.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // quiet = refresh the counts without swapping the section for a spinner
+  // (used after an opt-out change so the list below stays in place).
+  const loadContacts = async (quiet = false) => {
+    if (!quiet) setContactsLoading(true);
     setContactsError(null);
     try {
       const res = await apiClient.get('/marketing/contacts', {
@@ -122,7 +136,12 @@ const MarketingDashboard: React.FC = () => {
     setDownloading(true);
     try {
       const res = await apiClient.get('/marketing/contacts/export', {
-        params: { format: fileFormat, ...(contactsSince ? { since: contactsSince } : {}) },
+        params: {
+          format: fileFormat,
+          ...(contactsSince ? { since: contactsSince } : {}),
+          ...(contactSearch ? { search: contactSearch } : {}),
+          ...(contactHas ? { has: contactHas } : {}),
+        },
         responseType: 'blob',
       });
       const url = URL.createObjectURL(new Blob([res.data]));
@@ -296,6 +315,32 @@ const MarketingDashboard: React.FC = () => {
                   Clear
                 </button>
               )}
+              <div className="flex-1 min-w-[200px]">
+                <label htmlFor="contact-search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input
+                  id="contact-search"
+                  type="search"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Name, phone or patient number"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">&nbsp;</p>
+              </div>
+              <div>
+                <label htmlFor="contact-has" className="block text-sm font-medium text-gray-700 mb-1">Show</label>
+                <select
+                  id="contact-has"
+                  value={contactHas}
+                  onChange={(e) => setContactHas(e.target.value as '' | 'phone' | 'email')}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                >
+                  <option value="">Everyone</option>
+                  <option value="phone">Has a phone number</option>
+                  <option value="email">Has an email address</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">&nbsp;</p>
+              </div>
             </div>
 
             {contactsLoading ? (
@@ -306,7 +351,7 @@ const MarketingDashboard: React.FC = () => {
               <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
                 <p className="text-red-700 font-semibold">Couldn't load the contact list</p>
                 <p className="text-gray-600 text-sm mt-1">{contactsError}</p>
-                <button onClick={loadContacts} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+                <button onClick={() => loadContacts()} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
                   Try again
                 </button>
               </div>
@@ -349,10 +394,44 @@ const MarketingDashboard: React.FC = () => {
                     Download Excel
                   </button>
                   <p className="text-xs text-gray-500">
-                    Downloads are recorded in the audit log. Patient contact details — please keep the file safe and
-                    don't forward it outside the clinic.
+                    Downloads match the search and filters above, and are recorded in the audit log. Patient contact
+                    details — please keep the file safe and don't forward it outside the clinic.
                   </p>
                 </div>
+
+                <div className="flex gap-2">
+                  {([
+                    { opted: false, label: 'Contacts' },
+                    { opted: true, label: `Opted out (${contactSummary.excluded_opted_out.toLocaleString()})` },
+                  ]).map((o) => (
+                    <button
+                      key={o.label}
+                      onClick={() => setShowOptedOut(o.opted)}
+                      aria-pressed={showOptedOut === o.opted}
+                      className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                        showOptedOut === o.opted
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+                {showOptedOut && (
+                  <p className="text-sm text-gray-600">
+                    Patients who asked not to receive marketing. They never appear in downloads. Use "Add back" only if
+                    one was switched off by mistake.
+                  </p>
+                )}
+
+                <MarketingContactList
+                  since={contactsSince}
+                  search={contactSearch}
+                  has={contactHas}
+                  optedOut={showOptedOut}
+                  onChanged={() => loadContacts(true)}
+                />
               </>
             ) : null}
           </div>

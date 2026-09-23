@@ -199,6 +199,7 @@ import {
 import {
   getPatientContacts,
   exportPatientContacts,
+  listPatientContacts,
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import {
@@ -922,6 +923,7 @@ router.use('/audit', auditRoutes);
 // exposes every active patient's phone and email in bulk, and every download is
 // written to the audit log.
 router.get('/marketing/contacts', authenticateToken, authorizeRoles('marketing', 'admin'), getPatientContacts);
+router.get('/marketing/contacts/list', authenticateToken, authorizeRoles('marketing', 'admin'), listPatientContacts);
 router.get('/marketing/contacts/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportPatientContacts);
 // Reception and admin record the opt-out, since they're the ones a patient tells.
 router.put('/patients/:id/marketing-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'marketing'), setMarketingOptOut);
