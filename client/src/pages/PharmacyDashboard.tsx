@@ -701,6 +701,15 @@ const PharmacyDashboard: React.FC = () => {
   // list (Irene's request); widen the range to pull older orders back up.
   const [queueStart, setQueueStart] = useState(today);
   const [queueEnd, setQueueEnd] = useState(today);
+  // `today` above is fixed when the page loads. A pharmacy tab left open
+  // overnight kept showing YESTERDAY's queue, hiding the new day's
+  // prescriptions. While the range is still the automatic "today", roll it
+  // over when the date changes.
+  const autoQueueDayRef = useRef(today);
+  // Unserved prescriptions from before the queue's start date — the
+  // "today only" default hides them, so a patient returning the next day
+  // couldn't be found. Counted separately and surfaced as a banner.
+  const [earlierUnserved, setEarlierUnserved] = useState(0);
 
   // Drug history modal
   const [showDrugHistory, setShowDrugHistory] = useState(false);
@@ -772,6 +781,23 @@ const PharmacyDashboard: React.FC = () => {
       fetchOrderHistory();
     }
   }, [ordersSubTab, startDate, endDate]);
+
+  useEffect(() => {
+    const rollOver = () => {
+      const now = new Date().toISOString().split('T')[0];
+      const auto = autoQueueDayRef.current;
+      if (now === auto) return;
+      autoQueueDayRef.current = now;
+      setQueueStart((s) => (s === auto ? now : s));
+      setQueueEnd((e) => (e === auto ? now : e));
+    };
+    const t = setInterval(rollOver, 60_000);
+    document.addEventListener('visibilitychange', rollOver);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', rollOver);
+    };
+  }, []);
 
   // Refetch the active queue when its date range changes.
   useEffect(() => {
@@ -1537,31 +1563,52 @@ const PharmacyDashboard: React.FC = () => {
     return q;
   };
 
-  const fetchPendingOrders = async () => {
+  // Every queue fetch takes a ticket; only the latest one may write the list.
+  // Without this, overlapping fetches (switching tabs, or starting an order
+  // while the list reloads) could land out of order and show one tab's orders
+  // under another tab's buttons — the "page glitches with 2+ orders" report.
+  const queueReqRef = useRef(0);
+  const loadQueue = async (url: string, label: string) => {
+    const ticket = ++queueReqRef.current;
     try {
-      const response = await apiClient.get(`/orders/pharmacy?status=ordered${queueRangeQuery()}`);
+      const response = await apiClient.get(url);
+      if (ticket !== queueReqRef.current) return;
       setPharmacyOrders(response.data.orders || []);
     } catch (error) {
-      console.error('Error fetching pharmacy orders:', error);
+      console.error(`Error fetching ${label}:`, error);
     }
+  };
+
+  const fetchEarlierUnserved = async () => {
+    if (!queueStart) {
+      setEarlierUnserved(0);
+      return;
+    }
+    try {
+      const before = new Date(`${queueStart}T00:00:00Z`);
+      before.setUTCDate(before.getUTCDate() - 1);
+      const response = await apiClient.get(
+        `/orders/pharmacy?status=ordered,in_progress,ready&ordered_to=${before.toISOString().split('T')[0]}`
+      );
+      setEarlierUnserved((response.data.orders || []).length);
+    } catch {
+      setEarlierUnserved(0);
+    }
+  };
+
+  const fetchPendingOrders = async () => {
+    fetchEarlierUnserved();
+    await loadQueue(`/orders/pharmacy?status=ordered${queueRangeQuery()}`, 'pharmacy orders');
   };
 
   const fetchInProgressOrders = async () => {
-    try {
-      const response = await apiClient.get(`/orders/pharmacy?status=in_progress${queueRangeQuery()}`);
-      setPharmacyOrders(response.data.orders || []);
-    } catch (error) {
-      console.error('Error fetching in-progress orders:', error);
-    }
+    fetchEarlierUnserved();
+    await loadQueue(`/orders/pharmacy?status=in_progress${queueRangeQuery()}`, 'in-progress orders');
   };
 
   const fetchReadyOrders = async () => {
-    try {
-      const response = await apiClient.get(`/orders/pharmacy?status=ready${queueRangeQuery()}`);
-      setPharmacyOrders(response.data.orders || []);
-    } catch (error) {
-      console.error('Error fetching ready orders:', error);
-    }
+    fetchEarlierUnserved();
+    await loadQueue(`/orders/pharmacy?status=ready${queueRangeQuery()}`, 'ready orders');
   };
 
   // Refetch whichever orders sub-tab the user is currently looking at.
@@ -1624,17 +1671,29 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Orders currently being started. Buttons disable while a start is in
+  // flight so a second click can't land on the row that slides into place
+  // when the list refreshes.
+  const [startingIds, setStartingIds] = useState<Set<number>>(new Set());
   const startProcessingOrder = async (orderId: number) => {
+    if (startingIds.has(orderId)) return;
+    setStartingIds((prev) => new Set(prev).add(orderId));
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
         status: 'in_progress'
       });
       showToast('Order moved to In Progress', 'success');
-      refreshActiveOrdersTab();
+      await refreshActiveOrdersTab();
       fetchOrderStats();
     } catch (error) {
       console.error('Error starting order:', error);
       showToast('Failed to start processing order', 'error');
+    } finally {
+      setStartingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(orderId);
+        return next;
+      });
     }
   };
 
@@ -1643,8 +1702,7 @@ const PharmacyDashboard: React.FC = () => {
       let url = '/orders/pharmacy?status=dispensed,completed';
       if (startDate) url += `&start_date=${startDate}`;
       if (endDate) url += `&end_date=${endDate}`;
-      const response = await apiClient.get(url);
-      setPharmacyOrders(response.data.orders || []);
+      await loadQueue(url, 'order history');
     } catch (error) {
       console.error('Error fetching order history:', error);
     }
@@ -1810,14 +1868,20 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Clicking patient A then B could let A's slower response overwrite B's,
+  // showing the WRONG patient's allergies. Only the latest click may write.
+  const patientReqRef = useRef(0);
   const fetchPatientDetails = async (patientId: number, encounterId: number) => {
+    const ticket = ++patientReqRef.current;
     try {
       // Fetch diagnoses
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
+      if (ticket !== patientReqRef.current) return;
       setPatientDiagnoses(encounterRes.data.diagnoses || []);
 
       // Fetch allergies from patient record
       const patientRes = await apiClient.get(`/patients/${patientId}`);
+      if (ticket !== patientReqRef.current) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
     } catch (error) {
       console.error('Error fetching patient details:', error);
@@ -2395,7 +2459,12 @@ const PharmacyDashboard: React.FC = () => {
                   />
                 </div>
                 <button
-                  onClick={() => { setQueueStart(today); setQueueEnd(today); }}
+                  onClick={() => {
+                    const now = new Date().toISOString().split('T')[0];
+                    autoQueueDayRef.current = now;
+                    setQueueStart(now);
+                    setQueueEnd(now);
+                  }}
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
                   Today
@@ -2411,6 +2480,20 @@ const PharmacyDashboard: React.FC = () => {
                     ? 'Older orders outside this range are hidden — widen to pull them up.'
                     : 'Showing all dates.'}
                 </span>
+              </div>
+            )}
+
+            {ordersSubTab !== 'history' && earlierUnserved > 0 && (
+              <div className="mb-4 p-4 bg-warning-50 border border-warning-300 rounded-xl flex flex-wrap items-center justify-between gap-3" role="status">
+                <span className="text-sm text-warning-900">
+                  <strong>{earlierUnserved}</strong> prescription item{earlierUnserved > 1 ? 's' : ''} from earlier days {earlierUnserved > 1 ? 'have' : 'has'} not been served yet (pending, in progress or ready).
+                </span>
+                <button
+                  onClick={() => { setQueueStart(''); setQueueEnd(''); }}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-warning-600 rounded-lg hover:bg-warning-700"
+                >
+                  Show all dates
+                </button>
               </div>
             )}
 
@@ -2498,7 +2581,9 @@ const PharmacyDashboard: React.FC = () => {
                                   // Start processing all orders for this patient
                                   group.orders.forEach(o => startProcessingOrder(o.id));
                                 }}
-                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700"
+                                disabled={group.orders.some(o => startingIds.has(o.id))}
+                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-wait"
+                                title={`Start all ${group.orders.length} medication(s) for ${group.patient_name}`}
                               >
                                 Start All
                               </button>
@@ -2631,7 +2716,12 @@ const PharmacyDashboard: React.FC = () => {
                                     {order.is_long_term ? 'Long-term' : 'One-time'}
                                   </span>
                                   {order.inventory_price != null && (
-                                    <span className="text-xs text-gray-500">GHS {Number(order.inventory_price).toFixed(2)}/unit</span>
+                                    <span
+                                      className="text-xs text-gray-500"
+                                      title={['dispensed', 'completed', 'returned'].includes(order.status) ? 'Price charged when this was served' : 'Current price'}
+                                    >
+                                      GHS {Number(order.inventory_price).toFixed(2)}/unit{['dispensed', 'completed', 'returned'].includes(order.status) ? ' (as sold)' : ''}
+                                    </span>
                                   )}
                                   {order.inventory_quantity != null ? (
                                     <span
@@ -2687,9 +2777,11 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           startProcessingOrder(order.id);
                                         }}
-                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700"
+                                        disabled={startingIds.has(order.id)}
+                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-wait"
+                                        title={`Start ${order.medication_name} only`}
                                       >
-                                        Start
+                                        {startingIds.has(order.id) ? 'Starting…' : 'Start'}
                                       </button>
                                     )}
                                     {ordersSubTab === 'in_progress' && (

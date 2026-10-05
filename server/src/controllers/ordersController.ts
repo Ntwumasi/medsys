@@ -1991,7 +1991,23 @@ export const getPharmacyOrders = async (req: Request, res: Response): Promise<vo
         pu.first_name || ' ' || pu.last_name as patient_name,
         du.first_name || ' ' || du.last_name as dispensed_by_name,
         COALESCE(pi.quantity_on_hand, pim.quantity_on_hand) as inventory_quantity,
-        COALESCE(pi.selling_price, pim.selling_price) as inventory_price,
+        -- An order that has been served shows the price it was SOLD at, not
+        -- today's catalogue price — otherwise restocking at a new price
+        -- rewrote every past order (Irene). Strongest evidence first: the
+        -- price stamped on the dispense transaction, then the invoice line,
+        -- then (old rows with neither) the current price as before.
+        CASE WHEN po.status IN ('dispensed', 'completed', 'returned') THEN
+          COALESCE(
+            (SELECT it.unit_price FROM inventory_transactions it
+              WHERE it.reference_type = 'pharmacy_order' AND it.reference_id = po.id
+                AND it.transaction_type = 'dispense' AND it.unit_price IS NOT NULL
+              ORDER BY it.id DESC LIMIT 1),
+            (SELECT ii.unit_price FROM invoice_items ii
+              WHERE ii.reference_type = 'pharmacy_order' AND ii.reference_id = po.id
+              ORDER BY ii.id DESC LIMIT 1),
+            pi.selling_price, pim.selling_price
+          )
+        ELSE COALESCE(pi.selling_price, pim.selling_price) END as inventory_price,
         COALESCE(pi.medication_name, pim.medication_name) as inventory_medication_name,
         COALESCE(pi.unit, pim.unit) as inventory_unit,
         -- When the doctor typed free-text (no inventory_id), pim is a best-effort
