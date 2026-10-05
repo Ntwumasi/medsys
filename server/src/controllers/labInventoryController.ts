@@ -3,6 +3,8 @@ import pool from '../database/db';
 import { validateIntervalDays } from '../utils/sqlSecurity';
 import { auditService } from '../services/auditService';
 import { notificationService } from '../services/notificationService';
+import { createHash } from 'crypto';
+import { labTestTemplates } from '../database/seeds/labTestTemplates';
 
 // Audit a lab test price change and notify admins/super-admins (who + diff).
 const notifyLabPriceChange = async (
@@ -681,8 +683,8 @@ const findTestTemplate = async (
   const chemMap: Array<[RegExp, string, string]> = [
     // Kidney/renal function: BUE&Cr, BUECR, U&E, Kidney Function Test, KFT, RFT.
     [/\b(bue|buecr|kft|rft|kidney function|renal function|u\s*&\s*e)\b|bue\s*&?\s*cr|urea.*electrolyte|electrolyte.*creatinine/i, 'BUE_M', 'BUE_F'],
-    [/\b(lipid)\b/i, 'LIPID_M', 'LIPID_F'],
-    [/\b(lft|liver function)\b/i, 'LFT_M', 'LFT_F'],
+    [/\b(lipids?)\b/i, 'LIPID_M', 'LIPID_F'],
+    [/\b(lfts?|liver function)\b/i, 'LFT_M', 'LFT_F'],
   ];
   for (const [pattern, mCode, fCode] of chemMap) {
     if (pattern.test(lower)) {
@@ -706,6 +708,14 @@ const findTestTemplate = async (
     // HbA1c / glycated haemoglobin. Catalog code is the opaque "L148"; the
     // ordered name is "HbA1c" (also seen as "HBA1C" / the "hbaic" typo).
     [/(hba1c|hb\s*a1c|hbaic|\ba1c\b|glyc\w*\s*h[ae]?moglobin)/i, 'HbA1c'],
+    // Names doctors type for tests that already have a template (seen in
+    // live orders that were falling through to the default form).
+    [/h\.?\s*pylori|hpylori/i, 'HPYL'],
+    [/malaria\s*(antigen|ag\b|ict|rdt)|rdt\s*(for\s*)?malaria/i, 'MAL_ICT'],
+    [/typhoid/i, 'TYPH'],
+    [/random\s*blood\s*(glucose|sugar)|\brbs\b|\brbg\b/i, 'RBS'],
+    [/fasting\s*blood\s*(glucose|sugar)|\bfbs\b|\bfbg\b/i, 'FBS'],
+    [/retro\s*screen|\bhiv\b/i, 'HIV'],
   ];
   for (const [pattern, code] of aliasMap) {
     if (pattern.test(lower)) {
@@ -740,11 +750,33 @@ const findTestTemplate = async (
 // migration uses CREATE TABLE IF NOT EXISTS + ON CONFLICT upserts so calling
 // it repeatedly is safe, but we only need it to land once per cold start.
 let labTemplatesEnsured = false;
+// Fingerprint of the deployed seed. The full re-seed (DELETE + re-insert every
+// parameter row) used to run on every cold start, making the first result
+// form of the day slow enough to fail — and a failed lookup shows the plain
+// "default" form. Now it only re-seeds when the template definitions change.
+const LAB_SEED_HASH = createHash('sha1').update(JSON.stringify(labTestTemplates)).digest('hex');
 const ensureLabTemplates = async (): Promise<void> => {
   if (labTemplatesEnsured) return;
   try {
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS lab_template_seed_state (
+         id INTEGER PRIMARY KEY DEFAULT 1,
+         seed_hash TEXT NOT NULL,
+         applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+       )`,
+    );
+    const state = await pool.query(`SELECT seed_hash FROM lab_template_seed_state WHERE id = 1`);
+    if (state.rows[0]?.seed_hash === LAB_SEED_HASH) {
+      labTemplatesEnsured = true;
+      return;
+    }
     const { addLabPathNoAndTemplates } = await import('../database/migrations/addLabPathNoAndTemplates');
     await addLabPathNoAndTemplates();
+    await pool.query(
+      `INSERT INTO lab_template_seed_state (id, seed_hash, applied_at) VALUES (1, $1, NOW())
+       ON CONFLICT (id) DO UPDATE SET seed_hash = EXCLUDED.seed_hash, applied_at = NOW()`,
+      [LAB_SEED_HASH],
+    );
     labTemplatesEnsured = true;
   } catch (err) {
     // Don't flip the flag — next call retries.

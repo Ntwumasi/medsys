@@ -204,15 +204,10 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
   try {
     await ensureLabVerificationSchema();
 
-    // Auto-cancel stale orders older than 3 days that are still pending/in-progress
-    await pool.query(
-      `UPDATE lab_orders
-         SET status = 'cancelled',
-             notes = COALESCE(notes || ' | ', '') || 'Auto-cancelled: stale order',
-             updated_at = CURRENT_TIMESTAMP
-       WHERE status IN ('ordered', 'in-progress')
-         AND ordered_date < NOW() - INTERVAL '3 days'`
-    );
+    // Orders are never auto-cancelled. Patients often return weeks after a lab
+    // was ordered (and have usually already paid for it), so an untouched order
+    // stays open; the lab dashboard moves it to "Awaiting patient" after 3 days.
+    // The old 3-day auto-cancel silently dropped paid-for tests.
 
     const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
 
@@ -275,7 +270,25 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
         p.gender as patient_gender,
         p.allergies as patient_allergies,
         u_patient.first_name || ' ' || u_patient.last_name as patient_name,
-        e.clinic as encounter_clinic
+        e.clinic as encounter_clinic,
+        lo.scheduled_for,
+        COALESCE(
+          (SELECT pps.payer_type FROM patient_payer_sources pps
+           WHERE pps.patient_id = lo.patient_id AND pps.is_primary = true LIMIT 1),
+          'self_pay'
+        ) as payer_type,
+        COALESCE(
+          (SELECT CASE
+            WHEN pps.payer_type = 'corporate' THEN cc.name
+            WHEN pps.payer_type = 'insurance' THEN ip.name
+            ELSE NULL
+          END
+          FROM patient_payer_sources pps
+          LEFT JOIN corporate_clients cc ON pps.corporate_client_id = cc.id
+          LEFT JOIN insurance_providers ip ON pps.insurance_provider_id = ip.id
+          WHERE pps.patient_id = lo.patient_id AND pps.is_primary = true LIMIT 1),
+          NULL
+        ) as payer_name
       FROM lab_orders lo
       LEFT JOIN users u ON lo.ordering_provider = u.id
       LEFT JOIN users u_entered ON lo.entered_by = u_entered.id
@@ -892,6 +905,44 @@ const removeLabOrderFromInvoice = async (orderId: number): Promise<void> => {
     }
   } catch (err) {
     console.error(`Lab billing reversal failed for order ${orderId} (non-fatal):`, err);
+  }
+};
+
+// "Do later": the patient will come back for this test on another day. Sets
+// scheduled_for so the lab dashboard parks the order under "Awaiting patient"
+// until that date, then brings it back to the active list. Only untouched
+// orders (not yet started) can be deferred.
+export const deferLabOrder = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const { return_date } = req.body as { return_date?: string };
+    if (!id || Number.isNaN(id)) {
+      res.status(400).json({ error: 'Invalid lab order id' });
+      return;
+    }
+    if (!return_date || !/^\d{4}-\d{2}-\d{2}$/.test(return_date)) {
+      res.status(400).json({ error: 'A return date (YYYY-MM-DD) is required' });
+      return;
+    }
+    const authReq = req as any;
+    const who = authReq.user?.username || 'lab';
+    const result = await pool.query(
+      `UPDATE lab_orders
+          SET scheduled_for = $2::date,
+              notes = COALESCE(notes || ' | ', '') || $3,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND status IN ('ordered', 'collected')
+        RETURNING id, scheduled_for`,
+      [id, return_date, `Patient to return ${return_date} (set by ${who})`]
+    );
+    if (result.rows.length === 0) {
+      res.status(409).json({ error: 'Only tests that have not been started can be set for later' });
+      return;
+    }
+    res.json({ message: 'Lab test set for later', order: result.rows[0] });
+  } catch (error) {
+    console.error('Defer lab order error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 

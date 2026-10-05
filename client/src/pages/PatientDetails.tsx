@@ -505,9 +505,38 @@ const PatientDetails: React.FC = () => {
 
   const { patient, recent_encounters, active_medications, allergies, upcoming_appointments } = summary;
 
+  // Tests ordered on an earlier visit that haven't been done yet — so whoever
+  // opens the profile (front desk at check-in, nurse, lab) sees them.
+  const outstandingLabs = labResults.filter((l) => l.status === 'pending');
+
   return (
     <AppLayout title={`${patient.first_name} ${patient.last_name}`}>
       <div className="space-y-6">
+
+        {outstandingLabs.length > 0 && (
+          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg" role="status">
+            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+            </svg>
+            <div className="text-sm text-blue-900 flex-1">
+              <p className="font-semibold">
+                {outstandingLabs.length} lab test{outstandingLabs.length > 1 ? 's' : ''} ordered but not yet done
+              </p>
+              <p className="mt-0.5">
+                {outstandingLabs
+                  .map((l) => `${l.test_name} (ordered ${safeFormatDate(l.ordered_at, 'MMM d')})`)
+                  .join(', ')}
+                {' '}— send the patient to the lab.
+              </p>
+            </div>
+            <button
+              onClick={() => setActiveTab('labs')}
+              className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 flex-shrink-0"
+            >
+              View labs
+            </button>
+          </div>
+        )}
 
         {/* A real, un-merged duplicate exists (same name + DOB) — prompt cleanup.
             Data-driven (has_duplicate from the API), so it only fires when there's

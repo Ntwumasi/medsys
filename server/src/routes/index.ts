@@ -106,6 +106,7 @@ import {
   createLabOrder,
   getLabOrders,
   updateLabOrder,
+  deferLabOrder,
   deleteLabResult,
   getLabResultAudit,
   verifyLabResult,
@@ -650,6 +651,7 @@ router.get('/orders/lab', authenticateToken, enforcePatientOwnership, getLabOrde
 // otherwise Express interprets "pending-verification" as an :id parameter.
 router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
 router.put('/orders/lab/:id', authenticateToken, authorizeRoles(...STAFF_ROLES), updateLabOrder);
+router.post('/orders/lab/:id/defer', authenticateToken, authorizeRoles('lab', 'admin'), deferLabOrder);
 router.post('/orders/lab/:id/verify', authenticateToken, authorizeRoles('lab', 'admin'), verifyLabResult);
 router.post('/orders/lab/:id/reject', authenticateToken, authorizeRoles('lab', 'admin'), rejectLabResult);
 router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('lab', 'admin'), deleteLabResult);
