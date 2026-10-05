@@ -6,6 +6,7 @@
  * in this order (a failed Arkesel send falls through to the next one):
  *
  *   1. Arkesel         ARKESEL_API_KEY + ARKESEL_SENDER_ID       (Ghana-native — PRIMARY)
+ *                      + ARKESEL_SENDER_APPROVED=true (app texts skip Arkesel until then)
  *   2. Hubtel          HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET   (Ghana; needs a GH business)
  *   3. Twilio          TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN    (US-centric; restricted for GH)
  *                      + TWILIO_PHONE_NUMBER or TWILIO_MESSAGING_SERVICE_SID
@@ -60,7 +61,11 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
   const sandbox = isArkeselSandbox();
 
   // --- Provider 1: Arkesel (Ghana-native — our primary) ---
-  if (process.env.ARKESEL_API_KEY) {
+  // Only once the Sender ID is approved (or in sandbox). Before approval
+  // Arkesel answers "success" but holds the message as PENDING APPROVAL, so
+  // the fallback below never triggers and login codes / reminders silently
+  // never arrive. Set ARKESEL_SENDER_APPROVED=true once Arkesel approves it.
+  if (process.env.ARKESEL_API_KEY && (process.env.ARKESEL_SENDER_APPROVED === 'true' || sandbox)) {
     try {
       // Arkesel wants the number with country code and NO leading '+' (233XXXXXXXXX).
       const recipient = e164.replace(/^\+/, '');
