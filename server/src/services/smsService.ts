@@ -3,7 +3,7 @@
  *
  * Real providers are wired up below (all via axios REST — no SDKs).
  * The first one whose credentials are present in the environment is used,
- * in this order:
+ * in this order (a failed Arkesel send falls through to the next one):
  *
  *   1. Arkesel         ARKESEL_API_KEY + ARKESEL_SENDER_ID       (Ghana-native — PRIMARY)
  *   2. Hubtel          HUBTEL_CLIENT_ID + HUBTEL_CLIENT_SECRET   (Ghana; needs a GH business)
@@ -44,6 +44,12 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
   // Normalize to E.164 (+233…) for providers that require it (Twilio, AT).
   const e164 = validatePhoneNumber(to).formatted;
 
+  // If Arkesel is configured but fails (e.g. its Sender ID is still awaiting
+  // approval, or the balance ran out), fall through to the next configured
+  // provider rather than dropping the message. Only reported if nothing else
+  // is configured.
+  let arkeselFailure: SMSResult | null = null;
+
   // --- Provider 1: Arkesel (Ghana-native — our primary) ---
   if (process.env.ARKESEL_API_KEY) {
     try {
@@ -60,15 +66,23 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
       );
       const ok = response.data?.status === 'success';
       const data = response.data?.data;
-      return {
-        success: ok,
+      if (ok) {
+        return {
+          success: true,
+          provider: 'arkesel',
+          messageId: (Array.isArray(data) ? data[0]?.id : data?.id) || '',
+        };
+      }
+      console.error('Arkesel SMS rejected:', response.data);
+      arkeselFailure = {
+        success: false,
         provider: 'arkesel',
-        messageId: (Array.isArray(data) ? data[0]?.id : data?.id) || '',
-        error: ok ? undefined : (response.data?.message || 'SMS send failed'),
+        messageId: '',
+        error: response.data?.message || 'SMS send failed',
       };
     } catch (error: any) {
       console.error('Arkesel SMS send failed:', error?.response?.data || error?.message);
-      return {
+      arkeselFailure = {
         success: false,
         provider: 'arkesel',
         messageId: '',
@@ -179,6 +193,8 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
       };
     }
   }
+
+  if (arkeselFailure) return arkeselFailure;
 
   // No provider configured. Log the message (dev visibility) but report
   // failure — we did NOT send anything, and callers must not claim we did.
