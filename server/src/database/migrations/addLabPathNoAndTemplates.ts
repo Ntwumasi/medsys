@@ -25,6 +25,9 @@ export async function addLabPathNoAndTemplates() {
 
   try {
     await client.query('BEGIN');
+    // Serialize concurrent cold starts: two seeders interleaving their
+    // DELETE + re-insert could leave a test with doubled parameter rows.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext('lab_template_seed'))`);
 
     // --- Path No on lab_orders ---
     await client.query(`

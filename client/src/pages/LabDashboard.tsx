@@ -65,7 +65,38 @@ interface LabOrder {
   verification_notes?: string | null;
   rejection_count?: number;
   path_no?: string | null;
+  scheduled_for?: string | null;
+  payer_type?: string | null;
+  payer_name?: string | null;
 }
+
+// A not-yet-started order is "awaiting patient" when the patient has been
+// sent away to come back later (scheduled_for in the future) or nobody has
+// touched it for 3+ days. It leaves the active queue but is never cancelled,
+// so the lab can find it when the patient returns.
+const AWAITING_AFTER_DAYS = 3;
+const isAwaitingPatient = (order: LabOrder): boolean => {
+  if (order.status !== 'pending' || order.specimen_collected_at) return false;
+  const anchor = new Date(order.scheduled_for || order.ordered_at);
+  if (Number.isNaN(anchor.getTime())) return false;
+  const startOfTomorrow = new Date();
+  startOfTomorrow.setHours(24, 0, 0, 0);
+  if (anchor.getTime() >= startOfTomorrow.getTime()) return true;
+  return Date.now() - anchor.getTime() > AWAITING_AFTER_DAYS * 24 * 3600 * 1000;
+};
+
+const payerChip = (order: LabOrder): { label: string; className: string } => {
+  switch (order.payer_type) {
+    case 'insurance':
+      return { label: `Insurance${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-blue-100 text-blue-800 border-blue-300' };
+    case 'corporate':
+      return { label: `Corporate${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-purple-100 text-purple-800 border-purple-300' };
+    case 'staff':
+      return { label: 'Staff', className: 'bg-teal-100 text-teal-800 border-teal-300' };
+    default:
+      return { label: 'Cash', className: 'bg-gray-100 text-gray-800 border-gray-300' };
+  }
+};
 
 interface LabReviewer {
   id: number;
@@ -284,7 +315,10 @@ const LabDashboard: React.FC = () => {
       navigate(location.pathname, { replace: true });
     }
   }, [location.search, navigate]);
-  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'completed'>('pending');
+  const [ordersSubTab, setOrdersSubTab] = useState<'pending' | 'awaiting' | 'completed'>('pending');
+  const [deferringOrder, setDeferringOrder] = useState<LabOrder | null>(null);
+  const [deferDate, setDeferDate] = useState('');
+  const [savingDefer, setSavingDefer] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>(''); // '', 'pending', 'in_progress', 'stat'
 
   // Walk-in add tests modal
@@ -499,6 +533,8 @@ const LabDashboard: React.FC = () => {
   const [templateParams, setTemplateParams] = useState<ParameterDef[]>([]);
   const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
   const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateError, setTemplateError] = useState(false);
+  const [templateMatchedName, setTemplateMatchedName] = useState<string | null>(null);
   const [templateNotes, setTemplateNotes] = useState('');
 
   // Peer-review verification state
@@ -1435,6 +1471,8 @@ const LabDashboard: React.FC = () => {
     setTemplateParams([]);
     setTemplateValues({});
     setTemplateNotes('');
+    setTemplateError(false);
+    setTemplateMatchedName(null);
     setTemplateLoading(true);
 
     // Two lookups in parallel:
@@ -1442,7 +1480,12 @@ const LabDashboard: React.FC = () => {
     //   - single-test reference range (legacy form fallback + critical banner)
     try {
       const [tmplResp, catalogResp] = await Promise.all([
-        apiClient.get(`/lab/orders/${order.id}/parameters`).catch(() => null),
+        // A failed lookup must not silently fall back to the plain form —
+        // that is what the lab saw as "the template didn't load".
+        apiClient.get(`/lab/orders/${order.id}/parameters`).catch(() => {
+          setTemplateError(true);
+          return null;
+        }),
         apiClient
           .get(`/lab/test-catalog?search=${encodeURIComponent(order.test_name)}`)
           .catch(() => null),
@@ -1451,6 +1494,7 @@ const LabDashboard: React.FC = () => {
       if (tmplResp?.data?.has_template && Array.isArray(tmplResp.data.parameters)) {
         const params = tmplResp.data.parameters as ParameterDef[];
         setTemplateParams(params);
+        setTemplateMatchedName(tmplResp.data.matched_test_name || null);
         // Pre-fill qualitative defaults so the lab tech can submit without
         // touching every dropdown when the result is "all negative".
         const initial: Record<string, string> = {};
@@ -1494,6 +1538,21 @@ const LabDashboard: React.FC = () => {
     }
 
     setShowResultModal(true);
+  };
+
+  const submitDefer = async () => {
+    if (!deferringOrder || !deferDate) return;
+    setSavingDefer(true);
+    try {
+      await apiClient.post(`/orders/lab/${deferringOrder.id}/defer`, { return_date: deferDate });
+      showToast(`${deferringOrder.test_name} moved to Awaiting Patient`, 'success');
+      setDeferringOrder(null);
+      fetchLabOrders();
+    } catch (error: any) {
+      showToast(error?.response?.data?.error || 'Could not set the test for later', 'error');
+    } finally {
+      setSavingDefer(false);
+    }
   };
 
   // Compose a display string for the Reference column. Falls back to
@@ -1628,7 +1687,7 @@ const LabDashboard: React.FC = () => {
       return order.priority === 'stat' && order.status !== 'completed';
     }
     if (statusFilter === 'pending') {
-      return order.status === 'pending';
+      return order.status === 'pending' && !isAwaitingPatient(order);
     }
     if (statusFilter === 'in_progress') {
       return order.status === 'in_progress';
@@ -1636,7 +1695,9 @@ const LabDashboard: React.FC = () => {
 
     // Default sub-tab filtering
     if (ordersSubTab === 'pending') {
-      return pendingStatuses.includes(order.status);
+      return pendingStatuses.includes(order.status) && !isAwaitingPatient(order);
+    } else if (ordersSubTab === 'awaiting') {
+      return isAwaitingPatient(order);
     } else {
       // For completed tab, only show today's completed orders
       if (order.status !== 'completed') return false;
@@ -1824,7 +1885,8 @@ const LabDashboard: React.FC = () => {
     );
   }
 
-  const pendingCount = labOrders.filter((o) => o.status === 'pending').length;
+  const pendingCount = labOrders.filter((o) => o.status === 'pending' && !isAwaitingPatient(o)).length;
+  const awaitingCount = labOrders.filter(isAwaitingPatient).length;
   const inProgressCount = labOrders.filter((o) => o.status === 'in_progress').length;
   const unackedCritical = criticalAlerts.filter((a) => !a.is_acknowledged).length;
   return (
@@ -2259,7 +2321,18 @@ const LabDashboard: React.FC = () => {
                     : 'bg-white text-gray-700 hover:bg-gray-100'
                 }`}
               >
-                Pending & In Progress ({labOrders.filter(o => o.status === 'pending' || o.status === 'in_progress').length})
+                Pending & In Progress ({labOrders.filter(o => (o.status === 'pending' || o.status === 'in_progress') && !isAwaitingPatient(o)).length})
+              </button>
+              <button
+                onClick={() => { setOrdersSubTab('awaiting'); setStatusFilter(''); }}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  ordersSubTab === 'awaiting' && !statusFilter
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                }`}
+                title="Tests ordered earlier where the patient hasn't come in yet. Search by patient name or number."
+              >
+                Awaiting Patient ({awaitingCount})
               </button>
               <button
                 onClick={() => { setOrdersSubTab('completed'); setStatusFilter(''); }}
@@ -2289,11 +2362,18 @@ const LabDashboard: React.FC = () => {
               {/* Left: Orders List */}
               <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200">
                 <div className={`px-6 py-4 border-b border-gray-200 rounded-t-xl ${
-                  ordersSubTab === 'pending' ? 'bg-gradient-to-r from-warning-50 to-orange-50' : 'bg-gradient-to-r from-success-50 to-success-50'
+                  ordersSubTab === 'pending' ? 'bg-gradient-to-r from-warning-50 to-orange-50'
+                    : ordersSubTab === 'awaiting' ? 'bg-gradient-to-r from-blue-50 to-primary-50'
+                    : 'bg-gradient-to-r from-success-50 to-success-50'
                 }`}>
                   <h2 className="text-xl font-bold text-gray-900">
-                    {ordersSubTab === 'pending' ? 'Pending & In Progress Tests' : 'Completed Test Results'}
+                    {ordersSubTab === 'pending' ? 'Pending & In Progress Tests' : ordersSubTab === 'awaiting' ? 'Awaiting Patient' : 'Completed Test Results'}
                   </h2>
+                  {ordersSubTab === 'awaiting' && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Ordered earlier but the patient hasn't come in yet. These are never cancelled — when the patient arrives, search their name above and click Start Processing.
+                    </p>
+                  )}
                 </div>
                 <div className="divide-y divide-gray-200">
                 {groupedLabOrders.length === 0 ? (
@@ -2328,6 +2408,17 @@ const LabDashboard: React.FC = () => {
                             <span className={`px-3 py-1 text-xs font-bold rounded-full ${getPriorityBadgeClass(group.highest_priority)}`}>
                               {group.highest_priority.toUpperCase()}
                             </span>
+                            {(() => {
+                              const chip = payerChip(group.orders[0]);
+                              return (
+                                <span
+                                  className={`px-2 py-0.5 text-xs font-bold rounded-full border ${chip.className}`}
+                                  title="How this patient pays (primary payer on file). If insurance won't cover a test, ask front desk to bill it as cash."
+                                >
+                                  {chip.label}
+                                </span>
+                              );
+                            })()}
                             <span className="text-sm text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">
                               {group.orders.length} test{group.orders.length > 1 ? 's' : ''}
                             </span>
@@ -2445,8 +2536,30 @@ const LabDashboard: React.FC = () => {
                               {order.specimen_id && (
                                 <span className="text-xs text-gray-500">Specimen: {order.specimen_id}</span>
                               )}
+                              {ordersSubTab === 'awaiting' && (
+                                <span className="text-xs text-blue-700">
+                                  {order.scheduled_for && new Date(order.scheduled_for).getTime() > Date.now()
+                                    ? `Returning ${new Date(order.scheduled_for).toLocaleDateString()}`
+                                    : `Ordered ${Math.floor((Date.now() - new Date(order.ordered_at).getTime()) / 86400000)} days ago`}
+                                </span>
+                              )}
                             </div>
                             <div className="flex gap-2 ml-4">
+                              {order.status === 'pending' && ordersSubTab === 'pending' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const d = new Date();
+                                    d.setDate(d.getDate() + 7);
+                                    setDeferDate(d.toISOString().slice(0, 10));
+                                    setDeferringOrder(order);
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
+                                  title="Patient will come back another day for this test"
+                                >
+                                  Do Later
+                                </button>
+                              )}
                               {order.status === 'pending' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'in_progress'); }}
@@ -4053,6 +4166,45 @@ const LabDashboard: React.FC = () => {
       )}
 
       {/* Structured Result Entry Modal */}
+      {deferringOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !savingDefer && setDeferringOrder(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="defer-title">
+            <h2 id="defer-title" className="text-lg font-bold text-gray-900">Do this test later</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {deferringOrder.patient_name} — {deferringOrder.test_name}
+            </p>
+            <p className="text-sm text-gray-600 mt-3">
+              The test moves to <strong>Awaiting Patient</strong> and comes back to the active list on the return date. It is not cancelled.
+            </p>
+            <label htmlFor="defer-date" className="block text-sm font-medium text-gray-700 mt-4 mb-1">Expected return date</label>
+            <input
+              id="defer-date"
+              type="date"
+              value={deferDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setDeferDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => setDeferringOrder(null)}
+                disabled={savingDefer}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitDefer}
+                disabled={savingDefer || !deferDate}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {savingDefer ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showResultModal && selectedOrderForResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className={`bg-white rounded-xl shadow-2xl w-full ${templateParams.length > 0 ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col`}>
@@ -4061,6 +4213,9 @@ const LabDashboard: React.FC = () => {
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">Enter Test Results</h2>
                   <p className="text-sm text-gray-600">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
+                  {templateMatchedName && (
+                    <p className="text-xs text-gray-500 mt-0.5">Template: {templateMatchedName}</p>
+                  )}
                 </div>
                 {selectedOrderForResult.path_no && (
                   <div className="text-right">
@@ -4194,8 +4349,20 @@ const LabDashboard: React.FC = () => {
                 <div className="mb-4 text-sm text-gray-500">Looking up template…</div>
               )}
 
+              {templateError && templateParams.length === 0 && (
+                <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-sm text-danger-800 flex items-center justify-between gap-3">
+                  <span>The result template couldn't be loaded (connection problem). Retry before entering results.</span>
+                  <button
+                    onClick={() => openResultModal(selectedOrderForResult)}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-danger-600 rounded-lg hover:bg-danger-700 flex-shrink-0"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
               {/* Legacy single-value form — only when no structured template */}
-              {!templateLoading && templateParams.length === 0 && (
+              {!templateLoading && !templateError && templateParams.length === 0 && (
                 <>
               {/* Reference ranges display */}
               {testReferenceRanges && (
