@@ -5,7 +5,7 @@ export interface AuditLogEntry {
   // 'export' is deliberately distinct from 'read': it records data leaving the
   // system in bulk (e.g. the marketing contact list), which is what you want to
   // be able to search the audit log for.
-  action: 'create' | 'read' | 'update' | 'delete' | 'sign' | 'dispense' | 'complete' | 'cancel' | 'checkout' | 'verify' | 'reject' | 'export';
+  action: 'create' | 'read' | 'update' | 'delete' | 'sign' | 'dispense' | 'complete' | 'cancel' | 'checkout' | 'verify' | 'reject' | 'export' | 'approve' | 'send';
   entityType: string;
   entityId?: number;
   oldValues?: Record<string, unknown>;

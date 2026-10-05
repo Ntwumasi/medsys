@@ -35,7 +35,7 @@ interface ContactRow {
 
 const PLACEHOLDER_EMAIL_DOMAIN = 'noemail.medsys.local';
 
-interface ContactFilters {
+export interface ContactFilters {
   since?: string | null;
   /** name, phone or patient number */
   search?: string | null;
@@ -43,6 +43,10 @@ interface ContactFilters {
   has?: 'phone' | 'email' | null;
   /** list the opted-out patients instead (so an opt-out can be undone) */
   optedOut?: boolean;
+  /** SMS campaign audience: 'male' | 'female' */
+  gender?: string | null;
+  minAge?: number | null;
+  maxAge?: number | null;
 }
 
 // SQL that yields a real email or NULL (placeholder addresses count as none).
@@ -60,7 +64,7 @@ const parseFilters = (q: Request['query']): ContactFilters => {
   };
 };
 
-const buildWhere = (f: ContactFilters): { where: string; params: any[] } => {
+export const buildWhere = (f: ContactFilters): { where: string; params: any[] } => {
   const params: any[] = [];
   const clauses = [
     'p.merged_into IS NULL',
@@ -75,6 +79,22 @@ const buildWhere = (f: ContactFilters): { where: string; params: any[] } => {
       SELECT 1 FROM encounters e
        WHERE e.patient_id = p.id AND e.created_at >= $${params.length}::date
     )`);
+  }
+  if (f.gender === 'male' || f.gender === 'female') {
+    params.push(f.gender === 'male' ? 'M%' : 'F%');
+    clauses.push(`p.gender ILIKE $${params.length}`);
+  }
+  // Age bounds skip unknown DOBs (NULL / the 1900-01-01 placeholder).
+  if (f.minAge != null || f.maxAge != null) {
+    clauses.push(`p.date_of_birth > DATE '1900-01-01'`);
+    if (f.minAge != null) {
+      params.push(f.minAge);
+      clauses.push(`p.date_of_birth <= CURRENT_DATE - ($${params.length}::int * INTERVAL '1 year')`);
+    }
+    if (f.maxAge != null) {
+      params.push(f.maxAge + 1);
+      clauses.push(`p.date_of_birth > CURRENT_DATE - ($${params.length}::int * INTERVAL '1 year')`);
+    }
   }
   if (f.has === 'phone') clauses.push(`NULLIF(TRIM(COALESCE(u.phone, '')), '') IS NOT NULL`);
   if (f.has === 'email') clauses.push(`(${REAL_EMAIL_SQL}) IS NOT NULL`);

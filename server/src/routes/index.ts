@@ -204,6 +204,18 @@ import {
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import {
+  getSmsStatus,
+  previewSmsCampaign,
+  listSmsCampaigns,
+  createSmsCampaign,
+  getSmsCampaign,
+  approveSmsCampaign,
+  rejectSmsCampaign,
+  cancelSmsCampaign,
+  sendSmsCampaignBatch,
+  arkeselDeliveryCallback,
+} from '../controllers/smsCampaignController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -928,6 +940,20 @@ router.get('/marketing/contacts', authenticateToken, authorizeRoles('marketing',
 router.get('/marketing/contacts/list', authenticateToken, authorizeRoles('marketing', 'admin'), listPatientContacts);
 router.get('/marketing/contacts/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportPatientContacts);
 // Reception and admin record the opt-out, since they're the ones a patient tells.
+// Marketing bulk SMS. Admin approval is enforced in the controller (marketing
+// can draft and send approved campaigns, only admins approve/reject).
+router.get('/marketing/sms/status', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsStatus);
+router.post('/marketing/sms/preview', authenticateToken, authorizeRoles('marketing', 'admin'), previewSmsCampaign);
+router.get('/marketing/sms/campaigns', authenticateToken, authorizeRoles('marketing', 'admin'), listSmsCampaigns);
+router.post('/marketing/sms/campaigns', authenticateToken, authorizeRoles('marketing', 'admin'), createSmsCampaign);
+router.get('/marketing/sms/campaigns/:id', authenticateToken, authorizeRoles('marketing', 'admin'), getSmsCampaign);
+router.post('/marketing/sms/campaigns/:id/approve', authenticateToken, authorizeRoles('admin'), approveSmsCampaign);
+router.post('/marketing/sms/campaigns/:id/reject', authenticateToken, authorizeRoles('admin'), rejectSmsCampaign);
+router.post('/marketing/sms/campaigns/:id/cancel', authenticateToken, authorizeRoles('marketing', 'admin'), cancelSmsCampaign);
+router.post('/marketing/sms/campaigns/:id/send-batch', authenticateToken, authorizeRoles('marketing', 'admin'), sendSmsCampaignBatch);
+// Arkesel delivery reports — no login (Arkesel calls it); signed per campaign.
+router.get('/sms/arkesel-callback', arkeselDeliveryCallback);
+router.post('/sms/arkesel-callback', arkeselDeliveryCallback);
 router.put('/patients/:id/marketing-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'marketing'), setMarketingOptOut);
 
 router.use('/accountant', accountantRoutes);

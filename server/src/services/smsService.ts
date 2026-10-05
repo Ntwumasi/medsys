@@ -22,6 +22,14 @@
 
 import axios from 'axios';
 
+/**
+ * Arkesel sandbox: requests are accepted and appear in Arkesel's SMS history
+ * but are never delivered or billed. Set ARKESEL_SANDBOX=true on any
+ * environment that shares real patient data but must not text anyone
+ * (staging).
+ */
+export const isArkeselSandbox = (): boolean => process.env.ARKESEL_SANDBOX === 'true';
+
 export interface SMSResult {
   success: boolean;
   provider: string;
@@ -49,6 +57,7 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
   // provider rather than dropping the message. Only reported if nothing else
   // is configured.
   let arkeselFailure: SMSResult | null = null;
+  const sandbox = isArkeselSandbox();
 
   // --- Provider 1: Arkesel (Ghana-native — our primary) ---
   if (process.env.ARKESEL_API_KEY) {
@@ -61,6 +70,7 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
           sender: process.env.ARKESEL_SENDER_ID || 'Clinic',
           message,
           recipients: [recipient],
+          ...(sandbox ? { sandbox: true } : {}),
         },
         { headers: { 'api-key': process.env.ARKESEL_API_KEY }, timeout: 15000 }
       );
@@ -90,6 +100,10 @@ export const sendSMS = async (to: string, message: string): Promise<SMSResult> =
       };
     }
   }
+
+  // In sandbox mode nothing may reach a real phone — never fall back to a
+  // provider that would actually deliver.
+  if (arkeselFailure && sandbox) return arkeselFailure;
 
   // --- Provider 2: Hubtel (Ghana) ---
   if (process.env.HUBTEL_CLIENT_ID && process.env.HUBTEL_CLIENT_SECRET) {
@@ -267,4 +281,116 @@ export const validatePhoneNumber = (phone: string): { valid: boolean; formatted:
     valid: isValid,
     formatted: cleaned
   };
+};
+
+// ---------------------------------------------------------------------------
+// Arkesel bulk sending (marketing campaigns)
+// ---------------------------------------------------------------------------
+
+export interface ArkeselBatchResult {
+  ok: boolean;
+  /** provider message id per recipient (233XXXXXXXXX) */
+  ids: Record<string, string>;
+  invalid: string[];
+  error?: string;
+}
+
+const ARKESEL_BASE = 'https://sms.arkesel.com';
+
+const parseArkeselBatch = (data: any): ArkeselBatchResult => {
+  const ids: Record<string, string> = {};
+  const invalid: string[] = [];
+  if (data?.status !== 'success') {
+    return { ok: false, ids, invalid, error: data?.message || 'SMS request failed' };
+  }
+  if (Array.isArray(data?.data)) {
+    for (const row of data.data) {
+      if (row?.recipient && row?.id) ids[String(row.recipient)] = String(row.id);
+      const bad = row?.['invalid numbers'];
+      if (Array.isArray(bad)) invalid.push(...bad.map(String));
+    }
+  }
+  return { ok: true, ids, invalid };
+};
+
+/**
+ * Send one Arkesel request for a batch of recipients. When `variables` is
+ * given, uses the template endpoint so each recipient gets their own values
+ * (message tags look like <%first_name%>). The template endpoint has no
+ * sandbox mode, so sandboxed personalised batches go through the plain
+ * endpoint with the tags filled generically — the per-recipient text is
+ * still recorded by the caller.
+ */
+export const sendArkeselBatch = async (opts: {
+  recipients: string[];
+  message: string;
+  variables?: Record<string, Record<string, string>>;
+  callbackUrl?: string;
+  sandbox: boolean;
+}): Promise<ArkeselBatchResult> => {
+  const apiKey = process.env.ARKESEL_API_KEY;
+  if (!apiKey) return { ok: false, ids: {}, invalid: [], error: 'Arkesel is not configured (ARKESEL_API_KEY)' };
+  const sender = process.env.ARKESEL_SENDER_ID;
+  if (!sender) return { ok: false, ids: {}, invalid: [], error: 'No Sender ID configured (ARKESEL_SENDER_ID)' };
+
+  const useTemplate = !!opts.variables && !opts.sandbox;
+  const url = useTemplate ? `${ARKESEL_BASE}/api/v2/sms/template/send` : `${ARKESEL_BASE}/api/v2/sms/send`;
+  const body: Record<string, unknown> = {
+    sender,
+    message: useTemplate ? opts.message : opts.message.replace(/<%\w+%>/g, 'there'),
+    recipients: useTemplate ? opts.variables : opts.recipients,
+  };
+  if (opts.callbackUrl) body.callback_url = opts.callbackUrl;
+  if (opts.sandbox) body.sandbox = true;
+
+  try {
+    const response = await axios.post(url, body, {
+      headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+      timeout: 30000,
+    });
+    return parseArkeselBatch(response.data);
+  } catch (error: any) {
+    console.error('Arkesel batch send failed:', error?.response?.data || error?.message);
+    return {
+      ok: false,
+      ids: {},
+      invalid: [],
+      error: error?.response?.data?.message || error?.message || 'SMS request failed',
+    };
+  }
+};
+
+/** SMS credits left on the Arkesel account, or null if it can't be read. */
+export const getArkeselBalance = async (): Promise<{ sms: number | null; main: string | null }> => {
+  const apiKey = process.env.ARKESEL_API_KEY;
+  if (!apiKey) return { sms: null, main: null };
+  try {
+    const response = await axios.get(`${ARKESEL_BASE}/api/v2/clients/balance-details`, {
+      headers: { 'api-key': apiKey },
+      timeout: 10000,
+    });
+    // Documented as data: [{ sms_balance }, { main_balance }] — accept an
+    // object too in case the shape differs.
+    const data = response.data?.data;
+    const merged: Record<string, unknown> = Array.isArray(data) ? Object.assign({}, ...data) : (data || {});
+    const sms = merged.sms_balance != null ? Number(String(merged.sms_balance).replace(/[^0-9.]/g, '')) : null;
+    return { sms: Number.isFinite(sms as number) ? sms : null, main: merged.main_balance != null ? String(merged.main_balance) : null };
+  } catch (error: any) {
+    console.error('Arkesel balance check failed:', error?.response?.data || error?.message);
+    return { sms: null, main: null };
+  }
+};
+
+/**
+ * SMS credits one message uses. GSM text: 160 chars in one part, 153 per part
+ * once split. Anything outside the GSM alphabet (emoji, curly quotes, some
+ * accents) switches to unicode: 70 / 67.
+ */
+export const smsParts = (text: string): { parts: number; unicode: boolean; length: number } => {
+  const gsm = /^[A-Za-z0-9 @£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ!"#¤%&'()*+,\-./:;<=>?¡ÄÖÑÜ§¿äöñüà^{}\\\[~\]|€]*$/;
+  const unicode = !gsm.test(text);
+  const length = [...text].length;
+  const single = unicode ? 70 : 160;
+  const multi = unicode ? 67 : 153;
+  return { parts: length <= single ? 1 : Math.ceil(length / multi), unicode, length };
 };
