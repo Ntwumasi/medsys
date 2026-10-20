@@ -47,6 +47,68 @@ interface RoutingRequest {
   room_number: string;
 }
 
+type InventoryHistoryEntry =
+  | {
+      kind: 'movement';
+      id: number;
+      transaction_type: string;
+      quantity: number;
+      reference_type: string | null;
+      notes: string | null;
+      unit_price: string | null;
+      invoice_number: string | null;
+      created_at: string;
+      performed_by_name: string | null;
+    }
+  | {
+      kind: 'edit';
+      id: number;
+      changes: Record<string, { from: string | number | boolean | null; to: string | number | boolean | null }>;
+      source: string;
+      reason: string | null;
+      created_at: string;
+      performed_by_name: string | null;
+    };
+
+const STOCK_MOVEMENT_LABELS: Record<string, string> = {
+  purchase: 'Received',
+  dispense: 'Dispensed',
+  adjustment: 'Stock adjustment',
+  return: 'Returned',
+  expired: 'Expired',
+  transfer: 'Transfer',
+};
+
+const ITEM_CHANGE_SOURCE_LABELS: Record<string, string> = {
+  edit: 'Item edited',
+  procurement: 'Price change (procurement)',
+  import: 'Bulk import',
+};
+
+const ITEM_FIELD_LABELS: Record<string, string> = {
+  medication_name: 'Name',
+  generic_name: 'Generic name',
+  category: 'Category',
+  unit: 'Unit',
+  reorder_level: 'Reorder level',
+  unit_cost: 'Cost price',
+  selling_price: 'Selling price',
+  pack_size: 'Pack size',
+  expiry_date: 'Expiry',
+  supplier: 'Supplier',
+  supplier_id: 'Supplier',
+  location: 'Location',
+  requires_prescription: 'Prescription only',
+  is_active: 'Active',
+};
+
+const formatHistoryValue = (field: string, value: string | number | boolean | null): string => {
+  if (value === null) return '—';
+  if (field === 'unit_cost' || field === 'selling_price') return `GHS ${Number(value).toFixed(2)}`;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+};
+
 interface PharmacyOrder {
   id: number;
   patient_id: number;
@@ -366,6 +428,12 @@ const PharmacyDashboard: React.FC = () => {
   // Inventory edit modal
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [editingInventory, setEditingInventory] = useState<InventoryItem | null>(null);
+  // Optional reason recorded with an item edit (shown in the item's History).
+  const [editChangeReason, setEditChangeReason] = useState('');
+  // Item History modal: stock movements + price/detail edits for one item.
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<InventoryHistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Stock adjustment (add/subtract with reason) — uses POST /inventory/:id/adjust
   const [showAdjustModal, setShowAdjustModal] = useState(false);
@@ -1385,8 +1453,10 @@ const PharmacyDashboard: React.FC = () => {
         pack_size: item.pack_size && item.pack_size > 0 ? item.pack_size : undefined,
         expiry_date: item.expiry_date || undefined,
         supplier_id: item.supplier_id || undefined,
+        change_reason: editChangeReason.trim() || undefined,
       };
       await apiClient.put(`/inventory/${item.id}`, updateData);
+      setEditChangeReason('');
 
       // Save batch quantity / expiry changes if any. A batch is included when
       // either its quantity or its expiry date was edited.
@@ -2062,6 +2132,21 @@ const PharmacyDashboard: React.FC = () => {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revenueSearch]);
+
+  const openItemHistory = async (item: InventoryItem) => {
+    setHistoryItem(item);
+    setHistoryEntries([]);
+    setLoadingHistory(true);
+    try {
+      const response = await apiClient.get(`/inventory/${item.id}/history`);
+      setHistoryEntries(response.data.entries || []);
+    } catch (error) {
+      console.error('Error fetching item history:', error);
+      showToast('Failed to load item history', 'error');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const updateMedicationPrice = async (itemId: number, newPrice: number) => {
     if (isNaN(newPrice) || newPrice < 0) {
@@ -3601,6 +3686,16 @@ const PharmacyDashboard: React.FC = () => {
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => openItemHistory(item)}
+                            className="p-1 text-gray-600 hover:text-gray-900"
+                            title="History (stock movements, adjustments, price changes)"
+                            aria-label={`History for ${item.medication_name}`}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                           </button>
                           <button
@@ -5368,9 +5463,23 @@ const PharmacyDashboard: React.FC = () => {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for change (optional)</label>
+              <input
+                type="text"
+                value={editChangeReason}
+                onChange={(e) => setEditChangeReason(e.target.value)}
+                placeholder="e.g. supplier price increase"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Price and detail changes are recorded in the item's History with your name and this reason.
+              </p>
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <button
-                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
+                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setEditChangeReason(''); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel
@@ -5382,6 +5491,77 @@ const PharmacyDashboard: React.FC = () => {
                 Save Changes
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Item History Modal */}
+      <Modal
+        isOpen={historyItem !== null}
+        onClose={() => setHistoryItem(null)}
+        title={historyItem ? `History — ${historyItem.medication_name}` : 'History'}
+        size="xl"
+      >
+        {loadingHistory ? (
+          <div className="py-10 text-center text-gray-500">Loading history…</div>
+        ) : historyEntries.length === 0 ? (
+          <div className="py-10 text-center text-gray-500">No history recorded for this item yet.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-[65vh]">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">By</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason / notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {historyEntries.map((entry) => (
+                  <tr key={`${entry.kind}-${entry.id}`} className="align-top">
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                      {format(new Date(entry.created_at), 'MMM dd, yyyy HH:mm')}
+                    </td>
+                    <td className="px-3 py-2 text-gray-700">{entry.performed_by_name || '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        entry.kind === 'edit' ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {entry.kind === 'edit'
+                          ? ITEM_CHANGE_SOURCE_LABELS[entry.source] || 'Item edited'
+                          : STOCK_MOVEMENT_LABELS[entry.transaction_type] || entry.transaction_type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-800">
+                      {entry.kind === 'edit' ? (
+                        <ul className="space-y-0.5">
+                          {Object.entries(entry.changes).map(([field, change]) => (
+                            <li key={field}>
+                              <span className="text-gray-500">{ITEM_FIELD_LABELS[field] || field}:</span>{' '}
+                              {formatHistoryValue(field, change.from)} → <strong>{formatHistoryValue(field, change.to)}</strong>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className={entry.quantity < 0 ? 'text-danger-700' : 'text-success-700'}>
+                          {entry.quantity > 0 ? '+' : ''}{entry.quantity}
+                          {entry.unit_price != null && (
+                            <span className="text-gray-500"> @ GHS {Number(entry.unit_price).toFixed(2)}</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {entry.kind === 'edit'
+                        ? entry.reason || '—'
+                        : [entry.notes, entry.invoice_number ? `Invoice ${entry.invoice_number}` : null].filter(Boolean).join(' · ') || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Modal>

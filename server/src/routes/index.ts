@@ -261,6 +261,7 @@ import {
 import {
   getInventory,
   getInventoryItem,
+  getInventoryItemHistory,
   createInventoryItem,
   updateInventoryItem,
   adjustStock,
@@ -834,6 +835,7 @@ router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy',
 router.delete('/inventory/purchases/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), deletePurchase);
 router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
 router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
+router.get('/inventory/:id/history', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItemHistory);
 router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItem);
 router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), createInventoryItem);
 router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateInventoryItem);

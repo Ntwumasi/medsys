@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import * as XLSX from 'xlsx';
 import pool from '../database/db';
 import { auditService } from '../services/auditService';
+import { logInventoryItemChanges } from '../services/inventoryChangeLog';
 
 /**
  * Self-serve pharmacy inventory uploader.
@@ -218,7 +219,18 @@ export const importInventory = async (req: Request, res: Response): Promise<void
           if (row.code) { sets.push(`item_code = COALESCE(item_code, $${p++})`); vals.push(row.code); }
           sets.push(`is_active = true`, `updated_at = CURRENT_TIMESTAMP`);
           vals.push(row.matchedId);
-          await client.query(`UPDATE pharmacy_inventory SET ${sets.join(', ')} WHERE id = $${p}`, vals);
+          const before = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1', [row.matchedId]);
+          const after = await client.query(`UPDATE pharmacy_inventory SET ${sets.join(', ')} WHERE id = $${p} RETURNING *`, vals);
+          if (before.rows[0] && after.rows[0]) {
+            await logInventoryItemChanges(client, {
+              inventoryId: row.matchedId,
+              before: before.rows[0],
+              after: after.rows[0],
+              source: 'import',
+              reason: filename ? `Bulk import: ${filename}` : 'Bulk import',
+              userId: authReq.user?.id,
+            });
+          }
           updated++;
         } else if (row.action === 'new') {
           const { category, unit, requiresPrescription } = categorizeItem(row.name);
