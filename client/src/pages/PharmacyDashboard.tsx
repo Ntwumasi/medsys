@@ -144,6 +144,9 @@ interface PharmacyOrder {
   dispensed_by_name?: string;
   payer_type?: string;
   payer_name?: string;
+  // Insured/corporate patient pays this medication themselves (exempted from cover)
+  patient_pays?: boolean;
+  patient_pays_reason?: string | null;
   inventory_id?: number;
   inventory_quantity?: number;
   inventory_price?: number;
@@ -376,7 +379,7 @@ const PharmacyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
-  const { confirm: confirmDialog } = useDialog();
+  const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   useAuth(); // Ensure user is authenticated
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
@@ -1850,6 +1853,43 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
+  // Insured/corporate patient paying cash for an exempted medication. The flag
+  // follows the line onto the invoice: reception collects it, and it is left
+  // out of the insurance claim / payer settlement.
+  const togglePatientPays = async (order: PharmacyOrder, payerType: string) => {
+    const payer = payerType === 'insurance' ? 'insurance' : 'the company';
+    let reason: string | null = null;
+    if (!order.patient_pays) {
+      reason = await promptDialog({
+        title: 'Patient pays cash',
+        message: `${order.medication_name} will be paid by the patient at reception instead of billed to ${payer}. Reason (optional):`,
+        placeholder: 'e.g. not covered by plan',
+        confirmLabel: 'Patient pays',
+      });
+      if (reason === null) return;
+    } else if (!(await confirmDialog({
+      title: `Bill to ${payer}?`,
+      message: `Bill ${order.medication_name} to ${payer} again instead of the patient?`,
+      confirmLabel: 'Bill to payer',
+    }))) {
+      return;
+    }
+    try {
+      const res = await apiClient.put(`/orders/pharmacy/${order.id}/payment-mode`, {
+        patient_pays: !order.patient_pays,
+        reason: reason || undefined,
+      });
+      const updated = res.data.order;
+      setPharmacyOrders(prev => prev.map(o => o.id === order.id
+        ? { ...o, patient_pays: updated.patient_pays, patient_pays_reason: updated.patient_pays_reason }
+        : o));
+      showToast(updated.patient_pays ? `${order.medication_name}: patient pays at reception` : `${order.medication_name}: billed to ${payer}`, 'success');
+    } catch (error) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      showToast(apiError.response?.data?.error || 'Failed to change payment mode', 'error');
+    }
+  };
+
   // Undo for a mistaken Start: in_progress → ordered.
   const returnToPending = async (orderId: number, medicationName: string) => {
     const ok = await confirmDialog({
@@ -2959,6 +2999,14 @@ const PharmacyDashboard: React.FC = () => {
                                       Not in inventory
                                     </span>
                                   )}
+                                  {order.patient_pays && (
+                                    <span
+                                      className="text-xs font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-800"
+                                      title={order.patient_pays_reason ? `Patient pays: ${order.patient_pays_reason}` : 'Patient pays — not billed to insurance'}
+                                    >
+                                      PATIENT PAYS
+                                    </span>
+                                  )}
                                   <svg
                                     className={`w-4 h-4 text-gray-400 transition-transform ${
                                       expandedMedication === order.id ? 'rotate-180' : ''
@@ -3032,6 +3080,27 @@ const PharmacyDashboard: React.FC = () => {
                                         className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700"
                                       >
                                         Dispense
+                                      </button>
+                                    )}
+                                    {(group.payer_type === 'insurance' || group.payer_type === 'corporate') &&
+                                      !['cancelled', 'returned'].includes(order.status) && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          togglePatientPays(order, group.payer_type);
+                                        }}
+                                        className={`px-3 py-1 text-sm rounded ${
+                                          order.patient_pays
+                                            ? 'bg-primary-100 text-primary-800 hover:bg-primary-200'
+                                            : 'bg-warning-100 text-warning-800 hover:bg-warning-200'
+                                        }`}
+                                        title={order.patient_pays
+                                          ? `Bill this medication to ${group.payer_type === 'insurance' ? 'insurance' : 'the company'} again`
+                                          : `Patient pays cash for this medication (not covered by ${group.payer_type === 'insurance' ? 'insurance' : 'the company'})`}
+                                      >
+                                        {order.patient_pays
+                                          ? `Bill to ${group.payer_type === 'insurance' ? 'insurance' : 'company'}`
+                                          : 'Patient pays cash'}
                                       </button>
                                     )}
                                     {order.status !== 'dispensed' && order.status !== 'returned' && (

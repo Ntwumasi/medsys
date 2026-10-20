@@ -174,6 +174,15 @@ export const submitInvoiceToPayer = async (req: Request, res: Response): Promise
       return;
     }
 
+    const payerLines = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM invoice_items WHERE invoice_id = $1 AND bill_to = 'payer'`,
+      [id]
+    );
+    if (payerLines.rows[0].n === 0) {
+      res.status(400).json({ error: 'Every item on this invoice is marked "patient pays" — there is nothing to submit to the payer. Collect payment from the patient instead.' });
+      return;
+    }
+
     // Record the submission (idempotent — safe to re-submit).
     await pool.query(
       `UPDATE invoices
@@ -253,11 +262,20 @@ export const settlePayerInvoice = async (req: Request, res: Response): Promise<v
 
     const total = parseFloat(inv.total_amount || 0);
     const currentPaid = parseFloat(inv.amount_paid || 0);
-    const balance = total - currentPaid;
+    // The payer only owes the lines billed to it — lines marked "patient pays"
+    // are collected from the patient at checkout.
+    const shares = await client.query(
+      `SELECT
+         (SELECT COALESCE(SUM(total_price), 0) FROM invoice_items WHERE invoice_id = $1 AND bill_to = 'payer') AS payer_portion,
+         (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE invoice_id = $1 AND notes LIKE '% payer settlement') AS settled`,
+      [id]
+    );
+    const payerOutstanding = parseFloat(shares.rows[0].payer_portion) - parseFloat(shares.rows[0].settled);
+    const balance = Math.min(total - currentPaid, payerOutstanding);
 
     if (balance <= 0) {
       await client.query('ROLLBACK');
-      res.status(400).json({ error: 'This invoice is already fully settled.' });
+      res.status(400).json({ error: 'The payer\'s share of this invoice is already fully settled.' });
       return;
     }
 
@@ -362,6 +380,20 @@ export const getUnbilledPayerInvoices = async (req: Request, res: Response): Pro
   }
 };
 
+// How much of an invoice the PATIENT owes on an insured/corporate bill: lines
+// marked bill_to='patient' (e.g. medications exempted from cover), and how much
+// of that they've paid. Checkout payments are the patient's; payer settlements
+// are recorded with the note '<type> payer settlement'.
+const isPayerSettlement = (p: { notes?: string | null }) => /payer settlement$/.test(p.notes || '');
+const patientShare = (items: any[], payments: any[]) => ({
+  patient_portion: Math.round(items
+    .filter((i) => i.bill_to === 'patient')
+    .reduce((sum, i) => sum + parseFloat(i.total_price || 0), 0) * 100) / 100,
+  patient_paid: Math.round(payments
+    .filter((p) => !isPayerSettlement(p))
+    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) * 100) / 100,
+});
+
 // Get invoice by ID
 export const getInvoiceById = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -415,7 +447,7 @@ export const getInvoiceById = async (req: Request, res: Response): Promise<void>
     );
 
     res.json({
-      invoice: invoiceResult.rows[0],
+      invoice: { ...invoiceResult.rows[0], ...patientShare(itemsResult.rows, paymentsResult.rows) },
       items: itemsResult.rows,
       payments: paymentsResult.rows,
       payer_sources: payerSourcesResult.rows,
@@ -578,7 +610,7 @@ export const getInvoiceByEncounter = async (req: Request, res: Response): Promis
     );
 
     res.json({
-      invoice: invoiceResult.rows[0],
+      invoice: { ...invoiceResult.rows[0], ...patientShare(itemsResult.rows, paymentsResult.rows) },
       items: itemsResult.rows,
       payments: paymentsResult.rows,
       payer_sources: payerSourcesResult.rows,

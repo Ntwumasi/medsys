@@ -119,6 +119,7 @@ import {
   getPharmacyOrders,
   getPharmacyOrderActivity,
   updatePharmacyOrder,
+  setPharmacyOrderPaymentMode,
   processRefill,
   processReturn,
   getAllEncounterOrders,
@@ -688,6 +689,7 @@ router.post('/webhooks/orthanc/study', authenticateBridge, orthancStudyWebhook);
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor', 'admin', 'pharmacy', 'pharmacist', 'pharmacy_tech'), createPharmacyOrder);
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
 router.get('/orders/pharmacy/:id/activity', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPharmacyOrderActivity);
+router.put('/orders/pharmacy/:id/payment-mode', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), setPharmacyOrderPaymentMode);
 router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor'), updatePharmacyOrder);
 router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin', 'doctor'), processRefill);
 router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), processReturn);
