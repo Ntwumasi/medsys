@@ -15,6 +15,7 @@ import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
@@ -520,6 +521,7 @@ const PharmacyDashboard: React.FC = () => {
       showToast('First name and last name are required', 'warning');
       return;
     }
+    if (!(await confirmNotDuplicatePatient(confirmDialog, { first_name: firstName, last_name: lastName, phone }))) return;
     setCreatingWalkIn(true);
     try {
       const patientRes = await apiClient.post('/patients', {

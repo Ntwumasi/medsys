@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
@@ -946,6 +947,7 @@ const LabDashboard: React.FC = () => {
       showToast('First name, last name, and phone are required', 'warning');
       return;
     }
+    if (!(await confirmNotDuplicatePatient(confirmDialog, quickRegForm))) return;
     setCreatingWalkin(true);
     try {
       // Create the patient first

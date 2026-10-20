@@ -7,9 +7,12 @@ import AppLayout from '../components/AppLayout';
 import { Card, Button, Input, Select } from '../components/ui';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import { formatApiValidationError } from '../utils/apiError';
+import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 
 const PatientRegistration: React.FC = () => {
   const navigate = useNavigate();
+  const { confirm: confirmDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [duplicatePatient, setDuplicatePatient] = useState<{id: number, patientNumber: string} | null>(null);
@@ -55,6 +58,7 @@ const PatientRegistration: React.FC = () => {
     e.preventDefault();
     setError('');
     setDuplicatePatient(null);
+    if (!(await confirmNotDuplicatePatient(confirmDialog, formData))) return;
     setLoading(true);
 
     try {

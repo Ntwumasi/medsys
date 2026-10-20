@@ -572,11 +572,11 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admi
 // Patient routes (with input validation)
 // Static /patients/* paths MUST come before /patients/:id so Express
 // doesn't swallow "check-duplicates" as an id parameter.
-router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse'), checkDuplicates);
+router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'office_manager'), checkDuplicates);
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging'), validateBody(createPatientSchema), createPatient);
 router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
 // Duplicate-patient cleanup (registered before /patients/:id so "duplicates"/"merge" aren't treated as an id)
-router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin'), getDuplicateCandidates);
+router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin', 'office_manager'), getDuplicateCandidates);
 router.post('/patients/merge',          authenticateToken, authorizeRoles('admin'), mergePatients);
 router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
 router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);

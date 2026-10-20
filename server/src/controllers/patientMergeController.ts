@@ -111,40 +111,87 @@ export const performPatientMerge = async (
   };
 };
 
-// Find duplicate patient pairs (same name + DOB) that aren't already merged.
-// Primary case: a CareCode-imported record colliding with a native record.
+// Find likely duplicate patient pairs that aren't already merged.
+//
+// Exact name + DOB alone missed most real duplicates (it found 6 pairs, 4 of
+// them two different walk-ins sharing the 1900-01-01 placeholder DOB, while
+// ~50 real pairs differed only in spacing, name order, a DOB typo, or had no
+// DOB). Records are compared on normalised keys instead:
+//   name   — letters only, lowercased; also an order-insensitive token key so
+//            "Mensah Richard" matches "Richard Mensah"
+//   phone  — last 9 digits, so +233 24… and 024… match
+//   dob    — ignored when missing or the 1900-01-01 placeholder
+// A pair is listed when at least two of name / phone / DOB agree. Each pair
+// carries the reasons so the reviewer can judge (same phone + DOB with
+// different names can be twins; same name + phone with different DOBs can be
+// a parent and child or a DOB typo).
 export const getDuplicateCandidates = async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await pool.query(`
-      SELECT
-        a.id AS a_id, a.patient_number AS a_number, a.source AS a_source,
-        ua.first_name || ' ' || ua.last_name AS a_name,
-        to_char(a.date_of_birth, 'YYYY-MM-DD') AS dob,
-        (SELECT COUNT(*) FROM encounters e WHERE e.patient_id = a.id) AS a_encounters,
-        b.id AS b_id, b.patient_number AS b_number, b.source AS b_source,
-        ub.first_name || ' ' || ub.last_name AS b_name,
-        (SELECT COUNT(*) FROM encounters e WHERE e.patient_id = b.id) AS b_encounters
-      FROM patients a
-      JOIN users ua ON a.user_id = ua.id
-      JOIN patients b ON b.id > a.id
-        AND LOWER(ua.first_name) = LOWER((SELECT first_name FROM users WHERE id = b.user_id))
-        AND LOWER(ua.last_name) = LOWER((SELECT last_name FROM users WHERE id = b.user_id))
-        AND a.date_of_birth = b.date_of_birth
-      JOIN users ub ON b.user_id = ub.id
-      WHERE a.merged_into IS NULL AND b.merged_into IS NULL
-      ORDER BY a_name
+      WITH p AS (
+        SELECT
+          pt.id, pt.patient_number, pt.source,
+          TRIM(u.first_name) || ' ' || TRIM(u.last_name) AS name,
+          u.phone,
+          to_char(pt.date_of_birth, 'YYYY-MM-DD') AS dob,
+          regexp_replace(LOWER(COALESCE(u.first_name, '') || COALESCE(u.last_name, '')), '[^a-z]', '', 'g') AS name_key,
+          (SELECT string_agg(t, ' ' ORDER BY t)
+             FROM regexp_split_to_table(
+               regexp_replace(LOWER(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '[^a-z ]', ' ', 'g'),
+               '[[:space:]]+') AS t
+            WHERE length(t) > 1) AS name_tokens,
+          CASE WHEN length(regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g')) >= 9
+               THEN RIGHT(regexp_replace(u.phone, '[^0-9]', '', 'g'), 9) END AS phone_key,
+          CASE WHEN pt.date_of_birth > DATE '1901-01-01' THEN pt.date_of_birth END AS dob_key,
+          (SELECT COUNT(*) FROM encounters e WHERE e.patient_id = pt.id) AS encounters
+        FROM patients pt
+        JOIN users u ON pt.user_id = u.id
+        WHERE pt.merged_into IS NULL
+      ),
+      pairs AS (
+        SELECT a.*,
+          b.id AS b_id, b.patient_number AS b_number, b.source AS b_source, b.name AS b_name,
+          b.phone AS b_phone, b.dob AS b_dob, b.encounters AS b_encounters,
+          (a.name_key <> '' AND (a.name_key = b.name_key OR a.name_tokens = b.name_tokens)) AS same_name,
+          (a.phone_key IS NOT NULL AND a.phone_key = b.phone_key) AS same_phone,
+          (a.dob_key IS NOT NULL AND a.dob_key = b.dob_key) AS same_dob,
+          (a.dob_key IS NOT NULL AND b.dob_key IS NOT NULL AND a.dob_key <> b.dob_key) AS dob_conflict
+        FROM p a
+        JOIN p b ON b.id > a.id
+      )
+      SELECT * FROM pairs
+      WHERE (same_name::int + same_phone::int + same_dob::int) >= 2
+      ORDER BY (same_name AND same_dob) DESC, same_name DESC, name
     `);
 
-    // Present each pair with the native (medsys) record as the suggested survivor.
+    const side = (r: any, prefix: 'a' | 'b') => prefix === 'a'
+      ? { id: r.id, patient_number: r.patient_number, source: r.source, name: r.name, dob: r.dob, phone: r.phone, encounters: Number(r.encounters) }
+      : { id: r.b_id, patient_number: r.b_number, source: r.b_source, name: r.b_name, dob: r.b_dob, phone: r.b_phone, encounters: Number(r.b_encounters) };
+
     const pairs = result.rows.map((r: any) => {
-      const aIsNative = r.a_source !== 'carecode';
-      const survivor = aIsNative
-        ? { id: r.a_id, patient_number: r.a_number, source: r.a_source, encounters: Number(r.a_encounters) }
-        : { id: r.b_id, patient_number: r.b_number, source: r.b_source, encounters: Number(r.b_encounters) };
-      const duplicate = aIsNative
-        ? { id: r.b_id, patient_number: r.b_number, source: r.b_source, encounters: Number(r.b_encounters) }
-        : { id: r.a_id, patient_number: r.a_number, source: r.a_source, encounters: Number(r.a_encounters) };
-      return { name: r.a_name, dob: r.dob, survivor, duplicate };
+      const a = side(r, 'a');
+      const b = side(r, 'b');
+      // Suggested survivor: the native (MedSys) record, else the one with more visits.
+      const aFirst = a.source !== 'carecode' && b.source === 'carecode'
+        ? true
+        : b.source !== 'carecode' && a.source === 'carecode'
+          ? false
+          : a.encounters >= b.encounters;
+      const reasons: string[] = [];
+      if (r.same_name) reasons.push('Same name');
+      if (r.same_dob) reasons.push('Same date of birth');
+      if (r.same_phone) reasons.push('Same phone');
+      if (r.dob_conflict) reasons.push('Different dates of birth');
+      // Strong: name + DOB agree. Anything else needs a human look.
+      const confidence: 'strong' | 'review' = r.same_name && r.same_dob ? 'strong' : 'review';
+      return {
+        name: (aFirst ? a : b).name,
+        dob: (aFirst ? a : b).dob,
+        reasons,
+        confidence,
+        survivor: aFirst ? a : b,
+        duplicate: aFirst ? b : a,
+      };
     });
 
     res.json({ candidates: pairs });
