@@ -232,6 +232,31 @@ const PatientDetails: React.FC = () => {
     }
   };
 
+  // "No reminder texts" — separate from marketing: a patient can refuse
+  // promotions and still want appointment reminders, or vice versa.
+  const canSetReminderOptOut =
+    user?.role === 'receptionist' || user?.role === 'admin' || user?.role === 'nurse' ||
+    user?.role === 'doctor' || user?.role === 'office_manager' || user?.is_super_admin === true;
+  const [reminderOptOut, setReminderOptOut] = useState(false);
+  const [savingReminderOptOut, setSavingReminderOptOut] = useState(false);
+
+  const handleToggleReminderOptOut = async () => {
+    if (!summary?.patient?.id) return;
+    const next = !reminderOptOut;
+    setSavingReminderOptOut(true);
+    try {
+      const res = await apiClient.put(`/patients/${summary.patient.id}/reminder-opt-out`, {
+        sms_reminders_opt_out: next,
+      });
+      setReminderOptOut(next);
+      showToast(res.data?.message || 'Reminder preference updated', 'success');
+    } catch (err) {
+      showToast(getApiError(err, 'Could not update the reminder preference'), 'error');
+    } finally {
+      setSavingReminderOptOut(false);
+    }
+  };
+
   const handleSendPortalLink = async () => {
     if (!summary?.patient?.id || sendingLink) return;
     setSendingLink(true);
@@ -334,6 +359,7 @@ const PatientDetails: React.FC = () => {
       const data = await patientsAPI.getPatientSummary(patientId);
       setSummary(data);
       setMarketingOptOut(Boolean((data as any)?.patient?.marketing_opt_out));
+      setReminderOptOut(Boolean((data as any)?.patient?.sms_reminders_opt_out));
     } catch (error) {
       console.error('Error loading patient summary:', error);
     } finally {
@@ -639,6 +665,24 @@ const PatientDetails: React.FC = () => {
                 }
               >
                 {savingOptOut ? 'Saving…' : marketingOptOut ? 'No marketing ✓' : 'No marketing'}
+              </button>
+            )}
+            {canSetReminderOptOut && (
+              <button
+                onClick={handleToggleReminderOptOut}
+                disabled={savingReminderOptOut}
+                className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                  reminderOptOut
+                    ? 'text-amber-800 bg-amber-50 border-amber-200 hover:bg-amber-100'
+                    : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                }`}
+                title={
+                  reminderOptOut
+                    ? 'This patient gets no automatic texts (reminders, results ready, receipts) — click to send them again'
+                    : 'Stop automatic texts to this patient (reminders, results ready, receipts)'
+                }
+              >
+                {savingReminderOptOut ? 'Saving…' : reminderOptOut ? 'No reminder texts ✓' : 'No reminder texts'}
               </button>
             )}
             {canSendPortalLink && (

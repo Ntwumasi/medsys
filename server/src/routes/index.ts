@@ -217,6 +217,14 @@ import {
   arkeselDeliveryCallback,
 } from '../controllers/smsCampaignController';
 import {
+  getPatientTextSettings,
+  updatePatientTextSettings,
+  getPatientTextLog,
+  runPatientTextsNow,
+  cronDailyPatientTexts,
+  setReminderOptOut,
+} from '../controllers/patientTextController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -959,6 +967,15 @@ router.post('/marketing/sms/campaigns/:id/send-batch', authenticateToken, author
 router.get('/sms/arkesel-callback', arkeselDeliveryCallback);
 router.post('/sms/arkesel-callback', arkeselDeliveryCallback);
 router.put('/patients/:id/marketing-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'marketing'), setMarketingOptOut);
+
+// Automatic patient texts (reminders + "it's ready" notices). Settings are
+// admin-only; the cron endpoint has no login and checks CRON_SECRET instead.
+router.get('/patient-texts/settings', authenticateToken, authorizeRoles('admin'), getPatientTextSettings);
+router.put('/patient-texts/settings', authenticateToken, authorizeRoles('admin'), updatePatientTextSettings);
+router.get('/patient-texts/log', authenticateToken, authorizeRoles('admin'), getPatientTextLog);
+router.post('/patient-texts/run-daily', authenticateToken, authorizeRoles('admin'), runPatientTextsNow);
+router.get('/cron/daily-patient-texts', cronDailyPatientTexts);
+router.put('/patients/:id/reminder-opt-out', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'doctor'), setReminderOptOut);
 
 router.use('/accountant', accountantRoutes);
 

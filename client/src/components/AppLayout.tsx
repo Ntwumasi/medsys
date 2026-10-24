@@ -86,7 +86,7 @@ const navItems: NavItem[] = [
     roles: ['receptionist'],
   },
   {
-    label: 'Bulk SMS',
+    label: 'SMS',
     path: '/sms-campaigns',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
