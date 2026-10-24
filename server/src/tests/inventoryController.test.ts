@@ -197,10 +197,24 @@ describe('Inventory Controller', () => {
   });
 
   describe('updateInventoryItem', () => {
-    it('should update an existing inventory item', async () => {
-      const updatedItem = { id: 1, medication_name: 'Paracetamol Updated', quantity_on_hand: 150 };
+    // The edit runs in a transaction on a pooled client: BEGIN, lock + read the
+    // old row, UPDATE, log the changes, COMMIT.
+    const editMockClient = (before: any, after: any) => ({
+      query: vi.fn().mockImplementation((sql: any) => {
+        const q = String(sql);
+        if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(q.trim())) return Promise.resolve({});
+        if (q.includes('FOR UPDATE')) return Promise.resolve({ rows: before ? [before] : [] });
+        if (q.includes('UPDATE pharmacy_inventory')) return Promise.resolve({ rows: [after] });
+        return Promise.resolve({ rows: [] });
+      }),
+      release: vi.fn(),
+    });
 
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [updatedItem] } as any);
+    it('should update an existing inventory item', async () => {
+      const before = { id: 1, medication_name: 'Paracetamol', quantity_on_hand: 150 };
+      const updatedItem = { id: 1, medication_name: 'Paracetamol Updated', quantity_on_hand: 150 };
+      const client = editMockClient(before, updatedItem);
+      vi.mocked(pool.connect).mockResolvedValueOnce(client as any);
 
       const req = mockRequest({ medication_name: 'Paracetamol Updated' }, { id: '1' });
       const res = mockResponse();
@@ -211,10 +225,13 @@ describe('Inventory Controller', () => {
         message: 'Inventory item updated successfully',
         item: updatedItem,
       });
+      expect(client.query).toHaveBeenCalledWith('COMMIT');
+      expect(client.release).toHaveBeenCalled();
     });
 
     it('should return 404 if item not found', async () => {
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+      const client = editMockClient(null, null);
+      vi.mocked(pool.connect).mockResolvedValueOnce(client as any);
 
       const req = mockRequest({ medication_name: 'Test' }, { id: '999' });
       const res = mockResponse();
@@ -222,6 +239,7 @@ describe('Inventory Controller', () => {
       await updateInventoryItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
+      expect(client.query).toHaveBeenCalledWith('ROLLBACK');
     });
   });
 

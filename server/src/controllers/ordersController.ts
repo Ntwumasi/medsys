@@ -7,6 +7,7 @@ import { aiService } from '../services/aiService';
 import { dispenseFromBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 import { resolveEncounterInvoiceId, getOrCreateEncounterInvoice } from '../services/invoiceResolver';
+import { textLabResultsReady, textMedicationReady } from '../services/patientAutoTextService';
 
 // Allocate the next Path No for today. Format is DDMM###, daily sequence,
 // matching the lab's existing convention (e.g. "2205001" = 22nd May, #001).
@@ -871,6 +872,23 @@ const runLabCompletionSideEffects = async (
     }
   } catch (notifyError) {
     console.error('Error notifying lab completion:', notifyError);
+  }
+
+  // 4. Text the patient once ALL of the visit's labs are done (not per test).
+  // Off unless an admin enables it; never throws.
+  try {
+    let allDone = true;
+    if (order.encounter_id) {
+      const open = await pool.query(
+        `SELECT COUNT(*) FROM lab_orders
+          WHERE encounter_id = $1 AND status NOT IN ('completed', 'cancelled')`,
+        [order.encounter_id]
+      );
+      allDone = parseInt(open.rows[0].count) === 0;
+    }
+    if (allDone) await textLabResultsReady(order.patient_id);
+  } catch (textError) {
+    console.error('Error texting lab results ready:', textError);
   }
 };
 
@@ -2447,6 +2465,22 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
     // Notify nurses when medication is READY for pickup
     if (updateData.status === 'ready') {
       await notificationService.notifyPharmacyReady(parseInt(id));
+      // Text the patient once the visit's last pending med is ready, so a
+      // 3-drug prescription is one text (off unless an admin enables it).
+      try {
+        const stillOpen = updatedOrder.encounter_id
+          ? await pool.query(
+              `SELECT COUNT(*) FROM pharmacy_orders
+                WHERE encounter_id = $1 AND id <> $2 AND status IN ('ordered', 'in_progress')`,
+              [updatedOrder.encounter_id, updatedOrder.id]
+            )
+          : null;
+        if (!stillOpen || parseInt(stillOpen.rows[0].count) === 0) {
+          await textMedicationReady(updatedOrder.patient_id);
+        }
+      } catch (textError) {
+        console.error('Error texting medication ready:', textError);
+      }
 
       // Check for drug interactions with patient's current medications
       if (updatedOrder.patient_id && updatedOrder.medication_name) {

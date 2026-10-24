@@ -4,6 +4,7 @@ import { sendReceiptEmail, validateEmail } from '../services/emailService';
 import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
 import { nextInvoiceNumber } from '../services/sequences';
 import { createClaimForInvoice } from './claimsController';
+import { textPaymentReceipt } from '../services/patientAutoTextService';
 
 // Get all invoices with filters
 export const getAllInvoices = async (req: Request, res: Response): Promise<void> => {
@@ -780,6 +781,7 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     );
 
     // If a payment is being made (amount_paid is increasing), create a payment record
+    let recordedPaymentId: number | null = null;
     if (paymentAmount > 0) {
       const paymentResult = await client.query(
         `INSERT INTO payments (invoice_id, payment_date, amount, payment_method, notes, created_by, created_at)
@@ -787,6 +789,7 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
          RETURNING id`,
         [id, paymentAmount, payment_method || 'cash', 'Payment at checkout', userId]
       );
+      recordedPaymentId = paymentResult.rows[0].id;
 
       console.log(`Payment recorded: ${paymentAmount} for invoice ${id} (method: ${payment_method || 'cash'})`);
 
@@ -864,6 +867,9 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     }
 
     await client.query('COMMIT');
+
+    // Text the patient a receipt (off unless an admin enables it; never throws).
+    if (recordedPaymentId) await textPaymentReceipt(recordedPaymentId);
 
     // Auto-checkout if the invoice is now fully paid (helps post-paid patients)
     const updatedInvoice = result.rows[0];
