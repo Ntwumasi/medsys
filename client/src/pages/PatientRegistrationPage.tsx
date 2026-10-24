@@ -4,6 +4,8 @@ import AppSelect from '../components/ui/AppSelect';
 import NationalityAutocomplete from '../components/NationalityAutocomplete';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
+import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 import type { ApiError } from '../types';
 
 interface Doctor {
@@ -33,6 +35,7 @@ const clinics = [
 
 const PatientRegistrationPage: React.FC = () => {
   const { showToast } = useNotification();
+  const { confirm: confirmDialog } = useDialog();
 
   // Patient form state
   const [patient, setPatient] = useState({
@@ -118,6 +121,7 @@ const PatientRegistrationPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!(await confirmNotDuplicatePatient(confirmDialog, patient))) return;
     setSubmitting(true);
 
     try {

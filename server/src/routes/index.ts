@@ -119,6 +119,7 @@ import {
   getPharmacyOrders,
   getPharmacyOrderActivity,
   updatePharmacyOrder,
+  setPharmacyOrderPaymentMode,
   processRefill,
   processReturn,
   getAllEncounterOrders,
@@ -261,6 +262,7 @@ import {
 import {
   getInventory,
   getInventoryItem,
+  getInventoryItemHistory,
   createInventoryItem,
   updateInventoryItem,
   adjustStock,
@@ -571,11 +573,11 @@ router.post('/users/:id/reset-password', authenticateToken, authorizeRoles('admi
 // Patient routes (with input validation)
 // Static /patients/* paths MUST come before /patients/:id so Express
 // doesn't swallow "check-duplicates" as an id parameter.
-router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse'), checkDuplicates);
+router.get('/patients/check-duplicates', authenticateToken, authorizeRoles('receptionist', 'admin', 'nurse', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'office_manager'), checkDuplicates);
 router.post('/patients', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist', 'pharmacy', 'pharmacist', 'pharmacy_tech', 'lab', 'imaging'), validateBody(createPatientSchema), createPatient);
 router.get('/patients',                 authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatients);
 // Duplicate-patient cleanup (registered before /patients/:id so "duplicates"/"merge" aren't treated as an id)
-router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin'), getDuplicateCandidates);
+router.get('/patients/duplicates',      authenticateToken, authorizeRoles('admin', 'office_manager'), getDuplicateCandidates);
 router.post('/patients/merge',          authenticateToken, authorizeRoles('admin'), mergePatients);
 router.get('/patients/:id',             authenticateToken, authorizeRoles(...CLINICAL_STAFF), getPatientById);
 router.put('/patients/:id',             authenticateToken, authorizeRoles('doctor', 'nurse', 'admin', 'receptionist'), validateBody(updatePatientSchema), updatePatient);
@@ -687,6 +689,7 @@ router.post('/webhooks/orthanc/study', authenticateBridge, orthancStudyWebhook);
 router.post('/orders/pharmacy', authenticateToken, authorizeRoles('doctor', 'admin', 'pharmacy', 'pharmacist', 'pharmacy_tech'), createPharmacyOrder);
 router.get('/orders/pharmacy', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'doctor', 'nurse', 'admin'), getPharmacyOrders);
 router.get('/orders/pharmacy/:id/activity', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getPharmacyOrderActivity);
+router.put('/orders/pharmacy/:id/payment-mode', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), setPharmacyOrderPaymentMode);
 router.put('/orders/pharmacy/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin', 'doctor'), updatePharmacyOrder);
 router.post('/orders/pharmacy/:id/refill', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'receptionist', 'admin', 'doctor'), processRefill);
 router.post('/orders/pharmacy/:id/return', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), processReturn);
@@ -834,6 +837,7 @@ router.get('/inventory/purchases', authenticateToken, authorizeRoles('pharmacy',
 router.delete('/inventory/purchases/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), deletePurchase);
 router.post('/inventory/dispense', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech'), dispenseMedication);
 router.post('/inventory/purchase', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), recordPurchase);
+router.get('/inventory/:id/history', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItemHistory);
 router.get('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventoryItem);
 router.post('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), createInventoryItem);
 router.put('/inventory/:id', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'admin'), updateInventoryItem);

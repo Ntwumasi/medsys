@@ -14,6 +14,8 @@ interface InvoiceItem {
   quantity: number;
   unit_price: number;
   total_price: number;
+  // 'patient' = an insured/corporate patient pays this line themselves
+  bill_to?: 'payer' | 'patient';
 }
 
 interface PayerSource {
@@ -50,6 +52,10 @@ interface Invoice {
   tax: number;
   total_amount: number;
   amount_paid: number;
+  // Insured/corporate invoices: the share the patient pays (lines marked
+  // "patient pays") and how much of it they've paid so far.
+  patient_portion?: number;
+  patient_paid?: number;
   status: string;
   chief_complaint?: string;
   encounter_date?: string;
@@ -325,6 +331,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   };
 
   const isSelfPay = payerSources.length === 0 || payerSources.every(p => p.payer_type === 'self_pay');
+  // What reception collects now: the whole balance for self-pay; for an
+  // insured/corporate patient, only the lines marked "patient pays" (the rest
+  // goes to the payer via Submit).
+  const patientPortion = items
+    .filter(i => i.bill_to === 'patient')
+    .reduce((sum, i) => sum + Number(i.total_price || 0), 0);
+  const patientBalance = Math.max(0, Math.round((patientPortion - Number(invoice.patient_paid || 0)) * 100) / 100);
+  const collectible = isSelfPay ? balanceDue : Math.min(balanceDue, patientBalance);
 
   const handleMarkAsPaid = () => {
     const amount = parseFloat(paymentAmount);
@@ -334,8 +348,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     }
 
     // For non-cash payments, amount cannot exceed balance due
-    if (paymentMethod !== 'cash' && amount > balanceDue) {
-      showToast(`Payment amount cannot exceed balance due (GHS ${balanceDue.toFixed(2)})`, 'error');
+    if (paymentMethod !== 'cash' && amount > collectible) {
+      showToast(`Payment amount cannot exceed the amount due (GHS ${collectible.toFixed(2)})`, 'error');
       return;
     }
 
@@ -349,9 +363,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
 
     const amountReceived = parseFloat(paymentAmount);
     // For cash, only apply up to balanceDue (excess is change to return)
-    const amountToApply = Math.min(amountReceived, balanceDue);
-    const changeDue = paymentMethod === 'cash' ? Math.max(0, amountReceived - balanceDue) : 0;
-    const isFullPayment = amountToApply >= balanceDue;
+    const amountToApply = Math.min(amountReceived, collectible);
+    const changeDue = paymentMethod === 'cash' ? Math.max(0, amountReceived - collectible) : 0;
+    // For an insured patient paying their own share, the visit is completed by
+    // Submit to payer, not by this payment — so never release the room here.
+    const isFullPayment = isSelfPay && amountToApply >= balanceDue;
 
     // 1. Record the payment — the money operation. If THIS fails, stop and report.
     const newAmountPaid = Number(invoice.amount_paid || 0) + amountToApply;
@@ -388,7 +404,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
       amountReceived,
       amountApplied: amountToApply,
       changeDue,
-      remainingBalance: balanceDue - amountToApply,
+      remainingBalance: collectible - amountToApply,
       paymentMethodUsed: paymentMethod,
       isFullPayment,
     });
@@ -426,7 +442,9 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
   const handleSubmitToPayer = async () => {
     if (!(await confirmDialog({
       title: 'Submit invoice?',
-      message: 'Submit this invoice to the payer and complete the encounter? It stays outstanding until the payer settles.',
+      message: patientBalance > 0
+        ? `The patient still owes GHS ${patientBalance.toFixed(2)} for items not covered (marked "patient pays"). Collect it before submitting, or it stays outstanding.\n\nSubmit the rest to the payer and complete the encounter anyway?`
+        : 'Submit this invoice to the payer and complete the encounter? It stays outstanding until the payer settles.',
       confirmLabel: 'Submit',
     }))) {
       return;
@@ -562,12 +580,14 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           {/* Payment Actions - Only show if encounterId is provided */}
           {encounterId && (
             <div className="pt-4 border-t border-gray-300">
-              {isSelfPay ? (
+              {(isSelfPay || collectible > 0) && (
                 <div className="space-y-4">
                   {/* Balance Due Display */}
                   <div className="bg-primary-50 border border-primary-200 rounded-lg p-3 flex justify-between items-center">
-                    <span className="text-sm font-medium text-primary-700">Balance Due:</span>
-                    <span className="text-xl font-bold text-primary-700">GHS {balanceDue.toFixed(2)}</span>
+                    <span className="text-sm font-medium text-primary-700">
+                      {isSelfPay ? 'Balance Due:' : 'Patient pays now (not covered):'}
+                    </span>
+                    <span className="text-xl font-bold text-primary-700">GHS {collectible.toFixed(2)}</span>
                   </div>
 
                   {/* Payment Input Row */}
@@ -578,7 +598,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         type="number"
                         step="0.01"
                         min="0.01"
-                        max={paymentMethod === 'cash' ? undefined : balanceDue}
+                        max={paymentMethod === 'cash' ? undefined : collectible}
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
@@ -606,21 +626,21 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                   </div>
 
                   {/* Partial Payment Indicator */}
-                  {parseFloat(paymentAmount) > 0 && parseFloat(paymentAmount) < balanceDue && (
+                  {parseFloat(paymentAmount) > 0 && parseFloat(paymentAmount) < collectible && (
                     <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 flex justify-between items-center">
                       <span className="text-sm text-warning-700 font-medium">Partial Payment</span>
                       <span className="text-sm font-semibold text-warning-700">
-                        Remaining balance: GHS {(balanceDue - parseFloat(paymentAmount)).toFixed(2)}
+                        Remaining balance: GHS {(collectible - parseFloat(paymentAmount)).toFixed(2)}
                       </span>
                     </div>
                   )}
 
                   {/* Cash Change Indicator */}
-                  {paymentMethod === 'cash' && parseFloat(paymentAmount) > balanceDue && (
+                  {paymentMethod === 'cash' && parseFloat(paymentAmount) > collectible && (
                     <div className="bg-success-50 border border-success-200 rounded-lg p-3 flex justify-between items-center">
                       <span className="text-sm text-success-700 font-medium">Change to Return</span>
                       <span className="text-sm font-semibold text-success-700">
-                        GHS {(parseFloat(paymentAmount) - balanceDue).toFixed(2)}
+                        GHS {(parseFloat(paymentAmount) - collectible).toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -649,6 +669,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         </>
                       )}
                     </button>
+                    {isSelfPay && (
                     <button
                       onClick={handleDeferPayment}
                       disabled={isProcessing}
@@ -659,9 +680,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                       </svg>
                       Defer Payment
                     </button>
+                    )}
                   </div>
                 </div>
-              ) : (
+              )}
+              {!isSelfPay && (
                 <button
                   onClick={handleSubmitToPayer}
                   className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md"
@@ -858,7 +881,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
               <tbody>
                 {items.map((item, index) => (
                   <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="py-3 px-4 text-gray-700">{stripLabSex(item.description)}</td>
+                    <td className="py-3 px-4 text-gray-700">
+                      {stripLabSex(item.description)}
+                      {!isSelfPay && item.bill_to === 'patient' && (
+                        <span className="ml-2 text-xs font-semibold text-warning-700">(Patient pays — not covered)</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-center text-gray-700">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-700">
                       {isEditable && editingItemId === item.id ? (
@@ -1124,8 +1152,20 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             </div>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 setShowPaymentSummary(false);
+                // Insured/corporate: the patient just paid their own share —
+                // stay on the invoice so reception can Submit the rest to the payer.
+                if (!isSelfPay) {
+                  try {
+                    const res = await apiClient.get(`/invoices/${invoice.id}`);
+                    setInvoice(res.data.invoice);
+                    setPaymentAmount('');
+                    return;
+                  } catch {
+                    // fall through to closing
+                  }
+                }
                 onClose();
                 if (onPaymentComplete) onPaymentComplete();
               }}

@@ -613,6 +613,23 @@ const DoctorDashboard: React.FC = () => {
     // Skip if already selected
     if (selectedEncounter?.id === encounter.id) return;
 
+    // Orders added but not yet submitted belong to the CURRENT patient. They
+    // used to survive a patient switch and could be submitted against the
+    // next patient (or silently lost) — confirm, then clear them.
+    const unsubmitted = pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length;
+    if (unsubmitted > 0) {
+      const discard = await confirmDialog({
+        title: 'Unsubmitted orders',
+        message: `You have ${unsubmitted} order(s) for the current patient that have not been submitted. Switching patient will discard them.`,
+        variant: 'warning',
+        confirmLabel: 'Discard and switch',
+      });
+      if (!discard) return;
+      setPendingLabOrders([]);
+      setPendingImagingOrders([]);
+      setPendingPharmacyOrders([]);
+    }
+
     setSelectedEncounter(encounter);
     loadSOAPSignStatus(encounter.id);
 
@@ -1107,6 +1124,13 @@ const DoctorDashboard: React.FC = () => {
   const handleCompleteEncounter = () => {
     if (!selectedEncounter) {
       showToast('Please select a patient first', 'warning');
+      return;
+    }
+    // Completing with staged-but-unsubmitted orders meant the pharmacy/lab
+    // never received them (patient leaves without their meds).
+    const unsubmitted = pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length;
+    if (unsubmitted > 0) {
+      showToast(`Submit or remove the ${unsubmitted} pending order(s) before completing the visit`, 'warning');
       return;
     }
     // Reset follow-up form and open modal

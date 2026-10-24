@@ -15,6 +15,7 @@ import AppLayout from '../components/AppLayout';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 import { useAuth } from '../context/AuthContext';
 import { DispensingAnalytics } from '../components/pharmacy';
 import AllergyWarningModal from '../components/AllergyWarningModal';
@@ -46,6 +47,68 @@ interface RoutingRequest {
   encounter_number: string;
   room_number: string;
 }
+
+type InventoryHistoryEntry =
+  | {
+      kind: 'movement';
+      id: number;
+      transaction_type: string;
+      quantity: number;
+      reference_type: string | null;
+      notes: string | null;
+      unit_price: string | null;
+      invoice_number: string | null;
+      created_at: string;
+      performed_by_name: string | null;
+    }
+  | {
+      kind: 'edit';
+      id: number;
+      changes: Record<string, { from: string | number | boolean | null; to: string | number | boolean | null }>;
+      source: string;
+      reason: string | null;
+      created_at: string;
+      performed_by_name: string | null;
+    };
+
+const STOCK_MOVEMENT_LABELS: Record<string, string> = {
+  purchase: 'Received',
+  dispense: 'Dispensed',
+  adjustment: 'Stock adjustment',
+  return: 'Returned',
+  expired: 'Expired',
+  transfer: 'Transfer',
+};
+
+const ITEM_CHANGE_SOURCE_LABELS: Record<string, string> = {
+  edit: 'Item edited',
+  procurement: 'Price change (procurement)',
+  import: 'Bulk import',
+};
+
+const ITEM_FIELD_LABELS: Record<string, string> = {
+  medication_name: 'Name',
+  generic_name: 'Generic name',
+  category: 'Category',
+  unit: 'Unit',
+  reorder_level: 'Reorder level',
+  unit_cost: 'Cost price',
+  selling_price: 'Selling price',
+  pack_size: 'Pack size',
+  expiry_date: 'Expiry',
+  supplier: 'Supplier',
+  supplier_id: 'Supplier',
+  location: 'Location',
+  requires_prescription: 'Prescription only',
+  is_active: 'Active',
+};
+
+const formatHistoryValue = (field: string, value: string | number | boolean | null): string => {
+  if (value === null) return '—';
+  if (field === 'unit_cost' || field === 'selling_price') return `GHS ${Number(value).toFixed(2)}`;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+};
 
 interface PharmacyOrder {
   id: number;
@@ -81,6 +144,9 @@ interface PharmacyOrder {
   dispensed_by_name?: string;
   payer_type?: string;
   payer_name?: string;
+  // Insured/corporate patient pays this medication themselves (exempted from cover)
+  patient_pays?: boolean;
+  patient_pays_reason?: string | null;
   inventory_id?: number;
   inventory_quantity?: number;
   inventory_price?: number;
@@ -313,7 +379,7 @@ const PharmacyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
-  const { confirm: confirmDialog } = useDialog();
+  const { confirm: confirmDialog, prompt: promptDialog } = useDialog();
   useAuth(); // Ensure user is authenticated
 
   // All pharmacy roles see the same dashboard - RBAC will be added later
@@ -345,6 +411,7 @@ const PharmacyDashboard: React.FC = () => {
       // New-order notifications (the only pharmacy-order notification with a
       // View link) land in the Pending queue — make sure that sub-tab is the
       // one loaded so the highlighted order is actually present in the list.
+      setActiveTab('orders');
       setOrdersSubTab('pending');
     }
     if (tab || highlight) {
@@ -365,6 +432,12 @@ const PharmacyDashboard: React.FC = () => {
   // Inventory edit modal
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [editingInventory, setEditingInventory] = useState<InventoryItem | null>(null);
+  // Optional reason recorded with an item edit (shown in the item's History).
+  const [editChangeReason, setEditChangeReason] = useState('');
+  // Item History modal: stock movements + price/detail edits for one item.
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<InventoryHistoryEntry[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Stock adjustment (add/subtract with reason) — uses POST /inventory/:id/adjust
   const [showAdjustModal, setShowAdjustModal] = useState(false);
@@ -451,6 +524,7 @@ const PharmacyDashboard: React.FC = () => {
       showToast('First name and last name are required', 'warning');
       return;
     }
+    if (!(await confirmNotDuplicatePatient(confirmDialog, { first_name: firstName, last_name: lastName, phone }))) return;
     setCreatingWalkIn(true);
     try {
       const patientRes = await apiClient.post('/patients', {
@@ -611,11 +685,12 @@ const PharmacyDashboard: React.FC = () => {
       groups[key].orders.push(order);
     });
 
-    // Sort by ordered_date ascending (earliest first for FIFO processing)
+    // Queue: oldest first (FIFO processing). Dispensed history: newest first.
+    const dir = ordersSubTab === 'history' ? -1 : 1;
     return Object.values(groups).sort((a, b) =>
-      new Date(a.ordered_date).getTime() - new Date(b.ordered_date).getTime()
+      dir * (new Date(a.ordered_date).getTime() - new Date(b.ordered_date).getTime())
     );
-  }, [pharmacyOrders]);
+  }, [pharmacyOrders, ordersSubTab]);
 
   // ---- Add Item to an existing prescription order group (#5) ----
   // Lets the pharmacist append a medication to a patient's pharmacy order
@@ -627,6 +702,22 @@ const PharmacyDashboard: React.FC = () => {
   const [addOrderItemSelected, setAddOrderItemSelected] = useState<InventoryItem | null>(null);
   const [addOrderItemForm, setAddOrderItemForm] = useState({ quantity: 1, dosage: '', frequency: '', route: 'oral', days_supply: '' });
   const [addingOrderItem, setAddingOrderItem] = useState(false);
+
+  // Load the Pending queue for a notification's order — the deep link used to
+  // only switch tabs, so "View" pointed at a list that never had the new
+  // order in it. If it falls outside the date range, widen to all dates.
+  useEffect(() => {
+    if (highlightOrderId == null) return;
+    const id = highlightOrderId;
+    (async () => {
+      const orders = await fetchPendingOrders();
+      if (orders && !orders.some(o => o.id === id) && (queueStart || queueEnd)) {
+        setQueueStart('');
+        setQueueEnd('');
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightOrderId]);
 
   // Once a notification deep-link target is loaded into the list, scroll to it,
   // flash the highlight ring, then clear the highlight after a few seconds.
@@ -641,13 +732,24 @@ const PharmacyDashboard: React.FC = () => {
   }, [highlightOrderId, pharmacyOrders]);
 
   // Inventory state
+  // `inventory` is ALWAYS the complete list — every medication picker
+  // (procurement, OTC, add-to-order, substitutes, pricing) reads it. It used to
+  // be overwritten with the Inventory tab's server-filtered search results, so
+  // after searching (or adding an item while a search was active) every picker
+  // offered only that subset — often just the newly added item — until a full
+  // page reload, which also wiped any half-entered procurement invoice.
+  // The Low stock / Expiring / Expired stat filters load into a separate list.
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryStatusList, setInventoryStatusList] = useState<InventoryItem[]>([]);
   const [inventoryStats, setInventoryStats] = useState<InventoryStats | null>(null);
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low_stock' | 'expiring' | 'expired'>('all');
   const [inventorySearch, setInventorySearch] = useState('');
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState('');
   const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
+  // Procurement line that opened "+ New medication" — the created item is
+  // selected on that line, so the invoice being received is never restarted.
+  const [newItemForProcurementLine, setNewItemForProcurementLine] = useState<number | null>(null);
   // Bulk inventory/price import from CSV/Excel
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFileName, setImportFileName] = useState('');
@@ -688,13 +790,18 @@ const PharmacyDashboard: React.FC = () => {
     expiry_date: ''
   });
 
-  // Date range state - default to today for dispensed orders
+  // Date range state for the Revenue tab
   const today = new Date().toISOString().split('T')[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
   // Last 30 days, matching the Analytics tab. Both ends previously defaulted to
   // today, so the revenue tab opened showing a single day — usually zeros.
   const [startDate, setStartDate] = useState(thirtyDaysAgo);
   const [endDate, setEndDate] = useState(today);
+  // The Dispensed sub-tab has its OWN range, defaulting to today. It used to
+  // share the Revenue tab's 30-day range, so it opened on a month of old
+  // orders and the date picker always started a month back.
+  const [historyStart, setHistoryStart] = useState(today);
+  const [historyEnd, setHistoryEnd] = useState(today);
 
   // Date range for the active queue (Pending / In Progress / Ready) — defaults
   // to today so unserved prescriptions from previous days drop off the day's
@@ -709,7 +816,10 @@ const PharmacyDashboard: React.FC = () => {
   // Unserved prescriptions from before the queue's start date — the
   // "today only" default hides them, so a patient returning the next day
   // couldn't be found. Counted separately and surfaced as a banner.
-  const [earlierUnserved, setEarlierUnserved] = useState(0);
+  // Limited to the 7 days before the range and listed BY PATIENT: an
+  // all-time count sat at ~80 permanently, so a real miss from yesterday
+  // was invisible in it.
+  const [earlierUnserved, setEarlierUnserved] = useState<Array<{ patient_id: number; patient_name: string; ordered_date: string }>>([]);
 
   // Drug history modal
   const [showDrugHistory, setShowDrugHistory] = useState(false);
@@ -776,11 +886,25 @@ const PharmacyDashboard: React.FC = () => {
   // render — fetchRoutingRequests is declared further down in the file.
   useSmartPolling(() => { fetchRoutingRequests(); }, 30_000, true);
 
+  // Dispensed history loads when the sub-tab opens; date changes apply on
+  // Search (fetching on every change returned all history while a year was
+  // still being typed digit by digit).
   useEffect(() => {
     if (ordersSubTab === 'history') {
       fetchOrderHistory();
     }
-  }, [ordersSubTab, startDate, endDate]);
+  }, [ordersSubTab]);
+
+  // Keep the active queue current: new prescriptions used to appear only after
+  // a manual Refresh, so a patient prescribed while the page was open could be
+  // missed entirely. Skipped while a Start is in flight so rows don't shift
+  // under the pharmacist's cursor.
+  useSmartPolling(() => {
+    if (document.hidden || activeTab !== 'orders' || ordersSubTab === 'history') return;
+    if (startingIds.size > 0) return;
+    refreshActiveOrdersTab();
+    fetchOrderStats();
+  }, 30_000, true);
 
   useEffect(() => {
     const rollOver = () => {
@@ -814,21 +938,22 @@ const PharmacyDashboard: React.FC = () => {
     if (activeTab === 'revenue') {
       fetchRevenueSummary();
     }
-    // Stock-take searches client-side, so always (re)load the COMPLETE inventory
-    // when entering it — never a filtered subset left over from the Inventory tab.
-    if (activeTab === 'stocktake') {
-      fetchInventory(true);
+    // Every tab with a medication picker gets a fresh COMPLETE list on entry,
+    // so items added elsewhere (e.g. the Inventory tab) are selectable at once.
+    if (['inventory', 'stocktake', 'procurement', 'otc', 'pricing'].includes(activeTab)) {
+      fetchInventory();
     }
     // Clear selected order when switching main tabs
     setSelectedOrder(null);
   }, [activeTab]);
 
-  // Refetch inventory when filter or search changes
+  // Load the status-filtered list when a stat filter is picked. Search is
+  // applied client-side to the already-loaded list (no request per keystroke).
   useEffect(() => {
-    if (activeTab === 'inventory') {
-      fetchInventory();
+    if (activeTab === 'inventory' && inventoryFilter !== 'all') {
+      fetchInventoryStatusList();
     }
-  }, [inventoryFilter, inventorySearch]);
+  }, [inventoryFilter]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -866,7 +991,7 @@ const PharmacyDashboard: React.FC = () => {
     }
 
     try {
-      await apiClient.post('/inventory', {
+      const createRes = await apiClient.post('/inventory', {
         ...newInventoryForm,
         quantity_on_hand: parseInt(String(quantity_on_hand)) || 0,
         reorder_level: parseInt(String(reorder_level)) || 10,
@@ -879,6 +1004,14 @@ const PharmacyDashboard: React.FC = () => {
       });
       showToast('Inventory item created successfully', 'success');
       setShowAddInventoryModal(false);
+      const created = createRes.data?.item as InventoryItem | undefined;
+      if (created) {
+        setInventory(prev => prev.some(i => i.id === created.id) ? prev : [...prev, created]);
+        if (newItemForProcurementLine !== null) {
+          updateLineItem(newItemForProcurementLine, 'inventory_id', String(created.id));
+        }
+      }
+      setNewItemForProcurementLine(null);
       setNewInventoryForm({
         medication_name: '',
         generic_name: '',
@@ -1325,8 +1458,10 @@ const PharmacyDashboard: React.FC = () => {
         pack_size: item.pack_size && item.pack_size > 0 ? item.pack_size : undefined,
         expiry_date: item.expiry_date || undefined,
         supplier_id: item.supplier_id || undefined,
+        change_reason: editChangeReason.trim() || undefined,
       };
       await apiClient.put(`/inventory/${item.id}`, updateData);
+      setEditChangeReason('');
 
       // Save batch quantity / expiry changes if any. A batch is included when
       // either its quantity or its expiry date was edited.
@@ -1568,37 +1703,55 @@ const PharmacyDashboard: React.FC = () => {
   // while the list reloads) could land out of order and show one tab's orders
   // under another tab's buttons — the "page glitches with 2+ orders" report.
   const queueReqRef = useRef(0);
-  const loadQueue = async (url: string, label: string) => {
+  const loadQueue = async (url: string, label: string): Promise<PharmacyOrder[] | null> => {
     const ticket = ++queueReqRef.current;
     try {
       const response = await apiClient.get(url);
-      if (ticket !== queueReqRef.current) return;
-      setPharmacyOrders(response.data.orders || []);
+      if (ticket !== queueReqRef.current) return null;
+      const orders = response.data.orders || [];
+      setPharmacyOrders(orders);
+      setStartedIds(new Set());
+      return orders;
     } catch (error) {
       console.error(`Error fetching ${label}:`, error);
+      return null;
     }
   };
 
   const fetchEarlierUnserved = async () => {
     if (!queueStart) {
-      setEarlierUnserved(0);
+      setEarlierUnserved([]);
       return;
     }
     try {
-      const before = new Date(`${queueStart}T00:00:00Z`);
-      before.setUTCDate(before.getUTCDate() - 1);
+      const day = (offset: number) => {
+        const d = new Date(`${queueStart}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + offset);
+        return d.toISOString().split('T')[0];
+      };
       const response = await apiClient.get(
-        `/orders/pharmacy?status=ordered,in_progress,ready&ordered_to=${before.toISOString().split('T')[0]}`
+        `/orders/pharmacy?status=ordered,in_progress,ready&ordered_from=${day(-7)}&ordered_to=${day(-1)}`
       );
-      setEarlierUnserved((response.data.orders || []).length);
+      const byPatient = new Map<number, { patient_id: number; patient_name: string; ordered_date: string }>();
+      for (const o of (response.data.orders || []) as PharmacyOrder[]) {
+        const prev = byPatient.get(o.patient_id);
+        if (!prev || new Date(o.ordered_date) > new Date(prev.ordered_date)) {
+          byPatient.set(o.patient_id, {
+            patient_id: o.patient_id,
+            patient_name: o.patient_name || `Patient ${o.patient_id}`,
+            ordered_date: o.ordered_date,
+          });
+        }
+      }
+      setEarlierUnserved(Array.from(byPatient.values()));
     } catch {
-      setEarlierUnserved(0);
+      setEarlierUnserved([]);
     }
   };
 
   const fetchPendingOrders = async () => {
     fetchEarlierUnserved();
-    await loadQueue(`/orders/pharmacy?status=ordered${queueRangeQuery()}`, 'pharmacy orders');
+    return loadQueue(`/orders/pharmacy?status=ordered${queueRangeQuery()}`, 'pharmacy orders');
   };
 
   const fetchInProgressOrders = async () => {
@@ -1671,19 +1824,22 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  // Orders currently being started. Buttons disable while a start is in
-  // flight so a second click can't land on the row that slides into place
-  // when the list refreshes.
+  // Orders being started (request in flight) and already started. Started
+  // orders stay where they are, marked "Started ✓", until the next refresh.
+  // Removing them immediately slid the next patient's card (and its enabled
+  // Start button) under the cursor, so a second click started the wrong
+  // patient — the "starts the next order in line" report.
   const [startingIds, setStartingIds] = useState<Set<number>>(new Set());
+  const [startedIds, setStartedIds] = useState<Set<number>>(new Set());
   const startProcessingOrder = async (orderId: number) => {
-    if (startingIds.has(orderId)) return;
+    if (startingIds.has(orderId) || startedIds.has(orderId)) return;
     setStartingIds((prev) => new Set(prev).add(orderId));
     try {
       await apiClient.put(`/orders/pharmacy/${orderId}`, {
         status: 'in_progress'
       });
       showToast('Order moved to In Progress', 'success');
-      await refreshActiveOrdersTab();
+      setStartedIds((prev) => new Set(prev).add(orderId));
       fetchOrderStats();
     } catch (error) {
       console.error('Error starting order:', error);
@@ -1697,38 +1853,107 @@ const PharmacyDashboard: React.FC = () => {
     }
   };
 
-  const fetchOrderHistory = async () => {
+  // Insured/corporate patient paying cash for an exempted medication. The flag
+  // follows the line onto the invoice: reception collects it, and it is left
+  // out of the insurance claim / payer settlement.
+  const togglePatientPays = async (order: PharmacyOrder, payerType: string) => {
+    const payer = payerType === 'insurance' ? 'insurance' : 'the company';
+    let reason: string | null = null;
+    if (!order.patient_pays) {
+      reason = await promptDialog({
+        title: 'Patient pays cash',
+        message: `${order.medication_name} will be paid by the patient at reception instead of billed to ${payer}. Reason (optional):`,
+        placeholder: 'e.g. not covered by plan',
+        confirmLabel: 'Patient pays',
+      });
+      if (reason === null) return;
+    } else if (!(await confirmDialog({
+      title: `Bill to ${payer}?`,
+      message: `Bill ${order.medication_name} to ${payer} again instead of the patient?`,
+      confirmLabel: 'Bill to payer',
+    }))) {
+      return;
+    }
+    try {
+      const res = await apiClient.put(`/orders/pharmacy/${order.id}/payment-mode`, {
+        patient_pays: !order.patient_pays,
+        reason: reason || undefined,
+      });
+      const updated = res.data.order;
+      setPharmacyOrders(prev => prev.map(o => o.id === order.id
+        ? { ...o, patient_pays: updated.patient_pays, patient_pays_reason: updated.patient_pays_reason }
+        : o));
+      showToast(updated.patient_pays ? `${order.medication_name}: patient pays at reception` : `${order.medication_name}: billed to ${payer}`, 'success');
+    } catch (error) {
+      const apiError = error as { response?: { data?: { error?: string } } };
+      showToast(apiError.response?.data?.error || 'Failed to change payment mode', 'error');
+    }
+  };
+
+  // Undo for a mistaken Start: in_progress → ordered.
+  const returnToPending = async (orderId: number, medicationName: string) => {
+    const ok = await confirmDialog({
+      title: 'Move back to Pending?',
+      message: `Put ${medicationName} back in the Pending queue?`,
+      confirmLabel: 'Back to Pending',
+    });
+    if (!ok) return;
+    try {
+      await apiClient.put(`/orders/pharmacy/${orderId}`, { status: 'ordered' });
+      showToast('Order moved back to Pending', 'success');
+      refreshActiveOrdersTab();
+      fetchOrderStats();
+    } catch (error) {
+      console.error('Error returning order to pending:', error);
+      showToast('Failed to move order back to Pending', 'error');
+    }
+  };
+
+  const fetchOrderHistory = async (from = historyStart, to = historyEnd) => {
     try {
       let url = '/orders/pharmacy?status=dispensed,completed';
-      if (startDate) url += `&start_date=${startDate}`;
-      if (endDate) url += `&end_date=${endDate}`;
+      if (from) url += `&start_date=${from}`;
+      if (to) url += `&end_date=${to}`;
       await loadQueue(url, 'order history');
     } catch (error) {
       console.error('Error fetching order history:', error);
     }
   };
 
-  // full=true loads the entire inventory ignoring the status filter + search.
-  // The Stock-take tab needs the COMPLETE list because it searches client-side;
-  // otherwise it inherits a server-filtered subset from the Inventory tab and
-  // can't find items after backspacing a search until a full page reload (Irene).
-  const fetchInventory = async (full = false) => {
+  // Always loads the COMPLETE inventory (see the note on `inventory`).
+  // Ticketed so a slow earlier response can't overwrite a newer one.
+  const inventoryReqRef = useRef(0);
+  const fetchInventory = async () => {
+    const ticket = ++inventoryReqRef.current;
     try {
-      let url = '/inventory';
-      if (!full) {
-        if (inventoryFilter === 'low_stock') url += '?low_stock=true';
-        else if (inventoryFilter === 'expiring') url += '?expiring_soon=true';
-        else if (inventoryFilter === 'expired') url += '?expired=true';
-        if (inventorySearch) url += `${url.includes('?') ? '&' : '?'}search=${inventorySearch}`;
-      }
-
-      const response = await apiClient.get(url);
+      const response = await apiClient.get('/inventory');
+      if (ticket !== inventoryReqRef.current) return;
       setInventory(response.data.inventory || []);
       setInventoryStats(response.data.stats || null);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
+    if (activeTab === 'inventory' && inventoryFilter !== 'all') fetchInventoryStatusList();
   };
+
+  const statusListReqRef = useRef(0);
+  const fetchInventoryStatusList = async () => {
+    const flag = inventoryFilter === 'low_stock' ? 'low_stock'
+      : inventoryFilter === 'expiring' ? 'expiring_soon'
+      : inventoryFilter === 'expired' ? 'expired' : null;
+    if (!flag) return;
+    const ticket = ++statusListReqRef.current;
+    try {
+      const response = await apiClient.get(`/inventory?${flag}=true`);
+      if (ticket !== statusListReqRef.current) return;
+      setInventoryStatusList(response.data.inventory || []);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    }
+  };
+
+  // What the Inventory tab's table shows: the full list, or the stat-filtered one.
+  const inventoryTableSource = inventoryFilter === 'all' ? inventory : inventoryStatusList;
 
   const fetchInventoryBatches = async (inventoryId: number) => {
     setLoadingBatches(true);
@@ -1824,7 +2049,7 @@ const PharmacyDashboard: React.FC = () => {
       flashStockSaved(item.id);
       setStockCounts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       setStockExpiry(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      fetchInventory(true);
+      fetchInventory();
     } catch (error: any) {
       if (error.response?.status === 409) {
         // Multiple batches — open the per-batch counter for this item
@@ -1860,7 +2085,7 @@ const PharmacyDashboard: React.FC = () => {
       flashStockSaved(item.id);
       setStockExpandedId(null); setStockExpandBatches([]); setStockExpandEdits({});
       setStockNewBatches(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-      fetchInventory(true);
+      fetchInventory();
     } catch (error: any) {
       showToast(error.response?.data?.error || 'Failed to save counts', 'error');
     } finally {
@@ -1949,6 +2174,21 @@ const PharmacyDashboard: React.FC = () => {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revenueSearch]);
+
+  const openItemHistory = async (item: InventoryItem) => {
+    setHistoryItem(item);
+    setHistoryEntries([]);
+    setLoadingHistory(true);
+    try {
+      const response = await apiClient.get(`/inventory/${item.id}/history`);
+      setHistoryEntries(response.data.entries || []);
+    } catch (error) {
+      console.error('Error fetching item history:', error);
+      showToast('Failed to load item history', 'error');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const updateMedicationPrice = async (itemId: number, newPrice: number) => {
     if (isNaN(newPrice) || newPrice < 0) {
@@ -2408,8 +2648,9 @@ const PharmacyDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                   <input
                     type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    value={historyStart}
+                    max={historyEnd || undefined}
+                    onChange={(e) => setHistoryStart(e.target.value)}
                     className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
                   />
                 </div>
@@ -2417,22 +2658,28 @@ const PharmacyDashboard: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
                   <input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    value={historyEnd}
+                    min={historyStart || undefined}
+                    onChange={(e) => setHistoryEnd(e.target.value)}
                     className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
                   />
                 </div>
                 <button
-                  onClick={fetchOrderHistory}
+                  onClick={() => fetchOrderHistory()}
                   className="mt-6 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
                 >
                   Search
                 </button>
                 <button
-                  onClick={() => { setStartDate(''); setEndDate(''); fetchOrderHistory(); }}
+                  onClick={() => {
+                    const now = new Date().toISOString().split('T')[0];
+                    setHistoryStart(now);
+                    setHistoryEnd(now);
+                    fetchOrderHistory(now, now);
+                  }}
                   className="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
-                  Clear
+                  Today
                 </button>
               </div>
             )}
@@ -2483,16 +2730,23 @@ const PharmacyDashboard: React.FC = () => {
               </div>
             )}
 
-            {ordersSubTab !== 'history' && earlierUnserved > 0 && (
+            {ordersSubTab !== 'history' && earlierUnserved.length > 0 && (
               <div className="mb-4 p-4 bg-warning-50 border border-warning-300 rounded-xl flex flex-wrap items-center justify-between gap-3" role="status">
                 <span className="text-sm text-warning-900">
-                  <strong>{earlierUnserved}</strong> prescription item{earlierUnserved > 1 ? 's' : ''} from earlier days {earlierUnserved > 1 ? 'have' : 'has'} not been served yet (pending, in progress or ready).
+                  <strong>{earlierUnserved.length}</strong> patient{earlierUnserved.length > 1 ? 's' : ''} from the past 7 days {earlierUnserved.length > 1 ? 'have' : 'has'} prescriptions not yet served:{' '}
+                  {earlierUnserved
+                    .map(p => `${p.patient_name} (${format(new Date(p.ordered_date), 'MMM d')})`)
+                    .join(', ')}
                 </span>
                 <button
-                  onClick={() => { setQueueStart(''); setQueueEnd(''); }}
+                  onClick={() => {
+                    const d = new Date(`${queueStart}T00:00:00Z`);
+                    d.setUTCDate(d.getUTCDate() - 7);
+                    setQueueStart(d.toISOString().split('T')[0]);
+                  }}
                   className="px-3 py-1.5 text-sm font-medium text-white bg-warning-600 rounded-lg hover:bg-warning-700"
                 >
-                  Show all dates
+                  Show past 7 days
                 </button>
               </div>
             )}
@@ -2553,7 +2807,9 @@ const PharmacyDashboard: React.FC = () => {
                               )}
                             </div>
                             <div className="text-xs text-gray-400 mt-1">
-                              Ordered: {format(new Date(group.ordered_date), 'MMM dd, yyyy HH:mm')}
+                              {ordersSubTab === 'history' && group.orders[0]?.dispensed_date
+                                ? `Dispensed: ${format(new Date(group.orders[0].dispensed_date), 'MMM dd, yyyy HH:mm')}`
+                                : `Ordered: ${format(new Date(group.ordered_date), 'MMM dd, yyyy HH:mm')}`}
                               <span className="ml-2 text-gray-500">• {group.orders.length} medication{group.orders.length > 1 ? 's' : ''}</span>
                               {(() => {
                                 // Estimated medication total (unit price × qty across the group)
@@ -2581,11 +2837,11 @@ const PharmacyDashboard: React.FC = () => {
                                   // Start processing all orders for this patient
                                   group.orders.forEach(o => startProcessingOrder(o.id));
                                 }}
-                                disabled={group.orders.some(o => startingIds.has(o.id))}
-                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-wait"
+                                disabled={group.orders.some(o => startingIds.has(o.id)) || group.orders.every(o => startedIds.has(o.id))}
+                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={`Start all ${group.orders.length} medication(s) for ${group.patient_name}`}
                               >
-                                Start All
+                                {group.orders.every(o => startedIds.has(o.id)) ? 'Started ✓' : 'Start All'}
                               </button>
                             )}
                             {ordersSubTab === 'in_progress' && (
@@ -2743,6 +2999,14 @@ const PharmacyDashboard: React.FC = () => {
                                       Not in inventory
                                     </span>
                                   )}
+                                  {order.patient_pays && (
+                                    <span
+                                      className="text-xs font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-800"
+                                      title={order.patient_pays_reason ? `Patient pays: ${order.patient_pays_reason}` : 'Patient pays — not billed to insurance'}
+                                    >
+                                      PATIENT PAYS
+                                    </span>
+                                  )}
                                   <svg
                                     className={`w-4 h-4 text-gray-400 transition-transform ${
                                       expandedMedication === order.id ? 'rotate-180' : ''
@@ -2777,11 +3041,11 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           startProcessingOrder(order.id);
                                         }}
-                                        disabled={startingIds.has(order.id)}
-                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-wait"
+                                        disabled={startingIds.has(order.id) || startedIds.has(order.id)}
+                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                         title={`Start ${order.medication_name} only`}
                                       >
-                                        {startingIds.has(order.id) ? 'Starting…' : 'Start'}
+                                        {startedIds.has(order.id) ? 'Started ✓' : startingIds.has(order.id) ? 'Starting…' : 'Start'}
                                       </button>
                                     )}
                                     {ordersSubTab === 'in_progress' && (
@@ -2795,6 +3059,18 @@ const PharmacyDashboard: React.FC = () => {
                                         Ready
                                       </button>
                                     )}
+                                    {ordersSubTab === 'in_progress' && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          returnToPending(order.id, order.medication_name);
+                                        }}
+                                        className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                        title="Started by mistake? Put this back in the Pending queue"
+                                      >
+                                        Back to Pending
+                                      </button>
+                                    )}
                                     {ordersSubTab === 'ready' && (
                                       <button
                                         onClick={(e) => {
@@ -2804,6 +3080,27 @@ const PharmacyDashboard: React.FC = () => {
                                         className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700"
                                       >
                                         Dispense
+                                      </button>
+                                    )}
+                                    {(group.payer_type === 'insurance' || group.payer_type === 'corporate') &&
+                                      !['cancelled', 'returned'].includes(order.status) && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          togglePatientPays(order, group.payer_type);
+                                        }}
+                                        className={`px-3 py-1 text-sm rounded ${
+                                          order.patient_pays
+                                            ? 'bg-primary-100 text-primary-800 hover:bg-primary-200'
+                                            : 'bg-warning-100 text-warning-800 hover:bg-warning-200'
+                                        }`}
+                                        title={order.patient_pays
+                                          ? `Bill this medication to ${group.payer_type === 'insurance' ? 'insurance' : 'the company'} again`
+                                          : `Patient pays cash for this medication (not covered by ${group.payer_type === 'insurance' ? 'insurance' : 'the company'})`}
+                                      >
+                                        {order.patient_pays
+                                          ? `Bill to ${group.payer_type === 'insurance' ? 'insurance' : 'company'}`
+                                          : 'Patient pays cash'}
                                       </button>
                                     )}
                                     {order.status !== 'dispensed' && order.status !== 'returned' && (
@@ -3409,7 +3706,7 @@ const PharmacyDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {inventory
+                  {inventoryTableSource
                     .filter(item => {
                       // Filter by category
                       if (categoryFilter && item.category !== categoryFilter) return false;
@@ -3463,6 +3760,16 @@ const PharmacyDashboard: React.FC = () => {
                             </svg>
                           </button>
                           <button
+                            onClick={() => openItemHistory(item)}
+                            className="p-1 text-gray-600 hover:text-gray-900"
+                            title="History (stock movements, adjustments, price changes)"
+                            aria-label={`History for ${item.medication_name}`}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </button>
+                          <button
                             onClick={() => openAdjustStock(item)}
                             className="p-1 text-gray-600 hover:text-gray-900"
                             title="Adjust stock (add / subtract with reason)"
@@ -3486,7 +3793,7 @@ const PharmacyDashboard: React.FC = () => {
                   ))}
                 </tbody>
               </table>
-              {inventory.filter(item => {
+              {inventoryTableSource.filter(item => {
                 if (categoryFilter && item.category !== categoryFilter) return false;
                 if (inventorySearch && !item.medication_name.toLowerCase().includes(inventorySearch.toLowerCase()) &&
                     !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
@@ -4133,6 +4440,13 @@ const PharmacyDashboard: React.FC = () => {
                             placeholder="Select medication..."
                             options={inventoryOptions}
                           />
+                          <button
+                            type="button"
+                            onClick={() => { setNewItemForProcurementLine(idx); setShowAddInventoryModal(true); }}
+                            className="mt-1 text-xs font-medium text-primary-600 hover:text-primary-800"
+                          >
+                            + New medication (not in inventory yet)
+                          </button>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Current Selling</label>
@@ -4882,7 +5196,7 @@ const PharmacyDashboard: React.FC = () => {
       {/* Add Inventory Modal */}
       <Modal
         isOpen={showAddInventoryModal}
-        onClose={() => setShowAddInventoryModal(false)}
+        onClose={() => { setShowAddInventoryModal(false); setNewItemForProcurementLine(null); }}
         title="Add New Inventory Item"
         size="xl"
       >
@@ -4979,7 +5293,7 @@ const PharmacyDashboard: React.FC = () => {
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <button
-              onClick={() => setShowAddInventoryModal(false)}
+              onClick={() => { setShowAddInventoryModal(false); setNewItemForProcurementLine(null); }}
               className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
@@ -5220,9 +5534,23 @@ const PharmacyDashboard: React.FC = () => {
               )}
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for change (optional)</label>
+              <input
+                type="text"
+                value={editChangeReason}
+                onChange={(e) => setEditChangeReason(e.target.value)}
+                placeholder="e.g. supplier price increase"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Price and detail changes are recorded in the item's History with your name and this reason.
+              </p>
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <button
-                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
+                onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setEditChangeReason(''); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Cancel
@@ -5234,6 +5562,77 @@ const PharmacyDashboard: React.FC = () => {
                 Save Changes
               </button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Item History Modal */}
+      <Modal
+        isOpen={historyItem !== null}
+        onClose={() => setHistoryItem(null)}
+        title={historyItem ? `History — ${historyItem.medication_name}` : 'History'}
+        size="xl"
+      >
+        {loadingHistory ? (
+          <div className="py-10 text-center text-gray-500">Loading history…</div>
+        ) : historyEntries.length === 0 ? (
+          <div className="py-10 text-center text-gray-500">No history recorded for this item yet.</div>
+        ) : (
+          <div className="overflow-x-auto max-h-[65vh]">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">By</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason / notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {historyEntries.map((entry) => (
+                  <tr key={`${entry.kind}-${entry.id}`} className="align-top">
+                    <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                      {format(new Date(entry.created_at), 'MMM dd, yyyy HH:mm')}
+                    </td>
+                    <td className="px-3 py-2 text-gray-700">{entry.performed_by_name || '—'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        entry.kind === 'edit' ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {entry.kind === 'edit'
+                          ? ITEM_CHANGE_SOURCE_LABELS[entry.source] || 'Item edited'
+                          : STOCK_MOVEMENT_LABELS[entry.transaction_type] || entry.transaction_type}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-800">
+                      {entry.kind === 'edit' ? (
+                        <ul className="space-y-0.5">
+                          {Object.entries(entry.changes).map(([field, change]) => (
+                            <li key={field}>
+                              <span className="text-gray-500">{ITEM_FIELD_LABELS[field] || field}:</span>{' '}
+                              {formatHistoryValue(field, change.from)} → <strong>{formatHistoryValue(field, change.to)}</strong>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className={entry.quantity < 0 ? 'text-danger-700' : 'text-success-700'}>
+                          {entry.quantity > 0 ? '+' : ''}{entry.quantity}
+                          {entry.unit_price != null && (
+                            <span className="text-gray-500"> @ GHS {Number(entry.unit_price).toFixed(2)}</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600">
+                      {entry.kind === 'edit'
+                        ? entry.reason || '—'
+                        : [entry.notes, entry.invoice_number ? `Invoice ${entry.invoice_number}` : null].filter(Boolean).join(' · ') || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </Modal>

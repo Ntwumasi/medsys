@@ -6,6 +6,7 @@ import { validateVitalSign } from '../utils/vitalSignsValidation';
 import HPAccordion from '../components/HPAccordion';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
+import { confirmNotDuplicatePatient } from '../utils/duplicatePatientCheck';
 import AppLayout from '../components/AppLayout';
 import { VoiceDictationButton } from '../components/VoiceDictationButton';
 import { SmartTextArea } from '../components/SmartTextArea';
@@ -580,6 +581,7 @@ const NurseDashboard: React.FC = () => {
       showToast('First name, last name, and phone are required', 'warning');
       return;
     }
+    if (!(await confirmNotDuplicatePatient(confirmDialog, nurseQuickRegForm))) return;
     setCreatingNurseWalkin(true);
     try {
       const patientRes = await apiClient.post('/patients', {

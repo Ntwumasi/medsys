@@ -3,6 +3,7 @@ import pool from '../database/db';
 import { validateIntervalDays } from '../utils/sqlSecurity';
 import { notificationService } from '../services/notificationService';
 import { auditService } from '../services/auditService';
+import { logInventoryItemChanges } from '../services/inventoryChangeLog';
 
 // Manually add a refill entry to the refills calendar. Refills are normally
 // computed from dispensed orders; this lets a pharmacist place one directly.
@@ -289,6 +290,58 @@ export const getInventoryItem = async (req: Request, res: Response): Promise<voi
   }
 };
 
+// Full history of one item: stock movements (inventory_transactions) and
+// edits to the item itself (inventory_item_changes), newest first.
+export const getInventoryItemHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const item = await pool.query(
+      `SELECT id, medication_name, generic_name, quantity_on_hand, unit_cost, selling_price
+       FROM pharmacy_inventory WHERE id = $1`,
+      [id]
+    );
+    if (item.rows.length === 0) {
+      res.status(404).json({ error: 'Inventory item not found' });
+      return;
+    }
+
+    const [movements, edits] = await Promise.all([
+      pool.query(
+        `SELECT t.id, t.transaction_type, t.quantity, t.reference_type, t.notes,
+                t.unit_price, t.invoice_number, t.created_at,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS performed_by_name
+         FROM inventory_transactions t
+         LEFT JOIN users u ON t.performed_by = u.id
+         WHERE t.inventory_id = $1
+         ORDER BY t.created_at DESC
+         LIMIT 300`,
+        [id]
+      ),
+      pool.query(
+        `SELECT c.id, c.changes, c.source, c.reason, c.created_at,
+                TRIM(CONCAT(u.first_name, ' ', u.last_name)) AS performed_by_name
+         FROM inventory_item_changes c
+         LEFT JOIN users u ON c.performed_by = u.id
+         WHERE c.inventory_id = $1
+         ORDER BY c.created_at DESC
+         LIMIT 300`,
+        [id]
+      ),
+    ]);
+
+    const entries = [
+      ...movements.rows.map((r) => ({ kind: 'movement' as const, ...r })),
+      ...edits.rows.map((r) => ({ kind: 'edit' as const, ...r })),
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    res.json({ item: item.rows[0], entries });
+  } catch (error) {
+    console.error('Get inventory item history error:', error);
+    res.status(500).json({ error: 'Failed to fetch item history' });
+  }
+};
+
 // Add new inventory item
 export const createInventoryItem = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -364,6 +417,7 @@ export const createInventoryItem = async (req: Request, res: Response): Promise<
 
 // Update inventory item
 export const updateInventoryItem = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const {
@@ -380,8 +434,10 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
       supplier_id,
       location,
       requires_prescription,
-      is_active
+      is_active,
+      change_reason
     } = req.body;
+    const userId = (req as any).user?.id;
 
     // Coerce blank expiry_date ('') to NULL — COALESCE keeps '' (not NULL) and
     // the cast to DATE would fail. NULL means "leave existing value unchanged".
@@ -390,7 +446,16 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
     // the existing pack_size unchanged (COALESCE).
     const packSize = Number(pack_size) > 0 ? Number(pack_size) : null;
 
-    const result = await pool.query(
+    await client.query('BEGIN');
+    // Old values, so the edit can be recorded (it used to overwrite silently).
+    const before = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1 FOR UPDATE', [id]);
+    if (before.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Inventory item not found' });
+      return;
+    }
+
+    const result = await client.query(
       `UPDATE pharmacy_inventory SET
         medication_name = COALESCE($1, medication_name),
         generic_name = COALESCE($2, generic_name),
@@ -413,18 +478,26 @@ export const updateInventoryItem = async (req: Request, res: Response): Promise<
        selling_price, packSize, expiry, supplier, supplier_id, location, requires_prescription, is_active, id]
     );
 
-    if (result.rows.length === 0) {
-      res.status(404).json({ error: 'Inventory item not found' });
-      return;
-    }
+    await logInventoryItemChanges(client, {
+      inventoryId: Number(id),
+      before: before.rows[0],
+      after: result.rows[0],
+      source: 'edit',
+      reason: change_reason,
+      userId,
+    });
+    await client.query('COMMIT');
 
     res.json({
       message: 'Inventory item updated successfully',
       item: result.rows[0]
     });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Update inventory item error:', error);
     res.status(500).json({ error: 'Failed to update inventory item' });
+  } finally {
+    client.release();
   }
 };
 
@@ -1238,6 +1311,8 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
       ]
     );
 
+    const beforePurchase = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1 FOR UPDATE', [inventory_id]);
+
     // Update inventory total quantity and earliest expiry
     await client.query(
       `UPDATE pharmacy_inventory
@@ -1260,6 +1335,20 @@ export const recordPurchase = async (req: Request, res: Response): Promise<void>
         `UPDATE pharmacy_inventory SET selling_price = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [new_selling_price, inventory_id]
       );
+    }
+
+    // Procurement reprices the item (cost always, selling price optionally) —
+    // record the change so the old price isn't lost.
+    if (beforePurchase.rows.length > 0) {
+      const afterPurchase = await client.query('SELECT * FROM pharmacy_inventory WHERE id = $1', [inventory_id]);
+      await logInventoryItemChanges(client, {
+        inventoryId: Number(inventory_id),
+        before: beforePurchase.rows[0],
+        after: afterPurchase.rows[0],
+        source: 'procurement',
+        reason: invoice_number ? `Procurement, invoice ${invoice_number}` : 'Procurement',
+        userId,
+      });
     }
 
     await client.query('COMMIT');

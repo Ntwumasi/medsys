@@ -93,13 +93,15 @@ export const createClaimForInvoice = async (
   const primaryDiagnosis = diagnosesResult.rows.find(d => d.type === 'primary') || diagnosesResult.rows[0];
   const secondaryDiagnoses = diagnosesResult.rows.filter(d => d !== primaryDiagnosis);
 
-  // Get invoice items for claim
+  // Get invoice items for claim — only lines billed to the insurer. Lines the
+  // pharmacist marked "patient pays" (exempted meds) are collected in cash.
   const itemsResult = await pool.query(
     `SELECT description, quantity, unit_price, total_price, category
      FROM invoice_items
-     WHERE invoice_id = $1`,
+     WHERE invoice_id = $1 AND bill_to = 'payer'`,
     [invoiceId]
   );
+  const claimTotal = itemsResult.rows.reduce((sum, i) => sum + parseFloat(i.total_price || 0), 0);
 
   const claimNumber = await generateClaimNumber();
 
@@ -130,7 +132,7 @@ export const createClaimForInvoice = async (
         code: d.diagnosis_code,
         description: d.diagnosis_description
       }))),
-      invoice.total_amount,
+      Math.round(claimTotal * 100) / 100,
       annualLimit,
       usedToDate,
       remainingCoverage,

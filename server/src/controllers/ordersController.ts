@@ -1970,6 +1970,99 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
   }
 };
 
+// Mark a medication on an insured/corporate patient's order as paid by the
+// patient (exempted from cover), or back to billed-to-payer. Before dispense
+// it's carried on the order and stamped on the invoice line at dispense; after
+// dispense the existing invoice line is switched too — unless the invoice was
+// already submitted to the payer or is fully paid.
+export const setPharmacyOrderPaymentMode = async (req: Request, res: Response): Promise<void> => {
+  const client = await pool.connect();
+  try {
+    const id = Number(req.params.id);
+    const patientPays = req.body?.patient_pays === true;
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason.trim() : '';
+    const userId = (req as any).user?.id;
+
+    await client.query('BEGIN');
+    const orderResult = await client.query(
+      `SELECT po.id, po.patient_id, po.medication_name, po.status, po.patient_pays,
+              (SELECT pps.payer_type FROM patient_payer_sources pps
+                WHERE pps.patient_id = po.patient_id
+                ORDER BY pps.is_primary DESC, pps.id ASC LIMIT 1) AS payer_type
+       FROM pharmacy_orders po WHERE po.id = $1 FOR UPDATE OF po`,
+      [id]
+    );
+    if (orderResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Pharmacy order not found' });
+      return;
+    }
+    const order = orderResult.rows[0];
+    if (patientPays && order.payer_type !== 'insurance' && order.payer_type !== 'corporate') {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Only insurance or corporate patients can have a medication switched to patient-pays.' });
+      return;
+    }
+    if (order.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'This order is cancelled.' });
+      return;
+    }
+
+    // Already billed? Switch the invoice line too, if the invoice is still open.
+    const line = await client.query(
+      `SELECT ii.id, i.id AS invoice_id, i.payer_submitted_at, i.total_amount, i.amount_paid
+       FROM invoice_items ii JOIN invoices i ON i.id = ii.invoice_id
+       WHERE ii.reference_type = 'pharmacy_order' AND ii.reference_id = $1`,
+      [id]
+    );
+    for (const l of line.rows) {
+      if (l.payer_submitted_at) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: 'The invoice has already been submitted to the payer — ask the accountant to adjust the claim instead.' });
+        return;
+      }
+      if (parseFloat(l.total_amount) > 0 && parseFloat(l.amount_paid) >= parseFloat(l.total_amount) - 0.005) {
+        await client.query('ROLLBACK');
+        res.status(409).json({ error: 'The invoice is already fully paid.' });
+        return;
+      }
+    }
+
+    const updated = await client.query(
+      `UPDATE pharmacy_orders
+       SET patient_pays = $2, patient_pays_reason = $3, patient_pays_set_by = $4,
+           patient_pays_set_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 RETURNING *`,
+      [id, patientPays, patientPays ? (reason || null) : null, userId]
+    );
+    if (line.rows.length > 0) {
+      await client.query(
+        `UPDATE invoice_items SET bill_to = $2
+         WHERE reference_type = 'pharmacy_order' AND reference_id = $1`,
+        [id, patientPays ? 'patient' : 'payer']
+      );
+    }
+    await client.query('COMMIT');
+
+    await auditService.log({
+      userId,
+      action: 'update',
+      entityType: 'pharmacy_order',
+      entityId: id,
+      details: { patient_pays: patientPays, reason: reason || null, invoice_line_updated: line.rows.length > 0 },
+    });
+
+    res.json({ order: updated.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Set pharmacy order payment mode error:', error);
+    res.status(500).json({ error: 'Failed to change payment mode' });
+  } finally {
+    client.release();
+  }
+};
+
 export const getPharmacyOrders = async (req: Request, res: Response): Promise<void> => {
   try {
     const { patient_id, encounter_id, status, start_date, end_date, ordered_from, ordered_to } = req.query;
@@ -2537,10 +2630,12 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
           const medDescription = updatedOrder.substitute_medication
             ? `${updatedOrder.substitute_medication} (${updatedOrder.dosage})`
             : `${updatedOrder.medication_name} (${updatedOrder.dosage})`;
+          // bill_to: lines the pharmacist marked "patient pays" (exempted from
+          // the patient's insurance/corporate cover) are collected at reception.
           await client.query(
-            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
-             VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6)`,
-            [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id)]
+            `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id, bill_to)
+             VALUES ($1, $2, $3, $4, $5, 'medication', 'pharmacy_order', $6, $7)`,
+            [invoiceId, medDescription, quantity, unitPrice, totalPrice, parseInt(id), updatedOrder.patient_pays ? 'patient' : 'payer']
           );
 
           // Update invoice total. Recompute subtotal too — previously only

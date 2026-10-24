@@ -816,8 +816,12 @@ export const checkDuplicates = async (req: Request, res: Response): Promise<void
 
     const firstName = String(first_name);
     const lastName = String(last_name);
-    const dob = date_of_birth ? String(date_of_birth) : null;
-    const phoneStr = phone ? String(phone) : null;
+    // The 1900-01-01 walk-in placeholder is not a real DOB — matching on it
+    // flagged every no-DOB walk-in as a duplicate of every other.
+    const dob = date_of_birth && String(date_of_birth) > '1901-01-01' ? String(date_of_birth) : null;
+    // Compare phones on their last 9 digits so +233 24… matches 024….
+    const phoneDigits = phone ? String(phone).replace(/[^0-9]/g, '') : '';
+    const phoneStr = phoneDigits.length >= 9 ? phoneDigits.slice(-9) : null;
 
     // Check if pg_trgm extension is available for fuzzy matching
     let hasTrgm = false;
@@ -844,14 +848,13 @@ export const checkDuplicates = async (req: Request, res: Response): Promise<void
                (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2)) AS exact_name,
                (similarity(UPPER(u.first_name), UPPER($1)) > 0.4 AND similarity(UPPER(u.last_name), UPPER($2)) > 0.4) AS fuzzy_name,
                ${dob ? `(p.date_of_birth = $3)` : 'FALSE'} AS dob_match,
-               ${phoneStr ? `(u.phone = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
+               ${phoneStr ? `(RIGHT(regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9) = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
         FROM patients p
         JOIN users u ON p.user_id = u.id
-        WHERE (
+        WHERE p.merged_into IS NULL AND (
           (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2))
           OR (similarity(UPPER(u.first_name), UPPER($1)) > 0.4 AND similarity(UPPER(u.last_name), UPPER($2)) > 0.4)
-          ${dob ? `OR p.date_of_birth = $3` : ''}
-          ${phoneStr ? `OR u.phone = $${dob ? 4 : 3}` : ''}
+          ${phoneStr ? `OR RIGHT(regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9) = $${dob ? 4 : 3}` : ''}
         )
         ORDER BY exact_name DESC, fuzzy_name DESC
         LIMIT 20
@@ -864,14 +867,13 @@ export const checkDuplicates = async (req: Request, res: Response): Promise<void
                (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2)) AS exact_name,
                (UPPER(u.first_name) LIKE UPPER($1) || '%' AND UPPER(u.last_name) LIKE UPPER($2) || '%') AS fuzzy_name,
                ${dob ? `(p.date_of_birth = $3)` : 'FALSE'} AS dob_match,
-               ${phoneStr ? `(u.phone = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
+               ${phoneStr ? `(RIGHT(regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9) = $${dob ? 4 : 3})` : 'FALSE'} AS phone_match
         FROM patients p
         JOIN users u ON p.user_id = u.id
-        WHERE (
+        WHERE p.merged_into IS NULL AND (
           (UPPER(u.first_name) = UPPER($1) AND UPPER(u.last_name) = UPPER($2))
           OR (UPPER(u.first_name) LIKE UPPER($1) || '%' AND UPPER(u.last_name) LIKE UPPER($2) || '%')
-          ${dob ? `OR p.date_of_birth = $3` : ''}
-          ${phoneStr ? `OR u.phone = $${dob ? 4 : 3}` : ''}
+          ${phoneStr ? `OR RIGHT(regexp_replace(COALESCE(u.phone, ''), '[^0-9]', '', 'g'), 9) = $${dob ? 4 : 3}` : ''}
         )
         ORDER BY exact_name DESC, fuzzy_name DESC
         LIMIT 20
