@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 
 interface SelectOption {
@@ -20,16 +21,16 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor={selectId} className={dsClass("block text-sm font-medium text-gray-700 mb-1.5")}>
             {label}
-            {props.required && <span className="text-danger-500 ml-1">*</span>}
+            {props.required && <span className={dsClass("text-danger-500 ml-1")}>*</span>}
           </label>
         )}
         <div className="relative">
           <select
             ref={ref}
             id={selectId}
-            className={`
+            className={dsClass(`
               block w-full rounded-lg border transition-colors duration-200
               pl-4 pr-10 py-2.5 text-sm appearance-none
               ${error
@@ -40,7 +41,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed
               ${!props.value && placeholder ? 'text-gray-400' : 'text-gray-900'}
               ${className}
-            `}
+            `)}
             {...props}
           >
             {placeholder && (
@@ -55,13 +56,13 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             ))}
           </select>
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+            <svg className={dsClass("h-5 w-5 text-gray-400")} viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
           </div>
         </div>
-        {error && <p className="mt-1.5 text-sm text-danger-600">{error}</p>}
-        {hint && !error && <p className="mt-1.5 text-sm text-gray-500">{hint}</p>}
+        {error && <p className={dsClass("mt-1.5 text-sm text-danger-600")}>{error}</p>}
+        {hint && !error && <p className={dsClass("mt-1.5 text-sm text-gray-500")}>{hint}</p>}
       </div>
     );
   }

@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
 import type { SearchResult, SearchPatient, SearchEncounter } from '../types';
@@ -86,11 +87,11 @@ const SearchBar: React.FC<SearchBarProps> = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder={placeholder}
-          className="w-full px-4 py-2 pl-10 pr-4 text-gray-900 placeholder-gray-500 border border-white border-opacity-30 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white shadow-sm"
+          className={dsClass("w-full px-4 py-2 pl-10 pr-4 text-gray-900 placeholder-gray-500 border border-white border-opacity-30 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white shadow-sm")}
           style={{ color: '#111827' }}
         />
         <svg
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500"
+          className={dsClass("absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500")}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -104,33 +105,33 @@ const SearchBar: React.FC<SearchBarProps> = ({
         </svg>
         {isSearching && (
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+            <div className={dsClass("animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600")}></div>
           </div>
         )}
       </div>
 
       {showResults && results && results.total_results > 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
+        <div className={dsClass("absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto")}>
           {results.patients.length > 0 && (
             <div className="p-2">
-              <div className="text-xs font-semibold text-gray-500 px-2 py-1">PATIENTS</div>
+              <div className={dsClass("text-xs font-semibold text-gray-500 px-2 py-1")}>PATIENTS</div>
               {results.patients.map((patient) => (
                 <button
                   key={patient.id}
                   onClick={() => handlePatientClick(patient)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center justify-between"
+                  className={dsClass("w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center justify-between")}
                 >
                   <div>
-                    <div className="font-semibold text-gray-900">
+                    <div className={dsClass("font-semibold text-gray-900")}>
                       {patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()}
                     </div>
-                    <div className="text-sm text-gray-600">{patient.patient_number}</div>
+                    <div className={dsClass("text-sm text-gray-600")}>{patient.patient_number}</div>
                     {patient.phone && (
-                      <div className="text-xs text-gray-500">{patient.phone}</div>
+                      <div className={dsClass("text-xs text-gray-500")}>{patient.phone}</div>
                     )}
                   </div>
                   <svg
-                    className="w-4 h-4 text-gray-400"
+                    className={dsClass("w-4 h-4 text-gray-400")}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -148,23 +149,23 @@ const SearchBar: React.FC<SearchBarProps> = ({
           )}
 
           {results.encounters.length > 0 && (
-            <div className="p-2 border-t border-gray-200">
-              <div className="text-xs font-semibold text-gray-500 px-2 py-1">ENCOUNTERS</div>
+            <div className={dsClass("p-2 border-t border-gray-200")}>
+              <div className={dsClass("text-xs font-semibold text-gray-500 px-2 py-1")}>ENCOUNTERS</div>
               {results.encounters.map((encounter) => (
                 <button
                   key={encounter.id}
                   onClick={() => handleEncounterClick(encounter)}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center justify-between"
+                  className={dsClass("w-full text-left px-3 py-2 hover:bg-gray-100 rounded flex items-center justify-between")}
                 >
                   <div>
-                    <div className="font-semibold text-gray-900">{encounter.encounter_number}</div>
-                    <div className="text-sm text-gray-600">{encounter.patient_name}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className={dsClass("font-semibold text-gray-900")}>{encounter.encounter_number}</div>
+                    <div className={dsClass("text-sm text-gray-600")}>{encounter.patient_name}</div>
+                    <div className={dsClass("text-xs text-gray-500")}>
                       {new Date(encounter.encounter_date).toLocaleDateString()}
                     </div>
                   </div>
                   <svg
-                    className="w-4 h-4 text-gray-400"
+                    className={dsClass("w-4 h-4 text-gray-400")}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -184,7 +185,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
       )}
 
       {showResults && results && results.total_results === 0 && (
-        <div className="absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 text-center text-gray-500">
+        <div className={dsClass("absolute z-50 w-full mt-2 bg-white rounded-lg shadow-lg border border-gray-200 p-4 text-center text-gray-500")}>
           No results found for "{searchTerm}"
         </div>
       )}

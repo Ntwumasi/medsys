@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -69,57 +70,57 @@ const UnbilledPayerEncounters: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+    <div className={dsClass("bg-white rounded-xl shadow-lg border border-gray-200 p-6")}>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="max-w-3xl">
-          <h2 className="text-xl font-semibold text-gray-900">Awaiting Submission</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className={dsClass("text-xl font-semibold text-gray-900")}>Awaiting Submission</h2>
+          <p className={dsClass("text-sm text-gray-600 mt-1")}>
             Visits for patients paid by a <span className="font-semibold">company (corporate)</span> or <span className="font-semibold">insurance</span> — not cash. The visit is billed, but the bill hasn't been sent to that company/insurer yet, so we can't be paid until it is. Click <span className="font-semibold">"Submit to payer"</span> to send it (for insurance it also opens a claim). An empty list means everything has been sent.
           </p>
         </div>
-        <button onClick={load} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Refresh</button>
+        <button onClick={load} className={dsClass("px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50")}>Refresh</button>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className={dsClass("min-w-full divide-y divide-gray-200")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
+              <th className={dsClass("px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase")}>Invoice #</th>
+              <th className={dsClass("px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase")}>Date</th>
+              <th className={dsClass("px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase")}>Patient</th>
+              <th className={dsClass("px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase")}>Payer</th>
+              <th className={dsClass("px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase")}>Balance</th>
+              <th className={dsClass("px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase")}>Action</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className={dsClass("bg-white divide-y divide-gray-200")}>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Loading…</td></tr>
+              <tr><td colSpan={6} className={dsClass("px-4 py-8 text-center text-gray-500")}>Loading…</td></tr>
             ) : invoices.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">Nothing awaiting submission — all corporate/insurance encounters have been submitted.</td></tr>
+              <tr><td colSpan={6} className={dsClass("px-4 py-8 text-center text-gray-500")}>Nothing awaiting submission — all corporate/insurance encounters have been submitted.</td></tr>
             ) : (
               invoices.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                <tr key={inv.id} className={dsClass("hover:bg-gray-50")}>
+                  <td className={dsClass("px-4 py-3 text-sm font-medium text-gray-900")}>{inv.invoice_number}</td>
+                  <td className={dsClass("px-4 py-3 text-sm text-gray-500")}>{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
                   <td className="px-4 py-3">
-                    <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
-                    <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                    <div className={dsClass("text-sm font-medium text-gray-900")}>{inv.patient_name}</div>
+                    <div className={dsClass("text-xs text-gray-500")}>{inv.patient_number}</div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-warning-100 text-warning-700'}`}>
+                  <td className={dsClass("px-4 py-3 text-sm text-gray-700")}>
+                    <span className={dsClass(`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-warning-100 text-warning-700'}`)}>
                       {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
                     </span>
                     <span className="ml-2">{payerLabel(inv)}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
+                  <td className={dsClass("px-4 py-3 text-sm text-right text-danger-600 font-medium")}>
                     {fmtGHS((parseFloat(inv.total_amount as string) || 0) - (parseFloat(inv.amount_paid as string) || 0))}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button
                       onClick={() => submit(inv.id)}
                       disabled={submittingId === inv.id}
-                      className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                      className={dsClass("px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50")}
                     >
                       {submittingId === inv.id ? 'Submitting…' : 'Submit to payer'}
                     </button>

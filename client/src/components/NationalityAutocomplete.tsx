@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useState, useRef, useEffect } from 'react';
 
 // Comprehensive list of nationalities
@@ -117,20 +118,20 @@ const NationalityAutocomplete: React.FC<NationalityAutocompleteProps> = ({
       />
 
       {isOpen && suggestions.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+        <ul className={dsClass("absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto")}>
           {suggestions.map((nationality, index) => (
             <li
               key={nationality}
               onClick={() => handleSelect(nationality)}
               onMouseEnter={() => setHighlightedIndex(index)}
-              className={`px-4 py-2 cursor-pointer transition-colors ${
+              className={dsClass(`px-4 py-2 cursor-pointer transition-colors ${
                 index === highlightedIndex
                   ? 'bg-primary-100 text-primary-900'
                   : 'hover:bg-gray-100'
-              }`}
+              }`)}
             >
               <span className="font-medium">{nationality.slice(0, value.length)}</span>
-              <span className="text-gray-600">{nationality.slice(value.length)}</span>
+              <span className={dsClass("text-gray-600")}>{nationality.slice(value.length)}</span>
             </li>
           ))}
         </ul>
