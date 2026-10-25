@@ -22,6 +22,10 @@ beforeAll(async () => {
   app.get('/api/appointments', authenticateToken, enforcePatientOwnership, (req, res) => {
     res.json({ patient_id: (req.query as Record<string, unknown>).patient_id ?? null });
   });
+  // An allowlisted portal path, to exercise enforcePatientOwnership for a patient.
+  app.get('/api/patient-portal/me', authenticateToken, enforcePatientOwnership, (req, res) => {
+    res.json({ patient_id: (req.query as Record<string, unknown>).patient_id ?? null });
+  });
   app.get('/api/medications/patient/:patient_id', authenticateToken, enforcePatientOwnership, (_req, res) => {
     res.json({ ok: true });
   });
@@ -69,24 +73,22 @@ describe('patient-portal scoping', () => {
   const patient = () => token({ id: 1, role: 'patient', is_super_admin: false });
 
   it("forces a patient's ?patient_id to their own record", async () => {
-    const r = await get('/api/appointments?patient_id=999', patient());
+    const r = await get('/api/patient-portal/me?patient_id=999', patient());
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ patient_id: '101' });
   });
 
   it('scopes a patient who sends no patient_id at all', async () => {
-    const r = await get('/api/appointments', patient());
+    const r = await get('/api/patient-portal/me', patient());
     expect(await r.json()).toEqual({ patient_id: '101' });
-  });
-
-  it("blocks another patient's path id", async () => {
-    expect((await get('/api/medications/patient/999', patient())).status).toBe(403);
-    expect((await get('/api/medications/patient/101', patient())).status).toBe(200);
   });
 
   it('blocks patients from staff routes, whatever the route forgot to check', async () => {
     expect((await get('/api/messages/users', patient())).status).toBe(403);
     expect((await get('/api/appointments/5', patient(), 'PUT')).status).toBe(403);
+    // Staff record endpoints skip the results-release rule — patients use /patient-portal/*.
+    expect((await get('/api/appointments?patient_id=101', patient())).status).toBe(403);
+    expect((await get('/api/medications/patient/101', patient())).status).toBe(403);
   });
 
   it('leaves staff queries alone', async () => {

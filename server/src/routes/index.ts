@@ -225,6 +225,13 @@ import {
   setReminderOptOut,
 } from '../controllers/patientTextController';
 import {
+  getPortalLabs,
+  getPortalImaging,
+  getPortalMedications,
+  getPortalAppointments,
+  getPortalBills,
+} from '../controllers/patientPortalRecordsController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -482,6 +489,13 @@ router.post('/patient-portal/request-link', portalRequestLink);
 router.post('/patient-portal/verify', portalVerify);
 router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin'), portalStaffSendLink);
 router.get('/patient-portal/me', authenticateToken, portalGetMe);
+// Portal records — scoped to the token's own patient; results follow the
+// release rule (doctor reviewed, or 3 days after finalised).
+router.get('/patient-portal/labs', authenticateToken, authorizeRoles('patient'), getPortalLabs);
+router.get('/patient-portal/imaging', authenticateToken, authorizeRoles('patient'), getPortalImaging);
+router.get('/patient-portal/medications', authenticateToken, authorizeRoles('patient'), getPortalMedications);
+router.get('/patient-portal/appointments', authenticateToken, authorizeRoles('patient'), getPortalAppointments);
+router.get('/patient-portal/bills', authenticateToken, authorizeRoles('patient'), getPortalBills);
 
 // Admin reports — also exposed to accountants for the financial dashboard.
 import { getDoctorRevenue, getDoctorRevenueLines, getStaffActivityReport } from '../controllers/adminReportsController';

@@ -28,13 +28,12 @@ export const STAFF_ROLES = [
  * territory and answers 403 for a patient, whatever the route's own gates say —
  * so a route that forgets authorizeRoles can't leak other patients' records.
  * Keep in sync with what client/src/pages/PatientPortal.tsx actually calls.
+ * (The staff /orders/lab etc. are deliberately NOT here: they don't apply the
+ * results-release rule, so a patient must go through /patient-portal/*.)
  */
 const PATIENT_ALLOWED_ROUTES: { method: string; path: RegExp }[] = [
-  { method: 'GET', path: /^\/patient-portal\/me$/ },
-  { method: 'GET', path: /^\/appointments$/ },
-  { method: 'GET', path: /^\/orders\/lab$/ },
-  { method: 'GET', path: /^\/orders\/imaging$/ },
-  { method: 'GET', path: /^\/medications\/patient\/\d+$/ },
+  // Portal records: own patient only, results held until released.
+  { method: 'GET', path: /^\/patient-portal\/(me|labs|imaging|medications|appointments|bills)$/ },
   { method: 'GET', path: /^\/auth\/me$/ },
   { method: 'POST', path: /^\/auth\/logout(-all)?$/ },
   // Notifications are always scoped to the caller's own rows.

@@ -788,61 +788,64 @@ const ensureLabTemplates = async (): Promise<void> => {
 // (sex / age-specific FBC, chem panel) based on the patient on the order,
 // then returns the parameter rows. The frontend uses this to render the
 // structured result entry form.
+/**
+ * The parameter template (names, units, reference ranges, critical limits) for
+ * one lab order, resolved for the patient's sex/age. Shared by the staff
+ * endpoint below and the patient portal. Returns null if the order is missing.
+ */
+export const loadLabOrderParameters = async (
+  orderId: number,
+): Promise<{ has_template: boolean; matched_test_name?: string; parameters: any[] } | null> => {
+  await ensureLabTemplates();
+  const orderRow = await pool.query(
+    `SELECT lo.test_name, lo.test_code,
+            p.date_of_birth, p.gender
+       FROM lab_orders lo
+       LEFT JOIN patients p ON lo.patient_id = p.id
+      WHERE lo.id = $1
+      LIMIT 1`,
+    [orderId],
+  );
+  if (orderRow.rows.length === 0) return null;
+  const order = orderRow.rows[0];
+  const ageYears = order.date_of_birth
+    ? Math.floor((Date.now() - new Date(order.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
+    : null;
+
+  const template = await findTestTemplate(
+    order.test_code,
+    order.test_name,
+    order.gender,
+    ageYears,
+  );
+  if (!template) return { has_template: false, parameters: [] };
+
+  const params = await pool.query(
+    `SELECT id, parameter_name, parameter_code, value_type, unit,
+            normal_low, normal_high, critical_low, critical_high,
+            reference_range_text, qualitative_options,
+            default_qualitative_value, age_group, sex, section_label, sort_order
+       FROM lab_test_parameters
+      WHERE lab_test_id = $1
+      ORDER BY sort_order ASC, id ASC`,
+    [template.testId],
+  );
+  return { has_template: true, matched_test_name: template.matchedName, parameters: params.rows };
+};
+
 export const getLabOrderParameters = async (req: Request, res: Response): Promise<void> => {
   try {
-    await ensureLabTemplates();
     const orderId = parseInt(req.params.order_id as string, 10);
     if (!orderId || Number.isNaN(orderId)) {
       res.status(400).json({ error: 'Invalid lab order id' });
       return;
     }
-
-    const orderRow = await pool.query(
-      `SELECT lo.test_name, lo.test_code,
-              p.date_of_birth, p.gender
-         FROM lab_orders lo
-         LEFT JOIN patients p ON lo.patient_id = p.id
-        WHERE lo.id = $1
-        LIMIT 1`,
-      [orderId],
-    );
-    if (orderRow.rows.length === 0) {
+    const result = await loadLabOrderParameters(orderId);
+    if (!result) {
       res.status(404).json({ error: 'Lab order not found' });
       return;
     }
-    const order = orderRow.rows[0];
-    const ageYears = order.date_of_birth
-      ? Math.floor((Date.now() - new Date(order.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
-      : null;
-
-    const template = await findTestTemplate(
-      order.test_code,
-      order.test_name,
-      order.gender,
-      ageYears,
-    );
-
-    if (!template) {
-      res.json({ has_template: false, parameters: [] });
-      return;
-    }
-
-    const params = await pool.query(
-      `SELECT id, parameter_name, parameter_code, value_type, unit,
-              normal_low, normal_high, critical_low, critical_high,
-              reference_range_text, qualitative_options,
-              default_qualitative_value, age_group, sex, section_label, sort_order
-         FROM lab_test_parameters
-        WHERE lab_test_id = $1
-        ORDER BY sort_order ASC, id ASC`,
-      [template.testId],
-    );
-
-    res.json({
-      has_template: true,
-      matched_test_name: template.matchedName,
-      parameters: params.rows,
-    });
+    res.json(result);
   } catch (error) {
     console.error('Get lab order parameters error:', error);
     res.status(500).json({ error: 'Failed to fetch lab parameter template' });

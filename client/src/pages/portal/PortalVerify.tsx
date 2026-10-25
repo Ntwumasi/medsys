@@ -6,13 +6,24 @@ import { branding } from '../../config/branding';
 import type { User } from '../../types';
 import type { ApiError } from '../../types';
 
+const SELECT_CLS =
+  'w-full px-3 py-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500';
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const YEARS = Array.from({ length: 111 }, (_, i) => String(new Date().getFullYear() - i));
+
 const PortalVerify: React.FC = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
   const navigate = useNavigate();
   const { loginWithSession } = useAuth();
 
-  const [dob, setDob] = useState('');
+  // Day / month / year dropdowns: the native date picker is awkward on
+  // Android for birth years decades back.
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
+  const dob = day && month && year ? `${year}-${month}-${day}` : '';
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,23 +64,27 @@ const PortalVerify: React.FC = () => {
             <p className="text-gray-600 text-sm">
               For your security, please confirm your date of birth to access your records.
             </p>
-            <div>
-              <label htmlFor="dob" className="block text-sm font-medium text-gray-700 mb-1">
-                Date of birth
-              </label>
-              <input
-                id="dob"
-                type="date"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                required
-              />
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-1">Date of birth</legend>
+              <div className="grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
+                <select aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} required className={SELECT_CLS}>
+                  <option value="">Day</option>
+                  {DAYS.map((d) => <option key={d} value={d}>{Number(d)}</option>)}
+                </select>
+                <select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} required className={SELECT_CLS}>
+                  <option value="">Month</option>
+                  {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>)}
+                </select>
+                <select aria-label="Year" value={year} onChange={(e) => setYear(e.target.value)} required className={SELECT_CLS}>
+                  <option value="">Year</option>
+                  {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </fieldset>
+            {error && <p className="text-sm text-danger-600" role="alert">{error}</p>}
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !dob}
               className="w-full py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50"
             >
               {submitting ? 'Verifying…' : 'Access my records'}

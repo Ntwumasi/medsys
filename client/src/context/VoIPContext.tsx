@@ -65,7 +65,10 @@ export const VoIPProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => { callStateRef.current = callState; }, [callState]);
   useEffect(() => { currentCallRef.current = currentCall; }, [currentCall]);
 
-  const isLoggedIn = !!localStorage.getItem('token');
+  // Staff-to-staff calling only: patient-portal sessions never poll presence.
+  const isLoggedIn = !!localStorage.getItem('token') && (() => {
+    try { return JSON.parse(localStorage.getItem('user') || '{}')?.role !== 'patient'; } catch { return true; }
+  })();
 
   // ── Audio setup ──
   useEffect(() => {
