@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 /**
  * Migration to add Cliffton Gardner as an admin with super admin permissions.
@@ -23,8 +23,7 @@ export async function addClifftonGardner() {
       );
       console.log('Updated cgardner: role=admin, is_super_admin=true');
     } else {
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash('demo123', saltRounds);
+      const passwordHash = await unusablePasswordHash();
 
       // NOTE: no department/position columns here — the users table has never
       // had them (not even in production). Including them made this migration

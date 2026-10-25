@@ -96,7 +96,7 @@ export async function addUsernameLogin() {
 
     await client.query('COMMIT');
     console.log('\n✅ Username login migration completed successfully!');
-    console.log('\nUsers can now login with their username. Default password is: demo123');
+    console.log('\nUsers can now login with their username.');
 
   } catch (error) {
     await client.query('ROLLBACK');

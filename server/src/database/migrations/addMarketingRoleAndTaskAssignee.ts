@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 /**
  * Adds the `marketing` role and a structured task assignee.
@@ -88,7 +88,7 @@ export async function addMarketingRoleAndTaskAssignee() {
         [demoUsername]
       );
     } else {
-      const passwordHash = await bcrypt.hash('demo123', 10);
+      const passwordHash = await unusablePasswordHash();
       await client.query(
         `INSERT INTO users (first_name, last_name, email, username, password_hash,
             role, is_active, is_demo_user, must_change_password, password_changed_at)

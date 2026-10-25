@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 import Button from './Button';
 
@@ -20,7 +21,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
   className = '',
 }) => {
   const defaultIcon = (
-    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className={dsClass("w-12 h-12 text-gray-400")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -32,12 +33,12 @@ const EmptyState: React.FC<EmptyStateProps> = ({
 
   return (
     <div className={`flex flex-col items-center justify-center py-12 px-4 ${className}`}>
-      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+      <div className={dsClass("w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4")}>
         {icon || defaultIcon}
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-2")}>{title}</h3>
       {description && (
-        <p className="text-sm text-gray-500 text-center max-w-sm mb-6">{description}</p>
+        <p className={dsClass("text-sm text-gray-500 text-center max-w-sm mb-6")}>{description}</p>
       )}
       {action && (
         <Button variant="primary" onClick={action.onClick}>

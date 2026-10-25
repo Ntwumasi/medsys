@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import { branding } from '../config/branding';
@@ -153,31 +154,31 @@ const PatientStatement: React.FC<PatientStatementProps> = ({ patientId, onClose 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+      <div className={dsClass("bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col")}>
         {/* Toolbar (not printed) */}
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-gray-900">Outstanding Statement</h3>
+        <div className={dsClass("px-6 py-4 border-b border-gray-200 flex justify-between items-center")}>
+          <h3 className={dsClass("text-lg font-bold text-gray-900")}>Outstanding Statement</h3>
           <div className="flex items-center gap-2">
             {data && data.count > 0 && (
-              <button onClick={handlePrint} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+              <button onClick={handlePrint} className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium")}>
                 Print
               </button>
             )}
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            <button onClick={onClose} className={dsClass("text-gray-400 hover:text-gray-700 text-2xl leading-none")}>×</button>
           </div>
         </div>
 
         <div className="overflow-y-auto flex-1">
           {loading ? (
-            <div className="py-16 text-center text-gray-500 text-sm">Loading statement…</div>
+            <div className={dsClass("py-16 text-center text-gray-500 text-sm")}>Loading statement…</div>
           ) : error ? (
-            <div className="py-16 text-center text-danger-600 text-sm">{error}</div>
+            <div className={dsClass("py-16 text-center text-danger-600 text-sm")}>{error}</div>
           ) : data && data.count === 0 ? (
-            <div className="py-16 text-center text-gray-500 text-sm">
+            <div className={dsClass("py-16 text-center text-gray-500 text-sm")}>
               {data.patient.patient_name} has no outstanding invoices.
             </div>
           ) : data ? (
-            <div ref={printRef} className="p-6 sm:p-8">
+            <div ref={printRef} className="p-6 sm:p-8 bg-white text-gray-900">
               {/* Header */}
               <div className="border-b-2 border-primary-600 pb-6 mb-6">
                 <div className="flex justify-between items-start">

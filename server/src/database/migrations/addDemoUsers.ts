@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 /**
  * Adds an `is_demo_user` flag to the users table and seeds one demo
@@ -43,7 +43,7 @@ export async function addDemoUsers() {
         ON users(role) WHERE is_demo_user = TRUE
     `);
 
-    const passwordHash = await bcrypt.hash('demo123', 10);
+    const passwordHash = await unusablePasswordHash();
     let created = 0;
     let updated = 0;
 
@@ -92,7 +92,7 @@ export async function addDemoUsers() {
 
     await client.query('COMMIT');
     console.log(`\n📊 Demo users: ${created} created, ${updated} updated`);
-    console.log('Default password: demo123 (these accounts are used by super admin role switcher)');
+    console.log('No usable password is set: an admin resets one of these accounts to get a temporary password.');
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Migration failed:', error);

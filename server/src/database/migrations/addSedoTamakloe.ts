@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 /**
  * Migration to add Sedo Tamakloe as a doctor with super admin permissions.
@@ -23,8 +23,7 @@ export async function addSedoTamakloe() {
       );
       console.log('Updated stamakloe: role=doctor, is_super_admin=true');
     } else {
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash('demo123', saltRounds);
+      const passwordHash = await unusablePasswordHash();
 
       // NOTE: no department/position columns here — see addClifftonGardner.ts.
       // The users table has never had them, so including them made this

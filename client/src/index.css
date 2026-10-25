@@ -3,6 +3,39 @@
 @import './styles/tokens.css';
 
 @tailwind base;
+
+/*
+ * Form controls on screens using the "Care" design system (html[data-ds="on"],
+ * set by hooks/useDesignSystemPage). Each selector has the same specificity
+ * as @tailwindcss/forms' base rules (one attribute or :is() of them): this
+ * layer comes after them so it wins, and before utilities, so a class on the
+ * element still wins. Unmigrated screens are unchanged.
+ */
+@layer base {
+  :where(html[data-ds='on']) :is([type='text'], [type='email'], [type='search'], [type='tel'], [type='number'], [type='password'], [type='url'], [type='date'], [type='datetime-local'], [type='time'], [type='month'], [type='week'], input:where(:not([type])), select, textarea, [multiple]) {
+    background-color: rgb(var(--ds-surface));
+    color: rgb(var(--ds-text));
+    border-color: rgb(var(--ds-border-control));
+  }
+  :where(html[data-ds='on']) :is([type='text'], [type='email'], [type='search'], [type='tel'], [type='number'], [type='password'], [type='url'], [type='date'], [type='datetime-local'], [type='time'], [type='month'], [type='week'], input:where(:not([type])), select) {
+    min-height: 44px;
+  }
+  :where(html[data-ds='on']) :is(input, textarea)::placeholder {
+    color: rgb(var(--ds-text-muted));
+    opacity: 1;
+  }
+  :where(html[data-ds='on']) :is(input, select, textarea):disabled {
+    background-color: rgb(var(--ds-subtle));
+    color: rgb(var(--ds-text-muted));
+  }
+  :where(html[data-ds='on']) :is([type='checkbox'], [type='radio']) {
+    accent-color: rgb(var(--ds-accent));
+    border-color: rgb(var(--ds-border-control));
+  }
+  :where(html[data-ds='on']) :is([type='checkbox'], [type='radio']):checked {
+    background-color: rgb(var(--ds-accent));
+  }
+}
 @tailwind components;
 @tailwind utilities;
 

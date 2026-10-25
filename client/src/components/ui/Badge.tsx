@@ -1,4 +1,5 @@
 import React from 'react';
+import { dsActive } from '../../utils/dsClass';
 
 type BadgeVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'gray';
 type BadgeSize = 'sm' | 'md' | 'lg';
@@ -19,6 +20,26 @@ const variantStyles: Record<BadgeVariant, string> = {
   danger: 'bg-danger-100 text-danger-700 border-danger-200',
   info: 'bg-blue-100 text-blue-700 border-blue-200',
   gray: 'bg-gray-100 text-gray-700 border-gray-200',
+};
+
+const dsVariantStyles: Record<BadgeVariant, string> = {
+  primary: 'bg-ds-accent-soft text-ds-accent-text border-ds-accent/30',
+  secondary: 'bg-ds-subtle text-ds-text-secondary border-ds-border',
+  success: 'bg-ds-success-soft text-ds-success-text border-ds-success/30',
+  warning: 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-border',
+  danger: 'bg-ds-critical-soft text-ds-critical-text border-ds-critical-border',
+  info: 'bg-ds-info-soft text-ds-info-text border-ds-info/30',
+  gray: 'bg-ds-subtle text-ds-text-secondary border-ds-border',
+};
+
+const dsDotVariantStyles: Record<BadgeVariant, string> = {
+  primary: 'bg-ds-accent',
+  secondary: 'bg-ds-text-muted',
+  success: 'bg-ds-success',
+  warning: 'bg-ds-warning',
+  danger: 'bg-ds-critical',
+  info: 'bg-ds-info',
+  gray: 'bg-ds-text-muted',
 };
 
 const dotVariantStyles: Record<BadgeVariant, string> = {
@@ -44,12 +65,13 @@ const Badge: React.FC<BadgeProps> = ({
   dot = false,
   className = '',
 }) => {
+  const ds = dsActive();
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full border ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center font-medium rounded-full border ${(ds ? dsVariantStyles : variantStyles)[variant]} ${sizeStyles[size]} ${className}`}
     >
       {dot && (
-        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dotVariantStyles[variant]}`} />
+        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${(ds ? dsDotVariantStyles : dotVariantStyles)[variant]}`} />
       )}
       {children}
     </span>

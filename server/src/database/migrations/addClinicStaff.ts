@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 interface StaffMember {
   firstName: string;
@@ -71,9 +71,7 @@ async function addClinicStaff() {
   try {
     console.log('Starting to add clinic staff members...\n');
 
-    const saltRounds = 10;
-    const defaultPassword = 'demo123'; // Users should change this on first login
-    const passwordHash = await bcrypt.hash(defaultPassword, saltRounds);
+    const passwordHash = await unusablePasswordHash(); // an admin resets each account to hand out a temporary password
 
     let successCount = 0;
     let skipCount = 0;
@@ -119,7 +117,7 @@ async function addClinicStaff() {
     console.log(`⏭️  Skipped (already exist): ${skipCount} staff members`);
     console.log(`📊 Total processed: ${staffList.length} staff members`);
     console.log('==============================================');
-    console.log(`\n📝 Default password for all new accounts: ${defaultPassword}`);
+    console.log('\n📝 New accounts have no usable password: an admin resets each one to hand out a temporary password.');
     console.log('⚠️  Users should change their password on first login\n');
 
   } catch (error) {

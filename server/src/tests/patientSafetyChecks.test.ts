@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { findCriticalValues, readNumericValue } from '../services/criticalResultService';
+import { labTestTemplates } from '../database/seeds/labTestTemplates';
 import { medicationMatches, findPairInteractions } from '../services/drugInteractionService';
 
 describe('critical lab values', () => {
@@ -20,6 +21,17 @@ describe('critical lab values', () => {
     expect(hits).toEqual([{ alertType: 'critical_high', label: 'Potassium: 7.1 mmol/L' }]);
     expect(findCriticalValues({ NA: '<120' }, [sodium])).toEqual([{ alertType: 'critical_low', label: 'Sodium: <120 mmol/L' }]);
     expect(findCriticalValues({ K: '5.6' }, [potassium])).toEqual([]);
+  });
+
+  it('flags a dangerously low haemoglobin or platelet count on every FBC variant', () => {
+    const fbcs = labTestTemplates.filter((t) => t.test_code?.startsWith('FBC_'));
+    expect(fbcs).toHaveLength(4);
+    for (const t of fbcs) {
+      const params = t.parameters.map((p) => ({ ...p, parameter_code: p.parameter_code ?? null, critical_low: p.critical_low ?? null, critical_high: p.critical_high ?? null }));
+      const hits = findCriticalValues({ HGB: '6.2', PLT: '15', WBC: '8.1', NEU_ABS: '4.0' }, params);
+      expect(hits.map((h) => h.label)).toEqual(['Haemoglobin (Hgb): 6.2 g/dL', 'Platelet Count (PLT): 15 10^9/L']);
+      expect(findCriticalValues({ HGB: '9.5', PLT: '120', WBC: '14', NEU_ABS: '1.2' }, params)).toEqual([]);
+    }
   });
 });
 

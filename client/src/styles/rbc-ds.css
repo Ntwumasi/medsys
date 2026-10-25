@@ -30,3 +30,5 @@ html[data-ds='on'] .rbc-toolbar button.rbc-active { background: rgb(var(--ds-acc
 html[data-ds='on'] .rbc-time-header-gutter,
 html[data-ds='on'] .rbc-time-gutter { color: rgb(var(--ds-text-muted)); }
 html[data-ds='on'] .rbc-current-time-indicator { background: rgb(var(--ds-critical)); }
+/* Every remaining calendar grid line (day columns, all-day row, header cells) follows the theme. */
+html[data-ds='on'] .rbc-calendar * { border-color: rgb(var(--ds-border)); }

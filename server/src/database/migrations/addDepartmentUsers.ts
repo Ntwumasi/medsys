@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 async function addDepartmentUsers() {
   const client = await pool.connect();
@@ -9,7 +9,7 @@ async function addDepartmentUsers() {
 
     console.log('🏥 Adding department users...');
 
-    const password = await bcrypt.hash('demo123', 10);
+    const password = await unusablePasswordHash();
 
     // Check if lab user exists
     const labCheck = await client.query(
@@ -64,9 +64,7 @@ async function addDepartmentUsers() {
     console.log('🎉 Department users added successfully!');
     console.log('');
     console.log('New department credentials:');
-    console.log('  Lab: lab@medsys.com / demo123');
-    console.log('  Pharmacy: pharmacy@medsys.com / demo123');
-    console.log('  Imaging: imaging@medsys.com / demo123');
+    console.log('  lab@medsys.com, pharmacy@medsys.com, imaging@medsys.com (no usable password; an admin resets them)');
     console.log('');
 
   } catch (error) {

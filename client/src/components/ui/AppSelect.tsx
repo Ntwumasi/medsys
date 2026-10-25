@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { dsClass } from '../../utils/dsClass';
+import { dsActive, dsClass } from '../../utils/dsClass';
 
 export interface AppSelectOption {
   value: string | number;
@@ -98,7 +98,7 @@ const AppSelect: React.FC<AppSelectProps> = ({
           type="button"
           disabled={disabled}
           onClick={() => !disabled && setOpen(!open)}
-          className={dsClass(`w-full px-4 py-2 border rounded-lg text-left flex items-center justify-between bg-white transition-colors text-sm
+          className={dsClass(`${dsActive() ? 'min-h-ds-touch' : ''} w-full px-4 py-2 border rounded-lg text-left flex items-center justify-between bg-white transition-colors text-sm
             ${disabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200' : 'hover:border-primary-400 cursor-pointer'}
             ${error ? 'border-danger-300 focus:ring-danger-200' : open ? 'border-primary-500 ring-2 ring-primary-200' : 'border-gray-300'}
           `)}
