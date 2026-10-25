@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useActiveId } from '../hooks/useActiveId';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import { patientPortalAPI } from '../api/patientPortal';
@@ -275,10 +276,9 @@ const PatientDetails: React.FC = () => {
   // Same component instance is reused across /patients/:id, so moving from
   // patient A's chart to B's must wipe A first — and any late reply for A is
   // ignored (isCurrentPatient) so it can never render under B's URL.
-  const currentPatientIdRef = useRef<string | undefined>(id);
-  const isCurrentPatient = (patientId: number) => currentPatientIdRef.current === String(patientId);
+  const isActivePatientId = useActiveId<string | undefined>(id);
+  const isCurrentPatient = (patientId: number) => isActivePatientId(String(patientId));
   useEffect(() => {
-    currentPatientIdRef.current = id;
     setSummary(null);
     setSummaryLoadFailed(false);
     setLoading(true);

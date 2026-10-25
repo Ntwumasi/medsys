@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import pool from '../database/db';
 import { emitActivity } from '../services/socialService';
 import { revokeAllUserTokens } from '../services/tokenService';
-import { forgetAccountStatus } from '../middleware/auth';
+import { auditService } from '../services/auditService';
 
 // Roles a receptionist may create or reset. Anything that passes an admin
 // check (admin, office_manager) or a super admin is off limits to them.
@@ -226,6 +226,15 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       metadata: { role: user.role, name: `${user.first_name} ${user.last_name}` },
     });
 
+    // User management had no audit trail at all; record who created whom.
+    await auditService.log({
+      userId: authReq.user?.id,
+      action: 'create',
+      entityType: 'user',
+      entityId: user.id,
+      details: { username: user.username, role: user.role, by_role: requesterRole },
+    });
+
     res.status(201).json({
       message: 'User created successfully',
       user: {
@@ -357,6 +366,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
     const result = await pool.query(query, updateValues);
 
+    await auditService.log({
+      userId: (req as any).user?.id,
+      action: 'update',
+      entityType: 'user',
+      entityId: Number(id),
+      details: { fields: Object.keys(req.body || {}), role: role ?? undefined, is_active: is_active ?? undefined },
+    });
+
     res.json({
       message: 'User updated successfully',
       user: result.rows[0],
@@ -423,7 +440,13 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
     // End the account's existing sessions — whoever had them must now sign in
     // with the temporary password.
     await revokeAllUserTokens(Number(id), 'admin_revoke');
-    forgetAccountStatus(Number(id));
+    await auditService.log({
+      userId: (req as any).user?.id,
+      action: 'update',
+      entityType: 'user_password_reset',
+      entityId: Number(id),
+      details: { target_username: existingUser.rows[0].username, target_role: existingUser.rows[0].role, by_role: requesterRole },
+    });
 
     const user = existingUser.rows[0];
 
@@ -473,7 +496,13 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
       'UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [id]
     );
-    forgetAccountStatus(Number(id));
+    await auditService.log({
+      userId: (req as any).user?.id,
+      action: 'delete',
+      entityType: 'user_deactivated',
+      entityId: Number(id),
+      details: { target_username: existingUser.rows[0].username },
+    });
 
     res.json({
       message: 'User deactivated successfully',

@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { decideVitalsHandoff } from '../utils/vitalsHandoff';
+import { useActiveId } from '../hooks/useActiveId';
 import { useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
@@ -429,7 +431,7 @@ const NurseDashboard: React.FC = () => {
       loadClinicalNotes();
     }
   }, [selectedPatient?.id]);
-  const stillSelected = (encounterId: number) => selectedPatientRef.current?.id === encounterId;
+  const stillSelected = useActiveId<number | null>(selectedPatient?.id ?? null);
 
   // Smart polling: pauses when tab is hidden, refreshes immediately on
   // tab return. selectedPatientRef avoids re-subscribing on each patient
@@ -835,19 +837,25 @@ const NurseDashboard: React.FC = () => {
     // next one (the 3s auto-save used to post them to the newly selected
     // encounter). Save them to the patient they were typed for, then clear.
     const previous = selectedPatientRef.current;
+    const handoff = decideVitalsHandoff({
+      previousPatientId: previous?.id,
+      nextPatientId: patient.id,
+      vitals: vitals as unknown as Record<string, unknown>,
+      modified: vitalsModified,
+      errorCount: Object.keys(vitalErrors).length,
+    });
+    if (previous && handoff === 'save-to-previous') {
+      const pendingVitals = vitals;
+      apiClient
+        .post('/workflow/nurse/vitals', { encounter_id: previous.id, vital_signs: pendingVitals })
+        .then(() => showToast(`Vitals saved for ${previous.patient_name}`, 'info'))
+        .catch(() => showToast(`Vitals for ${previous.patient_name} were NOT saved — reopen them and save again.`, 'error'));
+    } else if (previous && handoff === 'discard') {
+      showToast(`Unsaved vitals for ${previous.patient_name} were discarded (some values were out of range).`, 'warning');
+    }
     if (previous && previous.id !== patient.id) {
-      const hasValues = vitals.temperature || vitals.heart_rate ||
-        vitals.blood_pressure_systolic || vitals.blood_pressure_diastolic ||
-        vitals.respiratory_rate || vitals.oxygen_saturation || vitals.weight || vitals.height;
-      if (vitalsModified && hasValues && Object.keys(vitalErrors).length === 0) {
-        const pendingVitals = vitals;
-        apiClient
-          .post('/workflow/nurse/vitals', { encounter_id: previous.id, vital_signs: pendingVitals })
-          .then(() => showToast(`Vitals saved for ${previous.patient_name}`, 'info'))
-          .catch(() => showToast(`Vitals for ${previous.patient_name} were NOT saved — reopen them and save again.`, 'error'));
-      } else if (vitalsModified && hasValues) {
-        showToast(`Unsaved vitals for ${previous.patient_name} were discarded (some values were out of range).`, 'warning');
-      }
+      // Clear the form; with vitalsModified false the pending 3s auto-save
+      // timer is cancelled by its effect cleanup.
       setVitals({ temperature_unit: 'C', weight_unit: 'kg', height_unit: 'cm' });
       setVitalsModified(false);
       setVitalErrors({});

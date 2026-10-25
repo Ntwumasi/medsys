@@ -1,4 +1,5 @@
-import pool from '../db';
+import pool from '../../database/db';
+import { requireDangerousOptIn } from './guard';
 
 async function clearPatientsAndRooms() {
   console.log('Clearing all patients and rooms from the system...');
@@ -118,6 +119,7 @@ async function clearPatientsAndRooms() {
   process.exit(0);
 }
 
+requireDangerousOptIn('clearPatientsAndRooms');
 clearPatientsAndRooms().catch((err) => {
   console.error('Migration failed:', err);
   process.exit(1);

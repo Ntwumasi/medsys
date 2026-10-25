@@ -535,13 +535,13 @@ router.delete('/notifications/:id', authenticateToken, deleteNotification);
 router.delete('/notifications', authenticateToken, clearAllNotifications);
 
 // Messaging routes (with input validation)
-router.post('/messages', authenticateToken, validateBody(createMessageSchema), sendMessage);
-router.get('/messages/inbox', authenticateToken, getInbox);
-router.get('/messages/unread-count', authenticateToken, getUnreadCount);
-router.get('/messages/users', authenticateToken, getMessageableUsers);
-router.get('/messages/thread/:otherUserId', authenticateToken, getThread);
-router.put('/messages/:messageId/read', authenticateToken, markAsRead);
-router.delete('/messages/:messageId', authenticateToken, deleteMessage);
+router.post('/messages', authenticateToken, authorizeRoles(...STAFF_ROLES), validateBody(createMessageSchema), sendMessage);
+router.get('/messages/inbox', authenticateToken, authorizeRoles(...STAFF_ROLES), getInbox);
+router.get('/messages/unread-count', authenticateToken, authorizeRoles(...STAFF_ROLES), getUnreadCount);
+router.get('/messages/users', authenticateToken, authorizeRoles(...STAFF_ROLES), getMessageableUsers);
+router.get('/messages/thread/:otherUserId', authenticateToken, authorizeRoles(...STAFF_ROLES), getThread);
+router.put('/messages/:messageId/read', authenticateToken, authorizeRoles(...STAFF_ROLES), markAsRead);
+router.delete('/messages/:messageId', authenticateToken, authorizeRoles(...STAFF_ROLES), deleteMessage);
 
 // Social / Profile routes (staff-only engagement layer — patients excluded).
 // authorizeRoles(...STAFF_ROLES) keeps patients out; super admins bypass.
@@ -565,18 +565,18 @@ import {
   getCallHistory as getVoipCallHistory,
 } from '../controllers/voipController';
 
-router.post('/voip/heartbeat',              authenticateToken, heartbeat);
-router.get('/voip/presence',                authenticateToken, getPresence);
-router.post('/voip/calls',                  authenticateToken, createCall);
-router.get('/voip/incoming',                authenticateToken, getIncoming);
-router.get('/voip/history',                 authenticateToken, getVoipCallHistory);
-router.post('/voip/calls/:callId/answer',   authenticateToken, answerCall);
-router.post('/voip/calls/:callId/decline',  authenticateToken, declineCall);
-router.post('/voip/calls/:callId/cancel',   authenticateToken, cancelCall);
-router.post('/voip/calls/:callId/end',      authenticateToken, endCall);
-router.get('/voip/calls/:callId/status',    authenticateToken, getCallStatus);
-router.post('/voip/calls/:callId/signal',   authenticateToken, sendSignal);
-router.get('/voip/calls/:callId/signals',   authenticateToken, getSignals);
+router.post('/voip/heartbeat',              authenticateToken, authorizeRoles(...STAFF_ROLES), heartbeat);
+router.get('/voip/presence',                authenticateToken, authorizeRoles(...STAFF_ROLES), getPresence);
+router.post('/voip/calls',                  authenticateToken, authorizeRoles(...STAFF_ROLES), createCall);
+router.get('/voip/incoming',                authenticateToken, authorizeRoles(...STAFF_ROLES), getIncoming);
+router.get('/voip/history',                 authenticateToken, authorizeRoles(...STAFF_ROLES), getVoipCallHistory);
+router.post('/voip/calls/:callId/answer',   authenticateToken, authorizeRoles(...STAFF_ROLES), answerCall);
+router.post('/voip/calls/:callId/decline',  authenticateToken, authorizeRoles(...STAFF_ROLES), declineCall);
+router.post('/voip/calls/:callId/cancel',   authenticateToken, authorizeRoles(...STAFF_ROLES), cancelCall);
+router.post('/voip/calls/:callId/end',      authenticateToken, authorizeRoles(...STAFF_ROLES), endCall);
+router.get('/voip/calls/:callId/status',    authenticateToken, authorizeRoles(...STAFF_ROLES), getCallStatus);
+router.post('/voip/calls/:callId/signal',   authenticateToken, authorizeRoles(...STAFF_ROLES), sendSignal);
+router.get('/voip/calls/:callId/signals',   authenticateToken, authorizeRoles(...STAFF_ROLES), getSignals);
 
 // Get active doctors (for nurses to select when ordering labs)
 router.get('/users/doctors', authenticateToken, authorizeRoles('nurse', 'doctor', 'admin', 'receptionist'), getActiveDoctors);

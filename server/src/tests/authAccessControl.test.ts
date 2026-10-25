@@ -4,7 +4,8 @@ import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import jwt from 'jsonwebtoken';
 import pool from '../database/db';
-import { authenticateToken, enforcePatientOwnership, forgetAccountStatus } from '../middleware/auth';
+import { authenticateToken, enforcePatientOwnership } from '../middleware/auth';
+import apiRouter from '../routes/index';
 
 // A real Express 5 app, so req.query behaves exactly as in production (it is
 // re-parsed from the URL on every read — the reason the old patient scoping
@@ -24,8 +25,10 @@ beforeAll(async () => {
   });
   // An allowlisted portal path, to exercise enforcePatientOwnership for a patient.
   app.get('/api/patient-portal/me', authenticateToken, enforcePatientOwnership, (req, res) => {
-    res.json({ patient_id: (req.query as Record<string, unknown>).patient_id ?? null });
+    res.json({ own: (req as any).ownPatientId ?? null, query: (req.query as Record<string, unknown>).patient_id ?? null });
   });
+  // The real route table, to check the role gates on the actual routes.
+  app.use('/real', express.json(), apiRouter);
   app.get('/api/medications/patient/:patient_id', authenticateToken, enforcePatientOwnership, (_req, res) => {
     res.json({ ok: true });
   });
@@ -47,7 +50,6 @@ beforeEach(() => {
     2: { is_active: true, is_super_admin: false, revoked_at_sec: null }, // staff
   };
   db.patientIdForUser = { 1: 101 };
-  [1, 2].forEach(forgetAccountStatus);
   vi.mocked(pool.query).mockReset();
   vi.mocked(pool.query).mockImplementation((async (sql: string, params: unknown[]) => {
     if (sql.includes('token_blacklist')) return { rows: [] };
@@ -72,15 +74,18 @@ const get = (path: string, tok: string, method = 'GET') =>
 describe('patient-portal scoping', () => {
   const patient = () => token({ id: 1, role: 'patient', is_super_admin: false });
 
-  it("forces a patient's ?patient_id to their own record", async () => {
-    const r = await get('/api/patient-portal/me?patient_id=999', patient());
-    expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ patient_id: '101' });
+  it("refuses another patient's ?patient_id instead of rewriting the request", async () => {
+    expect((await get('/api/patient-portal/me?patient_id=999', patient())).status).toBe(403);
   });
 
-  it('scopes a patient who sends no patient_id at all', async () => {
-    const r = await get('/api/patient-portal/me', patient());
-    expect(await r.json()).toEqual({ patient_id: '101' });
+  it('refuses a patient query with no patient_id (would list everyone)', async () => {
+    expect((await get('/api/patient-portal/me', patient())).status).toBe(403);
+  });
+
+  it("passes the patient's own id to the handler without touching req.query", async () => {
+    const r = await get('/api/patient-portal/me?patient_id=101', patient());
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ own: 101, query: '101' });
   });
 
   it('blocks patients from staff routes, whatever the route forgot to check', async () => {
@@ -109,7 +114,6 @@ describe('session revocation', () => {
     const now = Math.floor(Date.now() / 1000);
     db.users[2].revoked_at_sec = now;
     expect((await get('/api/messages/users', token({ id: 2, role: 'nurse' }, now - 60))).status).toBe(401);
-    forgetAccountStatus(2);
     expect((await get('/api/messages/users', token({ id: 2, role: 'nurse' }, now + 1))).status).toBe(200);
   });
 
@@ -125,5 +129,37 @@ describe('session revocation', () => {
       throw new Error('db down');
     }) as any);
     expect((await get('/api/messages/users', token({ id: 2, role: 'nurse' }))).status).toBe(200);
+  });
+});
+
+describe('role gates on the real routes', () => {
+  const as = (role: string) => token({ id: 2, role });
+
+  it('only front desk and clinicians can change appointments', async () => {
+    expect((await get('/real/appointments/5', as('pharmacy_tech'), 'PUT')).status).toBe(403);
+    expect((await get('/real/appointments/5/cancel', as('marketing'), 'POST')).status).toBe(403);
+    expect((await get('/real/appointments/5/no-show', as('accountant'), 'POST')).status).toBe(403);
+  });
+
+  it('lab result history is limited to clinical roles', async () => {
+    expect((await get('/real/orders/lab/5/audit', as('marketing'))).status).toBe(403);
+    expect((await get('/real/orders/lab/5/audit', as('receptionist'))).status).toBe(403);
+  });
+
+  it('only lab, doctors and admins reach the lab result update', async () => {
+    expect((await get('/real/orders/lab/5', as('receptionist'), 'PUT')).status).toBe(403);
+    expect((await get('/real/orders/lab/5', as('accountant'), 'PUT')).status).toBe(403);
+  });
+
+  it('the allowed roles still get through (positive control)', async () => {
+    expect((await get('/real/appointments/5/cancel', as('receptionist'), 'POST')).status).not.toBe(403);
+    expect((await get('/real/orders/lab/5/audit', as('lab'))).status).not.toBe(403);
+    expect((await get('/real/messages/users', as('nurse'))).status).not.toBe(403);
+  });
+
+  it('staff messaging and calling are closed to patient logins', async () => {
+    const patientTok = token({ id: 1, role: 'patient', is_super_admin: false });
+    expect((await get('/real/messages/users', patientTok)).status).toBe(403);
+    expect((await get('/real/voip/presence', patientTok)).status).toBe(403);
   });
 });

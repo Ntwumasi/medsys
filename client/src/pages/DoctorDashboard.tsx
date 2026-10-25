@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useActiveId } from '../hooks/useActiveId';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -401,7 +402,7 @@ const DoctorDashboard: React.FC = () => {
       loadSOAPSignStatus(selectedEncounter.id);
     }
   }, [selectedEncounter]);
-  const isActiveEncounter = (encounterId: number) => activeEncounterIdRef.current === encounterId;
+  const isActiveEncounter = useActiveId<number | null>(selectedEncounter?.id ?? null);
 
   // Orders for the active encounter refresh on the same smart cadence so
   // labs/imaging/Rx the nurse just sent appear without a manual refresh.

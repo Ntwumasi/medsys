@@ -1,13 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, verifySessionToken } from '../middleware/auth';
 import notificationService from '../services/notificationService';
-import jwt from 'jsonwebtoken';
 
 const router = Router();
 
 // SSE endpoint for real-time notifications
 // Note: EventSource doesn't support custom headers, so we accept token via query param
-router.get('/stream', (req: Request, res: Response) => {
+router.get('/stream', async (req: Request, res: Response) => {
   // Try to get token from query param (for EventSource) or header
   const token = (req.query.token as string) || req.headers.authorization?.replace('Bearer ', '');
 
@@ -16,21 +15,14 @@ router.get('/stream', (req: Request, res: Response) => {
     return;
   }
 
-  let userId: number;
-  try {
-    // SECURITY: JWT_SECRET must be set - no fallback allowed
-    if (!process.env.JWT_SECRET) {
-      console.error('CRITICAL: JWT_SECRET environment variable is not set');
-      res.status(500).json({ error: 'Server configuration error' });
-      return;
-    }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
-    userId = decoded.id || decoded.userId;
-  } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+  // Same checks as every other authenticated request (revocation, inactive
+  // account, "log out everywhere").
+  const session = await verifySessionToken(token);
+  if (!session.ok) {
+    res.status(session.status).json({ error: session.error });
     return;
   }
-
+  const userId = session.claims.id;
   if (!userId) {
     res.status(401).json({ error: 'Unauthorized' });
     return;

@@ -229,7 +229,9 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
     // stays open; the lab dashboard moves it to "Awaiting patient" after 3 days.
     // The old 3-day auto-cancel silently dropped paid-for tests.
 
-    const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
+    const { encounter_id, status, start_date, end_date, priority } = req.query;
+    // A patient caller is pinned to their own record (set by enforcePatientOwnership).
+    const patient_id = (req as any).ownPatientId ?? req.query.patient_id;
 
     const authReqGet = req as any;
     const requesterRole = authReqGet.user?.role;
@@ -1721,7 +1723,9 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
 
 export const getImagingOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status } = req.query;
+    const { encounter_id, status } = req.query;
+    // A patient caller is pinned to their own record (set by enforcePatientOwnership).
+    const patient_id = (req as any).ownPatientId ?? req.query.patient_id;
 
     let query = `
       SELECT io.*,
