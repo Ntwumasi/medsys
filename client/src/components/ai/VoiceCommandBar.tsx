@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useRef, useState } from 'react';
 import aiApi, { AIUnavailableError } from '../../api/ai';
 import type { VoiceCommandResult } from '../../api/ai';
@@ -69,9 +70,9 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
     c === 'high' ? 'bg-success-100 text-success-800' : c === 'medium' ? 'bg-warning-100 text-warning-800' : 'bg-gray-100 text-gray-700';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-3">
+    <div className={dsClass("bg-white border border-gray-200 rounded-xl p-3")}>
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 text-xs font-semibold text-primary-700 shrink-0">
+        <div className={dsClass("flex items-center gap-1 text-xs font-semibold text-primary-700 shrink-0")}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-14 0m7 7v4m-4 0h8M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z" />
           </svg>
@@ -82,48 +83,48 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
           onChange={(e) => setTranscript(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') parse(); }}
           placeholder='e.g. "dispense 20 amoxicillin 500mg for Kwame Mensah"'
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className={dsClass("flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm")}
         />
         {speechSupported && (
           <button
             onClick={toggleListen}
             title={listening ? 'Stop' : 'Dictate'}
-            className={`p-2 rounded-lg border ${listening ? 'bg-danger-50 border-danger-300 text-danger-600 animate-pulse' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+            className={dsClass(`p-2 rounded-lg border ${listening ? 'bg-danger-50 border-danger-300 text-danger-600 animate-pulse' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`)}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z" />
             </svg>
           </button>
         )}
-        <button onClick={parse} disabled={loading || !transcript.trim()} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50 shrink-0">
+        <button onClick={parse} disabled={loading || !transcript.trim()} className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50 shrink-0")}>
           {loading ? 'Parsing…' : 'Parse'}
         </button>
       </div>
 
       {unavailable && (
-        <p className="mt-2 text-xs text-warning-700">AI command parsing isn’t configured on this environment.</p>
+        <p className={dsClass("mt-2 text-xs text-warning-700")}>AI command parsing isn’t configured on this environment.</p>
       )}
-      {error && <p className="mt-2 text-xs text-danger-700">{error}</p>}
+      {error && <p className={dsClass("mt-2 text-xs text-danger-700")}>{error}</p>}
 
       {result && (
-        <div className="mt-3 border-t border-gray-100 pt-3">
+        <div className={dsClass("mt-3 border-t border-gray-100 pt-3")}>
           {result.confirmationPrompt && (
-            <p className="text-sm text-gray-900 font-medium mb-2">{result.confirmationPrompt}</p>
+            <p className={dsClass("text-sm text-gray-900 font-medium mb-2")}>{result.confirmationPrompt}</p>
           )}
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">action: {result.action}</span>
-            {result.medication && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">med: {result.medication}</span>}
-            {result.quantity != null && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">qty: {result.quantity}</span>}
-            {result.patient?.searchTerm && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">patient: {result.patient.searchTerm}</span>}
-            <span className={`px-2 py-0.5 rounded-full font-semibold ${confColor(result.confidence)}`}>confidence: {result.confidence}</span>
+            <span className={dsClass("px-2 py-0.5 rounded-full bg-gray-100 text-gray-700")}>action: {result.action}</span>
+            {result.medication && <span className={dsClass("px-2 py-0.5 rounded-full bg-gray-100 text-gray-700")}>med: {result.medication}</span>}
+            {result.quantity != null && <span className={dsClass("px-2 py-0.5 rounded-full bg-gray-100 text-gray-700")}>qty: {result.quantity}</span>}
+            {result.patient?.searchTerm && <span className={dsClass("px-2 py-0.5 rounded-full bg-gray-100 text-gray-700")}>patient: {result.patient.searchTerm}</span>}
+            <span className={dsClass(`px-2 py-0.5 rounded-full font-semibold ${confColor(result.confidence)}`)}>confidence: {result.confidence}</span>
           </div>
           {result.specialInstructions && (
-            <p className="mt-2 text-xs text-gray-500">Notes: {result.specialInstructions}</p>
+            <p className={dsClass("mt-2 text-xs text-gray-500")}>Notes: {result.specialInstructions}</p>
           )}
           {!result.understood && (
-            <p className="mt-2 text-xs text-warning-700">Command not fully understood — please rephrase or use the manual flow.</p>
+            <p className={dsClass("mt-2 text-xs text-warning-700")}>Command not fully understood — please rephrase or use the manual flow.</p>
           )}
-          <p className="mt-2 text-[11px] text-gray-400">Preview only — confirm and dispense through the normal flow.</p>
+          <p className={dsClass("mt-2 text-[11px] text-gray-400")}>Preview only — confirm and dispense through the normal flow.</p>
         </div>
       )}
     </div>

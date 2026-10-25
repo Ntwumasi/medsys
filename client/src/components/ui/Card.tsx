@@ -49,7 +49,7 @@ const Card: React.FC<CardProps> & {
 const CardHeader: React.FC<CardHeaderProps> = ({ children, className = '', action }) => {
   return (
     <div className={`px-6 py-4 border-b ${dsActive() ? 'border-ds-border flex-wrap gap-3' : 'border-gray-100'} flex items-center justify-between ${className}`}>
-      <div className={`font-semibold ${dsActive() ? 'text-ds-text' : 'text-gray-900'}`}>{children}</div>
+      <div className={`font-semibold ${dsActive() ? 'text-ds-text flex-1 min-w-0' : 'text-gray-900'}`}>{children}</div>
       {action && <div>{action}</div>}
     </div>
   );

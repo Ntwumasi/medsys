@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import aiApi, { AIUnavailableError } from '../../api/ai';
@@ -63,7 +64,7 @@ const InteractionExplainButton: React.FC<InteractionExplainButtonProps> = ({
     <>
       <button
         onClick={openAndLoad}
-        className="inline-flex items-center gap-1 text-xs font-medium text-primary-700 hover:text-primary-900 hover:underline"
+        className={dsClass("inline-flex items-center gap-1 text-xs font-medium text-primary-700 hover:text-primary-900 hover:underline")}
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -74,15 +75,15 @@ const InteractionExplainButton: React.FC<InteractionExplainButtonProps> = ({
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Interaction explained" size="lg">
         <div className="mb-3">
           <p className="text-sm">
-            <span className="font-semibold text-gray-900">{drug1}</span>
-            <span className="text-gray-400"> + </span>
-            <span className="font-semibold text-gray-900">{drug2}</span>
+            <span className={dsClass("font-semibold text-gray-900")}>{drug1}</span>
+            <span className={dsClass("text-gray-400")}> + </span>
+            <span className={dsClass("font-semibold text-gray-900")}>{drug2}</span>
           </p>
         </div>
 
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
-            <svg className="w-5 h-5 animate-spin text-primary-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <div className={dsClass("flex items-center gap-2 text-sm text-gray-500 py-6 justify-center")}>
+            <svg className={dsClass("w-5 h-5 animate-spin text-primary-600")} viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
             </svg>
@@ -91,58 +92,58 @@ const InteractionExplainButton: React.FC<InteractionExplainButtonProps> = ({
         )}
 
         {unavailable && (
-          <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800">
+          <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800")}>
             AI explanations aren’t configured on this environment. The detected interaction and
             recommendation above still apply.
           </div>
         )}
 
-        {error && <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800">{error}</div>}
+        {error && <div className={dsClass("bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800")}>{error}</div>}
 
         {data && (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${riskColor(data.riskLevel)}`}>
+              <span className={dsClass(`px-2 py-0.5 rounded-full text-xs font-semibold ${riskColor(data.riskLevel)}`)}>
                 {data.riskLevel || 'risk'}
               </span>
-              {data.cached && <span className="text-xs text-gray-400">(cached)</span>}
+              {data.cached && <span className={dsClass("text-xs text-gray-400")}>(cached)</span>}
             </div>
-            {data.explanation && <p className="text-sm text-gray-800">{data.explanation}</p>}
+            {data.explanation && <p className={dsClass("text-sm text-gray-800")}>{data.explanation}</p>}
             {data.clinicalEffects?.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Clinical effects</div>
-                <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>Clinical effects</div>
+                <ul className={dsClass("list-disc pl-5 text-sm text-gray-800 space-y-0.5")}>
                   {data.clinicalEffects.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </div>
             )}
             {data.recommendations?.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">What to do</div>
-                <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>What to do</div>
+                <ul className={dsClass("list-disc pl-5 text-sm text-gray-800 space-y-0.5")}>
                   {data.recommendations.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </div>
             )}
             {data.monitoring?.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Monitor</div>
-                <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>Monitor</div>
+                <ul className={dsClass("list-disc pl-5 text-sm text-gray-800 space-y-0.5")}>
                   {data.monitoring.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </div>
             )}
             {data.alternatives?.length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Possible alternatives</div>
-                <ul className="text-sm text-gray-800 space-y-1">
+                <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>Possible alternatives</div>
+                <ul className={dsClass("text-sm text-gray-800 space-y-1")}>
                   {data.alternatives.map((a, i) => (
                     <li key={i}><span className="font-medium">{a.name}</span>{a.rationale ? ` — ${a.rationale}` : ''}</li>
                   ))}
                 </ul>
               </div>
             )}
-            <p className="mt-4 text-[11px] leading-tight text-gray-400">
+            <p className={dsClass("mt-4 text-[11px] leading-tight text-gray-400")}>
               AI-generated for clinical decision support. Verify against approved references before acting.
             </p>
           </div>

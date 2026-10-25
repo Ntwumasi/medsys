@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../../api/client';
@@ -81,7 +82,7 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+        <div className={dsClass("animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600")}></div>
       </div>
     );
   }
@@ -90,15 +91,15 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
     <div className="space-y-4">
       {/* Active Medications Summary */}
       {activeMeds.length > 0 && (
-        <div className="bg-success-50 border border-success-200 rounded-lg p-3">
-          <h4 className="text-sm font-semibold text-success-800 mb-2">
+        <div className={dsClass("bg-success-50 border border-success-200 rounded-lg p-3")}>
+          <h4 className={dsClass("text-sm font-semibold text-success-800 mb-2")}>
             Active Medications (Last 30 Days)
           </h4>
           <div className="flex flex-wrap gap-2">
             {activeMeds.map((med, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2 py-1 bg-success-100 text-success-800 rounded-full text-xs"
+                className={dsClass("inline-flex items-center px-2 py-1 bg-success-100 text-success-800 rounded-full text-xs")}
               >
                 {med.medication_name} {med.dosage}
               </span>
@@ -109,52 +110,52 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
 
       {/* Timeline */}
       {timeline.length === 0 ? (
-        <div className="text-center text-gray-500 py-8">
+        <div className={dsClass("text-center text-gray-500 py-8")}>
           No medication history found for this patient.
         </div>
       ) : (
         <div className="relative">
           {/* Vertical line */}
-          <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+          <div className={dsClass("absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200")}></div>
 
           <div className="space-y-4">
             {timeline.map((entry) => (
               <div key={entry.id} className="relative pl-10">
                 {/* Timeline dot */}
                 <div
-                  className={`absolute left-2.5 w-3 h-3 rounded-full ${getStatusColor(entry.status)} ring-4 ring-white`}
+                  className={dsClass(`absolute left-2.5 w-3 h-3 rounded-full ${getStatusColor(entry.status)} ring-4 ring-white`)}
                 ></div>
 
                 {/* Content card */}
-                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <div className={dsClass("bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow")}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">
+                        <span className={dsClass("font-semibold text-gray-900")}>
                           {entry.medication_name}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(entry.status)}`}>
+                        <span className={dsClass(`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(entry.status)}`)}>
                           {entry.status.replace('_', ' ')}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
+                      <div className={dsClass("text-sm text-gray-600 mt-1")}>
                         {entry.dosage} | {entry.frequency} | Qty: {entry.quantity}
                       </div>
                       {entry.prescriber_name && (
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className={dsClass("text-xs text-gray-500 mt-1")}>
                           Prescribed by: {entry.prescriber_name}
                         </div>
                       )}
                       {entry.notes && (
-                        <div className="text-xs text-gray-500 mt-1 italic">
+                        <div className={dsClass("text-xs text-gray-500 mt-1 italic")}>
                           Note: {entry.notes}
                         </div>
                       )}
                     </div>
-                    <div className="text-right text-xs text-gray-500">
+                    <div className={dsClass("text-right text-xs text-gray-500")}>
                       <div>Ordered: {format(new Date(entry.start_date), 'MMM d, yyyy')}</div>
                       {entry.dispensed_date && (
-                        <div className="text-success-600">
+                        <div className={dsClass("text-success-600")}>
                           Dispensed: {format(new Date(entry.dispensed_date), 'MMM d, yyyy')}
                         </div>
                       )}

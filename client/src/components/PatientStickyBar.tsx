@@ -7,7 +7,8 @@ import React, { useEffect, useState } from 'react';
  * header (`watch`) has scrolled under the top bar.
  *
  * The wrapper is zero-height and sticky, so it takes no space in the layout;
- * the bar hangs off it. The parent's `space-y-*` gap is cancelled with -mb-4.
+ * the bar hangs off it. `className` bleeds it across the parent's padding and
+ * cancels the parent's `space-y-*` gap (default: p-6 card with space-y-4).
  */
 interface PatientStickyBarProps {
   watch: React.RefObject<HTMLElement | null>;
@@ -18,11 +19,11 @@ interface PatientStickyBarProps {
   encounterNumber?: string | null;
   /** Shown as a critical chip so allergies stay in view too. */
   allergies?: string | null;
-  /** Card padding to bleed across (matches the card's p-6). */
+  /** Bleed + gap cancel for the parent (default suits a p-6 card with space-y-4). */
   className?: string;
 }
 
-const PatientStickyBar: React.FC<PatientStickyBarProps> = ({ watch, name, age, sex, patientNumber, encounterNumber, allergies, className = '-mx-6' }) => {
+const PatientStickyBar: React.FC<PatientStickyBarProps> = ({ watch, name, age, sex, patientNumber, encounterNumber, allergies, className = '-mx-6 -mb-4' }) => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ const PatientStickyBar: React.FC<PatientStickyBarProps> = ({ watch, name, age, s
   }, [watch]);
 
   return (
-    <div className={`sticky top-16 z-30 h-0 -mb-4 ${className}`} aria-hidden={!show}>
+    <div className={`sticky top-16 z-30 h-0 ${className}`} aria-hidden={!show}>
       <div
         className={`absolute inset-x-0 top-0 px-6 py-2.5 bg-ds-surface/95 backdrop-blur border-b border-ds-border shadow-ds-card flex flex-wrap items-center gap-x-3 gap-y-1 transition-opacity duration-ds-fast ${
           show ? 'opacity-100' : 'opacity-0 pointer-events-none'

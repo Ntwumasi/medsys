@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -315,12 +316,12 @@ interface WalkInPatient {
 
 type PharmacyAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
 const PHARMACY_ACCENT: Record<PharmacyAccent, { num: string; ring: string }> = {
-  neutral:   { num: 'text-text-primary',  ring: 'ring-gray-200/60' },
-  primary:   { num: 'text-primary-700',   ring: 'ring-primary-200/60' },
-  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60' },
-  warning:   { num: 'text-warning-700',   ring: 'ring-warning-200/60' },
-  danger:    { num: 'text-danger-700',    ring: 'ring-danger-200/60' },
-  success:   { num: 'text-success-700',   ring: 'ring-success-200/60' },
+  neutral:   { num: 'text-ds-text',  ring: 'ring-ds-border/60' },
+  primary:   { num: 'text-ds-accent-text',   ring: 'ring-ds-focus-ring/30' },
+  secondary: { num: 'text-ds-brand-plum', ring: 'ring-ds-brand-plum/30' },
+  warning:   { num: 'text-ds-warning-text',   ring: 'ring-ds-warning/30' },
+  danger:    { num: 'text-ds-critical-text',    ring: 'ring-ds-critical/30' },
+  success:   { num: 'text-ds-success-text',   ring: 'ring-ds-success/30' },
 };
 
 interface PharmacyStatProps {
@@ -339,9 +340,9 @@ const PharmacyStat: React.FC<PharmacyStatProps> = ({ label, value, accent, activ
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
+      className={`text-left bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card hover:shadow-ds-overlay transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
     >
-      <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">{label}</div>
+      <div className="text-[10px] font-semibold text-ds-text-muted uppercase tracking-wider">{label}</div>
       <div className={`text-2xl font-bold tabular-nums mt-1 ${a.num}`}>
         {typeof value === 'number' ? <NumberTicker value={value} /> : value}
       </div>
@@ -365,7 +366,7 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="text-right border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+      className="text-right border-0 bg-transparent focus:bg-ds-warning-soft focus:ring-1 focus:ring-ds-focus-ring rounded px-1 print:bg-transparent print:ring-0"
       style={{ width: '60%' }}
     />
   </div>
@@ -376,6 +377,7 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
 const MED_UNIT_OPTIONS = ['Tablet', 'Capsule', 'Bottle', 'Vial', 'Ampoule', 'Tube', 'Sachet', 'Box', 'Pack', 'Piece', 'Strip', 'Nebule', 'Respule', 'Inhaler', 'Drops', 'Cream', 'Ointment', 'Suppository', 'Patch', 'Suspension', 'Syrup', 'mL', 'Gram', 'Unit'].map(u => ({ value: u, label: u }));
 
 const PharmacyDashboard: React.FC = () => {
+  useDesignSystemPage();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
@@ -1567,10 +1569,10 @@ const PharmacyDashboard: React.FC = () => {
 
   const activityDotColor = (ev: any): string => {
     const a = ev.source === 'inventory' ? ev.action : (ev.details?.status || ev.action);
-    if (a === 'dispense' || a === 'dispensed' || a === 'complete') return 'bg-success-500';
-    if (a === 'return' || a === 'returned' || a === 'cancel' || a === 'cancelled') return 'bg-warning-500';
-    if (a === 'in_progress') return 'bg-primary-500';
-    return 'bg-gray-300';
+    if (a === 'dispense' || a === 'dispensed' || a === 'complete') return 'bg-ds-success';
+    if (a === 'return' || a === 'returned' || a === 'cancel' || a === 'cancelled') return 'bg-ds-warning';
+    if (a === 'in_progress') return 'bg-ds-accent';
+    return 'bg-ds-border-control';
   };
 
   const openAdjustStock = (item: InventoryItem) => {
@@ -2440,24 +2442,24 @@ const PharmacyDashboard: React.FC = () => {
 
   const getSeverityColor = (severity: string) => {
     switch (severity?.toLowerCase()) {
-      case 'severe': return 'bg-danger-100 text-danger-800 border-danger-300';
-      case 'moderate': return 'bg-orange-100 text-orange-800 border-orange-300';
-      case 'mild': return 'bg-warning-100 text-warning-800 border-warning-300';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'severe': return 'bg-ds-critical-soft text-ds-critical-text border-ds-critical-border';
+      case 'moderate': return 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-border';
+      case 'mild': return 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-border';
+      default: return 'bg-ds-subtle text-ds-text';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
-      case 'stat': return 'bg-danger-600 text-white';
-      case 'urgent': return 'bg-orange-500 text-white';
-      default: return 'bg-primary-100 text-primary-800';
+      case 'stat': return 'bg-ds-critical text-white';
+      case 'urgent': return 'bg-ds-warning text-white dark:text-ds-canvas';
+      default: return 'bg-ds-accent-soft text-ds-accent-text';
     }
   };
 
   if (loading) {
     return (
-      <AppLayout title={title}>
+      <AppLayout designSystem title={title}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <SkeletonStatCard />
           <SkeletonStatCard />
@@ -2469,8 +2471,8 @@ const PharmacyDashboard: React.FC = () => {
           <div className="p-6 space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-2/3" />
+                <div className="h-4 bg-ds-border rounded w-1/3 mb-2" />
+                <div className="h-3 bg-ds-border rounded w-2/3" />
               </div>
             ))}
           </div>
@@ -2533,7 +2535,7 @@ const PharmacyDashboard: React.FC = () => {
   const avgTatLabel = avgTat == null ? 'N/A' : avgTat >= 60 ? `${(avgTat / 60).toFixed(1)}h` : `${Math.round(avgTat)}m`;
 
   return (
-    <AppLayout>
+    <AppLayout designSystem>
       <DashboardHeader
         title={title}
         stats={(
@@ -2582,9 +2584,9 @@ const PharmacyDashboard: React.FC = () => {
           onClick={() => { setActiveTab('inventory'); setInventoryFilter('expiring'); }} />
       </div>
       {/* Navigation Tabs */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-ds-surface border-b shadow-ds-card">
         <div className="max-w-full mx-auto px-6">
-          <nav className="flex space-x-8">
+          <nav className="flex space-x-8 overflow-x-auto">
             {tabs.map((tab) => (
               // Rendered as a real link so right-click / ⌘-click / middle-click
               // can open the section in a new browser tab (the dashboard reads
@@ -2598,10 +2600,10 @@ const PharmacyDashboard: React.FC = () => {
                   setActiveTab(tab.id);
                   if (tab.id === 'revenue') fetchRevenueSummary();
                 }}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors cursor-pointer no-underline ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap shrink-0 transition-colors cursor-pointer no-underline ${
                   activeTab === tab.id
-                    ? 'border-success-500 text-success-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-ds-success text-ds-success-text'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
                 }`}
               >
                 {tab.icon} {tab.label}
@@ -2624,32 +2626,32 @@ const PharmacyDashboard: React.FC = () => {
               <div className="flex gap-4">
                 <button
                   onClick={() => { setOrdersSubTab('pending'); fetchPendingOrders(); }}
-                  className={`px-4 py-2 rounded-lg font-medium ${
-                    ordersSubTab === 'pending' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'pending' ? 'bg-ds-success text-white dark:text-ds-canvas' : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                   }`}
                 >
                   Pending Orders
                 </button>
                 <button
                   onClick={() => { setOrdersSubTab('in_progress'); fetchInProgressOrders(); }}
-                  className={`px-4 py-2 rounded-lg font-medium ${
-                    ordersSubTab === 'in_progress' ? 'bg-primary-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'in_progress' ? 'bg-ds-accent text-ds-on-accent' : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                   }`}
                 >
                   In Progress
                 </button>
                 <button
                   onClick={() => { setOrdersSubTab('ready'); fetchReadyOrders(); }}
-                  className={`px-4 py-2 rounded-lg font-medium ${
-                    ordersSubTab === 'ready' ? 'bg-orange-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'ready' ? 'bg-ds-warning text-white dark:text-ds-canvas' : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                   }`}
                 >
                   Ready for Pickup
                 </button>
                 <button
                   onClick={() => { setOrdersSubTab('history'); fetchOrderHistory(); }}
-                  className={`px-4 py-2 rounded-lg font-medium ${
-                    ordersSubTab === 'history' ? 'bg-success-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
+                  className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium ${
+                    ordersSubTab === 'history' ? 'bg-ds-success text-white dark:text-ds-canvas' : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                   }`}
                 >
                   Dispensed
@@ -2662,7 +2664,7 @@ const PharmacyDashboard: React.FC = () => {
                   else if (ordersSubTab === 'ready') fetchReadyOrders();
                   else fetchOrderHistory();
                 }}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                className="min-h-ds-touch flex items-center gap-2 px-3 py-2 bg-ds-subtle hover:bg-ds-border rounded-lg text-sm font-medium text-ds-text-secondary transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2673,30 +2675,30 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Date Range Filter for History */}
             {ordersSubTab === 'history' && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6 flex items-center gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">From Date</label>
                   <input
                     type="date"
                     value={historyStart}
                     max={historyEnd || undefined}
                     onChange={(e) => setHistoryStart(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                    className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">To Date</label>
                   <input
                     type="date"
                     value={historyEnd}
                     min={historyStart || undefined}
                     onChange={(e) => setHistoryEnd(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                    className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                   />
                 </div>
                 <button
                   onClick={() => fetchOrderHistory()}
-                  className="mt-6 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
+                  className="min-h-ds-touch mt-6 px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors font-medium"
                 >
                   Search
                 </button>
@@ -2707,7 +2709,7 @@ const PharmacyDashboard: React.FC = () => {
                     setHistoryEnd(now);
                     fetchOrderHistory(now, now);
                   }}
-                  className="mt-6 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  className="min-h-ds-touch mt-6 px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border transition-colors font-medium"
                 >
                   Today
                 </button>
@@ -2716,23 +2718,23 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Date Range Filter for the active queue (Pending / In Progress / Ready) */}
             {ordersSubTab !== 'history' && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-end gap-4">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6 flex flex-wrap items-end gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">From Date</label>
                   <input
                     type="date"
                     value={queueStart}
                     onChange={(e) => setQueueStart(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                    className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">To Date</label>
                   <input
                     type="date"
                     value={queueEnd}
                     onChange={(e) => setQueueEnd(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                    className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                   />
                 </div>
                 <button
@@ -2742,17 +2744,17 @@ const PharmacyDashboard: React.FC = () => {
                     setQueueStart(now);
                     setQueueEnd(now);
                   }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border transition-colors font-medium"
                 >
                   Today
                 </button>
                 <button
                   onClick={() => { setQueueStart(''); setQueueEnd(''); }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border transition-colors font-medium"
                 >
                   All dates
                 </button>
-                <span className="text-xs text-gray-400 ml-auto self-center">
+                <span className="text-xs text-ds-text-muted ml-auto self-center">
                   {queueStart || queueEnd
                     ? 'Older orders outside this range are hidden — widen to pull them up.'
                     : 'Showing all dates.'}
@@ -2761,8 +2763,8 @@ const PharmacyDashboard: React.FC = () => {
             )}
 
             {ordersSubTab !== 'history' && earlierUnserved.length > 0 && (
-              <div className="mb-4 p-4 bg-warning-50 border border-warning-300 rounded-xl flex flex-wrap items-center justify-between gap-3" role="status">
-                <span className="text-sm text-warning-900">
+              <div className="mb-4 p-4 bg-ds-warning-soft border border-ds-warning-border rounded-ds-card flex flex-wrap items-center justify-between gap-3" role="status">
+                <span className="text-sm text-ds-warning-text">
                   <strong>{earlierUnserved.length}</strong> patient{earlierUnserved.length > 1 ? 's' : ''} from the past 7 days {earlierUnserved.length > 1 ? 'have' : 'has'} prescriptions not yet served:{' '}
                   {earlierUnserved
                     .map(p => `${p.patient_name} (${format(new Date(p.ordered_date), 'MMM d')})`)
@@ -2774,7 +2776,7 @@ const PharmacyDashboard: React.FC = () => {
                     d.setUTCDate(d.getUTCDate() - 7);
                     setQueueStart(d.toISOString().split('T')[0]);
                   }}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-warning-600 rounded-lg hover:bg-warning-700"
+                  className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-white dark:text-ds-canvas bg-ds-warning rounded-lg hover:bg-ds-warning/90"
                 >
                   Show past 7 days
                 </button>
@@ -2783,7 +2785,7 @@ const PharmacyDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 xl:gap-6">
               {/* Orders List */}
-              <div className="xl:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="xl:col-span-2 bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">
                     {ordersSubTab === 'pending' ? 'Pending Prescriptions' :
@@ -2793,7 +2795,7 @@ const PharmacyDashboard: React.FC = () => {
                 </div>
                 <div className="divide-y max-h-[600px] overflow-y-auto">
                   {groupedOrders.length === 0 ? (
-                    <div className="px-6 py-12 text-center text-gray-500">
+                    <div className="px-6 py-12 text-center text-ds-text-muted">
                       No {ordersSubTab === 'pending' ? 'pending' : ordersSubTab === 'in_progress' ? 'in-progress' : ordersSubTab === 'ready' ? 'ready for pickup' : 'dispensed'} orders found
                     </div>
                   ) : (
@@ -2812,35 +2814,35 @@ const PharmacyDashboard: React.FC = () => {
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-lg text-gray-900">
+                              <span className="font-bold text-lg text-ds-text">
                                 {group.patient_name}
                               </span>
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigate(`/patients/${group.patient_id}?tab=medications`); }}
-                                className="text-xs font-semibold text-primary-600 hover:text-primary-800 hover:underline"
+                                className="text-xs font-semibold text-ds-accent-text hover:text-ds-accent-text hover:underline"
                                 title="Open full medication history & drug-interaction screen"
                               >
                                 Medication history →
                               </button>
-                              <span className="text-sm text-gray-500">{group.patient_number}</span>
+                              <span className="text-sm text-ds-text-muted">{group.patient_number}</span>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                group.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
-                                group.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
-                                'bg-gray-100 text-gray-700'
+                                group.payer_type === 'insurance' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                                group.payer_type === 'corporate' ? 'bg-ds-subtle text-ds-brand-plum' :
+                                'bg-ds-subtle text-ds-text-secondary'
                               }`}>
                                 {group.payer_name}
                               </span>
                               {group.patient_allergies && (
-                                <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300">
+                                <span className="px-2 py-0.5 text-xs font-bold bg-ds-critical-soft text-ds-critical-text rounded-full border border-ds-critical-border">
                                   ⚠️ ALLERGIES: {group.patient_allergies}
                                 </span>
                               )}
                             </div>
-                            <div className="text-xs text-gray-400 mt-1">
+                            <div className="text-xs text-ds-text-muted mt-1">
                               {ordersSubTab === 'history' && group.orders[0]?.dispensed_date
                                 ? `Dispensed: ${format(new Date(group.orders[0].dispensed_date), 'MMM dd, yyyy HH:mm')}`
                                 : `Ordered: ${format(new Date(group.ordered_date), 'MMM dd, yyyy HH:mm')}`}
-                              <span className="ml-2 text-gray-500">• {group.orders.length} medication{group.orders.length > 1 ? 's' : ''}</span>
+                              <span className="ml-2 text-ds-text-muted">• {group.orders.length} medication{group.orders.length > 1 ? 's' : ''}</span>
                               {(() => {
                                 // Estimated medication total (unit price × qty across the group)
                                 // so the pharmacist can cross-check against reception's bill (#6).
@@ -2850,7 +2852,7 @@ const PharmacyDashboard: React.FC = () => {
                                 );
                                 return total > 0 ? (
                                   <span
-                                    className="ml-2 font-semibold text-gray-700"
+                                    className="ml-2 font-semibold text-ds-text-secondary"
                                     title="Estimated medication total — cross-check with reception"
                                   >
                                     • Est. bill: GHS {total.toFixed(2)}
@@ -2868,7 +2870,7 @@ const PharmacyDashboard: React.FC = () => {
                                   group.orders.forEach(o => startProcessingOrder(o.id));
                                 }}
                                 disabled={group.orders.some(o => startingIds.has(o.id)) || group.orders.every(o => startedIds.has(o.id))}
-                                className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent text-sm rounded-lg hover:bg-ds-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={`Start all ${group.orders.length} medication(s) for ${group.patient_name}`}
                               >
                                 {group.orders.every(o => startedIds.has(o.id)) ? 'Started ✓' : 'Start All'}
@@ -2880,7 +2882,7 @@ const PharmacyDashboard: React.FC = () => {
                                   e.stopPropagation();
                                   group.orders.forEach(o => markReadyForPickup(o.id));
                                 }}
-                                className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-warning text-white dark:text-ds-canvas text-sm rounded-lg hover:bg-ds-warning/90"
                               >
                                 All Ready
                               </button>
@@ -2892,7 +2894,7 @@ const PharmacyDashboard: React.FC = () => {
                                   dispenseAllInGroup(group.orders);
                                 }}
                                 disabled={group.orders.some((o: { id: number }) => dispensingIds.has(o.id))}
-                                className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-success text-white dark:text-ds-canvas text-sm rounded-lg hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Dispense All
                               </button>
@@ -2900,7 +2902,7 @@ const PharmacyDashboard: React.FC = () => {
                             {(ordersSubTab === 'pending' || ordersSubTab === 'in_progress') && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); openAddOrderItemModal(group); }}
-                                className="px-3 py-1.5 bg-success-100 text-success-700 text-sm font-medium rounded-lg hover:bg-success-200"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-success-soft text-ds-success-text text-sm font-medium rounded-lg hover:bg-ds-success-soft"
                                 title="Add a medication to this patient's order"
                               >
                                 + Add Item
@@ -2911,7 +2913,7 @@ const PharmacyDashboard: React.FC = () => {
                                 e.stopPropagation();
                                 fetchDrugHistory(group.patient_id, group.patient_name);
                               }}
-                              className="px-2 py-1.5 bg-primary-100 text-primary-700 text-sm rounded-lg hover:bg-primary-200"
+                              className="min-h-ds-touch px-2 py-1.5 bg-ds-accent-soft text-ds-accent-text text-sm rounded-lg hover:bg-ds-accent-soft"
                             >
                               History
                             </button>
@@ -2930,12 +2932,12 @@ const PharmacyDashboard: React.FC = () => {
                                     sendToNurse(group.encounter_id, group.patient_name);
                                   }}
                                   disabled={disabled}
-                                  className={`px-3 py-1.5 text-sm font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors ${
+                                  className={`min-h-ds-touch px-3 py-1.5 text-sm font-semibold rounded-lg flex items-center gap-1.5 shadow-ds-card transition-colors ${
                                     done
-                                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                      ? 'bg-ds-border text-ds-text-muted cursor-not-allowed'
                                       : inFlight
-                                      ? 'bg-warning-300 text-white cursor-wait'
-                                      : 'bg-warning-600 hover:bg-warning-700 text-white'
+                                      ? 'bg-ds-warning text-white dark:text-ds-canvas cursor-wait'
+                                      : 'bg-ds-warning hover:bg-ds-warning/90 text-white dark:text-ds-canvas'
                                   }`}
                                   title={done ? 'Already sent to nurse' : 'Send patient back to nurse'}
                                 >
@@ -2954,10 +2956,10 @@ const PharmacyDashboard: React.FC = () => {
                               ref={order.id === highlightOrderId ? highlightRef : undefined}
                               className={`rounded-lg border transition-all ${
                                 order.id === highlightOrderId
-                                  ? 'border-primary-500 ring-2 ring-primary-400 bg-primary-50'
+                                  ? 'border-ds-accent ring-2 ring-ds-focus-ring bg-ds-accent-soft'
                                   : selectedOrder?.id === order.id
-                                  ? 'border-success-400 bg-success-50'
-                                  : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                                  ? 'border-ds-success bg-ds-success-soft'
+                                  : 'border-ds-border bg-ds-subtle hover:bg-ds-subtle'
                               }`}
                             >
                               <div
@@ -2970,17 +2972,17 @@ const PharmacyDashboard: React.FC = () => {
                               >
                                 <div className="flex items-center gap-3">
                                   <div className={`w-2 h-2 rounded-full ${
-                                    order.priority === 'stat' ? 'bg-danger-500' :
-                                    order.priority === 'urgent' ? 'bg-orange-500' :
-                                    'bg-gray-400'
+                                    order.priority === 'stat' ? 'bg-ds-critical' :
+                                    order.priority === 'urgent' ? 'bg-ds-warning' :
+                                    'bg-ds-border-control'
                                   }`} />
                                   <div>
-                                    <span className="font-medium text-gray-900">{order.medication_name}</span>
-                                    <span className="text-sm text-gray-500 ml-2">
+                                    <span className="font-medium text-ds-text">{order.medication_name}</span>
+                                    <span className="text-sm text-ds-text-muted ml-2">
                                       {order.dosage} | {order.frequency} | {order.route}
                                     </span>
                                     {order.substitute_medication && (
-                                      <span className="block text-xs text-warning-600 font-medium mt-0.5">
+                                      <span className="block text-xs text-ds-warning-text font-medium mt-0.5">
                                         → Substituted: {order.substitute_medication}
                                       </span>
                                     )}
@@ -2990,21 +2992,21 @@ const PharmacyDashboard: React.FC = () => {
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="font-bold text-primary-700 bg-primary-50 border-2 border-primary-300 px-2 py-0.5 rounded-lg">Qty: {(order.return_quantity || 0) > 0 ? Math.max(0, (parseInt(order.quantity) || 0) - (order.return_quantity || 0)) : order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
+                                  <span className="font-bold text-ds-accent-text bg-ds-accent-soft border-2 border-ds-accent/30 px-2 py-0.5 rounded-lg whitespace-nowrap">Qty: {(order.return_quantity || 0) > 0 ? Math.max(0, (parseInt(order.quantity) || 0) - (order.return_quantity || 0)) : order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span>
                                   {(order.return_quantity || 0) > 0 && (
-                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-warning-100 text-warning-700">{order.return_quantity} of {order.quantity} returned</span>
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-ds-warning-soft text-ds-warning-text">{order.return_quantity} of {order.quantity} returned</span>
                                   )}
                                   {order.days_supply && (
-                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-ds-info-soft text-ds-info-text">
                                       {order.days_supply}-day supply
                                     </span>
                                   )}
-                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-ds-accent-soft text-ds-accent-text' : 'bg-ds-subtle text-ds-text-secondary'}`}>
                                     {order.is_long_term ? 'Long-term' : 'One-time'}
                                   </span>
                                   {order.inventory_price != null && (
                                     <span
-                                      className="text-xs text-gray-500"
+                                      className="text-xs text-ds-text-muted"
                                       title={['dispensed', 'completed', 'returned'].includes(order.status) ? 'Price charged when this was served' : 'Current price'}
                                     >
                                       GHS {Number(order.inventory_price).toFixed(2)}/unit{['dispensed', 'completed', 'returned'].includes(order.status) ? ' (as sold)' : ''}
@@ -3014,10 +3016,10 @@ const PharmacyDashboard: React.FC = () => {
                                     <span
                                       className={`text-xs font-medium px-1.5 py-0.5 rounded ${
                                         order.inventory_quantity >= parseInt(order.quantity)
-                                          ? 'bg-success-100 text-success-700'
+                                          ? 'bg-ds-success-soft text-ds-success-text'
                                           : order.inventory_quantity > 0
-                                          ? 'bg-warning-100 text-warning-700'
-                                          : 'bg-danger-100 text-danger-700'
+                                          ? 'bg-ds-warning-soft text-ds-warning-text'
+                                          : 'bg-ds-critical-soft text-ds-critical-text'
                                       }`}
                                       title={order.inventory_name_matched
                                         ? `Matched by name to "${order.inventory_medication_name}". Use Edit → Substitute to confirm the exact item.`
@@ -3026,20 +3028,20 @@ const PharmacyDashboard: React.FC = () => {
                                       {order.inventory_name_matched && '≈ '}{order.inventory_quantity} in stock
                                     </span>
                                   ) : (
-                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                                    <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-ds-subtle text-ds-text-muted">
                                       Not in inventory
                                     </span>
                                   )}
                                   {order.patient_pays && (
                                     <span
-                                      className="text-xs font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-800"
+                                      className="text-xs font-bold px-1.5 py-0.5 rounded bg-ds-warning-soft text-ds-warning-text"
                                       title={order.patient_pays_reason ? `Patient pays: ${order.patient_pays_reason}` : 'Patient pays — not billed to insurance'}
                                     >
                                       PATIENT PAYS
                                     </span>
                                   )}
                                   <svg
-                                    className={`w-4 h-4 text-gray-400 transition-transform ${
+                                    className={`w-4 h-4 text-ds-text-muted transition-transform ${
                                       expandedMedication === order.id ? 'rotate-180' : ''
                                     }`}
                                     fill="none"
@@ -3053,16 +3055,16 @@ const PharmacyDashboard: React.FC = () => {
 
                               {/* Expanded Actions */}
                               {expandedMedication === order.id && (
-                                <div className="px-4 py-3 border-t border-gray-200 bg-white rounded-b-lg flex items-center justify-between">
-                                  <div className="text-sm text-gray-600">
+                                <div className="px-4 py-3 border-t border-ds-border bg-ds-surface rounded-b-lg flex items-center justify-between">
+                                  <div className="text-sm text-ds-text-secondary">
                                     {order.primary_diagnosis && (
-                                      <span className="text-primary-600"><span className="font-medium">Dx:</span> {order.primary_diagnosis}</span>
+                                      <span className="text-ds-accent-text"><span className="font-medium">Dx:</span> {order.primary_diagnosis}</span>
                                     )}
                                     {order.notes && (
-                                      <span className="ml-3 text-gray-500">Notes: {order.notes}</span>
+                                      <span className="ml-3 text-ds-text-muted">Notes: {order.notes}</span>
                                     )}
                                     {order.substitute_medication && (
-                                      <span className="ml-3 text-warning-600 font-medium">Substituted: {order.substitute_medication}</span>
+                                      <span className="ml-3 text-ds-warning-text font-medium">Substituted: {order.substitute_medication}</span>
                                     )}
                                   </div>
                                   <div className="flex gap-2">
@@ -3073,7 +3075,7 @@ const PharmacyDashboard: React.FC = () => {
                                           startProcessingOrder(order.id);
                                         }}
                                         disabled={startingIds.has(order.id) || startedIds.has(order.id)}
-                                        className="px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-accent text-ds-on-accent text-sm rounded hover:bg-ds-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
                                         title={`Start ${order.medication_name} only`}
                                       >
                                         {startedIds.has(order.id) ? 'Started ✓' : startingIds.has(order.id) ? 'Starting…' : 'Start'}
@@ -3085,7 +3087,7 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           markReadyForPickup(order.id);
                                         }}
-                                        className="px-3 py-1 bg-orange-500 text-white text-sm rounded hover:bg-orange-600"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-warning text-white dark:text-ds-canvas text-sm rounded hover:bg-ds-warning/90"
                                       >
                                         Ready
                                       </button>
@@ -3096,7 +3098,7 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           returnToPending(order.id, order.medication_name);
                                         }}
-                                        className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-border text-ds-text-secondary text-sm rounded hover:bg-ds-border"
                                         title="Started by mistake? Put this back in the Pending queue"
                                       >
                                         Back to Pending
@@ -3109,7 +3111,7 @@ const PharmacyDashboard: React.FC = () => {
                                           dispenseMedication(order.id, order.medication_name, order.patient_id);
                                         }}
                                         disabled={dispensingIds.has(order.id)}
-                                        className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-success text-white dark:text-ds-canvas text-sm rounded hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
                                         {dispensingIds.has(order.id) ? 'Dispensing…' : 'Dispense'}
                                       </button>
@@ -3121,10 +3123,10 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           togglePatientPays(order, group.payer_type);
                                         }}
-                                        className={`px-3 py-1 text-sm rounded ${
+                                        className={`min-h-ds-touch px-3 py-1 text-sm rounded ${
                                           order.patient_pays
-                                            ? 'bg-primary-100 text-primary-800 hover:bg-primary-200'
-                                            : 'bg-warning-100 text-warning-800 hover:bg-warning-200'
+                                            ? 'bg-ds-accent-soft text-ds-accent-text hover:bg-ds-accent-soft'
+                                            : 'bg-ds-warning-soft text-ds-warning-text hover:bg-ds-warning-soft'
                                         }`}
                                         title={order.patient_pays
                                           ? `Bill this medication to ${group.payer_type === 'insurance' ? 'insurance' : 'the company'} again`
@@ -3142,7 +3144,7 @@ const PharmacyDashboard: React.FC = () => {
                                           setEditingOrder(order);
                                           setShowEditOrderModal(true);
                                         }}
-                                        className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-border text-ds-text-secondary text-sm rounded hover:bg-ds-border"
                                       >
                                         Edit
                                       </button>
@@ -3156,7 +3158,7 @@ const PharmacyDashboard: React.FC = () => {
                                           setReturnReason('');
                                           setShowReturnModal(true);
                                         }}
-                                        className="px-3 py-1 bg-warning-100 text-warning-700 text-sm rounded hover:bg-warning-200"
+                                        className="min-h-ds-touch px-3 py-1 bg-ds-warning-soft text-ds-warning-text text-sm rounded hover:bg-ds-warning-soft"
                                       >
                                         Return
                                       </button>
@@ -3166,7 +3168,7 @@ const PharmacyDashboard: React.FC = () => {
                                         e.stopPropagation();
                                         printLabel(order);
                                       }}
-                                      className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300"
+                                      className="min-h-ds-touch px-3 py-1 bg-ds-border text-ds-text-secondary text-sm rounded hover:bg-ds-border"
                                     >
                                       Label
                                     </button>
@@ -3175,7 +3177,7 @@ const PharmacyDashboard: React.FC = () => {
                                         e.stopPropagation();
                                         openOrderActivity(order);
                                       }}
-                                      className="px-3 py-1 bg-gray-100 text-gray-600 text-sm rounded hover:bg-gray-200"
+                                      className="min-h-ds-touch px-3 py-1 bg-ds-subtle text-ds-text-secondary text-sm rounded hover:bg-ds-border"
                                       title="View who started, prepared, dispensed, substituted or returned this order"
                                     >
                                       Activity
@@ -3193,7 +3195,7 @@ const PharmacyDashboard: React.FC = () => {
               </div>
 
               {/* Patient Details Panel */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">Patient Details</h2>
                 </div>
@@ -3201,26 +3203,26 @@ const PharmacyDashboard: React.FC = () => {
                   <div className="p-6 space-y-6">
                     {/* Patient Info */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      <h3 className="text-sm font-semibold text-ds-text-secondary uppercase tracking-wider mb-2">
                         Patient
                       </h3>
-                      <div className="bg-gray-50 rounded p-3 space-y-2">
-                        <div className="font-semibold text-gray-900">{selectedOrder.patient_name}</div>
-                        <div className="text-sm text-gray-600">{selectedOrder.patient_number}</div>
+                      <div className="bg-ds-subtle rounded p-3 space-y-2">
+                        <div className="font-semibold text-ds-text">{selectedOrder.patient_name}</div>
+                        <div className="text-sm text-ds-text-secondary">{selectedOrder.patient_number}</div>
                         {/* Age and current weight — pharmacy needs both to sanity-check
                             paediatric and weight-based doses before dispensing. */}
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-gray-200 text-sm">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1 border-t border-ds-border text-sm">
                           <div>
-                            <span className="text-gray-500">Age: </span>
-                            <span className="font-medium text-gray-900">
+                            <span className="text-ds-text-muted">Age: </span>
+                            <span className="font-medium text-ds-text">
                               {formatPatientAge(selectedOrder.patient_date_of_birth) || 'Unknown'}
                             </span>
                           </div>
                           <div>
-                            <span className="text-gray-500">Weight: </span>
+                            <span className="text-ds-text-muted">Weight: </span>
                             {selectedOrder.latest_weight != null ? (
                               <span
-                                className="font-medium text-gray-900"
+                                className="font-medium text-ds-text"
                                 title={
                                   selectedOrder.latest_weight_recorded_at
                                     ? `Recorded ${format(new Date(selectedOrder.latest_weight_recorded_at), 'MMM dd, yyyy')}`
@@ -3230,7 +3232,7 @@ const PharmacyDashboard: React.FC = () => {
                                 {Number(selectedOrder.latest_weight)} {selectedOrder.latest_weight_unit || 'kg'}
                               </span>
                             ) : (
-                              <span className="font-medium text-gray-400">Not recorded</span>
+                              <span className="font-medium text-ds-text-muted">Not recorded</span>
                             )}
                           </div>
                         </div>
@@ -3239,29 +3241,29 @@ const PharmacyDashboard: React.FC = () => {
 
                     {/* Billing/Payer Info */}
                     <div>
-                      <h3 className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-brand-plum uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                         Billing
                       </h3>
                       <div className={`p-3 rounded border ${
-                        selectedOrder.payer_type === 'insurance' ? 'bg-primary-50 border-primary-200' :
-                        selectedOrder.payer_type === 'corporate' ? 'bg-purple-50 border-purple-200' :
-                        'bg-gray-50 border-gray-200'
+                        selectedOrder.payer_type === 'insurance' ? 'bg-ds-accent-soft border-ds-accent/30' :
+                        selectedOrder.payer_type === 'corporate' ? 'bg-ds-subtle border-ds-border' :
+                        'bg-ds-subtle border-ds-border'
                       }`}>
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-bold rounded ${
-                            selectedOrder.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
-                            selectedOrder.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
-                            'bg-gray-200 text-gray-700'
+                            selectedOrder.payer_type === 'insurance' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                            selectedOrder.payer_type === 'corporate' ? 'bg-ds-subtle text-ds-brand-plum' :
+                            'bg-ds-border text-ds-text-secondary'
                           }`}>
                             {selectedOrder.payer_type === 'insurance' ? 'INSURANCE' :
                              selectedOrder.payer_type === 'corporate' ? 'CORPORATE' : 'SELF PAY'}
                           </span>
                         </div>
                         {selectedOrder.payer_name && selectedOrder.payer_name !== 'Self Pay' && (
-                          <div className="mt-2 text-sm font-medium text-gray-700">
+                          <div className="mt-2 text-sm font-medium text-ds-text-secondary">
                             {selectedOrder.payer_name}
                           </div>
                         )}
@@ -3270,7 +3272,7 @@ const PharmacyDashboard: React.FC = () => {
 
                     {/* Allergies/Sensitivities */}
                     <div>
-                      <h3 className="text-sm font-semibold text-danger-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-critical-text uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
@@ -3290,51 +3292,51 @@ const PharmacyDashboard: React.FC = () => {
                           ))}
                         </div>
                       ) : selectedOrder.patient_allergies ? (
-                        <div className="p-2 rounded border bg-danger-50 border-danger-200">
-                          <div className="font-medium text-danger-700">{selectedOrder.patient_allergies}</div>
+                        <div className="p-2 rounded border bg-ds-critical-soft border-ds-critical-border">
+                          <div className="font-medium text-ds-critical-text">{selectedOrder.patient_allergies}</div>
                         </div>
                       ) : (
                         allergiesStatus === 'loading' ? (
-                          <p className="text-sm text-gray-500 italic">Checking allergies…</p>
+                          <p className="text-sm text-ds-text-muted italic">Checking allergies…</p>
                         ) : allergiesStatus === 'failed' ? (
-                          <p className="text-sm font-medium text-danger-700" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
+                          <p className="text-sm font-medium text-ds-critical-text" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
                         ) : (
-                          <p className="text-sm text-gray-500 italic">No known allergies</p>
+                          <p className="text-sm text-ds-text-muted italic">No known allergies</p>
                         )
                       )}
                     </div>
 
                     {/* Diagnoses */}
                     <div>
-                      <h3 className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-2">
+                      <h3 className="text-sm font-semibold text-ds-accent-text uppercase tracking-wider mb-2">
                         Current Diagnoses
                       </h3>
                       {patientDiagnoses.length > 0 ? (
                         <div className="space-y-2">
                           {patientDiagnoses.map((dx) => (
-                            <div key={dx.id} className="p-2 bg-primary-50 rounded">
+                            <div key={dx.id} className="p-2 bg-ds-accent-soft rounded">
                               <div className="font-medium text-sm">
-                                {dx.diagnosis_code && <span className="text-primary-600">[{dx.diagnosis_code}]</span>}{' '}
+                                {dx.diagnosis_code && <span className="text-ds-accent-text">[{dx.diagnosis_code}]</span>}{' '}
                                 {dx.diagnosis_description}
                               </div>
-                              <span className="text-xs text-primary-600 uppercase">{dx.type}</span>
+                              <span className="text-xs text-ds-accent-text uppercase">{dx.type}</span>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No diagnoses recorded</p>
+                        <p className="text-sm text-ds-text-muted italic">No diagnoses recorded</p>
                       )}
                     </div>
 
                     {/* Prescription Details */}
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider">
+                        <h3 className="text-sm font-semibold text-ds-text-secondary uppercase tracking-wider">
                           Prescription Details
                         </h3>
                         <button
                           onClick={() => setShowAIAssist(true)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
+                          className="min-h-ds-touch inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-ds-accent-text bg-ds-accent-soft border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft"
                           title="Dosage check, substitutes & patient counseling"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -3343,21 +3345,21 @@ const PharmacyDashboard: React.FC = () => {
                           AI Assist
                         </button>
                       </div>
-                      <div className="bg-gray-50 rounded p-3 space-y-1 text-sm">
-                        <div><span className="text-gray-500">Medication:</span> <span className="font-medium">{selectedOrder.medication_name}</span></div>
-                        <div><span className="text-gray-500">Dosage:</span> {selectedOrder.dosage}</div>
-                        <div><span className="text-gray-500">Frequency:</span> {selectedOrder.frequency}</div>
-                        <div><span className="text-gray-500">Route:</span> {selectedOrder.route}</div>
-                        <div className="bg-primary-50 border border-primary-200 rounded px-2 py-1 -mx-2"><span className="text-primary-700 font-semibold">Quantity:</span> <span className="font-bold text-primary-900 text-base">{selectedOrder.quantity}</span></div>
-                        <div><span className="text-gray-500">Refills:</span> {selectedOrder.refills || 0}</div>
+                      <div className="bg-ds-subtle rounded p-3 space-y-1 text-sm">
+                        <div><span className="text-ds-text-muted">Medication:</span> <span className="font-medium">{selectedOrder.medication_name}</span></div>
+                        <div><span className="text-ds-text-muted">Dosage:</span> {selectedOrder.dosage}</div>
+                        <div><span className="text-ds-text-muted">Frequency:</span> {selectedOrder.frequency}</div>
+                        <div><span className="text-ds-text-muted">Route:</span> {selectedOrder.route}</div>
+                        <div className="bg-ds-accent-soft border border-ds-accent/30 rounded px-2 py-1 -mx-2"><span className="text-ds-accent-text font-semibold">Quantity:</span> <span className="font-bold text-ds-accent-text text-base">{selectedOrder.quantity}</span></div>
+                        <div><span className="text-ds-text-muted">Refills:</span> {selectedOrder.refills || 0}</div>
                         {selectedOrder.notes && (
-                          <div><span className="text-gray-500">Notes:</span> {selectedOrder.notes}</div>
+                          <div><span className="text-ds-text-muted">Notes:</span> {selectedOrder.notes}</div>
                         )}
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="p-6 text-center text-gray-500">
+                  <div className="p-6 text-center text-ds-text-muted">
                     Select an order to view patient details
                   </div>
                 )}
@@ -3371,44 +3373,44 @@ const PharmacyDashboard: React.FC = () => {
           <div>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-purple-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-subtle rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-brand-plum" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Walk-in Patients</p>
-                    <p className="text-2xl font-bold text-purple-600">{walkInPatients.length}</p>
+                    <p className="text-sm font-medium text-ds-text-muted">Walk-in Patients</p>
+                    <p className="text-2xl font-bold text-ds-brand-plum">{walkInPatients.length}</p>
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-warning-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-warning-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-warning-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Pending</p>
-                    <p className="text-2xl font-bold text-warning-600">
+                    <p className="text-sm font-medium text-ds-text-muted">Pending</p>
+                    <p className="text-2xl font-bold text-ds-warning-text">
                       {walkInPatients.filter(p => p.status === 'pending').length}
                     </p>
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-accent-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">In Progress</p>
-                    <p className="text-2xl font-bold text-primary-600">
+                    <p className="text-sm font-medium text-ds-text-muted">In Progress</p>
+                    <p className="text-2xl font-bold text-ds-accent-text">
                       {walkInPatients.filter(p => p.status === 'in-progress').length}
                     </p>
                   </div>
@@ -3417,13 +3419,13 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Walk-in Patients List */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
               <div className="px-6 py-4 border-b flex justify-between items-center">
                 <h2 className="text-lg font-semibold">OTC / Walk-in Patients</h2>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowNewWalkInModal(true)}
-                    className="flex items-center gap-2 px-3 py-2 bg-primary-600 hover:bg-primary-700 rounded-lg text-sm font-medium text-white transition-colors"
+                    className="min-h-ds-touch flex items-center gap-2 px-3 py-2 bg-ds-accent hover:bg-ds-accent-hover rounded-lg text-sm font-medium text-ds-on-accent transition-colors"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3432,7 +3434,7 @@ const PharmacyDashboard: React.FC = () => {
                   </button>
                 <button
                   onClick={fetchWalkIns}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition-colors"
+                  className="min-h-ds-touch flex items-center gap-2 px-3 py-2 bg-ds-subtle hover:bg-ds-border rounded-lg text-sm font-medium text-ds-text-secondary transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3445,7 +3447,7 @@ const PharmacyDashboard: React.FC = () => {
                 {walkInPatients.length === 0 ? (
                   <EmptyState
                     icon={
-                      <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-12 h-12 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                     }
@@ -3454,37 +3456,37 @@ const PharmacyDashboard: React.FC = () => {
                   />
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-ds-border">
+                      <thead className="bg-ds-subtle">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payer</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Chief Complaint</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Routed At</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Patient</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Payer</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Chief Complaint</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Routed At</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-ds-surface divide-y divide-ds-border">
                         {walkInPatients.map((patient) => (
-                          <tr key={patient.id} className="hover:bg-gray-50">
+                          <tr key={patient.id} className="hover:bg-ds-subtle">
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="font-medium text-gray-900">{patient.patient_name || 'Unknown'}</div>
-                              <div className="text-sm text-gray-500">{patient.patient_number}</div>
+                              <div className="font-medium text-ds-text">{patient.patient_name || 'Unknown'}</div>
+                              <div className="text-sm text-ds-text-muted">{patient.patient_number}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                patient.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
-                                patient.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
-                                'bg-gray-100 text-gray-700'
+                                patient.payer_type === 'insurance' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                                patient.payer_type === 'corporate' ? 'bg-ds-subtle text-ds-brand-plum' :
+                                'bg-ds-subtle text-ds-text-secondary'
                               }`}>
                                 {patient.payer_type === 'self_pay' ? 'Self Pay' : patient.payer_type || 'Self Pay'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
-                              <div className="text-sm text-gray-900">{patient.chief_complaint || 'OTC Purchase'}</div>
+                              <div className="text-sm text-ds-text">{patient.chief_complaint || 'OTC Purchase'}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                               {format(new Date(patient.routed_at), 'MMM dd, HH:mm')}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -3497,7 +3499,7 @@ const PharmacyDashboard: React.FC = () => {
                                 <>
                                   <button
                                     onClick={() => openServeWalkInModal(patient)}
-                                    className="px-3 py-1 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                                    className="min-h-ds-touch px-3 py-1 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
                                   >
                                     Serve
                                   </button>
@@ -3516,7 +3518,7 @@ const PharmacyDashboard: React.FC = () => {
                                         showToast('Failed to clear walk-in', 'error');
                                       }
                                     }}
-                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    className="min-h-ds-touch px-3 py-1 bg-ds-subtle text-ds-text-secondary rounded-lg hover:bg-ds-border transition-colors"
                                     title="Remove this unserved walk-in from the list"
                                   >
                                     Clear
@@ -3527,7 +3529,7 @@ const PharmacyDashboard: React.FC = () => {
                                 <>
                                   <button
                                     onClick={() => openServeWalkInModal(patient)}
-                                    className="px-3 py-1 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors"
+                                    className="min-h-ds-touch px-3 py-1 bg-ds-accent-soft text-ds-accent-text rounded-lg hover:bg-ds-accent-soft transition-colors"
                                   >
                                     Add Items
                                   </button>
@@ -3541,7 +3543,7 @@ const PharmacyDashboard: React.FC = () => {
                                         showToast('Failed to update status', 'error');
                                       }
                                     }}
-                                    className="px-3 py-1 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
+                                    className="min-h-ds-touch px-3 py-1 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors"
                                   >
                                     Complete
                                   </button>
@@ -3560,7 +3562,7 @@ const PharmacyDashboard: React.FC = () => {
                                         showToast('Failed to clear walk-in', 'error');
                                       }
                                     }}
-                                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    className="min-h-ds-touch px-3 py-1 bg-ds-subtle text-ds-text-secondary rounded-lg hover:bg-ds-border transition-colors"
                                     title="Remove this walk-in from the list without dispensing"
                                   >
                                     Clear
@@ -3585,79 +3587,79 @@ const PharmacyDashboard: React.FC = () => {
             {/* Inventory Stats */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
               <div
-                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-gray-400"
+                className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow cursor-pointer hover:ring-2 ring-ds-border-control"
                 onClick={() => setInventoryFilter('all')}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-subtle rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Total Items</p>
-                    <p className="text-2xl font-bold text-gray-900">{inventoryStats?.total_items || 0}</p>
+                    <p className="text-sm font-medium text-ds-text-muted">Total Items</p>
+                    <p className="text-2xl font-bold text-ds-text">{inventoryStats?.total_items || 0}</p>
                   </div>
                 </div>
               </div>
               <div
-                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-warning-400"
+                className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow cursor-pointer hover:ring-2 ring-ds-warning"
                 onClick={() => setInventoryFilter('low_stock')}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-warning-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-warning-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-warning-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Low Stock</p>
-                    <p className="text-2xl font-bold text-warning-600">{inventoryStats?.low_stock_count || 0}</p>
+                    <p className="text-sm font-medium text-ds-text-muted">Low Stock</p>
+                    <p className="text-2xl font-bold text-ds-warning-text">{inventoryStats?.low_stock_count || 0}</p>
                   </div>
                 </div>
               </div>
               <div
-                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-orange-400"
+                className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow cursor-pointer hover:ring-2 ring-ds-warning"
                 onClick={() => setInventoryFilter('expiring')}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-orange-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-warning-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-warning-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Expiring Soon</p>
-                    <p className="text-2xl font-bold text-orange-600">{inventoryStats?.expiring_soon_count || 0}</p>
+                    <p className="text-sm font-medium text-ds-text-muted">Expiring Soon</p>
+                    <p className="text-2xl font-bold text-ds-warning-text">{inventoryStats?.expiring_soon_count || 0}</p>
                   </div>
                 </div>
               </div>
               <div
-                className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow cursor-pointer hover:ring-2 ring-danger-400"
+                className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow cursor-pointer hover:ring-2 ring-ds-critical"
                 onClick={() => setInventoryFilter('expired')}
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-danger-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-danger-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-critical-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-critical-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Expired</p>
-                    <p className="text-2xl font-bold text-danger-600">{inventoryStats?.expired_count || 0}</p>
+                    <p className="text-sm font-medium text-ds-text-muted">Expired</p>
+                    <p className="text-2xl font-bold text-ds-critical-text">{inventoryStats?.expired_count || 0}</p>
                   </div>
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                 <div className="flex items-center gap-3">
-                  <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
-                    <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex-shrink-0 bg-ds-success-soft rounded-lg p-3">
+                    <svg className="h-6 w-6 text-ds-success-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-500">Stock Value</p>
-                    <p className="text-2xl font-bold text-success-600">
+                    <p className="text-sm font-medium text-ds-text-muted">Stock Value</p>
+                    <p className="text-2xl font-bold text-ds-success-text">
                       GH{'\u20B5'} {parseFloat(String(inventoryStats?.total_stock_value || 0)).toLocaleString()}
                     </p>
                   </div>
@@ -3666,13 +3668,13 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Search and Filters */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex flex-wrap items-center gap-3">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6 flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 placeholder="Search medications..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                className="flex-1 min-w-[200px] border border-ds-border-control rounded-lg px-4 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
               />
               <div className="w-44 flex-shrink-0">
                 <AppSelect
@@ -3698,7 +3700,7 @@ const PharmacyDashboard: React.FC = () => {
               </div>
               <button
                 onClick={openImportModal}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 transition-colors font-medium flex items-center gap-2"
+                className="min-h-ds-touch flex-shrink-0 whitespace-nowrap px-4 py-2 bg-ds-surface text-ds-accent-text border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft transition-colors font-medium flex items-center gap-2"
                 title="Bulk-update prices, costs and stock from a CSV or Excel file"
               >
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3708,7 +3710,7 @@ const PharmacyDashboard: React.FC = () => {
               </button>
               <button
                 onClick={downloadInventoryOffline}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+                className="min-h-ds-touch flex-shrink-0 whitespace-nowrap px-4 py-2 bg-ds-surface text-ds-text-secondary border border-ds-border-control rounded-lg hover:bg-ds-subtle transition-colors font-medium flex items-center gap-2"
                 title="Download the inventory list (medication, quantity, cost, selling price) as a CSV to keep offline for power/internet outages"
               >
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3718,7 +3720,7 @@ const PharmacyDashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => setShowAddInventoryModal(true)}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+                className="min-h-ds-touch flex-shrink-0 whitespace-nowrap px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center gap-2"
               >
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3728,22 +3730,22 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Inventory Table */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stock</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reorder Level</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Medication</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Stock</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Reorder Level</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Supplier</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Expiry</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-ds-border">
                   {inventoryTableSource
                     .filter(item => {
                       // Filter by category
@@ -3754,43 +3756,43 @@ const PharmacyDashboard: React.FC = () => {
                       return true;
                     })
                     .map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
+                    <tr key={item.id} className="hover:bg-ds-subtle">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{item.medication_name}</div>
-                        <div className="text-sm text-gray-500">{item.generic_name}</div>
+                        <div className="font-medium text-ds-text">{item.medication_name}</div>
+                        <div className="text-sm text-ds-text-muted">{item.generic_name}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{item.category}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{item.category}</td>
                       <td className="px-6 py-4">
-                        <span className={`font-bold ${item.is_low_stock ? 'text-danger-600' : 'text-gray-900'}`}>
+                        <span className={`font-bold ${item.is_low_stock ? 'text-ds-critical-text' : 'text-ds-text'}`}>
                           {item.quantity_on_hand}
                         </span>
-                        <span className="text-sm text-gray-500 ml-1">{item.unit}s</span>
+                        <span className="text-sm text-ds-text-muted ml-1">{item.unit}s</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{item.reorder_level}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{item.reorder_level}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-ds-text">
                         GH₵ {Number(item.selling_price || 0).toFixed(2)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{item.supplier_name || item.supplier || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{item.supplier_name || item.supplier || '-'}</td>
                       <td className="px-6 py-4 text-sm">
                         {item.expiry_date ? (
-                          <span className={item.is_expiring_soon ? 'text-orange-600 font-medium' : 'text-gray-600'}>
+                          <span className={item.is_expiring_soon ? 'text-ds-warning-text font-medium' : 'text-ds-text-secondary'}>
                             {format(new Date(item.expiry_date), 'MMM yyyy')}
                           </span>
                         ) : '-'}
                       </td>
                       <td className="px-6 py-4">
                         {item.is_low_stock && (
-                          <span className="px-2 py-1 bg-warning-100 text-warning-800 text-xs rounded-full">Low Stock</span>
+                          <span className="px-2 py-1 bg-ds-warning-soft text-ds-warning-text text-xs rounded-full">Low Stock</span>
                         )}
                         {item.is_expiring_soon && (
-                          <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full ml-1">Expiring</span>
+                          <span className="px-2 py-1 bg-ds-warning-soft text-ds-warning-text text-xs rounded-full ml-1">Expiring</span>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
                           <button
                             onClick={() => { setEditingInventory(item); fetchInventoryBatches(item.id); setShowInventoryModal(true); }}
-                            className="p-1 text-primary-600 hover:text-primary-800"
+                            className="p-1 text-ds-accent-text hover:text-ds-accent-text"
                             title="Edit"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3799,7 +3801,7 @@ const PharmacyDashboard: React.FC = () => {
                           </button>
                           <button
                             onClick={() => openItemHistory(item)}
-                            className="p-1 text-gray-600 hover:text-gray-900"
+                            className="p-1 text-ds-text-secondary hover:text-ds-text"
                             title="History (stock movements, adjustments, price changes)"
                             aria-label={`History for ${item.medication_name}`}
                           >
@@ -3809,7 +3811,7 @@ const PharmacyDashboard: React.FC = () => {
                           </button>
                           <button
                             onClick={() => openAdjustStock(item)}
-                            className="p-1 text-gray-600 hover:text-gray-900"
+                            className="p-1 text-ds-text-secondary hover:text-ds-text"
                             title="Adjust stock (add / subtract with reason)"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3818,7 +3820,7 @@ const PharmacyDashboard: React.FC = () => {
                           </button>
                           <button
                             onClick={() => deleteInventoryItem(item.id)}
-                            className="p-1 text-danger-600 hover:text-danger-800"
+                            className="p-1 text-ds-critical-text hover:text-ds-critical-text"
                             title="Delete"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3837,7 +3839,7 @@ const PharmacyDashboard: React.FC = () => {
                     !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
                 return true;
               }).length === 0 && (
-                <div className="py-12 text-center text-gray-500">
+                <div className="py-12 text-center text-ds-text-muted">
                   {inventory.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </div>
               )}
@@ -3848,22 +3850,22 @@ const PharmacyDashboard: React.FC = () => {
         {/* STOCK-TAKE TAB */}
         {activeTab === 'stocktake' && (
           <div>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
-              <h2 className="text-base font-semibold text-blue-900">Stock-take</h2>
-              <p className="text-sm text-blue-800 mt-1">
+            <div className="bg-ds-info-soft border border-ds-info/30 rounded-ds-card p-4 mb-4">
+              <h2 className="text-base font-semibold text-ds-info-text">Stock-take</h2>
+              <p className="text-sm text-ds-info-text mt-1">
                 Count the shelf, type the quantity you physically have, set the expiry, and Save — the system reconciles the difference and logs it.
                 Use <span className="font-medium">Count batches</span> when an item has more than one lot, or to <span className="font-medium">add new batches</span> with their own expiry dates (closest-expiry dispenses first).
               </p>
             </div>
 
             {/* Search + filter (reuses the inventory filters) */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-4 flex flex-wrap items-center gap-3">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-4 flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 placeholder="Search medications..."
                 value={inventorySearch}
                 onChange={(e) => setInventorySearch(e.target.value)}
-                className="flex-1 min-w-[200px] border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="flex-1 min-w-[200px] border border-ds-border-control rounded-lg px-4 py-2 focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
               />
               <div className="w-44 flex-shrink-0">
                 <AppSelect
@@ -3877,7 +3879,7 @@ const PharmacyDashboard: React.FC = () => {
               </div>
               <button
                 onClick={downloadInventoryOffline}
-                className="flex-shrink-0 whitespace-nowrap px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
+                className="min-h-ds-touch flex-shrink-0 whitespace-nowrap px-4 py-2 bg-ds-surface text-ds-text-secondary border border-ds-border-control rounded-lg hover:bg-ds-subtle transition-colors font-medium flex items-center gap-2"
                 title="Download the inventory list (medication, quantity, cost, selling price) as a CSV to keep offline for power/internet outages"
               >
                 <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3887,18 +3889,18 @@ const PharmacyDashboard: React.FC = () => {
               </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medication</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">System Qty</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Counted</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Expiry</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Medication</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">System Qty</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Counted</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Expiry</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-ds-border">
                   {inventory
                     .filter(item => {
                       if (categoryFilter && item.category !== categoryFilter) return false;
@@ -3912,14 +3914,14 @@ const PharmacyDashboard: React.FC = () => {
                       const saved = stockSaved[item.id];
                       return (
                         <React.Fragment key={item.id}>
-                          <tr className="hover:bg-gray-50">
+                          <tr className="hover:bg-ds-subtle">
                             <td className="px-6 py-3">
-                              <div className="font-medium text-gray-900">{item.medication_name}</div>
-                              <div className="text-sm text-gray-500">{item.generic_name || item.category}</div>
+                              <div className="font-medium text-ds-text">{item.medication_name}</div>
+                              <div className="text-sm text-ds-text-muted">{item.generic_name || item.category}</div>
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <span className={`font-bold ${item.is_low_stock ? 'text-danger-600' : 'text-gray-900'}`}>{item.quantity_on_hand}</span>
-                              <span className="text-xs text-gray-500 ml-1">{item.unit}s</span>
+                              <span className={`font-bold ${item.is_low_stock ? 'text-ds-critical-text' : 'text-ds-text'}`}>{item.quantity_on_hand}</span>
+                              <span className="text-xs text-ds-text-muted ml-1">{item.unit}s</span>
                             </td>
                             <td className="px-4 py-3 text-center">
                               <input
@@ -3929,7 +3931,7 @@ const PharmacyDashboard: React.FC = () => {
                                 value={stockCounts[item.id] ?? ''}
                                 onChange={(e) => setStockCounts(prev => ({ ...prev, [item.id]: e.target.value }))}
                                 placeholder="—"
-                                className="w-24 px-2 py-1.5 text-center border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
+                                className="w-24 px-2 py-1.5 text-center border border-ds-border-control rounded-lg disabled:bg-ds-subtle disabled:text-ds-text-muted"
                               />
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -3938,12 +3940,12 @@ const PharmacyDashboard: React.FC = () => {
                                 disabled={isExpanded}
                                 value={stockExpiry[item.id] ?? (item.expiry_date ? String(item.expiry_date).split('T')[0] : '')}
                                 onChange={(e) => setStockExpiry(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                className="px-2 py-1.5 border border-ds-border-control rounded-lg text-sm disabled:bg-ds-subtle disabled:text-ds-text-muted"
                               />
                             </td>
                             <td className="px-4 py-3 text-right whitespace-nowrap">
                               {saved ? (
-                                <span className="inline-flex items-center gap-1 text-success-700 text-sm font-medium">
+                                <span className="inline-flex items-center gap-1 text-ds-success-text text-sm font-medium">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                   Saved
                                 </span>
@@ -3953,14 +3955,14 @@ const PharmacyDashboard: React.FC = () => {
                                     <button
                                       onClick={() => saveStockTakeItem(item)}
                                       disabled={saving}
-                                      className="px-3 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                      className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent text-sm rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
                                     >
                                       {saving ? 'Saving…' : 'Save'}
                                     </button>
                                   )}
                                   <button
                                     onClick={() => toggleStockExpand(item)}
-                                    className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                                    className="min-h-ds-touch px-3 py-1.5 bg-ds-subtle text-ds-text-secondary text-sm rounded-lg hover:bg-ds-border"
                                   >
                                     {isExpanded ? 'Close' : 'Count batches'}
                                   </button>
@@ -3969,17 +3971,17 @@ const PharmacyDashboard: React.FC = () => {
                             </td>
                           </tr>
                           {isExpanded && (
-                            <tr className="bg-blue-50/40">
+                            <tr className="bg-ds-info-soft/40">
                               <td colSpan={5} className="px-6 py-3">
                                 <div>
                                   {stockExpandBatches.length === 0 ? (
-                                    <p className="text-sm text-gray-600 mb-3">
+                                    <p className="text-sm text-ds-text-secondary mb-3">
                                       No batches on record yet — we've pre-filled your current on-hand as the first lot. Set its expiry, adjust the count, or split it into separate lots with "+ Add batch" (each with its own expiry; closest-expiry dispenses first).
                                     </p>
                                   ) : (
                                     <table className="w-full text-sm mb-3">
                                       <thead>
-                                        <tr className="text-left text-xs text-gray-500">
+                                        <tr className="text-left text-xs text-ds-text-muted">
                                           <th className="px-2 py-1">Batch #</th>
                                           <th className="px-2 py-1 text-right">System</th>
                                           <th className="px-2 py-1 text-center">Counted</th>
@@ -3989,14 +3991,14 @@ const PharmacyDashboard: React.FC = () => {
                                       <tbody>
                                         {stockExpandBatches.map((b) => (
                                           <tr key={b.id}>
-                                            <td className="px-2 py-1 text-gray-900">{b.batch_number || '-'}</td>
-                                            <td className="px-2 py-1 text-right text-gray-600">{b.quantity}</td>
+                                            <td className="px-2 py-1 text-ds-text">{b.batch_number || '-'}</td>
+                                            <td className="px-2 py-1 text-right text-ds-text-secondary">{b.quantity}</td>
                                             <td className="px-2 py-1 text-center">
                                               <input
                                                 type="number" min="0"
                                                 value={stockExpandEdits[b.id]?.counted_quantity ?? ''}
                                                 onChange={(e) => setStockExpandEdits(prev => ({ ...prev, [b.id]: { ...prev[b.id], counted_quantity: e.target.value } }))}
-                                                className="w-20 px-2 py-1 text-center border border-gray-300 rounded"
+                                                className="w-20 px-2 py-1 text-center border border-ds-border-control rounded"
                                               />
                                             </td>
                                             <td className="px-2 py-1 text-center">
@@ -4004,7 +4006,7 @@ const PharmacyDashboard: React.FC = () => {
                                                 type="date"
                                                 value={stockExpandEdits[b.id]?.expiry_date ?? ''}
                                                 onChange={(e) => setStockExpandEdits(prev => ({ ...prev, [b.id]: { ...prev[b.id], expiry_date: e.target.value } }))}
-                                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                                className="px-2 py-1 border border-ds-border-control rounded text-sm"
                                               />
                                             </td>
                                           </tr>
@@ -4017,7 +4019,7 @@ const PharmacyDashboard: React.FC = () => {
                                   {(stockNewBatches[item.id] || []).length > 0 && (
                                     <table className="w-full text-sm mb-2">
                                       <thead>
-                                        <tr className="text-left text-xs text-gray-500">
+                                        <tr className="text-left text-xs text-ds-text-muted">
                                           <th className="px-2 py-1">New batch # <span className="font-normal normal-case">(optional)</span></th>
                                           <th className="px-2 py-1 text-center">Counted</th>
                                           <th className="px-2 py-1 text-center">Expiry</th>
@@ -4033,7 +4035,7 @@ const PharmacyDashboard: React.FC = () => {
                                                 placeholder="auto"
                                                 value={row.batch_number}
                                                 onChange={(e) => updateStockNewBatchRow(item.id, idx, 'batch_number', e.target.value)}
-                                                className="w-36 px-2 py-1 border border-gray-300 rounded"
+                                                className="w-36 px-2 py-1 border border-ds-border-control rounded"
                                               />
                                             </td>
                                             <td className="px-2 py-1 text-center">
@@ -4041,7 +4043,7 @@ const PharmacyDashboard: React.FC = () => {
                                                 type="number" min="0"
                                                 value={row.counted_quantity}
                                                 onChange={(e) => updateStockNewBatchRow(item.id, idx, 'counted_quantity', e.target.value)}
-                                                className="w-20 px-2 py-1 text-center border border-gray-300 rounded"
+                                                className="w-20 px-2 py-1 text-center border border-ds-border-control rounded"
                                               />
                                             </td>
                                             <td className="px-2 py-1 text-center">
@@ -4049,13 +4051,13 @@ const PharmacyDashboard: React.FC = () => {
                                                 type="date"
                                                 value={row.expiry_date}
                                                 onChange={(e) => updateStockNewBatchRow(item.id, idx, 'expiry_date', e.target.value)}
-                                                className="px-2 py-1 border border-gray-300 rounded text-sm"
+                                                className="px-2 py-1 border border-ds-border-control rounded text-sm"
                                               />
                                             </td>
                                             <td className="px-2 py-1 text-right">
                                               <button
                                                 onClick={() => removeStockNewBatchRow(item.id, idx)}
-                                                className="text-danger-600 hover:text-danger-800 text-sm"
+                                                className="text-ds-critical-text hover:text-ds-critical-text text-sm"
                                                 aria-label="Remove batch row"
                                               >
                                                 Remove
@@ -4070,14 +4072,14 @@ const PharmacyDashboard: React.FC = () => {
                                   <div className="flex items-center justify-between">
                                     <button
                                       onClick={() => addStockNewBatchRow(item.id)}
-                                      className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                                      className="min-h-ds-touch px-3 py-1.5 bg-ds-subtle text-ds-text-secondary text-sm rounded-lg hover:bg-ds-border"
                                     >
                                       + Add batch
                                     </button>
                                     <button
                                       onClick={() => saveStockTakeBatches(item)}
                                       disabled={saving}
-                                      className="px-4 py-1.5 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                                      className="min-h-ds-touch px-4 py-1.5 bg-ds-accent text-ds-on-accent text-sm rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
                                     >
                                       {saving ? 'Saving…' : 'Save batch counts'}
                                     </button>
@@ -4097,7 +4099,7 @@ const PharmacyDashboard: React.FC = () => {
                     !item.generic_name?.toLowerCase().includes(inventorySearch.toLowerCase())) return false;
                 return true;
               }).length === 0 && (
-                <div className="py-12 text-center text-gray-500">
+                <div className="py-12 text-center text-ds-text-muted">
                   {inventory.length === 0 ? 'No inventory items found' : 'No items match your filters'}
                 </div>
               )}
@@ -4109,39 +4111,39 @@ const PharmacyDashboard: React.FC = () => {
         {activeTab === 'revenue' && (
           <div>
             {/* Date Filter */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6 flex items-center gap-4">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6 flex items-center gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">From Date</label>
                 <input
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">To Date</label>
                 <input
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  className="border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                 />
               </div>
               <button
                 onClick={fetchRevenueSummary}
-                className="mt-6 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
+                className="min-h-ds-touch mt-6 px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors font-medium"
               >
                 Generate Report
               </button>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Search</label>
                 <input
                   type="text"
                   value={revenueSearch}
                   onChange={(e) => setRevenueSearch(e.target.value)}
                   placeholder="Patient name, patient #, or medication…"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                 />
               </div>
             </div>
@@ -4152,88 +4154,88 @@ const PharmacyDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
                   {/* Revenue leads the row — it's the number pharmacy actually
                       came here for, and it was being fetched then discarded. */}
-                  <div className="bg-white rounded-xl shadow-lg border border-success-200 p-6 hover:shadow-xl transition-shadow">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-success/30 p-6 hover:shadow-ds-overlay transition-shadow">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
-                        <svg className="h-6 w-6 text-success-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="flex-shrink-0 bg-ds-success-soft rounded-lg p-3">
+                        <svg className="h-6 w-6 text-ds-success-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-500">Revenue</p>
-                        <p className="text-2xl font-bold text-gray-900 tabular-nums truncate">
+                        <p className="text-sm font-medium text-ds-text-muted">Revenue</p>
+                        <p className="text-2xl font-bold text-ds-text tabular-nums truncate">
                           GH₵ {Number(revenueData.totals?.total_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 bg-gray-100 rounded-lg p-3">
-                        <svg className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="flex-shrink-0 bg-ds-subtle rounded-lg p-3">
+                        <svg className="h-6 w-6 text-ds-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Total Orders</p>
-                        <p className="text-2xl font-bold text-gray-900">{revenueData.totals?.total_orders || 0}</p>
+                        <p className="text-sm font-medium text-ds-text-muted">Total Orders</p>
+                        <p className="text-2xl font-bold text-ds-text">{revenueData.totals?.total_orders || 0}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 bg-success-100 rounded-lg p-3">
-                        <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="flex-shrink-0 bg-ds-success-soft rounded-lg p-3">
+                        <svg className="h-6 w-6 text-ds-success-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Dispensed</p>
-                        <p className="text-2xl font-bold text-success-600">{revenueData.totals?.dispensed_orders || 0}</p>
+                        <p className="text-sm font-medium text-ds-text-muted">Dispensed</p>
+                        <p className="text-2xl font-bold text-ds-success-text">{revenueData.totals?.dispensed_orders || 0}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 bg-warning-100 rounded-lg p-3">
-                        <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="flex-shrink-0 bg-ds-warning-soft rounded-lg p-3">
+                        <svg className="h-6 w-6 text-ds-warning-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Pending</p>
-                        <p className="text-2xl font-bold text-warning-600">{revenueData.totals?.pending_orders || 0}</p>
+                        <p className="text-sm font-medium text-ds-text-muted">Pending</p>
+                        <p className="text-2xl font-bold text-ds-warning-text">{revenueData.totals?.pending_orders || 0}</p>
                       </div>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 hover:shadow-ds-overlay transition-shadow">
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 bg-primary-100 rounded-lg p-3">
-                        <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="flex-shrink-0 bg-ds-accent-soft rounded-lg p-3">
+                        <svg className="h-6 w-6 text-ds-accent-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Unique Patients</p>
-                        <p className="text-2xl font-bold text-primary-600">{revenueData.totals?.unique_patients || 0}</p>
+                        <p className="text-sm font-medium text-ds-text-muted">Unique Patients</p>
+                        <p className="text-2xl font-bold text-ds-accent-text">{revenueData.totals?.unique_patients || 0}</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Orders list — paginated server-side at 200, filtered by search */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
+                <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border mb-6">
                   <div className="px-6 py-4 border-b flex items-center justify-between">
                     <h2 className="text-lg font-semibold">
                       Orders
                       {revenueData.orders && (
-                        <span className="ml-2 text-sm font-normal text-gray-500">
+                        <span className="ml-2 text-sm font-normal text-ds-text-muted">
                           ({revenueData.orders.length}{revenueData.orders.length === 200 ? '+' : ''})
                         </span>
                       )}
                     </h2>
                     {revenueSearch && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs text-ds-text-muted">
                         Filtered by: <span className="font-medium">{revenueSearch}</span>
                       </span>
                     )}
@@ -4241,7 +4243,7 @@ const PharmacyDashboard: React.FC = () => {
                   <div className="overflow-x-auto">
                     {revenueData.orders && revenueData.orders.length > 0 ? (
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                        <thead className="bg-ds-subtle text-xs text-ds-text-muted uppercase tracking-wider">
                           <tr>
                             <th className="text-left px-4 py-2">Patient</th>
                             <th className="text-left px-4 py-2">Medication</th>
@@ -4254,31 +4256,31 @@ const PharmacyDashboard: React.FC = () => {
                         </thead>
                         <tbody>
                           {revenueData.orders.map((o) => (
-                            <tr key={o.id} className="border-t border-gray-100 hover:bg-gray-50">
+                            <tr key={o.id} className="border-t border-ds-border hover:bg-ds-subtle">
                               <td className="px-4 py-2">
-                                <div className="font-medium text-gray-900">{o.patient_name || '—'}</div>
-                                <div className="text-xs text-gray-500 font-mono">{o.patient_number}</div>
+                                <div className="font-medium text-ds-text">{o.patient_name || '—'}</div>
+                                <div className="text-xs text-ds-text-muted font-mono">{o.patient_number}</div>
                               </td>
                               <td className="px-4 py-2">
-                                <div className="text-gray-900">{o.medication_name}</div>
-                                {o.dosage && <div className="text-xs text-gray-500">{o.dosage}</div>}
+                                <div className="text-ds-text">{o.medication_name}</div>
+                                {o.dosage && <div className="text-xs text-ds-text-muted">{o.dosage}</div>}
                               </td>
-                              <td className="px-4 py-2 text-right text-gray-900 font-mono">{o.quantity}</td>
+                              <td className="px-4 py-2 text-right text-ds-text font-mono">{o.quantity}</td>
                               <td className="px-4 py-2">
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                                  o.status === 'dispensed' ? 'bg-success-100 text-success-800' :
-                                  o.status === 'in_progress' ? 'bg-warning-100 text-warning-800' :
-                                  o.status === 'cancelled' ? 'bg-gray-200 text-gray-600' :
-                                  'bg-primary-100 text-primary-800'
+                                  o.status === 'dispensed' ? 'bg-ds-success-soft text-ds-success-text' :
+                                  o.status === 'in_progress' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                  o.status === 'cancelled' ? 'bg-ds-border text-ds-text-secondary' :
+                                  'bg-ds-accent-soft text-ds-accent-text'
                                 }`}>
                                   {o.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-2 text-gray-700">
+                              <td className="px-4 py-2 text-ds-text-secondary">
                                 {o.dispensed_date ? format(new Date(o.dispensed_date), 'MMM dd, yyyy HH:mm') : '—'}
                               </td>
-                              <td className="px-4 py-2 text-gray-700">{o.dispensed_by_name || '—'}</td>
-                              <td className="px-4 py-2 text-right font-mono text-gray-900">
+                              <td className="px-4 py-2 text-ds-text-secondary">{o.dispensed_by_name || '—'}</td>
+                              <td className="px-4 py-2 text-right font-mono text-ds-text">
                                 {o.line_total != null
                                   ? `GH${'₵'} ${Number(o.line_total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                                   : '—'}
@@ -4288,7 +4290,7 @@ const PharmacyDashboard: React.FC = () => {
                         </tbody>
                       </table>
                     ) : (
-                      <p className="text-center text-gray-500 py-12">
+                      <p className="text-center text-ds-text-muted py-12">
                         {revenueSearch ? `No orders match "${revenueSearch}" in this date range.` : 'No orders in this date range.'}
                       </p>
                     )}
@@ -4299,7 +4301,7 @@ const PharmacyDashboard: React.FC = () => {
                     by the endpoint and thrown away, so pharmacy had no way to
                     see whether takings were rising or falling. */}
                 {(revenueData.daily_revenue?.length ?? 0) > 0 && (
-                  <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-8">
+                  <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 mb-8">
                     <h3 className="text-lg font-semibold mb-4">Revenue Over Time</h3>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
@@ -4312,13 +4314,13 @@ const PharmacyDashboard: React.FC = () => {
                         >
                           <defs>
                             <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
-                              <stop offset="100%" stopColor="#16a34a" stopOpacity={0.02} />
+                              <stop offset="0%" stopColor="rgb(var(--ds-success))" stopOpacity={0.35} />
+                              <stop offset="100%" stopColor="rgb(var(--ds-success))" stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                          <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" width={70}
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--ds-border))" vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="rgb(var(--ds-text-muted))" />
+                          <YAxis tick={{ fontSize: 11 }} stroke="rgb(var(--ds-text-muted))" width={70}
                                  tickFormatter={(v) => `₵${Number(v).toLocaleString()}`} />
                           <RechartsTooltip
                             formatter={(value: any, name: any) =>
@@ -4327,7 +4329,7 @@ const PharmacyDashboard: React.FC = () => {
                                 : [value, 'Orders']
                             }
                           />
-                          <Area type="monotone" dataKey="revenue" stroke="#16a34a" strokeWidth={2} fill="url(#revFill)" />
+                          <Area type="monotone" dataKey="revenue" stroke="rgb(var(--ds-success))" strokeWidth={2} fill="url(#revFill)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>
@@ -4335,7 +4337,7 @@ const PharmacyDashboard: React.FC = () => {
                 )}
 
                 {/* Top Medications */}
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
                   <div className="px-6 py-4 border-b">
                     <h2 className="text-lg font-semibold">Top 10 Medications</h2>
                   </div>
@@ -4343,46 +4345,46 @@ const PharmacyDashboard: React.FC = () => {
                     {revenueData.top_medications?.length > 0 ? (
                       <div className="space-y-3">
                         {revenueData.top_medications.map((med, index) => (
-                          <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div key={index} className="flex items-center justify-between p-3 bg-ds-subtle rounded-lg">
                             <div className="flex items-center gap-3">
-                              <span className="w-8 h-8 rounded-full bg-success-100 text-success-700 flex items-center justify-center font-bold">
+                              <span className="w-8 h-8 rounded-full bg-ds-success-soft text-ds-success-text flex items-center justify-center font-bold">
                                 {index + 1}
                               </span>
                               <span className="font-medium">{med.medication_name}</span>
                             </div>
                             <div className="text-right">
-                              <div className="font-bold text-gray-900">{med.order_count} orders</div>
-                              <div className="text-sm text-gray-500">{med.total_quantity} units</div>
+                              <div className="font-bold text-ds-text">{med.order_count} orders</div>
+                              <div className="text-sm text-ds-text-muted">{med.total_quantity} units</div>
                             </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-center text-gray-500">No data available</p>
+                      <p className="text-center text-ds-text-muted">No data available</p>
                     )}
                   </div>
                 </div>
               </>
             ) : revenueLoading ? (
-              <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-success-600" />
+              <div className="bg-ds-surface rounded-ds-card shadow p-12 text-center text-ds-text-muted">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-ds-success" />
                 <p className="mt-3">Loading revenue…</p>
               </div>
             ) : revenueError ? (
               // Say the request failed, rather than showing the "click Generate
               // Report" prompt — which looks identical to having no revenue.
-              <div className="bg-white rounded-xl shadow p-12 text-center border border-danger-200">
-                <p className="text-danger-700 font-semibold">Couldn't load revenue</p>
-                <p className="text-gray-600 mt-1 text-sm">{revenueError}</p>
+              <div className="bg-ds-surface rounded-ds-card shadow p-12 text-center border border-ds-critical-border">
+                <p className="text-ds-critical-text font-semibold">Couldn't load revenue</p>
+                <p className="text-ds-text-secondary mt-1 text-sm">{revenueError}</p>
                 <button
                   onClick={fetchRevenueSummary}
-                  className="mt-4 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium"
+                  className="min-h-ds-touch mt-4 px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 font-medium"
                 >
                   Try again
                 </button>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+              <div className="bg-ds-surface rounded-ds-card shadow p-12 text-center text-ds-text-muted">
                 Select a date range and click "Generate Report" to view revenue summary
               </div>
             )}
@@ -4392,13 +4394,13 @@ const PharmacyDashboard: React.FC = () => {
         {/* PROCUREMENT TAB */}
         {activeTab === 'procurement' && (
           <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 mb-6">
               <h2 className="text-lg font-semibold mb-1">Record Purchase</h2>
-              <p className="text-gray-500 mb-5">Add stock from supplier invoices</p>
+              <p className="text-ds-text-muted mb-5">Add stock from supplier invoices</p>
 
               {/* Invoice Header — Supplier, Invoice #, Invoice Date */}
-              <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 mb-5">
-                <h3 className="text-sm font-semibold text-primary-800 mb-3">Invoice Details</h3>
+              <div className="bg-ds-accent-soft border border-ds-accent/30 rounded-ds-card p-4 mb-5">
+                <h3 className="text-sm font-semibold text-ds-accent-text mb-3">Invoice Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <AppSelect
@@ -4410,22 +4412,22 @@ const PharmacyDashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Number</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Invoice Number</label>
                     <input
                       type="text"
                       value={invoiceHeader.invoice_number}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, invoice_number: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                       placeholder="e.g., INV-2026-001"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Invoice Date</label>
                     <input
                       type="date"
                       value={invoiceHeader.invoice_date}
                       onChange={(e) => setInvoiceHeader({ ...invoiceHeader, invoice_date: e.target.value })}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                      className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                     />
                   </div>
                 </div>
@@ -4434,10 +4436,10 @@ const PharmacyDashboard: React.FC = () => {
               {/* Line Items */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800">Medications ({procurementItems.length} item{procurementItems.length !== 1 ? 's' : ''})</h3>
+                  <h3 className="text-sm font-semibold text-ds-text">Medications ({procurementItems.length} item{procurementItems.length !== 1 ? 's' : ''})</h3>
                   <button
                     onClick={addLineItem}
-                    className="text-sm text-primary-600 hover:text-primary-800 font-medium flex items-center gap-1"
+                    className="text-sm text-ds-accent-text hover:text-ds-accent-text font-medium flex items-center gap-1"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -4455,11 +4457,11 @@ const PharmacyDashboard: React.FC = () => {
                   const lineTotal = effectiveCost * itemQty;
 
                   return (
-                    <div key={idx} className="border border-gray-200 rounded-xl p-4 bg-gray-50 relative">
+                    <div key={idx} className="border border-ds-border rounded-ds-card p-4 bg-ds-subtle relative">
                       {procurementItems.length > 1 && (
                         <button
                           onClick={() => removeLineItem(idx)}
-                          className="absolute top-3 right-3 text-danger-400 hover:text-danger-600 transition-colors"
+                          className="absolute top-3 right-3 text-ds-critical-text hover:text-ds-critical-text transition-colors"
                           title="Remove item"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4481,27 +4483,27 @@ const PharmacyDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => { setNewItemForProcurementLine(idx); setShowAddInventoryModal(true); }}
-                            className="mt-1 text-xs font-medium text-primary-600 hover:text-primary-800"
+                            className="mt-1 text-xs font-medium text-ds-accent-text hover:text-ds-accent-text"
                           >
                             + New medication (not in inventory yet)
                           </button>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Current Selling</label>
-                          <div className="w-full border border-gray-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-600">
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Current Selling</label>
+                          <div className="w-full border border-ds-border bg-ds-surface rounded-lg px-3 py-2 text-sm text-ds-text-secondary">
                             {selectedMed ? `GH₵ ${parseFloat(String(selectedMed.selling_price || 0)).toFixed(2)}` : '—'}
                           </div>
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Current Cost</label>
-                          <div className="w-full border border-gray-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-600">
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Current Cost</label>
+                          <div className="w-full border border-ds-border bg-ds-surface rounded-lg px-3 py-2 text-sm text-ds-text-secondary">
                             {selectedMed ? `GH₵ ${parseFloat(String(selectedMed.unit_cost || 0)).toFixed(2)}` : '—'}
                           </div>
                         </div>
 
                         {/* Row 2: Qty, Unit Cost, Discount, New Price */}
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Qty Received</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Qty Received</label>
                           <input
                             type="number"
                             min="1"
@@ -4509,13 +4511,13 @@ const PharmacyDashboard: React.FC = () => {
                             onChange={(e) => updateLineItem(idx, 'quantity', e.target.value)}
                             className={`w-full border rounded-lg px-3 py-2 text-sm ${
                               item.inventory_id && !(item.quantity !== '' && Number(item.quantity) > 0)
-                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                                ? 'border-ds-critical-border bg-ds-critical-soft' : 'border-ds-border-control'
                             }`}
                             placeholder="0"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Unit Cost (GH₵)</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Unit Cost (GH₵)</label>
                           <input
                             type="number"
                             step="0.01"
@@ -4524,13 +4526,13 @@ const PharmacyDashboard: React.FC = () => {
                             onChange={(e) => updateLineItem(idx, 'unit_cost', e.target.value)}
                             className={`w-full border rounded-lg px-3 py-2 text-sm ${
                               item.inventory_id && item.unit_cost === ''
-                                ? 'border-danger-400 bg-danger-50' : 'border-gray-300'
+                                ? 'border-ds-critical-border bg-ds-critical-soft' : 'border-ds-border-control'
                             }`}
                             placeholder="0.00 (enter 0 if free)"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Discount (%)</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Discount (%)</label>
                           <input
                             type="number"
                             step="0.1"
@@ -4538,49 +4540,49 @@ const PharmacyDashboard: React.FC = () => {
                             max="100"
                             value={item.discount_percent}
                             onChange={(e) => updateLineItem(idx, 'discount_percent', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                             placeholder="0"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">New Selling Price</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">New Selling Price</label>
                           <input
                             type="number"
                             step="0.01"
                             min="0"
                             value={item.new_selling_price}
                             onChange={(e) => updateLineItem(idx, 'new_selling_price', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                             placeholder="Keep current"
                           />
                         </div>
 
                         {/* Row 3: Batch, Expiry, Line total */}
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Batch/Lot #</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Batch/Lot #</label>
                           <input
                             type="text"
                             value={item.batch_number}
                             onChange={(e) => updateLineItem(idx, 'batch_number', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                             placeholder="Auto-generated"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Expiry Date</label>
+                          <label className="block text-xs font-medium text-ds-text-secondary mb-1">Expiry Date</label>
                           <input
                             type="date"
                             value={item.expiry_date}
                             onChange={(e) => updateLineItem(idx, 'expiry_date', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                           />
                         </div>
                         {itemCost > 0 && (
                           <div className="md:col-span-2 flex items-end">
-                            <div className="text-sm text-gray-600">
-                              Eff. Cost: <span className="font-bold text-primary-700">GH₵ {effectiveCost.toFixed(2)}</span>
+                            <div className="text-sm text-ds-text-secondary">
+                              Eff. Cost: <span className="font-bold text-ds-accent-text">GH₵ {effectiveCost.toFixed(2)}</span>
                               {itemQty > 0 && (
-                                <span className="ml-3">Line Total: <span className="font-bold text-primary-700">GH₵ {lineTotal.toFixed(2)}</span></span>
+                                <span className="ml-3">Line Total: <span className="font-bold text-ds-accent-text">GH₵ {lineTotal.toFixed(2)}</span></span>
                               )}
                             </div>
                           </div>
@@ -4600,9 +4602,9 @@ const PharmacyDashboard: React.FC = () => {
                   return sum + cost * (1 - disc / 100) * qty;
                 }, 0);
                 return invoiceTotal > 0 ? (
-                  <div className="mt-4 p-3 bg-success-50 border border-success-200 rounded-lg flex items-center justify-between">
-                    <span className="font-semibold text-success-800">Invoice Total</span>
-                    <span className="text-xl font-bold text-success-700">GH₵ {invoiceTotal.toFixed(2)}</span>
+                  <div className="mt-4 p-3 bg-ds-success-soft border border-ds-success/30 rounded-lg flex items-center justify-between">
+                    <span className="font-semibold text-ds-success-text">Invoice Total</span>
+                    <span className="text-xl font-bold text-ds-success-text">GH₵ {invoiceTotal.toFixed(2)}</span>
                   </div>
                 ) : null;
               })()}
@@ -4611,13 +4613,13 @@ const PharmacyDashboard: React.FC = () => {
                 <button
                   onClick={submitProcurement}
                   disabled={submittingProcurement}
-                  className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-ds-touch px-6 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {submittingProcurement ? 'Recording...' : `Record ${procurementItems.filter(isCompleteProcurementRow).length} Item${procurementItems.filter(isCompleteProcurementRow).length !== 1 ? 's' : ''}`}
                 </button>
                 <button
                   onClick={addLineItem}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium text-sm"
+                  className="min-h-ds-touch px-4 py-2 border border-ds-border-control text-ds-text-secondary rounded-lg hover:bg-ds-subtle font-medium text-sm"
                 >
                   + Add Another Item
                 </button>
@@ -4625,11 +4627,11 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             {/* Purchase History */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
               <div className="px-6 py-4 border-b flex flex-wrap items-end justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold">Purchases</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-ds-text-muted mt-0.5">
                     {purchaseTotalGroups > 0
                       ? `${purchaseTotalGroups} purchase${purchaseTotalGroups === 1 ? '' : 's'}${purchaseStart || purchaseEnd ? ' in range' : ''} — one line per invoice, click to see the items`
                       : 'One line per invoice, click to see the items'}
@@ -4639,33 +4641,33 @@ const PharmacyDashboard: React.FC = () => {
                     line items, which hid older purchases entirely. */}
                 <div className="flex flex-wrap items-end gap-2">
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">From</label>
+                    <label className="block text-[11px] text-ds-text-muted mb-1">From</label>
                     <input
                       type="date"
                       value={purchaseStart}
                       onChange={(e) => setPurchaseStart(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="border border-ds-border-control rounded-lg px-2 py-1.5 text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-1">To</label>
+                    <label className="block text-[11px] text-ds-text-muted mb-1">To</label>
                     <input
                       type="date"
                       value={purchaseEnd}
                       onChange={(e) => setPurchaseEnd(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                      className="border border-ds-border-control rounded-lg px-2 py-1.5 text-sm"
                     />
                   </div>
                   <button
                     onClick={fetchPurchaseHistory}
-                    className="px-3 py-1.5 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                    className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent rounded-lg text-sm font-medium hover:bg-ds-accent-hover"
                   >
                     Search
                   </button>
                   {(purchaseStart || purchaseEnd) && (
                     <button
                       onClick={() => { setPurchaseStart(''); setPurchaseEnd(''); setTimeout(fetchPurchaseHistory, 0); }}
-                      className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
+                      className="min-h-ds-touch px-3 py-1.5 border border-ds-border-control text-ds-text-secondary rounded-lg text-sm hover:bg-ds-subtle"
                     >
                       Clear
                     </button>
@@ -4673,34 +4675,34 @@ const PharmacyDashboard: React.FC = () => {
                 </div>
               </div>
               {purchaseTruncated && (
-                <div className="px-6 py-2 bg-warning-50 border-b border-warning-200 text-xs text-warning-800">
+                <div className="px-6 py-2 bg-ds-warning-soft border-b border-ds-warning-border text-xs text-ds-warning-text">
                   Showing the most recent {purchaseHistory.length} of {purchaseTotalGroups} purchases. Narrow the date range to see older ones.
                 </div>
               )}
               {purchaseHistory.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-ds-border">
+                    <thead className="bg-ds-subtle">
                       <tr>
                         <th className="px-4 py-3 w-8"></th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Supplier</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Items</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-ds-border">
                       {purchaseHistory.map((group) => {
                         const open = expandedPurchases.includes(group.group_key);
                         const items = Array.isArray(group.items) ? group.items : [];
                         return (
                           <React.Fragment key={group.group_key}>
                             <tr
-                              className="hover:bg-gray-50 cursor-pointer"
+                              className="hover:bg-ds-subtle cursor-pointer"
                               onClick={() => togglePurchaseGroup(group.group_key)}
                             >
-                              <td className="px-4 py-3 text-gray-400">
+                              <td className="px-4 py-3 text-ds-text-muted">
                                 <svg
                                   className={`w-4 h-4 transition-transform ${open ? 'rotate-90' : ''}`}
                                   fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -4708,23 +4710,23 @@ const PharmacyDashboard: React.FC = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">
                                 {format(new Date(group.purchase_date), 'MMM dd, yyyy')}
                               </td>
-                              <td className="px-4 py-3 font-medium text-gray-900">{group.invoice_number || '—'}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{group.supplier_name || '—'}</td>
-                              <td className="px-4 py-3 text-sm text-right text-gray-900">{group.item_count}</td>
-                              <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                              <td className="px-4 py-3 font-medium text-ds-text">{group.invoice_number || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">{group.supplier_name || '—'}</td>
+                              <td className="px-4 py-3 text-sm text-right text-ds-text">{group.item_count}</td>
+                              <td className="px-4 py-3 text-sm text-right font-medium text-ds-text">
                                 GH₵ {parseFloat(group.total_cost || 0).toFixed(2)}
                               </td>
                             </tr>
                             {open && (
-                              <tr className="bg-gray-50">
+                              <tr className="bg-ds-subtle">
                                 <td></td>
                                 <td colSpan={5} className="px-4 py-3">
                                   <table className="min-w-full">
                                     <thead>
-                                      <tr className="text-[11px] text-gray-500 uppercase">
+                                      <tr className="text-[11px] text-ds-text-muted uppercase">
                                         <th className="py-1 text-left font-medium">Medication</th>
                                         <th className="py-1 text-right font-medium">Qty</th>
                                         <th className="py-1 text-right font-medium">Unit Cost</th>
@@ -4736,24 +4738,24 @@ const PharmacyDashboard: React.FC = () => {
                                     <tbody>
                                       {items.map((purchase: any) => (
                                         <tr key={purchase.id} className="text-sm">
-                                          <td className="py-1.5 text-gray-900">{purchase.medication_name}</td>
-                                          <td className="py-1.5 text-right text-gray-900">{purchase.quantity}</td>
-                                          <td className="py-1.5 text-right text-gray-600">
+                                          <td className="py-1.5 text-ds-text">{purchase.medication_name}</td>
+                                          <td className="py-1.5 text-right text-ds-text">{purchase.quantity}</td>
+                                          <td className="py-1.5 text-right text-ds-text-secondary">
                                             GH₵ {parseFloat(purchase.unit_cost || 0).toFixed(2)}
                                           </td>
-                                          <td className="py-1.5 text-right font-medium text-gray-900">
+                                          <td className="py-1.5 text-right font-medium text-ds-text">
                                             GH₵ {(parseFloat(purchase.quantity) * parseFloat(purchase.unit_cost || 0)).toFixed(2)}
                                           </td>
-                                          <td className="py-1.5 text-gray-600 pl-4">{purchase.batch_number || '—'}</td>
+                                          <td className="py-1.5 text-ds-text-secondary pl-4">{purchase.batch_number || '—'}</td>
                                           <td className="py-1.5 text-center">
                                             <button
                                               onClick={(e) => { e.stopPropagation(); handleDeletePurchase(purchase.id); }}
                                               disabled={deletingPurchaseId === purchase.id}
-                                              className="text-danger-500 hover:text-danger-700 disabled:opacity-50 transition-colors p-1"
+                                              className="text-ds-critical-text hover:text-ds-critical-text disabled:opacity-50 transition-colors p-1"
                                               title="Delete this line (reverses its inventory change)"
                                             >
                                               {deletingPurchaseId === purchase.id ? (
-                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-danger-500 border-t-transparent"></div>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-ds-critical border-t-transparent"></div>
                                               ) : (
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -4775,7 +4777,7 @@ const PharmacyDashboard: React.FC = () => {
                   </table>
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-500">
+                <div className="p-6 text-center text-ds-text-muted">
                   No purchase history yet. Record your first purchase above.
                 </div>
               )}
@@ -4794,7 +4796,7 @@ const PharmacyDashboard: React.FC = () => {
                   setSupplierForm({ name: '', contact_person: '', phone: '', email: '', address: '', city: '', notes: '' });
                   setShowSupplierModal(true);
                 }}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 font-medium flex items-center gap-2"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 font-medium flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -4802,26 +4804,26 @@ const PharmacyDashboard: React.FC = () => {
                 Add Supplier
               </button>
             </div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">City</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Supplier Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Contact Person</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Phone</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">City</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-ds-border">
                   {suppliers.map((supplier) => (
-                    <tr key={supplier.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">{supplier.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.contact_person}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.phone}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.email}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{supplier.city}</td>
+                    <tr key={supplier.id} className="hover:bg-ds-subtle">
+                      <td className="px-6 py-4 font-medium text-ds-text">{supplier.name}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{supplier.contact_person}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{supplier.phone}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{supplier.email}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{supplier.city}</td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
                           <button
@@ -4838,7 +4840,7 @@ const PharmacyDashboard: React.FC = () => {
                               });
                               setShowSupplierModal(true);
                             }}
-                            className="p-1 text-primary-600 hover:text-primary-800"
+                            className="p-1 text-ds-accent-text hover:text-ds-accent-text"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -4846,7 +4848,7 @@ const PharmacyDashboard: React.FC = () => {
                           </button>
                           <button
                             onClick={() => deleteSupplier(supplier.id)}
-                            className="p-1 text-danger-600 hover:text-danger-800"
+                            className="p-1 text-ds-critical-text hover:text-ds-critical-text"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -4859,7 +4861,7 @@ const PharmacyDashboard: React.FC = () => {
                 </tbody>
               </table>
               {suppliers.length === 0 && (
-                <div className="py-12 text-center text-gray-500">No suppliers found</div>
+                <div className="py-12 text-center text-ds-text-muted">No suppliers found</div>
               )}
             </div>
           </div>
@@ -4868,11 +4870,11 @@ const PharmacyDashboard: React.FC = () => {
         {/* PRICING TAB */}
         {activeTab === 'pricing' && (
           <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h2 className="text-lg font-semibold">Medication Pricing</h2>
-                  <p className="text-gray-500 text-sm">Set and manage prices for each medication</p>
+                  <p className="text-ds-text-muted text-sm">Set and manage prices for each medication</p>
                 </div>
                 <div className="flex gap-4">
                   <input
@@ -4880,25 +4882,25 @@ const PharmacyDashboard: React.FC = () => {
                     placeholder="Search medications..."
                     value={pricingSearch}
                     onChange={(e) => setPricingSearch(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-success-500 focus:border-transparent"
+                    className="border border-ds-border-control rounded-lg px-4 py-2 w-64 focus:ring-2 focus:ring-ds-success focus:border-transparent"
                   />
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-ds-border">
+                  <thead className="bg-ds-subtle">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medication</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Price</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Selling Price</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Margin</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Medication</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Category</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Unit</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ds-text-muted uppercase tracking-wider">Cost Price</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ds-text-muted uppercase tracking-wider">Selling Price</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-ds-text-muted uppercase tracking-wider">Margin</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-ds-surface divide-y divide-ds-border">
                     {inventory
                       .filter(item =>
                         pricingSearch === '' ||
@@ -4913,14 +4915,14 @@ const PharmacyDashboard: React.FC = () => {
                           ? (((price - cost) / cost) * 100).toFixed(1)
                           : price > 0 ? '100+' : '0';
                         return (
-                          <tr key={item.id} className="hover:bg-gray-50">
+                          <tr key={item.id} className="hover:bg-ds-subtle">
                             <td className="px-6 py-4">
-                              <div className="font-medium text-gray-900">{item.medication_name}</div>
-                              <div className="text-sm text-gray-500">{item.generic_name}</div>
+                              <div className="font-medium text-ds-text">{item.medication_name}</div>
+                              <div className="text-sm text-ds-text-muted">{item.generic_name}</div>
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{item.category}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{item.unit}</td>
-                            <td className="px-6 py-4 text-right text-sm text-gray-500">
+                            <td className="px-6 py-4 text-sm text-ds-text-muted">{item.category}</td>
+                            <td className="px-6 py-4 text-sm text-ds-text-muted">{item.unit}</td>
+                            <td className="px-6 py-4 text-right text-sm text-ds-text-muted">
                               GH₵ {parseFloat(String(item.unit_cost || 0)).toFixed(2)}
                             </td>
                             <td className="px-6 py-4 text-right">
@@ -4930,7 +4932,7 @@ const PharmacyDashboard: React.FC = () => {
                                   step="0.01"
                                   value={editingPriceValue}
                                   onChange={(e) => setEditingPriceValue(e.target.value)}
-                                  className="w-24 border border-gray-300 rounded px-2 py-1 text-right"
+                                  className="w-24 border border-ds-border-control rounded px-2 py-1 text-right"
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                       updateMedicationPrice(item.id, parseFloat(editingPriceValue));
@@ -4941,16 +4943,16 @@ const PharmacyDashboard: React.FC = () => {
                                   autoFocus
                                 />
                               ) : (
-                                <span className="font-medium text-gray-900">
+                                <span className="font-medium text-ds-text">
                                   GH₵ {parseFloat(String(item.selling_price || 0)).toFixed(2)}
                                 </span>
                               )}
                             </td>
                             <td className="px-6 py-4 text-right">
                               <span className={`text-sm font-medium ${
-                                parseFloat(margin) >= 30 ? 'text-success-600' :
-                                parseFloat(margin) >= 15 ? 'text-warning-600' :
-                                'text-danger-600'
+                                parseFloat(margin) >= 30 ? 'text-ds-success-text' :
+                                parseFloat(margin) >= 15 ? 'text-ds-warning-text' :
+                                'text-ds-critical-text'
                               }`}>
                                 {margin}%
                               </span>
@@ -4962,13 +4964,13 @@ const PharmacyDashboard: React.FC = () => {
                                     onClick={() => {
                                       updateMedicationPrice(item.id, parseFloat(editingPriceValue));
                                     }}
-                                    className="text-success-600 hover:text-success-800 font-medium"
+                                    className="text-ds-success-text hover:text-ds-success-text font-medium"
                                   >
                                     Save
                                   </button>
                                   <button
                                     onClick={() => setEditingPrice(null)}
-                                    className="text-gray-500 hover:text-gray-700"
+                                    className="text-ds-text-muted hover:text-ds-text"
                                   >
                                     Cancel
                                   </button>
@@ -4979,7 +4981,7 @@ const PharmacyDashboard: React.FC = () => {
                                     setEditingPrice(item);
                                     setEditingPriceValue(String(item.selling_price || 0));
                                   }}
-                                  className="text-primary-600 hover:text-primary-800 font-medium"
+                                  className="text-ds-accent-text hover:text-ds-accent-text font-medium"
                                 >
                                   Edit Price
                                 </button>
@@ -4996,7 +4998,7 @@ const PharmacyDashboard: React.FC = () => {
                 pricingSearch === '' ||
                 item.medication_name.toLowerCase().includes(pricingSearch.toLowerCase())
               ).length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-ds-text-muted">
                   No medications found matching your search
                 </div>
               )}
@@ -5021,79 +5023,79 @@ const PharmacyDashboard: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier Name *</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Supplier Name *</label>
               <input
                 type="text"
                 value={supplierForm.name}
                 onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Contact Person</label>
               <input
                 type="text"
                 value={supplierForm.contact_person}
                 onChange={(e) => setSupplierForm({ ...supplierForm, contact_person: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Phone</label>
               <input
                 type="text"
                 value={supplierForm.phone}
                 onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Email</label>
               <input
                 type="email"
                 value={supplierForm.email}
                 onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">City</label>
               <input
                 type="text"
                 value={supplierForm.city}
                 onChange={(e) => setSupplierForm({ ...supplierForm, city: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label className="block text-sm font-medium text-ds-text-secondary mb-1">Address</label>
             <textarea
               value={supplierForm.address}
               onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               rows={2}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes</label>
             <textarea
               value={supplierForm.notes}
               onChange={(e) => setSupplierForm({ ...supplierForm, notes: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2"
+              className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               rows={2}
             />
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => { setShowSupplierModal(false); setEditingSupplier(null); }}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
             >
               Cancel
             </button>
             <button
               onClick={saveSupplier}
-              className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+              className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
             >
               {editingSupplier ? 'Update' : 'Create'} Supplier
             </button>
@@ -5109,26 +5111,26 @@ const PharmacyDashboard: React.FC = () => {
         size="full"
       >
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+          <div className="bg-ds-info-soft border border-ds-info/30 rounded-lg p-4 text-sm text-ds-info-text">
             Upload a <strong>CSV or Excel</strong> file. Columns are detected automatically — it looks for
             <strong> Item Code</strong>, <strong>Item Name</strong>, a <strong>cost</strong> column (Purchase/Landed Cost),
             and a <strong>Selling Price</strong> column. Rows are matched to existing items by Item Code (or name).
             Nothing is saved until you review the preview and click <strong>Apply</strong>.
-            <button onClick={exportInventoryTemplate} className="ml-1 underline font-semibold hover:text-blue-900">
+            <button onClick={exportInventoryTemplate} className="ml-1 underline font-semibold hover:text-ds-info-text">
               Download current inventory as a template
             </button> — fill in the Selling Price column and re-upload.
           </div>
 
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <label className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 cursor-pointer font-medium inline-flex items-center gap-2 w-fit">
+            <label className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover cursor-pointer font-medium inline-flex items-center gap-2 w-fit">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               Choose File
               <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
             </label>
-            {importFileName && <span className="text-sm text-gray-600">{importFileName}</span>}
-            <label className="flex items-center gap-2 text-sm text-gray-700 sm:ml-auto">
+            {importFileName && <span className="text-sm text-ds-text-secondary">{importFileName}</span>}
+            <label className="flex items-center gap-2 text-sm text-ds-text-secondary sm:ml-auto">
               <input
                 type="checkbox"
                 checked={importUpdateStock}
@@ -5140,7 +5142,7 @@ const PharmacyDashboard: React.FC = () => {
           </div>
 
           {importLoading && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
+            <div className="flex items-center gap-2 text-sm text-ds-text-muted py-6 justify-center">
               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
@@ -5150,7 +5152,7 @@ const PharmacyDashboard: React.FC = () => {
           )}
 
           {importError && (
-            <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-700">{importError}</div>
+            <div className="bg-ds-critical-soft border border-ds-critical-border rounded-lg p-4 text-sm text-ds-critical-text">{importError}</div>
           )}
 
           {importPreview && (
@@ -5158,29 +5160,29 @@ const PharmacyDashboard: React.FC = () => {
               {/* Detected columns + summary */}
               <div className="flex flex-wrap gap-2 text-xs">
                 {Object.entries(importPreview.detectedColumns || {}).map(([field, col]) => (
-                  <span key={field} className={`px-2 py-1 rounded-full border ${col ? 'bg-success-50 border-success-200 text-success-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                  <span key={field} className={`px-2 py-1 rounded-full border ${col ? 'bg-ds-success-soft border-ds-success/30 text-ds-success-text' : 'bg-ds-subtle border-ds-border text-ds-text-muted'}`}>
                     {field}: {col ? String(col) : 'not found'}
                   </span>
                 ))}
               </div>
               {!importPreview.detectedColumns?.selling && (
-                <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-sm text-warning-800">
+                <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-3 text-sm text-ds-warning-text">
                   ⚠️ No <strong>Selling Price</strong> column was found in this file, so existing selling prices will be
                   kept unchanged (only cost{importUpdateStock ? ' and stock' : ''} will update). Add a "Selling Price" column to update prices.
                 </div>
               )}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toUpdate}</div><div className="text-xs text-gray-500">to update</div></div>
-                <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toCreate}</div><div className="text-xs text-gray-500">new items</div></div>
-                <div className="bg-blue-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{importPreview.summary.priceChanges}</div><div className="text-xs text-blue-500">price changes</div></div>
-                <div className="bg-warning-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-warning-700">{importPreview.summary.warnings}</div><div className="text-xs text-warning-500">warnings</div></div>
+                <div className="bg-ds-subtle rounded-lg p-3 text-center"><div className="text-2xl font-bold text-ds-text">{importPreview.summary.toUpdate}</div><div className="text-xs text-ds-text-muted">to update</div></div>
+                <div className="bg-ds-subtle rounded-lg p-3 text-center"><div className="text-2xl font-bold text-ds-text">{importPreview.summary.toCreate}</div><div className="text-xs text-ds-text-muted">new items</div></div>
+                <div className="bg-ds-info-soft rounded-lg p-3 text-center"><div className="text-2xl font-bold text-ds-info-text">{importPreview.summary.priceChanges}</div><div className="text-xs text-ds-info-text">price changes</div></div>
+                <div className="bg-ds-warning-soft rounded-lg p-3 text-center"><div className="text-2xl font-bold text-ds-warning-text">{importPreview.summary.warnings}</div><div className="text-xs text-ds-warning-text">warnings</div></div>
               </div>
 
               {/* Preview table */}
-              <div className="border border-gray-200 rounded-lg overflow-auto max-h-[40vh]">
+              <div className="border border-ds-border rounded-lg overflow-auto max-h-[40vh]">
                 <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr className="text-left text-xs text-gray-500 uppercase">
+                  <thead className="bg-ds-subtle sticky top-0">
+                    <tr className="text-left text-xs text-ds-text-muted uppercase">
                       <th className="px-3 py-2">Status</th>
                       <th className="px-3 py-2">Code</th>
                       <th className="px-3 py-2">Item</th>
@@ -5189,27 +5191,27 @@ const PharmacyDashboard: React.FC = () => {
                       <th className="px-3 py-2">Notes</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-ds-border">
                     {importPreview.rows.map((r: any) => (
-                      <tr key={r.rowNum} className={r.action === 'skip' ? 'bg-danger-50' : r.warnings.length ? 'bg-warning-50/40' : ''}>
+                      <tr key={r.rowNum} className={r.action === 'skip' ? 'bg-ds-critical-soft' : r.warnings.length ? 'bg-ds-warning-soft/40' : ''}>
                         <td className="px-3 py-2">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            r.action === 'new' ? 'bg-blue-100 text-blue-700' : r.action === 'skip' ? 'bg-danger-100 text-danger-700' : 'bg-success-100 text-success-700'
+                            r.action === 'new' ? 'bg-ds-info-soft text-ds-info-text' : r.action === 'skip' ? 'bg-ds-critical-soft text-ds-critical-text' : 'bg-ds-success-soft text-ds-success-text'
                           }`}>{r.action}</span>
                         </td>
-                        <td className="px-3 py-2 text-gray-500">{r.code || '—'}</td>
-                        <td className="px-3 py-2 font-medium text-gray-900">{r.name}</td>
-                        <td className="px-3 py-2 text-right text-gray-600">
+                        <td className="px-3 py-2 text-ds-text-muted">{r.code || '—'}</td>
+                        <td className="px-3 py-2 font-medium text-ds-text">{r.name}</td>
+                        <td className="px-3 py-2 text-right text-ds-text-secondary">
                           {r.currentCost != null && r.cost != null && r.currentCost !== r.cost
-                            ? <span>{Number(r.currentCost).toFixed(2)} <span className="text-gray-400">→</span> <strong>{Number(r.cost).toFixed(2)}</strong></span>
+                            ? <span>{Number(r.currentCost).toFixed(2)} <span className="text-ds-text-muted">→</span> <strong>{Number(r.cost).toFixed(2)}</strong></span>
                             : (r.cost != null ? Number(r.cost).toFixed(2) : (r.currentCost != null ? Number(r.currentCost).toFixed(2) : '—'))}
                         </td>
-                        <td className="px-3 py-2 text-right text-gray-600">
+                        <td className="px-3 py-2 text-right text-ds-text-secondary">
                           {r.selling != null && r.selling > 0 && r.currentSelling != null && r.currentSelling !== r.selling
-                            ? <span>{Number(r.currentSelling).toFixed(2)} <span className="text-gray-400">→</span> <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong></span>
-                            : (r.selling != null && r.selling > 0 ? <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong> : (r.currentSelling != null ? <span className="text-gray-400">{Number(r.currentSelling).toFixed(2)} (kept)</span> : '—'))}
+                            ? <span>{Number(r.currentSelling).toFixed(2)} <span className="text-ds-text-muted">→</span> <strong className="text-ds-info-text">{Number(r.selling).toFixed(2)}</strong></span>
+                            : (r.selling != null && r.selling > 0 ? <strong className="text-ds-info-text">{Number(r.selling).toFixed(2)}</strong> : (r.currentSelling != null ? <span className="text-ds-text-muted">{Number(r.currentSelling).toFixed(2)} (kept)</span> : '—'))}
                         </td>
-                        <td className="px-3 py-2 text-xs text-warning-700">{r.warnings.join('; ')}</td>
+                        <td className="px-3 py-2 text-xs text-ds-warning-text">{r.warnings.join('; ')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -5217,11 +5219,11 @@ const PharmacyDashboard: React.FC = () => {
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium">Cancel</button>
+                <button onClick={() => setShowImportModal(false)} className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border font-medium">Cancel</button>
                 <button
                   onClick={applyImport}
                   disabled={importCommitting || (importPreview.summary.toUpdate + importPreview.summary.toCreate === 0)}
-                  className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium disabled:opacity-50"
+                  className="min-h-ds-touch px-5 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover font-medium disabled:opacity-50"
                 >
                   {importCommitting ? 'Applying…' : `Apply ${importPreview.summary.toUpdate + importPreview.summary.toCreate} change(s)`}
                 </button>
@@ -5241,32 +5243,32 @@ const PharmacyDashboard: React.FC = () => {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Medication Name *</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Medication Name *</label>
               <input
                 type="text"
                 value={newInventoryForm.medication_name}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, medication_name: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 placeholder="e.g., Paracetamol 500mg"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Generic Name</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Generic Name</label>
               <input
                 type="text"
                 value={newInventoryForm.generic_name}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, generic_name: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 placeholder="e.g., Acetaminophen"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Category *</label>
               <input
                 type="text"
                 value={newInventoryForm.category}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, category: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 placeholder="e.g., Analgesic"
                 list="category-suggestions"
               />
@@ -5285,60 +5287,60 @@ const PharmacyDashboard: React.FC = () => {
                 required
                 options={MED_UNIT_OPTIONS}
               />
-              <p className="text-xs text-gray-500 mt-1">Pick from the list or type a custom unit.</p>
+              <p className="text-xs text-ds-text-muted mt-1">Pick from the list or type a custom unit.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reorder Level</label>
               <input
                 type="number"
                 min="0"
                 value={newInventoryForm.reorder_level}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, reorder_level: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit Cost (GH₵)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={newInventoryForm.unit_cost}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, unit_cost: parseFloat(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (GH₵)</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Selling Price (GH₵)</label>
               <input
                 type="number"
                 step="0.01"
                 min="0"
                 value={newInventoryForm.selling_price}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, selling_price: parseFloat(e.target.value) || 0 })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Expiry Date</label>
               <input
                 type="date"
                 value={newInventoryForm.expiry_date}
                 onChange={(e) => setNewInventoryForm({ ...newInventoryForm, expiry_date: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
               />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={() => { setShowAddInventoryModal(false); setNewItemForProcurementLine(null); }}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
             >
               Cancel
             </button>
             <button
               onClick={createInventoryItem}
-              className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+              className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
             >
               Add Item
             </button>
@@ -5357,21 +5359,21 @@ const PharmacyDashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Medication Name</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Medication Name</label>
                 <input
                   type="text"
                   value={editingInventory.medication_name}
                   onChange={(e) => setEditingInventory({ ...editingInventory, medication_name: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Generic Name</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Generic Name</label>
                 <input
                   type="text"
                   value={editingInventory.generic_name || ''}
                   onChange={(e) => setEditingInventory({ ...editingInventory, generic_name: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
               <div>
@@ -5397,91 +5399,91 @@ const PharmacyDashboard: React.FC = () => {
                   allowCustom
                   options={MED_UNIT_OPTIONS}
                 />
-                <p className="text-xs text-gray-500 mt-1">Pick from the list or type a custom unit.</p>
+                <p className="text-xs text-ds-text-muted mt-1">Pick from the list or type a custom unit.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reorder Level</label>
                 <input
                   type="number"
                   min="0"
                   value={editingInventory.reorder_level || ''}
                   onChange={(e) => setEditingInventory({ ...editingInventory, reorder_level: e.target.value ? parseInt(e.target.value) : 0 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (GH₵)</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit Cost (GH₵)</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   value={editingInventory.unit_cost || ''}
                   onChange={(e) => setEditingInventory({ ...editingInventory, unit_cost: e.target.value ? parseFloat(e.target.value) : 0 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Selling Price (GH₵)</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Selling Price (GH₵)</label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
                   value={editingInventory.selling_price || ''}
                   onChange={(e) => setEditingInventory({ ...editingInventory, selling_price: e.target.value ? parseFloat(e.target.value) : 0 })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Earliest Expiry Date</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Earliest Expiry Date</label>
                 <input
                   type="date"
                   value={editingInventory.expiry_date ? editingInventory.expiry_date.split('T')[0] : ''}
                   disabled
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-100"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2 bg-ds-subtle"
                 />
-                <p className="text-xs text-gray-500 mt-1">Shows earliest expiry from batches</p>
+                <p className="text-xs text-ds-text-muted mt-1">Shows earliest expiry from batches</p>
               </div>
             </div>
 
             {/* Batch Inventory Section */}
             <div className="mt-6 border-t pt-4">
               <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-gray-700">Batch Inventory (FEFO - First Expired, First Out)</h4>
+                <h4 className="text-sm font-semibold text-ds-text-secondary">Batch Inventory (FEFO - First Expired, First Out)</h4>
                 <button
                   type="button"
                   onClick={() => { setShowAddBatch(v => !v); setNewBatchForm({ batch_number: '', quantity: '', expiry_date: '' }); }}
-                  className="text-xs px-2.5 py-1 bg-primary-50 text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-100 font-medium"
+                  className="min-h-ds-touch text-xs px-2.5 py-1 bg-ds-accent-soft text-ds-accent-text border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft font-medium"
                 >
                   {showAddBatch ? 'Cancel' : '+ Add Batch'}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mb-3">Qty and expiry are editable per batch — changes save with this form. Each batch keeps its own expiry; dispensing draws from the earliest-expiring batch first.</p>
+              <p className="text-xs text-ds-text-muted mb-3">Qty and expiry are editable per batch — changes save with this form. Each batch keeps its own expiry; dispensing draws from the earliest-expiring batch first.</p>
 
               {showAddBatch && (
-                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                <div className="mb-3 p-3 bg-ds-subtle border border-ds-border rounded-lg">
                   <div className="grid grid-cols-12 gap-2 items-end">
                     <div className="col-span-4">
-                      <label className="block text-xs text-gray-500 mb-1">Batch # (optional)</label>
+                      <label className="block text-xs text-ds-text-muted mb-1">Batch # (optional)</label>
                       <input type="text" value={newBatchForm.batch_number}
                         onChange={(e) => setNewBatchForm({ ...newBatchForm, batch_number: e.target.value })}
                         placeholder="auto"
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                        className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded" />
                     </div>
                     <div className="col-span-3">
-                      <label className="block text-xs text-gray-500 mb-1">Quantity *</label>
+                      <label className="block text-xs text-ds-text-muted mb-1">Quantity *</label>
                       <input type="number" min="1" value={newBatchForm.quantity}
                         onChange={(e) => setNewBatchForm({ ...newBatchForm, quantity: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                        className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded" />
                     </div>
                     <div className="col-span-3">
-                      <label className="block text-xs text-gray-500 mb-1">Expiry</label>
+                      <label className="block text-xs text-ds-text-muted mb-1">Expiry</label>
                       <input type="date" value={newBatchForm.expiry_date}
                         onChange={(e) => setNewBatchForm({ ...newBatchForm, expiry_date: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" />
+                        className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded" />
                     </div>
                     <div className="col-span-2">
                       <button type="button" onClick={addBatchToItem} disabled={addingBatch}
-                        className="w-full px-2 py-1.5 text-sm bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50">
+                        className="min-h-ds-touch w-full px-2 py-1.5 text-sm bg-ds-accent text-ds-on-accent rounded hover:bg-ds-accent-hover disabled:opacity-50">
                         {addingBatch ? 'Adding…' : 'Add'}
                       </button>
                     </div>
@@ -5490,21 +5492,21 @@ const PharmacyDashboard: React.FC = () => {
               )}
 
               {loadingBatches ? (
-                <p className="text-sm text-gray-500">Loading batches...</p>
+                <p className="text-sm text-ds-text-muted">Loading batches...</p>
               ) : inventoryBatches.length === 0 ? (
-                <p className="text-sm text-gray-500">No batches recorded yet. Use “+ Add Batch” above (or procurement) to record stock with its expiry.</p>
+                <p className="text-sm text-ds-text-muted">No batches recorded yet. Use “+ Add Batch” above (or procurement) to record stock with its expiry.</p>
               ) : (
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
+                    <thead className="bg-ds-subtle sticky top-0">
                       <tr>
-                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">Batch #</th>
-                        <th className="px-2 py-1 text-right text-xs font-medium text-gray-500">Qty</th>
-                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500">Expiry</th>
-                        <th className="px-2 py-1 text-right text-xs font-medium text-gray-500">Cost</th>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-ds-text-muted">Batch #</th>
+                        <th className="px-2 py-1 text-right text-xs font-medium text-ds-text-muted">Qty</th>
+                        <th className="px-2 py-1 text-center text-xs font-medium text-ds-text-muted">Expiry</th>
+                        <th className="px-2 py-1 text-right text-xs font-medium text-ds-text-muted">Cost</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-ds-border">
                       {inventoryBatches.map((batch, idx) => {
                         const isExpired = batch.expiry_date && new Date(batch.expiry_date) < new Date();
                         const isExpiringSoon = batch.expiry_date &&
@@ -5517,8 +5519,8 @@ const PharmacyDashboard: React.FC = () => {
                         const currentExp = editedExp !== undefined ? editedExp : prevExp;
                         const expChanged = editedExp !== undefined && editedExp !== prevExp;
                         return (
-                          <tr key={batch.id || idx} className={isExpired ? 'bg-danger-50' : isExpiringSoon ? 'bg-warning-50' : ''}>
-                            <td className="px-2 py-1 text-gray-900">{batch.batch_number || '-'}</td>
+                          <tr key={batch.id || idx} className={isExpired ? 'bg-ds-critical-soft' : isExpiringSoon ? 'bg-ds-warning-soft' : ''}>
+                            <td className="px-2 py-1 text-ds-text">{batch.batch_number || '-'}</td>
                             <td className="px-2 py-1 text-right">
                               <input
                                 type="number"
@@ -5532,7 +5534,7 @@ const PharmacyDashboard: React.FC = () => {
                                   }));
                                 }}
                                 className={`w-16 px-1 py-0.5 text-right border rounded text-sm font-medium ${
-                                  hasChanged ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                                  hasChanged ? 'border-ds-info bg-ds-info-soft' : 'border-ds-border-control'
                                 }`}
                               />
                             </td>
@@ -5542,9 +5544,9 @@ const PharmacyDashboard: React.FC = () => {
                                 value={currentExp}
                                 onChange={(e) => setBatchExpiryEdits(prev => ({ ...prev, [batch.id]: e.target.value }))}
                                 className={`px-1 py-0.5 border rounded text-sm ${
-                                  expChanged ? 'border-blue-500 bg-blue-50' :
-                                  isExpired ? 'border-danger-300 text-danger-600 font-semibold' :
-                                  isExpiringSoon ? 'border-warning-300 text-warning-700' : 'border-gray-300'
+                                  expChanged ? 'border-ds-info bg-ds-info-soft' :
+                                  isExpired ? 'border-ds-critical-border text-ds-critical-text font-semibold' :
+                                  isExpiringSoon ? 'border-ds-warning-border text-ds-warning-text' : 'border-ds-border-control'
                                 }`}
                               />
                             </td>
@@ -5555,10 +5557,10 @@ const PharmacyDashboard: React.FC = () => {
                         );
                       })}
                     </tbody>
-                    <tfoot className="bg-gray-50 border-t">
+                    <tfoot className="bg-ds-subtle border-t">
                       <tr>
-                        <td className="px-2 py-1 font-semibold text-gray-700">Total</td>
-                        <td className="px-2 py-1 text-right font-bold text-gray-900">
+                        <td className="px-2 py-1 font-semibold text-ds-text-secondary">Total</td>
+                        <td className="px-2 py-1 text-right font-bold text-ds-text">
                           {inventoryBatches.reduce((sum, b) => {
                             const editedQty = batchQuantityEdits[b.id];
                             return sum + (editedQty !== undefined ? editedQty : parseInt(b.quantity) || 0);
@@ -5573,15 +5575,15 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for change (optional)</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reason for change (optional)</label>
               <input
                 type="text"
                 value={editChangeReason}
                 onChange={(e) => setEditChangeReason(e.target.value)}
                 placeholder="e.g. supplier price increase"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-ds-text-muted mt-1">
                 Price and detail changes are recorded in the item's History with your name and this reason.
               </p>
             </div>
@@ -5589,13 +5591,13 @@ const PharmacyDashboard: React.FC = () => {
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={() => { setShowInventoryModal(false); setEditingInventory(null); setEditChangeReason(''); setInventoryBatches([]); setBatchQuantityEdits({}); setBatchExpiryEdits({}); setShowAddBatch(false); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={() => updateInventoryItem(editingInventory)}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
               >
                 Save Changes
               </button>
@@ -5612,57 +5614,57 @@ const PharmacyDashboard: React.FC = () => {
         size="xl"
       >
         {loadingHistory ? (
-          <div className="py-10 text-center text-gray-500">Loading history…</div>
+          <div className="py-10 text-center text-ds-text-muted">Loading history…</div>
         ) : historyEntries.length === 0 ? (
-          <div className="py-10 text-center text-gray-500">No history recorded for this item yet.</div>
+          <div className="py-10 text-center text-ds-text-muted">No history recorded for this item yet.</div>
         ) : (
           <div className="overflow-x-auto max-h-[65vh]">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 sticky top-0">
+              <thead className="bg-ds-subtle sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">By</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Change</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason / notes</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">By</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Type</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Change</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Reason / notes</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-ds-border">
                 {historyEntries.map((entry) => (
                   <tr key={`${entry.kind}-${entry.id}`} className="align-top">
-                    <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+                    <td className="px-3 py-2 whitespace-nowrap text-ds-text-secondary">
                       {format(new Date(entry.created_at), 'MMM dd, yyyy HH:mm')}
                     </td>
-                    <td className="px-3 py-2 text-gray-700">{entry.performed_by_name || '—'}</td>
+                    <td className="px-3 py-2 text-ds-text-secondary">{entry.performed_by_name || '—'}</td>
                     <td className="px-3 py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        entry.kind === 'edit' ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-700'
+                        entry.kind === 'edit' ? 'bg-ds-accent-soft text-ds-accent-text' : 'bg-ds-subtle text-ds-text-secondary'
                       }`}>
                         {entry.kind === 'edit'
                           ? ITEM_CHANGE_SOURCE_LABELS[entry.source] || 'Item edited'
                           : STOCK_MOVEMENT_LABELS[entry.transaction_type] || entry.transaction_type}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-gray-800">
+                    <td className="px-3 py-2 text-ds-text">
                       {entry.kind === 'edit' ? (
                         <ul className="space-y-0.5">
                           {Object.entries(entry.changes).map(([field, change]) => (
                             <li key={field}>
-                              <span className="text-gray-500">{ITEM_FIELD_LABELS[field] || field}:</span>{' '}
+                              <span className="text-ds-text-muted">{ITEM_FIELD_LABELS[field] || field}:</span>{' '}
                               {formatHistoryValue(field, change.from)} → <strong>{formatHistoryValue(field, change.to)}</strong>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <span className={entry.quantity < 0 ? 'text-danger-700' : 'text-success-700'}>
+                        <span className={entry.quantity < 0 ? 'text-ds-critical-text' : 'text-ds-success-text'}>
                           {entry.quantity > 0 ? '+' : ''}{entry.quantity}
                           {entry.unit_price != null && (
-                            <span className="text-gray-500"> @ GHS {Number(entry.unit_price).toFixed(2)}</span>
+                            <span className="text-ds-text-muted"> @ GHS {Number(entry.unit_price).toFixed(2)}</span>
                           )}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-600">
+                    <td className="px-3 py-2 text-ds-text-secondary">
                       {entry.kind === 'edit'
                         ? entry.reason || '—'
                         : [entry.notes, entry.invoice_number ? `Invoice ${entry.invoice_number}` : null].filter(Boolean).join(' · ') || '—'}
@@ -5685,39 +5687,39 @@ const PharmacyDashboard: React.FC = () => {
         {editingOrder && (
           <div className="space-y-4">
             {/* Doctor's Original Order — Read Only */}
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Doctor's Order (Read Only)</h4>
+            <div className="bg-ds-subtle border border-ds-border rounded-lg p-3">
+              <h4 className="text-xs font-semibold text-ds-text-muted uppercase mb-2">Doctor's Order (Read Only)</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Medication</label>
-                  <div className="font-medium text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                  <label className="block text-xs text-ds-text-muted mb-0.5">Medication</label>
+                  <div className="font-medium text-ds-text bg-ds-subtle px-3 py-2 rounded-lg border border-ds-border">
                     {editingOrder.medication_name}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Dosage</label>
-                  <div className="font-medium text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                  <label className="block text-xs text-ds-text-muted mb-0.5">Dosage</label>
+                  <div className="font-medium text-ds-text bg-ds-subtle px-3 py-2 rounded-lg border border-ds-border">
                     {editingOrder.dosage || '—'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Frequency</label>
-                  <div className="text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                  <label className="block text-xs text-ds-text-muted mb-0.5">Frequency</label>
+                  <div className="text-ds-text bg-ds-subtle px-3 py-2 rounded-lg border border-ds-border">
                     {editingOrder.frequency || '—'}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-0.5">Route</label>
-                  <div className="text-gray-900 bg-gray-100 px-3 py-2 rounded-lg border border-gray-200">
+                  <label className="block text-xs text-ds-text-muted mb-0.5">Route</label>
+                  <div className="text-ds-text bg-ds-subtle px-3 py-2 rounded-lg border border-ds-border">
                     {editingOrder.route || '—'}
                   </div>
                 </div>
               </div>
               {editingOrder.inventory_price != null && (
                 <div className="flex items-center gap-4 mt-2 text-sm">
-                  <span className="text-gray-500">Unit Price: <span className="font-medium text-gray-800">GHS {Number(editingOrder.inventory_price).toFixed(2)}</span></span>
+                  <span className="text-ds-text-muted">Unit Price: <span className="font-medium text-ds-text">GHS {Number(editingOrder.inventory_price).toFixed(2)}</span></span>
                   {editingOrder.inventory_quantity != null && (
-                    <span className={`font-medium ${editingOrder.inventory_quantity > 0 ? 'text-success-600' : 'text-danger-600'}`}>
+                    <span className={`font-medium ${editingOrder.inventory_quantity > 0 ? 'text-ds-success-text' : 'text-ds-critical-text'}`}>
                       {editingOrder.inventory_quantity} in stock
                     </span>
                   )}
@@ -5728,29 +5730,29 @@ const PharmacyDashboard: React.FC = () => {
             {/* Editable Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-primary-700 mb-1">Quantity to Dispense *</label>
+                <label className="block text-sm font-bold text-ds-accent-text mb-1">Quantity to Dispense *</label>
                 <input
                   type="text"
                   value={editingOrder.quantity}
                   onChange={(e) => setEditingOrder({ ...editingOrder, quantity: e.target.value })}
-                  className="w-full border-2 border-primary-400 bg-primary-50 rounded-lg px-3 py-2.5 text-lg font-bold text-primary-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full border-2 border-ds-accent bg-ds-accent-soft rounded-lg px-3 py-2.5 text-lg font-bold text-ds-accent-text focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                 />
-                <p className="text-xs text-gray-500 mt-1">Verify auto-calculated quantity before dispensing</p>
+                <p className="text-xs text-ds-text-muted mt-1">Verify auto-calculated quantity before dispensing</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Dosage</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Dosage</label>
                 <input
                   type="text"
                   value={editingOrder.dosage}
                   onChange={(e) => setEditingOrder({ ...editingOrder, dosage: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 />
               </div>
             </div>
 
             {/* Substitute Medication */}
-            <div className="bg-warning-50 border border-warning-200 rounded-lg p-3">
-              <h4 className="text-sm font-semibold text-warning-800 mb-2">Substitute Medication (if exact med is unavailable)</h4>
+            <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-3">
+              <h4 className="text-sm font-semibold text-ds-warning-text mb-2">Substitute Medication (if exact med is unavailable)</h4>
               <div className="relative mb-2">
                 <input
                   type="text"
@@ -5758,7 +5760,7 @@ const PharmacyDashboard: React.FC = () => {
                   onChange={(e) => { setEditingOrder({ ...editingOrder, substitute_medication: e.target.value }); setShowSubSuggestions(true); }}
                   onFocus={() => setShowSubSuggestions(true)}
                   onBlur={() => setTimeout(() => setShowSubSuggestions(false), 150)}
-                  className="w-full border border-warning-300 rounded-lg px-3 py-2"
+                  className="w-full border border-ds-warning-border rounded-lg px-3 py-2"
                   placeholder="Start typing to search inventory…"
                   autoComplete="off"
                 />
@@ -5773,13 +5775,13 @@ const PharmacyDashboard: React.FC = () => {
                   ).slice(0, 8);
                   if (matches.length === 0) {
                     return (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-sm text-gray-400">
+                      <div className="absolute z-50 w-full mt-1 bg-ds-surface border border-ds-border rounded-lg shadow-ds-card px-3 py-2 text-sm text-ds-text-muted">
                         No in-stock match — you can still type a free-text substitute.
                       </div>
                     );
                   }
                   return (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                    <div className="absolute z-50 w-full mt-1 bg-ds-surface border border-ds-border rounded-lg shadow-ds-card max-h-56 overflow-y-auto">
                       {matches.map((it: any) => (
                         <button
                           key={it.id}
@@ -5800,17 +5802,17 @@ const PharmacyDashboard: React.FC = () => {
                             });
                             setShowSubSuggestions(false);
                           }}
-                          className="w-full px-3 py-2 text-left hover:bg-warning-50 border-b border-gray-100 last:border-0 flex justify-between items-center"
+                          className="min-h-ds-touch w-full px-3 py-2 text-left hover:bg-ds-warning-soft border-b border-ds-border last:border-0 flex justify-between items-center"
                         >
                           <div>
-                            <span className="font-medium text-gray-900">{it.medication_name}</span>
+                            <span className="font-medium text-ds-text">{it.medication_name}</span>
                             {it.generic_name && it.generic_name !== it.medication_name && (
-                              <span className="text-xs text-gray-500 ml-2">({it.generic_name})</span>
+                              <span className="text-xs text-ds-text-muted ml-2">({it.generic_name})</span>
                             )}
                           </div>
                           <div className="flex items-center gap-3 text-xs flex-shrink-0">
-                            <span className="text-success-600 font-medium">{it.quantity_on_hand} in stock</span>
-                            <span className="text-gray-500">GH₵{Number(it.selling_price || 0).toFixed(2)}</span>
+                            <span className="text-ds-success-text font-medium">{it.quantity_on_hand} in stock</span>
+                            <span className="text-ds-text-muted">GH₵{Number(it.selling_price || 0).toFixed(2)}</span>
                           </div>
                         </button>
                       ))}
@@ -5821,31 +5823,31 @@ const PharmacyDashboard: React.FC = () => {
               <textarea
                 value={editingOrder.substitute_reason || ''}
                 onChange={(e) => setEditingOrder({ ...editingOrder, substitute_reason: e.target.value })}
-                className="w-full border border-warning-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-warning-border rounded-lg px-3 py-2"
                 rows={2}
                 placeholder="Reason for substitution..."
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes</label>
               <textarea
                 value={editingOrder.notes || ''}
                 onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2"
                 rows={2}
               />
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={() => { setShowEditOrderModal(false); setEditingOrder(null); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={updatePharmacyOrderDetails}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
               >
                 Save Changes
               </button>
@@ -5863,39 +5865,39 @@ const PharmacyDashboard: React.FC = () => {
       >
         {activityOrder && (
           <div>
-            <div className="mb-4 pb-3 border-b border-gray-200">
-              <p className="text-sm font-semibold text-gray-900">
+            <div className="mb-4 pb-3 border-b border-ds-border">
+              <p className="text-sm font-semibold text-ds-text">
                 {activityOrder.substitute_medication || activityOrder.medication_name}
-                {activityOrder.dosage ? <span className="text-gray-500 font-normal"> · {activityOrder.dosage}</span> : null}
+                {activityOrder.dosage ? <span className="text-ds-text-muted font-normal"> · {activityOrder.dosage}</span> : null}
               </p>
-              <p className="text-xs text-gray-500">{activityOrder.patient_name} · Order #{activityOrder.id}</p>
+              <p className="text-xs text-ds-text-muted">{activityOrder.patient_name} · Order #{activityOrder.id}</p>
             </div>
 
             {activityLoading ? (
-              <p className="text-sm text-gray-500 py-6 text-center">Loading activity…</p>
+              <p className="text-sm text-ds-text-muted py-6 text-center">Loading activity…</p>
             ) : activityEvents.length === 0 ? (
               <EmptyState title="No recorded activity" description="Actions on this order will appear here once it is started, prepared, dispensed, substituted or returned." />
             ) : (
-              <ol className="relative border-l border-gray-200 ml-2">
+              <ol className="relative border-l border-ds-border ml-2">
                 {activityEvents.map((ev) => {
                   const label = formatActivityAction(ev);
                   return (
                     <li key={ev.id} className="mb-5 ml-4">
                       <span className={`absolute -left-1.5 w-3 h-3 rounded-full ${activityDotColor(ev)}`} />
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-900">{label}</p>
-                        <time className="text-xs text-gray-400 flex-shrink-0">
+                        <p className="text-sm font-medium text-ds-text">{label}</p>
+                        <time className="text-xs text-ds-text-muted flex-shrink-0">
                           {ev.created_at ? format(new Date(ev.created_at), 'MMM d, h:mm a') : ''}
                         </time>
                       </div>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-ds-text-muted">
                         {ev.user_name}{ev.user_role ? ` · ${ev.user_role.replace('_', ' ')}` : ''}
                       </p>
                       {ev.source === 'inventory' && ev.quantity != null && (
-                        <p className="text-xs text-gray-500">Stock change: {ev.quantity > 0 ? '+' : ''}{ev.quantity}</p>
+                        <p className="text-xs text-ds-text-muted">Stock change: {ev.quantity > 0 ? '+' : ''}{ev.quantity}</p>
                       )}
                       {typeof ev.details === 'string' && ev.details && (
-                        <p className="text-xs text-gray-400 mt-0.5">{ev.details}</p>
+                        <p className="text-xs text-ds-text-muted mt-0.5">{ev.details}</p>
                       )}
                     </li>
                   );
@@ -5915,21 +5917,21 @@ const PharmacyDashboard: React.FC = () => {
       >
         {adjustItem && (
           <div className="space-y-4">
-            <div className="pb-3 border-b border-gray-200">
-              <p className="text-sm font-semibold text-gray-900">{adjustItem.medication_name}</p>
-              <p className="text-xs text-gray-500">
-                Current quantity: <span className="font-medium text-gray-700">{adjustItem.quantity_on_hand} {adjustItem.unit}s</span>
+            <div className="pb-3 border-b border-ds-border">
+              <p className="text-sm font-semibold text-ds-text">{adjustItem.medication_name}</p>
+              <p className="text-xs text-ds-text-muted">
+                Current quantity: <span className="font-medium text-ds-text-secondary">{adjustItem.quantity_on_hand} {adjustItem.unit}s</span>
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Adjustment type</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Adjustment type</label>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setAdjustType('add')}
-                  className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
-                    adjustType === 'add' ? 'bg-success-600 text-white border-success-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  className={`min-h-ds-touch flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
+                    adjustType === 'add' ? 'bg-ds-success text-white dark:text-ds-canvas border-ds-success' : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'
                   }`}
                 >
                   + Add
@@ -5937,8 +5939,8 @@ const PharmacyDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAdjustType('subtract')}
-                  className={`flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
-                    adjustType === 'subtract' ? 'bg-warning-600 text-white border-warning-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  className={`min-h-ds-touch flex-1 px-4 py-2 rounded-lg border text-sm font-medium ${
+                    adjustType === 'subtract' ? 'bg-ds-warning text-white dark:text-ds-canvas border-ds-warning' : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'
                   }`}
                 >
                   − Subtract
@@ -5947,17 +5949,17 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Quantity</label>
               <input
                 type="number"
                 min="1"
                 value={adjustQty}
                 onChange={(e) => setAdjustQty(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                 placeholder="0"
               />
               {adjustQty && !isNaN(parseInt(adjustQty)) && parseInt(adjustQty) > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-ds-text-muted mt-1">
                   New quantity: <span className="font-medium">
                     {adjustType === 'add'
                       ? adjustItem.quantity_on_hand + parseInt(adjustQty)
@@ -5968,11 +5970,11 @@ const PharmacyDashboard: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for adjustment</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reason for adjustment</label>
               <textarea
                 value={adjustReason}
                 onChange={(e) => setAdjustReason(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                 rows={2}
                 placeholder="e.g. damaged stock, count correction, expired discard…"
               />
@@ -5981,14 +5983,14 @@ const PharmacyDashboard: React.FC = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => { setShowAdjustModal(false); setAdjustItem(null); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={submitAdjustment}
                 disabled={submittingAdjust}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
               >
                 {submittingAdjust ? 'Saving…' : 'Apply Adjustment'}
               </button>
@@ -6011,13 +6013,13 @@ const PharmacyDashboard: React.FC = () => {
                 what's editable without the form feeling cluttered. The same
                 DOM gets printed via window.print() — inputs print their
                 current values. */}
-            <p className="text-xs text-gray-500 mb-2 print:hidden">
+            <p className="text-xs text-ds-text-muted mb-2 print:hidden">
               Click any field to edit before printing.
             </p>
-            <div className="border-2 border-dashed border-gray-300 p-6 mb-4 print:border-solid" id="prescription-label">
+            <div className="border-2 border-dashed border-ds-border-control p-6 mb-4 print:border-solid" id="prescription-label">
               <div className="text-center mb-4">
                 <h3 className="text-lg font-bold">MEDICS PHARMACY</h3>
-                <p className="text-sm text-gray-500">Patient Prescription Label</p>
+                <p className="text-sm text-ds-text-muted">Patient Prescription Label</p>
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -6034,13 +6036,13 @@ const PharmacyDashboard: React.FC = () => {
                     type="text"
                     value={labelEdit.medication_name}
                     onChange={(e) => setLabelEdit({ ...labelEdit, medication_name: e.target.value })}
-                    className="text-lg font-bold w-full text-center border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                    className="text-lg font-bold w-full text-center border-0 bg-transparent focus:bg-ds-warning-soft focus:ring-1 focus:ring-ds-focus-ring rounded px-1 print:bg-transparent print:ring-0"
                   />
                   <input
                     type="text"
                     value={labelEdit.dosage}
                     onChange={(e) => setLabelEdit({ ...labelEdit, dosage: e.target.value })}
-                    className="text-base w-full text-center border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                    className="text-base w-full text-center border-0 bg-transparent focus:bg-ds-warning-soft focus:ring-1 focus:ring-ds-focus-ring rounded px-1 print:bg-transparent print:ring-0"
                   />
                 </div>
                 <hr className="my-2" />
@@ -6076,11 +6078,11 @@ const PharmacyDashboard: React.FC = () => {
                     onChange={(e) => setLabelEdit({ ...labelEdit, notes: e.target.value })}
                     placeholder="e.g. Take with food. May cause drowsiness."
                     rows={2}
-                    className="mt-1 w-full text-sm border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 resize-none print:bg-transparent print:ring-0 print:placeholder-transparent"
+                    className="mt-1 w-full text-sm border-0 bg-transparent focus:bg-ds-warning-soft focus:ring-1 focus:ring-ds-focus-ring rounded px-1 resize-none print:bg-transparent print:ring-0 print:placeholder-transparent"
                   />
                 </div>
                 <hr className="my-2" />
-                <div className="flex justify-between text-xs text-gray-500">
+                <div className="flex justify-between text-xs text-ds-text-muted">
                   <span>Dispensed:</span>
                   <span>{format(new Date(), 'MMM dd, yyyy')}</span>
                 </div>
@@ -6089,13 +6091,13 @@ const PharmacyDashboard: React.FC = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowLabelModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Close
               </button>
               <button
                 onClick={handlePrintLabel}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -6110,16 +6112,16 @@ const PharmacyDashboard: React.FC = () => {
       {/* Drug Return Modal */}
       {showReturnModal && returningOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowReturnModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Process Drug Return</h3>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-ds-text mb-4">Process Drug Return</h3>
 
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <div className="font-semibold text-gray-900">{returningOrder.medication_name}</div>
-              <div className="text-sm text-gray-600 mt-1">
+            <div className="bg-ds-subtle rounded-lg p-4 mb-4">
+              <div className="font-semibold text-ds-text">{returningOrder.medication_name}</div>
+              <div className="text-sm text-ds-text-secondary mt-1">
                 Dispensed quantity: {returningOrder.quantity}{returningOrder.inventory_unit ? ` ${returningOrder.inventory_unit}` : ''}
               </div>
               {(returningOrder.return_quantity || 0) > 0 && (
-                <div className="text-sm text-warning-700 mt-1">
+                <div className="text-sm text-ds-warning-text mt-1">
                   Already returned: {returningOrder.return_quantity} • Remaining: {Math.max(0, (parseInt(returningOrder.quantity) || 0) - (returningOrder.return_quantity || 0))}{returningOrder.inventory_unit ? ` ${returningOrder.inventory_unit}` : ''}
                 </div>
               )}
@@ -6127,23 +6129,23 @@ const PharmacyDashboard: React.FC = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Return Quantity</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Return Quantity</label>
                 <input
                   type="number"
                   min="1"
                   max={Math.max(0, (parseInt(returningOrder.quantity) || 0) - (returningOrder.return_quantity || 0))}
                   value={returnQuantity}
                   onChange={(e) => setReturnQuantity(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Return *</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reason for Return *</label>
                 <textarea
                   value={returnReason}
                   onChange={(e) => setReturnReason(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 resize-none"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring resize-none"
                   placeholder="e.g., Patient adverse reaction, wrong medication, excess quantity..."
                 />
               </div>
@@ -6152,7 +6154,7 @@ const PharmacyDashboard: React.FC = () => {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowReturnModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+                className="min-h-ds-touch flex-1 px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle font-medium"
               >
                 Cancel
               </button>
@@ -6176,7 +6178,7 @@ const PharmacyDashboard: React.FC = () => {
                   }
                 }}
                 disabled={!returnReason.trim() || !returnQuantity}
-                className="flex-1 px-4 py-2 bg-warning-500 text-white rounded-lg hover:bg-warning-600 font-semibold disabled:opacity-50"
+                className="min-h-ds-touch flex-1 px-4 py-2 bg-ds-warning text-white dark:text-ds-canvas rounded-lg hover:bg-ds-warning/90 font-semibold disabled:opacity-50"
               >
                 Process Return
               </button>
@@ -6194,37 +6196,37 @@ const PharmacyDashboard: React.FC = () => {
       >
         {loadingDrugHistory ? (
           <div className="py-12 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-success-600 mx-auto"></div>
-            <p className="text-gray-500 mt-4">Loading drug history...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ds-success mx-auto"></div>
+            <p className="text-ds-text-muted mt-4">Loading drug history...</p>
           </div>
         ) : drugHistory ? (
           <div className="space-y-6">
             {/* Summary Stats */}
             <div className="grid grid-cols-4 gap-4 mb-4">
-              <div className="bg-danger-50 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-danger-600">{drugHistory.allergies.length}</p>
-                <p className="text-xs text-danger-700">Allergies</p>
+              <div className="bg-ds-critical-soft rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-ds-critical-text">{drugHistory.allergies.length}</p>
+                <p className="text-xs text-ds-critical-text">Allergies</p>
               </div>
-              <div className="bg-success-50 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-success-600">{drugHistory.active_medications.length}</p>
-                <p className="text-xs text-success-700">Active Meds</p>
+              <div className="bg-ds-success-soft rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-ds-success-text">{drugHistory.active_medications.length}</p>
+                <p className="text-xs text-ds-success-text">Active Meds</p>
               </div>
-              <div className="bg-primary-50 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-primary-600">{drugHistory.orders.length}</p>
-                <p className="text-xs text-primary-700">Total Orders</p>
+              <div className="bg-ds-accent-soft rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-ds-accent-text">{drugHistory.orders.length}</p>
+                <p className="text-xs text-ds-accent-text">Total Orders</p>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-gray-600">
+              <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-ds-text-secondary">
                   {drugHistory.orders.filter(o => o.status === 'dispensed').length}
                 </p>
-                <p className="text-xs text-gray-700">Dispensed</p>
+                <p className="text-xs text-ds-text-secondary">Dispensed</p>
               </div>
             </div>
 
             {/* Allergies - Always prominent at top */}
             {drugHistory.allergies.length > 0 && (
-              <div className="bg-danger-50 border-2 border-danger-300 rounded-xl p-4 shadow-sm">
-                <h3 className="font-bold text-danger-700 mb-3 flex items-center gap-2 text-lg">
+              <div className="bg-ds-critical-soft border-2 border-ds-critical-border rounded-ds-card p-4 shadow-ds-card">
+                <h3 className="font-bold text-ds-critical-text mb-3 flex items-center gap-2 text-lg">
                   <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
@@ -6232,13 +6234,13 @@ const PharmacyDashboard: React.FC = () => {
                 </h3>
                 <div className="grid gap-2">
                   {drugHistory.allergies.map((allergy) => (
-                    <div key={allergy.id} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-danger-200">
+                    <div key={allergy.id} className="flex items-center gap-3 bg-ds-surface rounded-lg p-3 border border-ds-critical-border">
                       <Badge variant={allergy.severity === 'severe' ? 'danger' : allergy.severity === 'moderate' ? 'warning' : 'gray'}>
                         {allergy.severity?.toUpperCase()}
                       </Badge>
                       <div>
-                        <span className="font-bold text-danger-800">{allergy.allergen}</span>
-                        <span className="text-danger-600 ml-2">→ {allergy.reaction}</span>
+                        <span className="font-bold text-ds-critical-text">{allergy.allergen}</span>
+                        <span className="text-ds-critical-text ml-2">→ {allergy.reaction}</span>
                       </div>
                     </div>
                   ))}
@@ -6248,9 +6250,9 @@ const PharmacyDashboard: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-6">
               {/* Active Medications */}
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2 border-b pb-2">
-                  <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-ds-surface border border-ds-border rounded-ds-card p-4">
+                <h3 className="font-bold text-ds-text mb-3 flex items-center gap-2 border-b pb-2">
+                  <svg className="w-5 h-5 text-ds-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                   Active Medications ({drugHistory.active_medications.length})
@@ -6258,12 +6260,12 @@ const PharmacyDashboard: React.FC = () => {
                 {drugHistory.active_medications.length > 0 ? (
                   <div className="space-y-2">
                     {drugHistory.active_medications.map((med) => (
-                      <div key={med.id} className="p-3 bg-success-50 border border-success-200 rounded-lg">
-                        <div className="font-semibold text-success-800">{med.medication_name}</div>
-                        <div className="text-sm text-success-700">
+                      <div key={med.id} className="p-3 bg-ds-success-soft border border-ds-success/30 rounded-lg">
+                        <div className="font-semibold text-ds-success-text">{med.medication_name}</div>
+                        <div className="text-sm text-ds-success-text">
                           {med.dosage} • {med.frequency} • {med.route}
                         </div>
-                        <div className="text-xs text-success-600 mt-1 flex justify-between">
+                        <div className="text-xs text-ds-success-text mt-1 flex justify-between">
                           <span>Since: {format(new Date(med.start_date), 'MMM dd, yyyy')}</span>
                           {med.doctor_first_name && <span>Dr. {med.doctor_first_name} {med.doctor_last_name}</span>}
                         </div>
@@ -6271,8 +6273,8 @@ const PharmacyDashboard: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="py-8 text-center text-ds-text-muted">
+                    <svg className="w-12 h-12 mx-auto mb-2 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                     <p className="text-sm">No active medications</p>
@@ -6281,9 +6283,9 @@ const PharmacyDashboard: React.FC = () => {
               </div>
 
               {/* Order History */}
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2 border-b pb-2">
-                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-ds-surface border border-ds-border rounded-ds-card p-4">
+                <h3 className="font-bold text-ds-text mb-3 flex items-center gap-2 border-b pb-2">
+                  <svg className="w-5 h-5 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   Prescription History ({drugHistory.orders.length})
@@ -6291,11 +6293,11 @@ const PharmacyDashboard: React.FC = () => {
                 {drugHistory.orders.length > 0 ? (
                   <div className="space-y-2">
                     {drugHistory.orders.map((order) => (
-                      <div key={order.id} className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div key={order.id} className="p-3 bg-ds-subtle rounded-lg hover:bg-ds-subtle transition-colors">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <span className="font-medium text-gray-900">{order.medication_name}</span>
-                            <div className="text-xs text-gray-600 mt-0.5">
+                            <span className="font-medium text-ds-text">{order.medication_name}</span>
+                            <div className="text-xs text-ds-text-secondary mt-0.5">
                               {order.dosage} • {order.frequency} • {order.route}
                             </div>
                           </div>
@@ -6303,11 +6305,11 @@ const PharmacyDashboard: React.FC = () => {
                             {order.status}
                           </Badge>
                         </div>
-                        <div className="flex justify-between items-center mt-2 text-xs text-gray-500">
-                          <span>Qty: <span className="font-medium">{order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span> {(order.return_quantity || 0) > 0 && <span className="text-warning-600">• {order.return_quantity} returned</span>} {order.refills > 0 && <span className="text-primary-600">• {order.refills} refills</span>}</span>
+                        <div className="flex justify-between items-center mt-2 text-xs text-ds-text-muted">
+                          <span>Qty: <span className="font-medium">{order.quantity}{order.inventory_unit ? ` ${order.inventory_unit}` : ''}</span> {(order.return_quantity || 0) > 0 && <span className="text-ds-warning-text">• {order.return_quantity} returned</span>} {order.refills > 0 && <span className="text-ds-accent-text">• {order.refills} refills</span>}</span>
                           <span>{format(new Date(order.ordered_date), 'MMM dd, yyyy')}</span>
                         </div>
-                        <div className="text-xs text-gray-400 mt-1 flex justify-between">
+                        <div className="text-xs text-ds-text-muted mt-1 flex justify-between">
                           {order.provider_first_name && (
                             <span>Ordered by: Dr. {order.provider_first_name} {order.provider_last_name}</span>
                           )}
@@ -6319,8 +6321,8 @@ const PharmacyDashboard: React.FC = () => {
                     ))}
                   </div>
                 ) : (
-                  <div className="py-8 text-center text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="py-8 text-center text-ds-text-muted">
+                    <svg className="w-12 h-12 mx-auto mb-2 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                     <p className="text-sm">No prescription history</p>
@@ -6347,35 +6349,35 @@ const PharmacyDashboard: React.FC = () => {
         {servingWalkIn && (
           <div className="space-y-6">
             {/* Patient Info Header */}
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <div className="bg-ds-subtle rounded-ds-card p-4 border border-ds-border">
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <p className="text-xs text-gray-500">Patient</p>
-                  <p className="font-semibold text-gray-900">{servingWalkIn.patient_name}</p>
-                  <p className="text-sm text-gray-600">{servingWalkIn.patient_number}</p>
+                  <p className="text-xs text-ds-text-muted">Patient</p>
+                  <p className="font-semibold text-ds-text">{servingWalkIn.patient_name}</p>
+                  <p className="text-sm text-ds-text-secondary">{servingWalkIn.patient_number}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Payer Type</p>
+                  <p className="text-xs text-ds-text-muted">Payer Type</p>
                   <span className={`inline-block mt-1 px-2 py-1 text-xs font-medium rounded-full ${
-                    servingWalkIn.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' :
-                    servingWalkIn.payer_type === 'corporate' ? 'bg-purple-100 text-purple-700' :
-                    'bg-gray-100 text-gray-700'
+                    servingWalkIn.payer_type === 'insurance' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                    servingWalkIn.payer_type === 'corporate' ? 'bg-ds-subtle text-ds-brand-plum' :
+                    'bg-ds-subtle text-ds-text-secondary'
                   }`}>
                     {servingWalkIn.payer_type === 'self_pay' ? 'Self Pay' : servingWalkIn.payer_type || 'Self Pay'}
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Chief Complaint</p>
-                  <p className="text-sm text-gray-900">{servingWalkIn.chief_complaint || 'OTC Purchase'}</p>
+                  <p className="text-xs text-ds-text-muted">Chief Complaint</p>
+                  <p className="text-sm text-ds-text">{servingWalkIn.chief_complaint || 'OTC Purchase'}</p>
                 </div>
               </div>
             </div>
 
             {/* Prescription Upload Section */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="bg-ds-surface border border-ds-border rounded-ds-card p-4">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2 text-sm">
-                  <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h3 className="font-semibold text-ds-text flex items-center gap-2 text-sm">
+                  <svg className="w-4 h-4 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   Upload Prescription (Optional)
@@ -6388,7 +6390,7 @@ const PharmacyDashboard: React.FC = () => {
                   className="hidden"
                   id="prescription-upload"
                 />
-                <label htmlFor="prescription-upload" className="cursor-pointer px-3 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors">
+                <label htmlFor="prescription-upload" className="cursor-pointer px-3 py-1.5 text-xs font-medium text-ds-accent-text bg-ds-accent-soft border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft transition-colors">
                   Choose Files
                 </label>
               </div>
@@ -6400,22 +6402,22 @@ const PharmacyDashboard: React.FC = () => {
                         <img
                           src={walkInPrescriptionPreviews[index]}
                           alt={`Prescription ${index + 1}`}
-                          className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                          className="w-20 h-20 object-cover rounded-lg border border-ds-border"
                         />
                       ) : (
-                        <div className="w-20 h-20 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-20 h-20 bg-ds-subtle rounded-lg border border-ds-border flex items-center justify-center">
+                          <svg className="w-8 h-8 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
                       )}
                       <button
                         onClick={() => removePrescriptionFile(index)}
-                        className="absolute -top-2 -right-2 bg-danger-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-2 -right-2 bg-ds-critical text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         ×
                       </button>
-                      <p className="text-xs text-gray-500 truncate w-20 mt-1">{file.name}</p>
+                      <p className="text-xs text-ds-text-muted truncate w-20 mt-1">{file.name}</p>
                     </div>
                   ))}
                 </div>
@@ -6425,9 +6427,9 @@ const PharmacyDashboard: React.FC = () => {
             {/* Medication Search + Added Medications — Side by Side */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: '400px' }}>
               {/* Left: Search & Select */}
-              <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-4 flex flex-col">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="lg:col-span-2 bg-ds-surface border border-ds-border rounded-ds-card p-4 flex flex-col">
+                <h3 className="font-semibold text-ds-text mb-3 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   Search Medications
@@ -6437,39 +6439,39 @@ const PharmacyDashboard: React.FC = () => {
                   placeholder="Type medication name..."
                   value={walkInMedSearch}
                   onChange={(e) => setWalkInMedSearch(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base"
+                  className="w-full px-4 py-3 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent text-base"
                   autoComplete="off"
                 />
                 {/* Results list — always visible, fills remaining space */}
-                <div className="mt-3 flex-1 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50">
+                <div className="mt-3 flex-1 overflow-y-auto border border-ds-border rounded-lg bg-ds-subtle">
                   {walkInMedSearch.length < 2 ? (
-                    <div className="flex items-center justify-center h-full text-gray-400 text-sm p-8">
+                    <div className="flex items-center justify-center h-full text-ds-text-muted text-sm p-8">
                       <div className="text-center">
-                        <svg className="w-10 h-10 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-10 h-10 mx-auto mb-2 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         Type at least 2 characters to search
                       </div>
                     </div>
                   ) : filteredWalkInInventory.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-gray-400 text-sm p-8">
+                    <div className="flex items-center justify-center h-full text-ds-text-muted text-sm p-8">
                       No medications found for "{walkInMedSearch}"
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-100">
+                    <div className="divide-y divide-ds-border">
                       {filteredWalkInInventory.map((item) => (
                         <button
                           key={item.id}
                           onClick={() => { addWalkInMedication(item); setWalkInMedSearch(''); }}
-                          className="w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex justify-between items-center"
+                          className="w-full px-4 py-3 text-left hover:bg-ds-accent-soft transition-colors flex justify-between items-center"
                         >
                           <div>
-                            <p className="font-medium text-gray-900">{item.medication_name}</p>
-                            <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
+                            <p className="font-medium text-ds-text">{item.medication_name}</p>
+                            <p className="text-xs text-ds-text-muted">{item.generic_name || item.category} • {item.unit}</p>
                           </div>
                           <div className="text-right flex-shrink-0 ml-3">
-                            <p className="text-sm font-bold text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
-                            <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-gray-400' : 'text-danger-500 font-medium'}`}>
+                            <p className="text-sm font-bold text-ds-success-text">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
+                            <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-ds-text-muted' : 'text-ds-critical-text font-medium'}`}>
                               {item.quantity_on_hand > 0 ? `Stock: ${item.quantity_on_hand}` : 'Out of stock'}
                             </p>
                           </div>
@@ -6481,25 +6483,25 @@ const PharmacyDashboard: React.FC = () => {
               </div>
 
               {/* Right: Added Medications */}
-              <div className="lg:col-span-3 bg-white border-2 border-success-200 rounded-xl p-4 flex flex-col">
+              <div className="lg:col-span-3 bg-ds-surface border-2 border-ds-success/30 rounded-ds-card p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <h3 className="font-semibold text-ds-text flex items-center gap-2">
+                    <svg className="w-5 h-5 text-ds-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                     Order Summary
                   </h3>
                   {walkInMedications.length > 0 && (
-                    <span className="bg-success-100 text-success-700 px-2.5 py-1 rounded-full text-xs font-bold">
+                    <span className="bg-ds-success-soft text-ds-success-text px-2.5 py-1 rounded-full text-xs font-bold">
                       {walkInMedications.length} item{walkInMedications.length !== 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
 
                 {walkInMedications.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                  <div className="flex-1 flex items-center justify-center text-ds-text-muted text-sm">
                     <div className="text-center">
-                      <svg className="w-12 h-12 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-12 h-12 mx-auto mb-2 text-ds-canvas" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                       </svg>
                       Search and select medications from the left
@@ -6509,15 +6511,15 @@ const PharmacyDashboard: React.FC = () => {
                   <>
                     <div className="flex-1 overflow-y-auto space-y-2">
                       {walkInMedications.map((med, index) => (
-                        <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                        <div key={index} className="bg-ds-subtle rounded-lg p-3 border border-ds-border">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <p className="font-semibold text-gray-900">{med.medication_name}</p>
-                              <p className="text-xs text-success-600">GH₵{Number(med.unit_price).toFixed(2)}/unit</p>
+                              <p className="font-semibold text-ds-text">{med.medication_name}</p>
+                              <p className="text-xs text-ds-success-text">GH₵{Number(med.unit_price).toFixed(2)}/unit</p>
                             </div>
                             <button
                               onClick={() => removeWalkInMedication(index)}
-                              className="text-danger-400 hover:text-danger-600 transition-colors p-1"
+                              className="text-ds-critical-text hover:text-ds-critical-text transition-colors p-1"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -6526,77 +6528,77 @@ const PharmacyDashboard: React.FC = () => {
                           </div>
                           <div className="grid grid-cols-3 gap-2">
                             <div>
-                              <label className="text-xs text-gray-500">Qty (auto)</label>
+                              <label className="text-xs text-ds-text-muted">Qty (auto)</label>
                               <input
                                 type="number"
                                 min="1"
                                 value={med.quantity}
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => updateWalkInMedication(index, 'quantity', parseInt(e.target.value) || 0)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                                 title="Auto-calculated from frequency × days. You can override."
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-500">Dosage</label>
+                              <label className="text-xs text-ds-text-muted">Dosage</label>
                               <input
                                 type="text"
                                 placeholder="500mg"
                                 value={med.dosage}
                                 onChange={(e) => updateWalkInMedication(index, 'dosage', e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-500">Subtotal</label>
-                              <p className="px-2 py-1.5 text-sm font-bold text-success-600">
+                              <label className="text-xs text-ds-text-muted">Subtotal</label>
+                              <p className="px-2 py-1.5 text-sm font-bold text-ds-success-text">
                                 GH₵{(Number(med.unit_price || 0) * Number(med.quantity || 0)).toFixed(2)}
                               </p>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2 mt-2">
                             <div>
-                              <label className="text-xs text-gray-500">Frequency</label>
+                              <label className="text-xs text-ds-text-muted">Frequency</label>
                               <input
                                 type="text"
                                 placeholder="e.g., TDS"
                                 value={med.frequency}
                                 onChange={(e) => updateWalkInMedication(index, 'frequency', e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-500">Days</label>
+                              <label className="text-xs text-ds-text-muted">Days</label>
                               <input
                                 type="number"
                                 placeholder="e.g., 5"
                                 min="1"
                                 value={med.duration_days}
                                 onChange={(e) => updateWalkInMedication(index, 'duration_days', e.target.value ? Number(e.target.value) : '')}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                               />
                             </div>
                           </div>
                           <div className="mt-2 grid grid-cols-2 gap-2">
                             <div>
-                              <label className="text-xs text-gray-500">Refills</label>
+                              <label className="text-xs text-ds-text-muted">Refills</label>
                               <input
                                 type="number"
                                 placeholder="0"
                                 min="0"
                                 value={med.refills}
                                 onChange={(e) => updateWalkInMedication(index, 'refills', e.target.value ? Number(e.target.value) : '')}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                               />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-500">Instructions</label>
+                              <label className="text-xs text-ds-text-muted">Instructions</label>
                               <input
                                 type="text"
                                 placeholder="e.g., Take after meals"
                                 value={med.instructions}
                                 onChange={(e) => updateWalkInMedication(index, 'instructions', e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500"
+                                className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded-lg focus:ring-1 focus:ring-ds-focus-ring"
                               />
                             </div>
                           </div>
@@ -6605,10 +6607,10 @@ const PharmacyDashboard: React.FC = () => {
                     </div>
 
                     {/* Total — sticky at bottom */}
-                    <div className="bg-success-50 rounded-lg p-4 border border-success-200 mt-3">
+                    <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30 mt-3">
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold text-success-800">Total</span>
-                        <span className="text-2xl font-bold text-success-600">
+                        <span className="font-semibold text-ds-success-text">Total</span>
+                        <span className="text-2xl font-bold text-ds-success-text">
                           GH₵{walkInMedications.reduce((sum, med) => sum + Number(med.unit_price || 0) * Number(med.quantity || 0), 0).toFixed(2)}
                         </span>
                       </div>
@@ -6622,18 +6624,18 @@ const PharmacyDashboard: React.FC = () => {
             <div className="flex justify-end gap-3">
               <button
                 onClick={closeServeWalkInModal}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={submitWalkInOrder}
                 disabled={submittingWalkIn || walkInMedications.length === 0}
-                className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="min-h-ds-touch px-6 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 {submittingWalkIn ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-ds-surface border-t-transparent"></div>
                     Processing...
                   </>
                 ) : (
@@ -6659,40 +6661,40 @@ const PharmacyDashboard: React.FC = () => {
       >
         {addOrderItemGroup && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-ds-text-secondary">
               Add a medication to <span className="font-semibold">{addOrderItemGroup.patient_name}</span>'s
               current order ({addOrderItemGroup.patient_number}). It joins the pharmacy queue and bills at dispense.
             </p>
 
             {/* Search inventory */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Search inventory</label>
+              <label className="block text-sm font-medium text-ds-text-secondary mb-1">Search inventory</label>
               <input
                 type="text"
                 placeholder="Type medication name..."
                 value={addOrderItemSearch}
                 onChange={(e) => setAddOrderItemSearch(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="w-full px-4 py-2.5 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                 autoComplete="off"
               />
               {addOrderItemSearch.length >= 2 && (
-                <div className="mt-2 max-h-56 overflow-y-auto border border-gray-100 rounded-lg bg-gray-50 divide-y divide-gray-100">
+                <div className="mt-2 max-h-56 overflow-y-auto border border-ds-border rounded-lg bg-ds-subtle divide-y divide-ds-border">
                   {filteredAddOrderItemInventory.length === 0 ? (
-                    <div className="p-4 text-center text-sm text-gray-400">No medications found for "{addOrderItemSearch}"</div>
+                    <div className="p-4 text-center text-sm text-ds-text-muted">No medications found for "{addOrderItemSearch}"</div>
                   ) : (
                     filteredAddOrderItemInventory.map(item => (
                       <button
                         key={item.id}
                         onClick={() => selectAddOrderItem(item)}
-                        className="w-full px-4 py-2.5 text-left hover:bg-primary-50 flex justify-between items-center"
+                        className="min-h-ds-touch w-full px-4 py-2.5 text-left hover:bg-ds-accent-soft flex justify-between items-center"
                       >
                         <div>
-                          <p className="font-medium text-gray-900">{item.medication_name}</p>
-                          <p className="text-xs text-gray-500">{item.generic_name || item.category} • {item.unit}</p>
+                          <p className="font-medium text-ds-text">{item.medication_name}</p>
+                          <p className="text-xs text-ds-text-muted">{item.generic_name || item.category} • {item.unit}</p>
                         </div>
                         <div className="text-right ml-3 flex-shrink-0">
-                          <p className="text-sm font-bold text-success-600">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
-                          <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-gray-400' : 'text-danger-500 font-medium'}`}>
+                          <p className="text-sm font-bold text-ds-success-text">GH₵{parseFloat(String(item.selling_price || 0)).toFixed(2)}</p>
+                          <p className={`text-xs ${item.quantity_on_hand > 0 ? 'text-ds-text-muted' : 'text-ds-critical-text font-medium'}`}>
                             {item.quantity_on_hand > 0 ? `Stock: ${item.quantity_on_hand}` : 'Out of stock'}
                           </p>
                         </div>
@@ -6705,51 +6707,51 @@ const PharmacyDashboard: React.FC = () => {
 
             {/* Selected item + details */}
             {addOrderItemSelected && (
-              <div className="border border-success-200 bg-success-50 rounded-lg p-4 space-y-3">
+              <div className="border border-ds-success/30 bg-ds-success-soft rounded-lg p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="font-semibold text-gray-900">{addOrderItemSelected.medication_name}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="font-semibold text-ds-text">{addOrderItemSelected.medication_name}</p>
+                    <p className="text-xs text-ds-text-muted">
                       GH₵{parseFloat(String(addOrderItemSelected.selling_price || 0)).toFixed(2)} / {addOrderItemSelected.unit} • Stock: {addOrderItemSelected.quantity_on_hand}
                     </p>
                   </div>
-                  <button onClick={() => setAddOrderItemSelected(null)} className="text-xs text-gray-500 hover:text-gray-700 underline">Change</button>
+                  <button onClick={() => setAddOrderItemSelected(null)} className="text-xs text-ds-text-muted hover:text-ds-text underline">Change</button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Quantity</label>
                     <input
                       type="number" min={1} value={addOrderItemForm.quantity}
                       onChange={(e) => setAddOrderItemForm(f => ({ ...f, quantity: Number(e.target.value) }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Days supply (optional)</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Days supply (optional)</label>
                     <input
                       type="number" min={0} value={addOrderItemForm.days_supply}
                       onChange={(e) => setAddOrderItemForm(f => ({ ...f, days_supply: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Dosage</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Dosage</label>
                     <input
                       type="text" value={addOrderItemForm.dosage}
                       onChange={(e) => setAddOrderItemForm(f => ({ ...f, dosage: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g. 500mg"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg" placeholder="e.g. 500mg"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Frequency</label>
                     <input
                       type="text" value={addOrderItemForm.frequency}
                       onChange={(e) => setAddOrderItemForm(f => ({ ...f, frequency: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg" placeholder="e.g. BD"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg" placeholder="e.g. BD"
                     />
                   </div>
                 </div>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-ds-text-secondary">
                   Line total:{' '}
                   <span className="font-bold">
                     GHS {((Number(addOrderItemSelected.selling_price) || 0) * (Number(addOrderItemForm.quantity) || 0)).toFixed(2)}
@@ -6759,11 +6761,11 @@ const PharmacyDashboard: React.FC = () => {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={closeAddOrderItemModal} className="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+              <button onClick={closeAddOrderItemModal} className="min-h-ds-touch px-4 py-2 text-ds-text-secondary hover:text-ds-text">Cancel</button>
               <button
                 onClick={submitAddOrderItem}
                 disabled={addingOrderItem || !addOrderItemSelected}
-                className="px-5 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="min-h-ds-touch px-5 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 {addingOrderItem ? 'Adding...' : 'Add to Order'}
               </button>
@@ -6775,34 +6777,34 @@ const PharmacyDashboard: React.FC = () => {
       {/* New Walk-in Patient Modal */}
       {showNewWalkInModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-accent-soft to-ds-accent-soft rounded-t-xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 rounded-full bg-ds-accent-soft flex items-center justify-center">
+                  <svg className="w-6 h-6 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Walk-in for OTC</h3>
-                  <p className="text-sm text-gray-600">Find an existing patient or register a new one</p>
+                  <h3 className="text-lg font-bold text-ds-text">Walk-in for OTC</h3>
+                  <p className="text-sm text-ds-text-secondary">Find an existing patient or register a new one</p>
                 </div>
               </div>
             </div>
             {/* Mode tabs: look up existing patient (default) or register new */}
             <div className="px-6 pt-4">
-              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+              <div className="flex gap-1 bg-ds-subtle p-1 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setWalkInMode('search')}
-                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'search' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                  className={`min-h-ds-touch flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'search' ? 'bg-ds-surface text-ds-accent-text shadow-ds-card' : 'text-ds-text-secondary hover:text-ds-text'}`}
                 >
                   Existing Patient
                 </button>
                 <button
                   type="button"
                   onClick={() => setWalkInMode('new')}
-                  className={`flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'new' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                  className={`min-h-ds-touch flex-1 px-3 py-2 rounded-md text-sm font-semibold transition-colors ${walkInMode === 'new' ? 'bg-ds-surface text-ds-accent-text shadow-ds-card' : 'text-ds-text-secondary hover:text-ds-text'}`}
                 >
                   New Patient
                 </button>
@@ -6812,29 +6814,29 @@ const PharmacyDashboard: React.FC = () => {
             {walkInMode === 'search' ? (
               <div className="p-6 space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search patient</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Search patient</label>
                   <input
                     type="text"
                     value={walkInSearchQuery}
                     onChange={(e) => setWalkInSearchQuery(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                     placeholder="Name, patient number, or phone"
                     autoFocus
                   />
                 </div>
                 {searchingPatients && (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 px-1">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-500 border-t-transparent"></div>
+                  <div className="flex items-center gap-2 text-sm text-ds-text-muted px-1">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-ds-accent border-t-transparent"></div>
                     Searching…
                   </div>
                 )}
                 {!searchingPatients && walkInSearchQuery.trim().length >= 2 && walkInSearched && walkInSearchResults.length === 0 && (
-                  <p className="text-sm text-gray-500 px-1">
+                  <p className="text-sm text-ds-text-muted px-1">
                     No patients found. Try the <span className="font-medium">New Patient</span> tab to register.
                   </p>
                 )}
                 {walkInSearchResults.length > 0 && (
-                  <div className="max-h-64 overflow-y-auto -mx-1 divide-y divide-gray-100 border border-gray-200 rounded-lg">
+                  <div className="max-h-64 overflow-y-auto -mx-1 divide-y divide-ds-border border border-ds-border rounded-lg">
                     {walkInSearchResults.map((p) => {
                       const name = p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown';
                       return (
@@ -6843,10 +6845,10 @@ const PharmacyDashboard: React.FC = () => {
                           type="button"
                           onClick={() => handleSelectExistingPatient(p)}
                           disabled={creatingWalkIn}
-                          className="w-full text-left px-3 py-2.5 hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="min-h-ds-touch w-full text-left px-3 py-2.5 hover:bg-ds-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          <div className="font-medium text-gray-900 text-sm">{name}</div>
-                          <div className="text-xs text-gray-500">
+                          <div className="font-medium text-ds-text text-sm">{name}</div>
+                          <div className="text-xs text-ds-text-muted">
                             {p.patient_number || 'No patient #'}{p.phone ? ` • ${p.phone}` : ''}
                           </div>
                         </button>
@@ -6855,48 +6857,48 @@ const PharmacyDashboard: React.FC = () => {
                   </div>
                 )}
                 {walkInSearchQuery.trim().length < 2 && (
-                  <p className="text-xs text-gray-400 px-1">Type at least 2 characters to search.</p>
+                  <p className="text-xs text-ds-text-muted px-1">Type at least 2 characters to search.</p>
                 )}
               </div>
             ) : (
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">First Name *</label>
                   <input
                     type="text"
                     value={newWalkInForm.firstName}
                     onChange={(e) => setNewWalkInForm(prev => ({ ...prev, firstName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                     placeholder="Enter first name"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Last Name *</label>
                   <input
                     type="text"
                     value={newWalkInForm.lastName}
                     onChange={(e) => setNewWalkInForm(prev => ({ ...prev, lastName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                     placeholder="Enter last name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Phone (optional)</label>
                   <input
                     type="tel"
                     value={newWalkInForm.phone}
                     onChange={(e) => setNewWalkInForm(prev => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                     placeholder="e.g., 0244123456"
                   />
                 </div>
               </div>
             )}
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex gap-3 justify-end">
               <button
                 onClick={resetWalkInModal}
-                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -6904,11 +6906,11 @@ const PharmacyDashboard: React.FC = () => {
                 <button
                   onClick={handleCreateWalkIn}
                   disabled={creatingWalkIn || !newWalkInForm.firstName.trim() || !newWalkInForm.lastName.trim()}
-                  className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  className="min-h-ds-touch px-6 py-2 bg-ds-accent text-ds-on-accent font-semibold rounded-lg hover:bg-ds-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {creatingWalkIn ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-ds-surface border-t-transparent"></div>
                       Creating...
                     </>
                   ) : (

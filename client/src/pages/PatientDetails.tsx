@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useActiveId } from '../hooks/useActiveId';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
@@ -12,6 +12,8 @@ import LabResultsInline from '../components/LabResultsInline';
 import { getApiError } from '../utils/apiError';
 import PatientDocumentsPanel from '../components/PatientDocumentsPanel';
 import AppLayout from '../components/AppLayout';
+import PatientStickyBar from '../components/PatientStickyBar';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { Card, EmptyState } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import AppSelect from '../components/ui/AppSelect';
@@ -71,55 +73,55 @@ const EncounterAddenda: React.FC<{ encounterId: number; canAdd: boolean }> = ({ 
   };
   if (list.length === 0 && !canAdd) return null;
   return (
-    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200 md:col-span-2 mt-2">
+    <div className="bg-ds-info-soft rounded-lg p-4 border border-ds-info/30 md:col-span-2 mt-2">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">
-          Addenda {list.length > 0 && <span className="text-blue-400 font-normal normal-case">({list.length})</span>}
+        <p className="text-xs font-semibold text-ds-info-text uppercase tracking-wider">
+          Addenda {list.length > 0 && <span className="text-ds-info-text font-normal normal-case">({list.length})</span>}
         </p>
         {canAdd && !adding && (
           <button
             type="button"
             onClick={() => { setAdding(true); setDraft(''); }}
-            className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-white border border-blue-300 rounded hover:bg-blue-100"
+            className="min-h-ds-touch px-2.5 py-1 text-xs font-semibold text-ds-info-text bg-ds-surface border border-ds-info/30 rounded hover:bg-ds-info-soft"
           >
             + Add Addendum
           </button>
         )}
       </div>
       {list.length === 0 && !adding && (
-        <p className="text-xs text-blue-400 italic">No addenda. Add one for follow-up notes after labs / imaging come back.</p>
+        <p className="text-xs text-ds-info-text italic">No addenda. Add one for follow-up notes after labs / imaging come back.</p>
       )}
       {list.length > 0 && (
         <ol className="space-y-2">
           {list.map((a, idx) => (
-            <li key={a.id} className="bg-white rounded p-2 border border-blue-100">
-              <div className="flex items-center justify-between text-[11px] text-blue-700 font-medium mb-1">
+            <li key={a.id} className="bg-ds-surface rounded p-2 border border-ds-info/30">
+              <div className="flex items-center justify-between text-[11px] text-ds-info-text font-medium mb-1">
                 <span>#{idx + 1} — {a.created_by_role === 'doctor' ? 'Dr. ' : ''}{a.created_by_name}</span>
                 <span>{new Date(a.created_at).toLocaleString()}</span>
               </div>
-              <p className="text-sm text-gray-900 whitespace-pre-wrap">{a.content}</p>
+              <p className="text-sm text-ds-text whitespace-pre-wrap">{a.content}</p>
             </li>
           ))}
         </ol>
       )}
       {adding && (
-        <div className="mt-2 bg-white rounded p-2 border border-blue-300">
+        <div className="mt-2 bg-ds-surface rounded p-2 border border-ds-info/30">
           <textarea
             rows={3}
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="e.g. Lab results received — FBS normal. No change to plan."
-            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-2 py-1.5 text-sm border border-ds-border-control rounded focus:outline-none focus:ring-2 focus:ring-ds-info"
           />
-          <p className="text-[11px] text-gray-400 mt-1">Append-only. Once saved, this can't be edited.</p>
+          <p className="text-[11px] text-ds-text-muted mt-1">Append-only. Once saved, this can't be edited.</p>
           <div className="flex items-center justify-end gap-2 mt-1.5">
             <button type="button" onClick={() => { setAdding(false); setDraft(''); }} disabled={saving}
-              className="px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-60">
+              className="min-h-ds-touch px-2.5 py-1 text-xs font-medium text-ds-text-secondary border border-ds-border-control rounded hover:bg-ds-subtle disabled:opacity-60">
               Cancel
             </button>
             <button type="button" onClick={handleSave} disabled={saving || !draft.trim()}
-              className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-60">
+              className="min-h-ds-touch px-2.5 py-1 text-xs font-semibold text-white dark:text-ds-canvas bg-ds-info rounded hover:bg-ds-info/90 disabled:opacity-60">
               {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
@@ -165,6 +167,8 @@ const formatVisitDuration = (encounter: {
 };
 
 const PatientDetails: React.FC = () => {
+  useDesignSystemPage();
+  const identityRef = useRef<HTMLDivElement>(null);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
@@ -419,11 +423,11 @@ const PatientDetails: React.FC = () => {
 
   const getSeverityColor = (severity?: string) => {
     const colors: Record<string, string> = {
-      mild: 'bg-warning-100 text-warning-800',
-      moderate: 'bg-orange-100 text-orange-800',
-      severe: 'bg-danger-100 text-danger-800',
+      mild: 'bg-ds-warning-soft text-ds-warning-text',
+      moderate: 'bg-ds-warning-soft text-ds-warning-text',
+      severe: 'bg-ds-critical-soft text-ds-critical-text',
     };
-    return colors[severity || ''] || 'bg-gray-100 text-gray-800';
+    return colors[severity || ''] || 'bg-ds-subtle text-ds-text';
   };
 
   const openEditModal = async () => {
@@ -524,11 +528,11 @@ const PatientDetails: React.FC = () => {
 
   if (loading) {
     return (
-      <AppLayout title="Patient Details">
+      <AppLayout designSystem title="Patient Details">
         <Card>
           <div className="p-8 text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-            <p className="mt-4 text-gray-600">Loading patient information...</p>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-ds-accent"></div>
+            <p className="mt-4 text-ds-text-secondary">Loading patient information...</p>
           </div>
         </Card>
       </AppLayout>
@@ -537,7 +541,7 @@ const PatientDetails: React.FC = () => {
 
   if (!summary && summaryLoadFailed) {
     return (
-      <AppLayout title="Patient Details">
+      <AppLayout designSystem title="Patient Details">
         <Card>
           <EmptyState
             title="Couldn't load this patient"
@@ -551,13 +555,13 @@ const PatientDetails: React.FC = () => {
 
   if (!summary) {
     return (
-      <AppLayout title="Patient Details">
+      <AppLayout designSystem title="Patient Details">
         <Card>
           <EmptyState
             title="Patient not found"
             description="The patient you're looking for doesn't exist or has been removed."
             icon={
-              <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-16 h-16 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
@@ -575,15 +579,25 @@ const PatientDetails: React.FC = () => {
   const outstandingLabs = labResults.filter((l) => l.status === 'pending');
 
   return (
-    <AppLayout title={`${patient.first_name} ${patient.last_name}`}>
+    <AppLayout designSystem title={`${patient.first_name} ${patient.last_name}`}>
       <div className="space-y-6">
+        <div ref={identityRef} aria-hidden="true" />
+        <PatientStickyBar
+          watch={identityRef}
+          className="-mb-6"
+          name={`${patient.first_name} ${patient.last_name}`}
+          age={patient.date_of_birth ? `${calculateAge(patient.date_of_birth)}y` : undefined}
+          sex={patient.gender}
+          patientNumber={patient.patient_number}
+          allergies={allergies.length ? allergies.map((a) => a.allergen).join(', ') : patient.allergies || null}
+        />
 
         {outstandingLabs.length > 0 && (
-          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg" role="status">
-            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <div className="flex items-start gap-3 p-4 bg-ds-info-soft border border-ds-info/30 rounded-lg" role="status">
+            <svg className="w-5 h-5 text-ds-info-text flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
-            <div className="text-sm text-blue-900 flex-1">
+            <div className="text-sm text-ds-info-text flex-1">
               <p className="font-semibold">
                 {outstandingLabs.length} lab test{outstandingLabs.length > 1 ? 's' : ''} ordered but not yet done
               </p>
@@ -596,7 +610,7 @@ const PatientDetails: React.FC = () => {
             </div>
             <button
               onClick={() => setActiveTab('labs')}
-              className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-white border border-blue-300 rounded-lg hover:bg-blue-100 flex-shrink-0"
+              className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-info-text bg-ds-surface border border-ds-info/30 rounded-lg hover:bg-ds-info-soft flex-shrink-0"
             >
               View labs
             </button>
@@ -607,21 +621,21 @@ const PatientDetails: React.FC = () => {
             Data-driven (has_duplicate from the API), so it only fires when there's
             actually something to merge, not on every CareCode import. */}
         {(patient as any).has_duplicate ? (
-          <div className="flex items-start gap-3 p-4 bg-warning-50 border border-warning-200 rounded-lg">
-            <svg className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-start gap-3 p-4 bg-ds-warning-soft border border-ds-warning-border rounded-lg">
+            <svg className="w-5 h-5 text-ds-warning-text flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
-            <div className="text-sm text-warning-800">
+            <div className="text-sm text-ds-warning-text">
               <span className="font-semibold">Possible duplicate.</span> Another patient with the same name and date of birth exists. Ask an admin to merge them under <span className="font-medium">Patients → Review Duplicates</span>.
             </div>
           </div>
         ) : ((patient as any).carecode_origin_number || (patient as any).source === 'carecode' || patient.patient_number?.startsWith('CC-')) && (
           /* No live duplicate — show the calm CareCode provenance note. */
-          <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-start gap-3 p-4 bg-ds-info-soft border border-ds-info/30 rounded-lg">
+            <svg className="w-5 h-5 text-ds-info-text flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <div className="text-sm text-blue-800">
+            <div className="text-sm text-ds-info-text">
               <span className="font-semibold">Migrated from CareCode.</span>{' '}
               {(patient as any).carecode_origin_number
                 ? <>This patient's legacy CareCode record (<span className="font-medium">{(patient as any).carecode_origin_number}</span>) has been merged into this record.</>
@@ -632,17 +646,17 @@ const PatientDetails: React.FC = () => {
 
         {/* Allergies — prominent, inline-editable so any clinician can record allergies
             discovered during the patient journey without opening the full edit modal */}
-        <div className={`rounded-xl border p-4 flex items-start gap-3 ${patient.allergies ? 'bg-danger-50 border-danger-200' : 'bg-gray-50 border-gray-200'}`}>
-          <svg className={`w-6 h-6 flex-shrink-0 mt-0.5 ${patient.allergies ? 'text-danger-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className={`rounded-ds-card border p-4 flex items-start gap-3 ${patient.allergies ? 'bg-ds-critical-soft border-ds-critical-border' : 'bg-ds-subtle border-ds-border'}`}>
+          <svg className={`w-6 h-6 flex-shrink-0 mt-0.5 ${patient.allergies ? 'text-ds-critical-text' : 'text-ds-text-muted'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`text-xs font-bold uppercase tracking-wider ${patient.allergies ? 'text-danger-700' : 'text-gray-500'}`}>Allergies</span>
+              <span className={`text-xs font-bold uppercase tracking-wider ${patient.allergies ? 'text-ds-critical-text' : 'text-ds-text-muted'}`}>Allergies</span>
               {!editingAllergies && (
                 <button
                   onClick={startEditAllergies}
-                  className="text-xs font-semibold text-primary-600 hover:text-primary-800 hover:underline"
+                  className="text-xs font-semibold text-ds-accent-text hover:text-ds-accent-text hover:underline"
                 >
                   {patient.allergies ? 'Edit' : '+ Add'}
                 </button>
@@ -657,26 +671,26 @@ const PatientDetails: React.FC = () => {
                   onChange={(e) => setAllergyDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAllergies(); if (e.key === 'Escape') setEditingAllergies(false); }}
                   placeholder="e.g., Penicillin, Peanuts, Sulfa drugs — separate with commas"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="flex-1 px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm"
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={handleSaveAllergies}
                     disabled={savingAllergies}
-                    className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                    className="min-h-ds-touch px-4 py-2 text-sm font-semibold text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
                   >
                     {savingAllergies ? 'Saving…' : 'Save'}
                   </button>
                   <button
                     onClick={() => setEditingAllergies(false)}
-                    className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                    className="min-h-ds-touch px-4 py-2 text-sm font-semibold text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <p className={`mt-0.5 font-semibold ${patient.allergies ? 'text-danger-900' : 'text-gray-400'}`}>
+              <p className={`mt-0.5 font-semibold ${patient.allergies ? 'text-ds-critical-text' : 'text-ds-text-muted'}`}>
                 {patient.allergies || 'No known allergies'}
               </p>
             )}
@@ -684,7 +698,7 @@ const PatientDetails: React.FC = () => {
         </div>
 
         {/* Patient Info Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 mb-6">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 mb-6">
           <div className="flex justify-end gap-2 mb-2">
             {/* Marketing opt-out. Reception is who the patient tells, so the
                 switch lives on the record rather than in the marketing screen. */}
@@ -692,10 +706,10 @@ const PatientDetails: React.FC = () => {
               <button
                 onClick={handleToggleMarketingOptOut}
                 disabled={savingOptOut}
-                className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                className={`min-h-ds-touch px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
                   marketingOptOut
-                    ? 'text-warning-800 bg-warning-50 border-warning-200 hover:bg-warning-100'
-                    : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                    ? 'text-ds-warning-text bg-ds-warning-soft border-ds-warning-border hover:bg-ds-warning-soft'
+                    : 'text-ds-text-secondary bg-ds-surface border-ds-border hover:bg-ds-subtle'
                 }`}
                 title={
                   marketingOptOut
@@ -710,10 +724,10 @@ const PatientDetails: React.FC = () => {
               <button
                 onClick={handleToggleReminderOptOut}
                 disabled={savingReminderOptOut}
-                className={`px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
+                className={`min-h-ds-touch px-4 py-2 text-sm font-medium border rounded-lg transition-colors disabled:opacity-50 ${
                   reminderOptOut
-                    ? 'text-warning-800 bg-warning-50 border-warning-200 hover:bg-warning-100'
-                    : 'text-gray-600 bg-white border-gray-200 hover:bg-gray-50'
+                    ? 'text-ds-warning-text bg-ds-warning-soft border-ds-warning-border hover:bg-ds-warning-soft'
+                    : 'text-ds-text-secondary bg-ds-surface border-ds-border hover:bg-ds-subtle'
                 }`}
                 title={
                   reminderOptOut
@@ -728,7 +742,7 @@ const PatientDetails: React.FC = () => {
               <button
                 onClick={handleSendPortalLink}
                 disabled={sendingLink}
-                className="px-4 py-2 text-sm font-medium text-success-700 bg-success-50 border border-success-200 rounded-lg hover:bg-success-100 transition-colors flex items-center gap-2 disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 text-sm font-medium text-ds-success-text bg-ds-success-soft border border-ds-success/30 rounded-lg hover:bg-ds-success-soft transition-colors flex items-center gap-2 disabled:opacity-50"
                 title="Text the patient a secure link to access their records"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -739,7 +753,7 @@ const PatientDetails: React.FC = () => {
             )}
             <button
               onClick={openEditModal}
-              className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors flex items-center gap-2"
+              className="min-h-ds-touch px-4 py-2 text-sm font-medium text-ds-accent-text bg-ds-accent-soft border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -749,56 +763,56 @@ const PatientDetails: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-ds-info-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
                 Demographics
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Age:</span>
-                  <span className="font-semibold text-gray-900">{calculateAge(patient.date_of_birth)} years</span>
+                  <span className="text-ds-text-muted text-sm w-24">Age:</span>
+                  <span className="font-semibold text-ds-text">{calculateAge(patient.date_of_birth)} years</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Gender:</span>
-                  <span className="font-semibold text-gray-900 capitalize">{patient.gender}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Gender:</span>
+                  <span className="font-semibold text-ds-text capitalize">{patient.gender}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Allergies:</span>
-                  <span className={`font-semibold px-2 py-0.5 rounded ${patient.allergies ? 'bg-orange-100 text-orange-800' : 'text-gray-400'}`}>
+                  <span className="text-ds-text-muted text-sm w-24">Allergies:</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded ${patient.allergies ? 'bg-ds-critical-soft text-ds-critical-text' : 'text-ds-text-muted'}`}>
                     {patient.allergies || 'None reported'}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">DOB:</span>
-                  <span className="font-semibold text-gray-900">{safeFormatDate(patient.date_of_birth, 'MMM d, yyyy')}</span>
+                  <span className="text-ds-text-muted text-sm w-24">DOB:</span>
+                  <span className="font-semibold text-ds-text">{safeFormatDate(patient.date_of_birth, 'MMM d, yyyy')}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-ds-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 Contact Information
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Phone:</span>
-                  <span className="font-semibold text-gray-900">{patient.phone || 'N/A'}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Phone:</span>
+                  <span className="font-semibold text-ds-text">{patient.phone || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Email:</span>
-                  <span className="font-semibold text-gray-900 text-sm">{patient.email || 'N/A'}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Email:</span>
+                  <span className="font-semibold text-ds-text text-sm">{patient.email || 'N/A'}</span>
                 </div>
                 <div className="flex items-start gap-3">
-                  <span className="text-gray-500 text-sm w-24">Address:</span>
-                  <span className="font-semibold text-gray-900">
+                  <span className="text-ds-text-muted text-sm w-24">Address:</span>
+                  <span className="font-semibold text-ds-text">
                     {patient.address || 'N/A'}
                     {patient.city && (
-                      <span className="block text-gray-600">{patient.city}</span>
+                      <span className="block text-ds-text-secondary">{patient.city}</span>
                     )}
                   </span>
                 </div>
@@ -806,58 +820,58 @@ const PatientDetails: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-ds-warning-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
                 Emergency Contact
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Name:</span>
-                  <span className="font-semibold text-gray-900">{patient.emergency_contact_name || 'N/A'}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Name:</span>
+                  <span className="font-semibold text-ds-text">{patient.emergency_contact_name || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Phone:</span>
-                  <span className="font-semibold text-gray-900">{patient.emergency_contact_phone || 'N/A'}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Phone:</span>
+                  <span className="font-semibold text-ds-text">{patient.emergency_contact_phone || 'N/A'}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Relationship:</span>
-                  <span className="font-semibold text-gray-900 capitalize">{patient.emergency_contact_relationship || 'N/A'}</span>
+                  <span className="text-ds-text-muted text-sm w-24">Relationship:</span>
+                  <span className="font-semibold text-ds-text capitalize">{patient.emergency_contact_relationship || 'N/A'}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h3 className="text-sm font-semibold text-ds-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-ds-brand-plum" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                 </svg>
                 Insurance & Billing
               </h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <span className="text-gray-500 text-sm w-24">Payer:</span>
+                  <span className="text-ds-text-muted text-sm w-24">Payer:</span>
                   <div>
                     {summary.payer_sources && summary.payer_sources.length > 0 ? (
                       summary.payer_sources.map((ps) => (
-                        <div key={ps.id} className="font-semibold text-gray-900 capitalize">
+                        <div key={ps.id} className="font-semibold text-ds-text capitalize">
                           {ps.payer_type === 'corporate' ? ps.corporate_client_name :
                            ps.payer_type === 'insurance' ? ps.insurance_provider_name :
                            ps.payer_type === 'staff' ? 'Staff' :
                            'Self Pay'}
-                          {ps.is_primary && <span className="text-xs text-primary-500 ml-1">(Primary)</span>}
+                          {ps.is_primary && <span className="text-xs text-ds-accent-text ml-1">(Primary)</span>}
                         </div>
                       ))
                     ) : (
-                      <span className="text-gray-400">Not set</span>
+                      <span className="text-ds-text-muted">Not set</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-gray-500 text-sm w-24">Balance:</span>
+                  <span className="text-ds-text-muted text-sm w-24">Balance:</span>
                   <span className={`font-semibold px-2 py-0.5 rounded ${
-                    (summary.outstanding_balance || 0) > 0 ? 'bg-danger-100 text-danger-800' : 'bg-success-100 text-success-800'
+                    (summary.outstanding_balance || 0) > 0 ? 'bg-ds-critical-soft text-ds-critical-text' : 'bg-ds-success-soft text-ds-success-text'
                   }`}>
                     {(summary.outstanding_balance || 0) > 0
                       ? `GH₵${Number(summary.outstanding_balance).toFixed(2)} owed`
@@ -866,8 +880,8 @@ const PatientDetails: React.FC = () => {
                 </div>
                 {patient.pcp_name && (
                   <div className="flex items-center gap-3">
-                    <span className="text-gray-500 text-sm w-24">PCP:</span>
-                    <span className="font-semibold text-gray-900">{patient.pcp_name}</span>
+                    <span className="text-ds-text-muted text-sm w-24">PCP:</span>
+                    <span className="font-semibold text-ds-text">{patient.pcp_name}</span>
                   </div>
                 )}
               </div>
@@ -877,15 +891,15 @@ const PatientDetails: React.FC = () => {
 
         {/* Allergies Alert */}
         {allergies.length > 0 && (
-          <div className="bg-gradient-to-r from-danger-50 to-danger-100 border-l-4 border-danger-500 rounded-xl p-5 mb-6 shadow-sm">
+          <div className="bg-gradient-to-r from-ds-critical-soft to-ds-critical-soft border-l-4 border-ds-critical rounded-ds-card p-5 mb-6 shadow-ds-card">
             <div className="flex items-start gap-4">
-              <div className="bg-danger-500 p-2 rounded-lg">
+              <div className="bg-ds-critical p-2 rounded-lg">
                 <svg className="h-6 w-6 text-white" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-danger-800">Known Allergies</h3>
+                <h3 className="text-lg font-bold text-ds-critical-text">Known Allergies</h3>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {allergies.map((allergy) => (
                     <span
@@ -905,15 +919,15 @@ const PatientDetails: React.FC = () => {
         )}
 
         {/* Modern Tabs */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-          <div className="border-b border-gray-200 bg-gray-50">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+          <div className="border-b border-ds-border bg-ds-subtle">
             <nav className="flex">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'overview'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -925,8 +939,8 @@ const PatientDetails: React.FC = () => {
                 onClick={() => setActiveTab('encounters')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'encounters'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -934,15 +948,15 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Previous Visits
                 {recent_encounters.length > 0 && (
-                  <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{recent_encounters.length}</span>
+                  <span className="bg-ds-info text-white dark:text-ds-canvas text-xs px-2 py-0.5 rounded-full">{recent_encounters.length}</span>
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('medications')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'medications'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -950,15 +964,15 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Medications
                 {active_medications.length > 0 && (
-                  <span className="bg-success-600 text-white text-xs px-2 py-0.5 rounded-full">{active_medications.length}</span>
+                  <span className="bg-ds-success text-white dark:text-ds-canvas text-xs px-2 py-0.5 rounded-full">{active_medications.length}</span>
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('appointments')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'appointments'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -966,15 +980,15 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Appointments
                 {upcoming_appointments.length > 0 && (
-                  <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">{upcoming_appointments.length}</span>
+                  <span className="bg-ds-accent text-ds-on-accent text-xs px-2 py-0.5 rounded-full">{upcoming_appointments.length}</span>
                 )}
               </button>
               <button
                 onClick={() => setShowVitalSignsHistory(true)}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'vitals'
-                    ? 'border-danger-600 text-danger-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-critical text-ds-critical-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -986,8 +1000,8 @@ const PatientDetails: React.FC = () => {
                 onClick={() => setActiveTab('labs')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'labs'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -995,15 +1009,15 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Lab Results
                 {labResults.length > 0 && (
-                  <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{labResults.length}</span>
+                  <span className="bg-ds-info text-white dark:text-ds-canvas text-xs px-2 py-0.5 rounded-full">{labResults.length}</span>
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('imaging')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'imaging'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1011,15 +1025,15 @@ const PatientDetails: React.FC = () => {
                 </svg>
                 Imaging
                 {imagingResults.length > 0 && (
-                  <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">{imagingResults.length}</span>
+                  <span className="bg-ds-info text-white dark:text-ds-canvas text-xs px-2 py-0.5 rounded-full">{imagingResults.length}</span>
                 )}
               </button>
               <button
                 onClick={() => setActiveTab('documents')}
                 className={`flex-1 px-6 py-4 text-sm font-semibold transition-all border-b-2 flex items-center justify-center gap-2 ${
                   activeTab === 'documents'
-                    ? 'border-blue-600 text-blue-600 bg-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                    ? 'border-ds-info text-ds-info-text bg-ds-surface'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1036,22 +1050,22 @@ const PatientDetails: React.FC = () => {
               <div className="space-y-6">
                 {/* AI Patient Summary */}
                 {(aiSummary || aiSummaryLoading) && (
-                  <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-4 border border-indigo-200">
+                  <div className="bg-gradient-to-r from-ds-info-soft to-ds-info-soft rounded-ds-card p-4 border border-ds-info/30">
                     <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <div className="w-8 h-8 rounded-lg bg-ds-info-soft flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-ds-info-text" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">AI Summary</p>
+                        <p className="text-xs font-semibold text-ds-info-text uppercase tracking-wide mb-1">AI Summary</p>
                         {aiSummaryLoading ? (
                           <div className="flex items-center gap-2">
-                            <div className="animate-spin h-3 w-3 border-2 border-indigo-400 border-t-transparent rounded-full" />
-                            <span className="text-sm text-indigo-500">Generating summary...</span>
+                            <div className="animate-spin h-3 w-3 border-2 border-ds-info border-t-transparent rounded-full" />
+                            <span className="text-sm text-ds-info-text">Generating summary...</span>
                           </div>
                         ) : (
-                          <p className="text-sm text-gray-800 leading-relaxed">{aiSummary}</p>
+                          <p className="text-sm text-ds-text leading-relaxed">{aiSummary}</p>
                         )}
                       </div>
                     </div>
@@ -1060,15 +1074,15 @@ const PatientDetails: React.FC = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Recent Encounters Summary */}
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-100">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-gradient-to-br from-ds-info-soft to-ds-info-soft rounded-ds-card p-6 border border-ds-info/30">
+                  <h2 className="text-xl font-bold text-ds-text mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-ds-info-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Recent Visits
                   </h2>
                   {recent_encounters.length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
+                    <div className="text-center py-8 text-ds-text-muted">
                       <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
@@ -1077,22 +1091,22 @@ const PatientDetails: React.FC = () => {
                   ) : (
                     <div className="space-y-4">
                       {recent_encounters.slice(0, 3).map((encounter) => (
-                        <div key={encounter.id} className="bg-white rounded-lg p-4 border border-blue-200 shadow-sm">
+                        <div key={encounter.id} className="bg-ds-surface rounded-lg p-4 border border-ds-info/30 shadow-ds-card">
                           <div className="flex justify-between items-start mb-2">
-                            <p className="font-bold text-gray-900">
+                            <p className="font-bold text-ds-text">
                               {safeFormatDate(encounter.encounter_date, 'MMM d, yyyy')}
                             </p>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                            <span className="px-2 py-1 bg-ds-info-soft text-ds-info-text text-xs font-semibold rounded-full">
                               {encounter.encounter_type}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-700 mb-1">
+                          <p className="text-sm text-ds-text-secondary mb-1">
                             <strong>Chief Complaint:</strong> {encounter.chief_complaint || 'N/A'}
                           </p>
                           <div className="flex items-center justify-between mt-1">
-                            <p className="text-xs text-gray-500">Provider: {encounter.provider_name}</p>
+                            <p className="text-xs text-ds-text-muted">Provider: {encounter.provider_name}</p>
                             {formatVisitDuration(encounter) && (
-                              <p className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                              <p className="text-xs text-ds-info-text font-medium flex items-center gap-1">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -1107,15 +1121,15 @@ const PatientDetails: React.FC = () => {
                 </div>
 
                 {/* Active Medications */}
-                <div className="bg-gradient-to-br from-success-50 to-success-50 rounded-xl p-6 border border-success-100">
-                  <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-gradient-to-br from-ds-success-soft to-ds-success-soft rounded-ds-card p-6 border border-ds-success/30">
+                  <h2 className="text-xl font-bold text-ds-text mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-ds-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
                     Active Medications
                   </h2>
                   {active_medications.filter((m) => m.is_active).length === 0 ? (
-                    <div className="text-center py-8 text-gray-400">
+                    <div className="text-center py-8 text-ds-text-muted">
                       <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                       </svg>
@@ -1124,20 +1138,20 @@ const PatientDetails: React.FC = () => {
                   ) : (
                     <div className="space-y-3">
                       {active_medications.filter((m) => m.is_active).map((medication, idx) => (
-                        <div key={`${medication.source}-${medication.id}-${idx}`} className="bg-white rounded-lg p-4 border border-success-200 shadow-sm">
-                          <p className="font-bold text-gray-900">{medication.medication_name}</p>
-                          <p className="text-sm text-gray-600 mt-1">
+                        <div key={`${medication.source}-${medication.id}-${idx}`} className="bg-ds-surface rounded-lg p-4 border border-ds-success/30 shadow-ds-card">
+                          <p className="font-bold text-ds-text">{medication.medication_name}</p>
+                          <p className="text-sm text-ds-text-secondary mt-1">
                             {medication.dosage} - {medication.frequency}
                           </p>
                           {medication.route && (
-                            <p className="text-xs text-gray-500 mt-1">Route: {medication.route}</p>
+                            <p className="text-xs text-ds-text-muted mt-1">Route: {medication.route}</p>
                           )}
                           {medication.dispensed_date ? (
-                            <p className="text-xs text-success-600 font-medium mt-2">
+                            <p className="text-xs text-ds-success-text font-medium mt-2">
                               Dispensed: {safeFormatDate(medication.dispensed_date, 'MMM d, yyyy')}
                             </p>
                           ) : medication.start_date ? (
-                            <p className="text-xs text-success-600 font-medium mt-2">
+                            <p className="text-xs text-ds-success-text font-medium mt-2">
                               Ordered: {safeFormatDate(medication.start_date, 'MMM d, yyyy')}
                             </p>
                           ) : null}
@@ -1152,9 +1166,9 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'encounters' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Previous Visits</h2>
+                <h2 className="text-xl font-bold text-ds-text mb-6">Previous Visits</h2>
                 {recent_encounters.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -1165,22 +1179,22 @@ const PatientDetails: React.FC = () => {
                     {recent_encounters.map((encounter) => {
                       const isVisitOpen = expandedVisit === encounter.id;
                       return (
-                      <div key={encounter.id} className="bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                      <div key={encounter.id} className="bg-gradient-to-r from-ds-subtle to-white rounded-ds-card border border-ds-border p-6 shadow-ds-card">
                         <div
                           className="flex justify-between items-start mb-4 cursor-pointer"
                           onClick={() => setExpandedVisit(isVisitOpen ? null : encounter.id)}
                         >
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                              <svg className={`w-4 h-4 text-gray-400 transition-transform ${isVisitOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <h3 className="text-lg font-bold text-ds-text flex items-center gap-2">
+                              <svg className={`w-4 h-4 text-ds-text-muted transition-transform ${isVisitOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                               {safeFormatDate(encounter.encounter_date, 'EEEE, MMMM d, yyyy')}
                             </h3>
                             <div className="flex items-center gap-3 mt-1 flex-wrap">
-                              <p className="text-sm text-gray-600">Provider: {encounter.provider_name}</p>
+                              <p className="text-sm text-ds-text-secondary">Provider: {encounter.provider_name}</p>
                               {formatVisitDuration(encounter) && (
-                                <span className="text-sm text-blue-700 font-medium flex items-center gap-1">
+                                <span className="text-sm text-ds-info-text font-medium flex items-center gap-1">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                   </svg>
@@ -1189,7 +1203,7 @@ const PatientDetails: React.FC = () => {
                               )}
                             </div>
                           </div>
-                          <span className="px-4 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-semibold rounded-full">
+                          <span className="px-4 py-1.5 bg-gradient-to-r from-ds-info to-ds-info text-white text-sm font-semibold rounded-full dark:from-ds-info-soft dark:to-ds-info-soft">
                             {encounter.encounter_type || 'General'}
                           </span>
                         </div>
@@ -1197,33 +1211,33 @@ const PatientDetails: React.FC = () => {
                         {isVisitOpen && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {encounter.chief_complaint && (
-                            <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-1">Chief Complaint</p>
-                              <p className="text-sm text-gray-900">{encounter.chief_complaint}</p>
+                            <div className="bg-ds-info-soft rounded-lg p-4 border border-ds-info/30">
+                              <p className="text-xs font-semibold text-ds-info-text uppercase tracking-wider mb-1">Chief Complaint</p>
+                              <p className="text-sm text-ds-text">{encounter.chief_complaint}</p>
                             </div>
                           )}
 
                           {encounter.vital_signs && (
-                            <div className="bg-success-50 rounded-lg p-4 border border-success-100">
-                              <p className="text-xs font-semibold text-success-600 uppercase tracking-wider mb-2">Vital Signs</p>
+                            <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
+                              <p className="text-xs font-semibold text-ds-success-text uppercase tracking-wider mb-2">Vital Signs</p>
                               <div className="grid grid-cols-2 gap-2 text-sm">
                                 {encounter.vital_signs.blood_pressure_systolic && (
-                                  <p className="text-gray-700">
+                                  <p className="text-ds-text-secondary">
                                     <span className="font-medium">BP:</span> {encounter.vital_signs.blood_pressure_systolic}/{encounter.vital_signs.blood_pressure_diastolic}
                                   </p>
                                 )}
                                 {encounter.vital_signs.heart_rate && (
-                                  <p className="text-gray-700">
+                                  <p className="text-ds-text-secondary">
                                     <span className="font-medium">HR:</span> {encounter.vital_signs.heart_rate} bpm
                                   </p>
                                 )}
                                 {encounter.vital_signs.temperature && (
-                                  <p className="text-gray-700">
+                                  <p className="text-ds-text-secondary">
                                     <span className="font-medium">Temp:</span> {encounter.vital_signs.temperature}°{encounter.vital_signs.temperature_unit || 'F'}
                                   </p>
                                 )}
                                 {encounter.vital_signs.oxygen_saturation && (
-                                  <p className="text-gray-700">
+                                  <p className="text-ds-text-secondary">
                                     <span className="font-medium">SpO2:</span> {encounter.vital_signs.oxygen_saturation}%
                                   </p>
                                 )}
@@ -1265,15 +1279,15 @@ const PatientDetails: React.FC = () => {
                               .filter((hp: any) => hp.content && hp.content.trim())
                               .sort((a: any, b: any) => orderIndex(a.section_id) - orderIndex(b.section_id));
                             return (
-                              <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100 md:col-span-2">
-                                <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">SOAP / History & Physical</p>
+                              <div className="bg-ds-info-soft rounded-lg p-4 border border-ds-info/30 md:col-span-2">
+                                <p className="text-xs font-semibold text-ds-info-text uppercase tracking-wider mb-3">SOAP / History & Physical</p>
                                 <div className="space-y-2">
                                   {sorted.map((hp: any) => (
-                                    <div key={hp.section_id} className="border-l-2 border-indigo-300 pl-3">
-                                      <span className="text-xs font-bold text-indigo-700 capitalize">
+                                    <div key={hp.section_id} className="border-l-2 border-ds-info/30 pl-3">
+                                      <span className="text-xs font-bold text-ds-info-text capitalize">
                                         {hp.section_id.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
                                       </span>
-                                      <p className="text-sm text-gray-900 whitespace-pre-wrap mt-0.5">{hp.content}</p>
+                                      <p className="text-sm text-ds-text whitespace-pre-wrap mt-0.5">{hp.content}</p>
                                     </div>
                                   ))}
                                 </div>
@@ -1282,16 +1296,16 @@ const PatientDetails: React.FC = () => {
                           })()}
 
                           {encounter.diagnoses && encounter.diagnoses.length > 0 && (
-                            <div className="bg-rose-50 rounded-lg p-4 border border-rose-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">Diagnoses</p>
+                            <div className="bg-ds-critical-soft rounded-lg p-4 border border-ds-critical-border md:col-span-2">
+                              <p className="text-xs font-semibold text-ds-critical-text uppercase tracking-wider mb-2">Diagnoses</p>
                               <div className="space-y-1">
                                 {encounter.diagnoses.map((dx: any) => (
                                   <div key={dx.id} className="flex items-center gap-2 text-sm">
-                                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${dx.type === 'primary' ? 'bg-rose-200 text-rose-800' : 'bg-gray-200 text-gray-700'}`}>
+                                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${dx.type === 'primary' ? 'bg-ds-critical-soft text-ds-critical-text' : 'bg-ds-border text-ds-text-secondary'}`}>
                                       {dx.type}
                                     </span>
-                                    <span className="text-gray-900">{dx.diagnosis_description}</span>
-                                    {dx.diagnosis_code && <span className="text-gray-400 text-xs">({dx.diagnosis_code})</span>}
+                                    <span className="text-ds-text">{dx.diagnosis_description}</span>
+                                    {dx.diagnosis_code && <span className="text-ds-text-muted text-xs">({dx.diagnosis_code})</span>}
                                   </div>
                                 ))}
                               </div>
@@ -1299,16 +1313,16 @@ const PatientDetails: React.FC = () => {
                           )}
 
                           {encounter.clinical_notes && encounter.clinical_notes.length > 0 && (
-                            <div className="bg-purple-50 rounded-lg p-4 border border-purple-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-2">Clinical Notes</p>
+                            <div className="bg-ds-subtle rounded-lg p-4 border border-ds-border md:col-span-2">
+                              <p className="text-xs font-semibold text-ds-brand-plum uppercase tracking-wider mb-2">Clinical Notes</p>
                               <div className="space-y-3">
                                 {encounter.clinical_notes.map((note: any) => (
-                                  <div key={note.id} className="border-l-2 border-purple-300 pl-3">
+                                  <div key={note.id} className="border-l-2 border-ds-border pl-3">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs font-medium text-purple-700 capitalize">{note.note_type.replace(/_/g, ' ')}</span>
-                                      <span className="text-xs text-gray-400">by {note.author_name}</span>
+                                      <span className="text-xs font-medium text-ds-brand-plum capitalize">{note.note_type.replace(/_/g, ' ')}</span>
+                                      <span className="text-xs text-ds-text-muted">by {note.author_name}</span>
                                     </div>
-                                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{note.content}</p>
+                                    <p className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</p>
                                   </div>
                                 ))}
                               </div>
@@ -1316,35 +1330,35 @@ const PatientDetails: React.FC = () => {
                           )}
 
                           {encounter.assessment && (
-                            <div className="bg-warning-50 rounded-lg p-4 border border-warning-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-warning-600 uppercase tracking-wider mb-1">Assessment</p>
-                              <p className="text-sm text-gray-900">{encounter.assessment}</p>
+                            <div className="bg-ds-warning-soft rounded-lg p-4 border border-ds-warning-border md:col-span-2">
+                              <p className="text-xs font-semibold text-ds-warning-text uppercase tracking-wider mb-1">Assessment</p>
+                              <p className="text-sm text-ds-text">{encounter.assessment}</p>
                             </div>
                           )}
 
                           {encounter.plan && (
-                            <div className="bg-secondary-50 rounded-lg p-4 border border-secondary-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-secondary-600 uppercase tracking-wider mb-1">Plan</p>
-                              <p className="text-sm text-gray-900">{encounter.plan}</p>
+                            <div className="bg-ds-accent-soft rounded-lg p-4 border border-ds-border md:col-span-2">
+                              <p className="text-xs font-semibold text-ds-accent-text uppercase tracking-wider mb-1">Plan</p>
+                              <p className="text-sm text-ds-text">{encounter.plan}</p>
                             </div>
                           )}
 
                           {encounter.prescriptions && encounter.prescriptions.length > 0 && (
-                            <div className="bg-teal-50 rounded-lg p-4 border border-teal-100 md:col-span-2">
-                              <p className="text-xs font-semibold text-teal-600 uppercase tracking-wider mb-2">Prescriptions</p>
+                            <div className="bg-ds-accent-soft rounded-lg p-4 border border-ds-accent/30 md:col-span-2">
+                              <p className="text-xs font-semibold text-ds-accent-text uppercase tracking-wider mb-2">Prescriptions</p>
                               <div className="space-y-1">
                                 {encounter.prescriptions.map((rx: any) => (
                                   <div key={rx.id} className="flex items-center justify-between text-sm">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium text-gray-900">{rx.medication_name}</span>
-                                      {rx.dosage && <span className="text-gray-500">{rx.dosage}</span>}
-                                      {rx.frequency && <span className="text-gray-500">- {rx.frequency}</span>}
-                                      {rx.route && <span className="text-gray-400 text-xs">({rx.route})</span>}
+                                      <span className="font-medium text-ds-text">{rx.medication_name}</span>
+                                      {rx.dosage && <span className="text-ds-text-muted">{rx.dosage}</span>}
+                                      {rx.frequency && <span className="text-ds-text-muted">- {rx.frequency}</span>}
+                                      {rx.route && <span className="text-ds-text-muted text-xs">({rx.route})</span>}
                                     </div>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                      rx.status === 'dispensed' || rx.status === 'completed' ? 'bg-success-100 text-success-700' :
-                                      rx.status === 'cancelled' ? 'bg-danger-100 text-danger-700' :
-                                      'bg-warning-100 text-warning-700'
+                                      rx.status === 'dispensed' || rx.status === 'completed' ? 'bg-ds-success-soft text-ds-success-text' :
+                                      rx.status === 'cancelled' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                      'bg-ds-warning-soft text-ds-warning-text'
                                     }`}>
                                       {rx.status}
                                     </span>
@@ -1368,12 +1382,12 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'medications' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Medications</h2>
+                <h2 className="text-xl font-bold text-ds-text mb-6">Medications</h2>
 
                 {/* AI drug-interaction screen across the full medication list
                     (prescribed/dispensed + home meds from the SOAP note) */}
                 {interactionsLoading ? (
-                  <div className="mb-6 flex items-center gap-2 text-sm text-gray-500">
+                  <div className="mb-6 flex items-center gap-2 text-sm text-ds-text-muted">
                     <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
@@ -1381,35 +1395,35 @@ const PatientDetails: React.FC = () => {
                     Screening medications for interactions…
                   </div>
                 ) : interactions.length > 0 ? (
-                  <div className="mb-6 rounded-xl border border-danger-200 bg-danger-50 overflow-hidden">
-                    <div className="px-5 py-3 bg-danger-100 border-b border-danger-200 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mb-6 rounded-ds-card border border-ds-critical-border bg-ds-critical-soft overflow-hidden">
+                    <div className="px-5 py-3 bg-ds-critical-soft border-b border-ds-critical-border flex items-center gap-2">
+                      <svg className="w-5 h-5 text-ds-critical-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
-                      <h3 className="font-bold text-danger-900">
+                      <h3 className="font-bold text-ds-critical-text">
                         {interactions.length} potential drug interaction{interactions.length > 1 ? 's' : ''} detected
                       </h3>
                       {interactionData.aiAvailable && (
-                        <span className="ml-auto text-xs font-medium text-danger-500 bg-danger-200/60 px-2 py-0.5 rounded-full">AI-screened</span>
+                        <span className="ml-auto text-xs font-medium text-ds-critical-text bg-ds-critical-soft/60 px-2 py-0.5 rounded-full">AI-screened</span>
                       )}
                     </div>
                     {interactionData.summary && (
-                      <p className="px-5 pt-3 text-sm text-danger-800">{interactionData.summary}</p>
+                      <p className="px-5 pt-3 text-sm text-ds-critical-text">{interactionData.summary}</p>
                     )}
-                    <div className="divide-y divide-danger-100">
+                    <div className="divide-y divide-ds-critical-border">
                       {interactions.map((it, i) => {
                         const sev = (it.severity || '').toLowerCase();
                         const sevClass = sev === 'contraindicated' || sev === 'major' || sev === 'severe'
-                          ? 'bg-danger-600 text-white'
+                          ? 'bg-ds-critical text-white'
                           : sev === 'moderate'
-                          ? 'bg-warning-500 text-white'
-                          : 'bg-warning-200 text-warning-900';
+                          ? 'bg-ds-warning text-white dark:text-ds-canvas'
+                          : 'bg-ds-warning-soft text-ds-warning-text';
                         return (
                           <div key={i} className="px-5 py-3">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold text-gray-900">{it.drug1}</span>
-                              <span className="text-gray-400">+</span>
-                              <span className="font-semibold text-gray-900">{it.drug2}</span>
+                              <span className="font-semibold text-ds-text">{it.drug1}</span>
+                              <span className="text-ds-text-muted">+</span>
+                              <span className="font-semibold text-ds-text">{it.drug2}</span>
                               <span className={`text-xs font-bold px-2 py-0.5 rounded-full uppercase ${sevClass}`}>{it.severity}</span>
                               <div className="ml-auto">
                                 <InteractionExplainButton
@@ -1419,16 +1433,16 @@ const PatientDetails: React.FC = () => {
                                 />
                               </div>
                             </div>
-                            {it.description && <p className="text-sm text-gray-700 mt-1">{it.description}</p>}
-                            {it.recommendation && <p className="text-sm text-danger-700 mt-1"><strong>Action:</strong> {it.recommendation}</p>}
+                            {it.description && <p className="text-sm text-ds-text-secondary mt-1">{it.description}</p>}
+                            {it.recommendation && <p className="text-sm text-ds-critical-text mt-1"><strong>Action:</strong> {it.recommendation}</p>}
                           </div>
                         );
                       })}
                     </div>
                   </div>
                 ) : interactionData.loaded && interactionData.aiAvailable && active_medications.length + (summary.documented_medications ? 1 : 0) >= 1 ? (
-                  <div className="mb-6 rounded-lg border border-success-200 bg-success-50 px-4 py-2.5 flex items-center gap-2 text-sm text-success-800">
-                    <svg className="w-4 h-4 text-success-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mb-6 rounded-lg border border-ds-success/30 bg-ds-success-soft px-4 py-2.5 flex items-center gap-2 text-sm text-ds-success-text">
+                    <svg className="w-4 h-4 text-ds-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     No significant drug interactions detected across the current medication list.
@@ -1436,7 +1450,7 @@ const PatientDetails: React.FC = () => {
                 ) : null}
 
                 {active_medications.length === 0 && !summary.documented_medications ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
@@ -1445,79 +1459,79 @@ const PatientDetails: React.FC = () => {
                 ) : (
                   <>
                   {active_medications.length > 0 && (
-                  <div className="overflow-hidden rounded-xl border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                  <div className="overflow-hidden rounded-ds-card border border-ds-border">
+                    <table className="min-w-full divide-y divide-ds-border">
+                      <thead className="bg-gradient-to-r from-ds-subtle to-ds-subtle">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Medication
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Dosage
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Frequency
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Ordered
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Dispensed
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Prescriber
                           </th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-right text-xs font-bold text-ds-text-secondary uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-100">
+                      <tbody className="bg-ds-surface divide-y divide-ds-border">
                         {active_medications.map((medication, index) => (
-                          <tr key={`${medication.source}-${medication.id}-${index}`} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <tr key={`${medication.source}-${medication.id}-${index}`} className={index % 2 === 0 ? 'bg-ds-surface' : 'bg-ds-subtle'}>
                             <td className="px-6 py-4">
-                              <span className="font-semibold text-gray-900">{medication.medication_name}</span>
-                              {medication.route && <span className="ml-2 text-xs text-gray-400">{medication.route}</span>}
+                              <span className="font-semibold text-ds-text">{medication.medication_name}</span>
+                              {medication.route && <span className="ml-2 text-xs text-ds-text-muted">{medication.route}</span>}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{medication.dosage || '—'}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{medication.frequency || '—'}</td>
+                            <td className="px-6 py-4 text-sm text-ds-text-secondary">{medication.dosage || '—'}</td>
+                            <td className="px-6 py-4 text-sm text-ds-text-secondary">{medication.frequency || '—'}</td>
                             <td className="px-6 py-4">
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-full capitalize ${
                                 medication.status === 'dispensed' || medication.status === 'completed'
-                                  ? 'bg-success-100 text-success-700'
+                                  ? 'bg-ds-success-soft text-ds-success-text'
                                   : medication.status === 'active'
-                                  ? 'bg-success-100 text-success-700'
-                                  : 'bg-warning-100 text-warning-700'
+                                  ? 'bg-ds-success-soft text-ds-success-text'
+                                  : 'bg-ds-warning-soft text-ds-warning-text'
                               }`}>
                                 {medication.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
+                            <td className="px-6 py-4 text-sm text-ds-text-secondary">
                               {medication.start_date ? safeFormatDate(medication.start_date, 'MMM d, yyyy') : '—'}
                             </td>
                             <td className="px-6 py-4 text-sm">
                               {medication.dispensed_date ? (
-                                <span className="text-success-700 font-medium">{safeFormatDate(medication.dispensed_date, 'MMM d, yyyy')}</span>
+                                <span className="text-ds-success-text font-medium">{safeFormatDate(medication.dispensed_date, 'MMM d, yyyy')}</span>
                               ) : (
-                                <span className="text-gray-400">Not dispensed</span>
+                                <span className="text-ds-text-muted">Not dispensed</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
+                            <td className="px-6 py-4 text-sm text-ds-text-secondary">
                               {medication.provider || medication.prescribing_doctor_name || '—'}
                             </td>
                             <td className="px-6 py-4 text-right">
                               {medication.source === 'medication' ? (
                                 <button
                                   onClick={() => handleDiscontinueMedication(medication.id, medication.medication_name)}
-                                  className="px-3 py-1 text-xs font-semibold text-danger-600 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100 transition-colors"
+                                  className="min-h-ds-touch px-3 py-1 text-xs font-semibold text-ds-critical-text bg-ds-critical-soft border border-ds-critical-border rounded-lg hover:bg-ds-critical-soft transition-colors"
                                 >
                                   Discontinue
                                 </button>
                               ) : (
-                                <span className="text-xs text-gray-400">Pharmacy</span>
+                                <span className="text-xs text-ds-text-muted">Pharmacy</span>
                               )}
                             </td>
                           </tr>
@@ -1527,18 +1541,18 @@ const PatientDetails: React.FC = () => {
                   </div>
                   )}
                   {summary.documented_medications && (
-                    <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-5">
+                    <div className="mt-6 rounded-ds-card border border-ds-info/30 bg-ds-info-soft p-5">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5 text-ds-info-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <h3 className="font-bold text-blue-900">Home Medications (documented in notes)</h3>
-                        <span className="ml-auto text-xs text-blue-600">
+                        <h3 className="font-bold text-ds-info-text">Home Medications (documented in notes)</h3>
+                        <span className="ml-auto text-xs text-ds-info-text">
                           Recorded {safeFormatDate(summary.documented_medications.encounter_date, 'MMM d, yyyy')}
                         </span>
                       </div>
-                      <p className="text-sm text-blue-900 whitespace-pre-wrap">{summary.documented_medications.content}</p>
-                      <p className="text-xs text-blue-500 mt-2">These were entered as free text in the SOAP note and have not been prescribed/dispensed in the system.</p>
+                      <p className="text-sm text-ds-info-text whitespace-pre-wrap">{summary.documented_medications.content}</p>
+                      <p className="text-xs text-ds-info-text mt-2">These were entered as free text in the SOAP note and have not been prescribed/dispensed in the system.</p>
                     </div>
                   )}
                   </>
@@ -1548,9 +1562,9 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'appointments' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Upcoming Appointments</h2>
+                <h2 className="text-xl font-bold text-ds-text mb-6">Upcoming Appointments</h2>
                 {upcoming_appointments.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
@@ -1559,30 +1573,30 @@ const PatientDetails: React.FC = () => {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {upcoming_appointments.map((appointment) => (
-                      <div key={appointment.id} className="bg-gradient-to-br from-secondary-50 to-indigo-50 rounded-xl p-5 border border-secondary-200 shadow-sm">
+                      <div key={appointment.id} className="bg-gradient-to-br from-ds-subtle to-ds-info-soft rounded-ds-card p-5 border border-ds-border shadow-ds-card">
                         <div className="flex justify-between items-start mb-3">
-                          <div className="bg-secondary-600 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                          <div className="bg-ds-accent text-ds-on-accent px-3 py-1 rounded-lg text-sm font-bold">
                             {safeFormatDate(appointment.appointment_date, 'MMM d')}
                           </div>
                           <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                             appointment.status === 'scheduled'
-                              ? 'bg-blue-100 text-blue-700'
-                              : 'bg-success-100 text-success-700'
+                              ? 'bg-ds-info-soft text-ds-info-text'
+                              : 'bg-ds-success-soft text-ds-success-text'
                           }`}>
                             {appointment.status}
                           </span>
                         </div>
-                        <p className="font-semibold text-gray-900 mb-1">
+                        <p className="font-semibold text-ds-text mb-1">
                           {safeFormatDate(appointment.appointment_date, 'h:mm a')}
                         </p>
-                        <p className="text-sm text-gray-600 mb-2">
+                        <p className="text-sm text-ds-text-secondary mb-2">
                           Duration: {appointment.duration_minutes} minutes
                         </p>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-ds-text-secondary">
                           Provider: {appointment.provider_name}
                         </p>
                         {appointment.reason && (
-                          <p className="text-sm text-secondary-700 mt-3 pt-3 border-t border-secondary-200">
+                          <p className="text-sm text-ds-brand-plum mt-3 pt-3 border-t border-ds-border">
                             <strong>Reason:</strong> {appointment.reason}
                           </p>
                         )}
@@ -1595,14 +1609,14 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'labs' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Lab Results History</h2>
+                <h2 className="text-xl font-bold text-ds-text mb-6">Lab Results History</h2>
                 {labsLoading ? (
                   <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                    <p className="mt-2 text-gray-500">Loading lab results...</p>
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-ds-info"></div>
+                    <p className="mt-2 text-ds-text-muted">Loading lab results...</p>
                   </div>
                 ) : labResults.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
@@ -1611,19 +1625,19 @@ const PatientDetails: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {labResults.map((lab) => (
-                      <div key={lab.id} className={`bg-white rounded-xl border shadow-sm overflow-hidden ${
-                        lab.status === 'completed' ? 'border-success-200' : 'border-warning-200'
+                      <div key={lab.id} className={`bg-ds-surface rounded-ds-card border shadow-ds-card overflow-hidden ${
+                        lab.status === 'completed' ? 'border-ds-success/30' : 'border-ds-warning-border'
                       }`}>
                         <div className={`px-6 py-3 ${
                           lab.status === 'completed'
-                            ? 'bg-gradient-to-r from-success-50 to-success-50'
-                            : 'bg-gradient-to-r from-warning-50 to-warning-50'
+                            ? 'bg-gradient-to-r from-ds-success-soft to-ds-success-soft'
+                            : 'bg-gradient-to-r from-ds-warning-soft to-ds-warning-soft'
                         }`}>
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
-                              <h3 className="font-bold text-gray-900">{lab.test_name}</h3>
+                              <h3 className="font-bold text-ds-text">{lab.test_name}</h3>
                               {lab.test_code && (
-                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                <span className="text-xs text-ds-text-muted bg-ds-subtle px-2 py-0.5 rounded">
                                   {lab.test_code}
                                 </span>
                               )}
@@ -1631,19 +1645,19 @@ const PatientDetails: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                                 lab.priority === 'stat'
-                                  ? 'bg-danger-100 text-danger-700 border border-danger-300'
+                                  ? 'bg-ds-critical-soft text-ds-critical-text border border-ds-critical-border'
                                   : lab.priority === 'urgent'
-                                    ? 'bg-warning-100 text-warning-700 border border-warning-300'
-                                    : 'bg-gray-100 text-gray-600'
+                                    ? 'bg-ds-warning-soft text-ds-warning-text border border-ds-warning-border'
+                                    : 'bg-ds-subtle text-ds-text-secondary'
                               }`}>
                                 {lab.priority.toUpperCase()}
                               </span>
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                                 lab.status === 'completed'
-                                  ? 'bg-success-100 text-success-700'
+                                  ? 'bg-ds-success-soft text-ds-success-text'
                                   : lab.status === 'in_progress'
-                                    ? 'bg-blue-100 text-blue-700'
-                                    : 'bg-warning-100 text-warning-700'
+                                    ? 'bg-ds-info-soft text-ds-info-text'
+                                    : 'bg-ds-warning-soft text-ds-warning-text'
                               }`}>
                                 {lab.status.replace('_', ' ').toUpperCase()}
                               </span>
@@ -1653,23 +1667,23 @@ const PatientDetails: React.FC = () => {
                         <div className="px-6 py-4">
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
                             <div>
-                              <span className="text-gray-500">Ordered:</span>
-                              <span className="ml-2 font-medium text-gray-900">
+                              <span className="text-ds-text-muted">Ordered:</span>
+                              <span className="ml-2 font-medium text-ds-text">
                                 {safeFormatDate(lab.ordered_at, 'MMM d, yyyy h:mm a')}
                               </span>
                             </div>
                             <div>
-                              <span className="text-gray-500">Encounter:</span>
-                              <span className="ml-2 font-medium text-gray-900">{lab.encounter_number}</span>
+                              <span className="text-ds-text-muted">Encounter:</span>
+                              <span className="ml-2 font-medium text-ds-text">{lab.encounter_number}</span>
                             </div>
                             <div>
-                              <span className="text-gray-500">Provider:</span>
-                              <span className="ml-2 font-medium text-gray-900">{lab.ordering_provider_name}</span>
+                              <span className="text-ds-text-muted">Provider:</span>
+                              <span className="ml-2 font-medium text-ds-text">{lab.ordering_provider_name}</span>
                             </div>
                             {lab.results_available_at && (
                               <div>
-                                <span className="text-gray-500">Results:</span>
-                                <span className="ml-2 font-medium text-gray-900">
+                                <span className="text-ds-text-muted">Results:</span>
+                                <span className="ml-2 font-medium text-ds-text">
                                   {safeFormatDate(lab.results_available_at, 'MMM d, yyyy h:mm a')}
                                 </span>
                               </div>
@@ -1677,8 +1691,8 @@ const PatientDetails: React.FC = () => {
                           </div>
 
                           {lab.results && lab.results.trim() && (
-                            <div className="bg-success-50 rounded-lg p-4 border border-success-200">
-                              <h4 className="text-sm font-bold text-success-800 mb-2">Results:</h4>
+                            <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
+                              <h4 className="text-sm font-bold text-ds-success-text mb-2">Results:</h4>
                               {/* Structured results are stored as {parameter_code: value} JSON.
                                   Printing the raw string dumped things like
                                   {"HBA1C_NGSP":"8.2","HBA1C_IFCC":"66"} on screen. LabResultsInline
@@ -1691,13 +1705,13 @@ const PatientDetails: React.FC = () => {
 
                           {/* Status = completed but no result text AND no file — make the gap explicit so the doctor knows the lab tech still needs to record values */}
                           {lab.status === 'completed' && (!lab.results || !lab.results.trim()) && !lab.result_document_id && (
-                            <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 flex items-start gap-2">
-                              <svg className="w-5 h-5 text-warning-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-3 flex items-start gap-2">
+                              <svg className="w-5 h-5 text-ds-warning-text flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" />
                               </svg>
                               <div className="text-sm">
-                                <p className="font-semibold text-warning-900">Result data not entered yet</p>
-                                <p className="text-warning-700 text-xs mt-0.5">
+                                <p className="font-semibold text-ds-warning-text">Result data not entered yet</p>
+                                <p className="text-ds-warning-text text-xs mt-0.5">
                                   The lab marked this test completed but didn&apos;t record the value or upload a file.
                                   Ask the lab tech to open this order and enter the result.
                                 </p>
@@ -1707,12 +1721,12 @@ const PatientDetails: React.FC = () => {
 
                           {/* Uploaded result file (PDF/image) — separate from inline text */}
                           {lab.result_document_id && (
-                            <div className={`${lab.results ? 'mt-3' : ''} bg-blue-50 rounded-lg p-3 border border-blue-200 flex items-center justify-between gap-3`}>
+                            <div className={`${lab.results ? 'mt-3' : ''} bg-ds-info-soft rounded-lg p-3 border border-ds-info/30 flex items-center justify-between gap-3`}>
                               <div className="flex items-center gap-2 min-w-0">
-                                <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 text-ds-info-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
-                                <span className="text-sm font-medium text-blue-900 truncate">
+                                <span className="text-sm font-medium text-ds-info-text truncate">
                                   {lab.result_document_name || 'Attached result file'}
                                 </span>
                               </div>
@@ -1754,7 +1768,7 @@ const PatientDetails: React.FC = () => {
                                     showToast(err?.response?.data?.error || 'Failed to load file', 'error');
                                   }
                                 }}
-                                className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                                className="min-h-ds-touch flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white dark:text-ds-canvas bg-ds-info rounded-lg hover:bg-ds-info/90"
                               >
                                 View file
                               </button>
@@ -1762,9 +1776,9 @@ const PatientDetails: React.FC = () => {
                           )}
 
                           {lab.notes && (
-                            <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
-                              <span className="text-sm font-medium text-gray-600">Notes:</span>
-                              <p className="text-sm text-gray-800 mt-1">{lab.notes}</p>
+                            <div className="mt-3 bg-ds-subtle rounded-lg p-3 border border-ds-border">
+                              <span className="text-sm font-medium text-ds-text-secondary">Notes:</span>
+                              <p className="text-sm text-ds-text mt-1">{lab.notes}</p>
                             </div>
                           )}
                         </div>
@@ -1777,9 +1791,9 @@ const PatientDetails: React.FC = () => {
 
             {activeTab === 'imaging' && (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 mb-6">Imaging Results</h2>
+                <h2 className="text-xl font-bold text-ds-text mb-6">Imaging Results</h2>
                 {imagingResults.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
+                  <div className="text-center py-12 text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                     </svg>
@@ -1788,31 +1802,31 @@ const PatientDetails: React.FC = () => {
                 ) : (
                   <div className="space-y-4">
                     {imagingResults.map((img) => (
-                      <div key={img.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                      <div key={img.id} className="bg-ds-surface rounded-ds-card border border-ds-border overflow-hidden shadow-ds-card">
                         <div className={`px-6 py-3 ${
                           img.status === 'completed'
-                            ? 'bg-gradient-to-r from-success-50 to-success-50'
+                            ? 'bg-gradient-to-r from-ds-success-soft to-ds-success-soft'
                             : img.status === 'in_progress'
-                              ? 'bg-gradient-to-r from-blue-50 to-sky-50'
-                              : 'bg-gradient-to-r from-gray-50 to-slate-50'
+                              ? 'bg-gradient-to-r from-ds-info-soft to-ds-info-soft'
+                              : 'bg-gradient-to-r from-ds-subtle to-ds-subtle'
                         }`}>
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-3">
-                              <h3 className="font-bold text-gray-900">{img.imaging_type}</h3>
-                              {img.body_part && <span className="text-sm text-gray-600">- {img.body_part}</span>}
+                              <h3 className="font-bold text-ds-text">{img.imaging_type}</h3>
+                              {img.body_part && <span className="text-sm text-ds-text-secondary">- {img.body_part}</span>}
                             </div>
                             <div className="flex items-center gap-2">
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
-                                img.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                                img.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                                'bg-gray-100 text-gray-600'
+                                img.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                img.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                'bg-ds-subtle text-ds-text-secondary'
                               }`}>
                                 {img.priority.toUpperCase()}
                               </span>
                               <span className={`px-2.5 py-1 text-xs font-bold rounded-full ${
-                                img.status === 'completed' ? 'bg-success-100 text-success-700' :
-                                img.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                                'bg-warning-100 text-warning-700'
+                                img.status === 'completed' ? 'bg-ds-success-soft text-ds-success-text' :
+                                img.status === 'in_progress' ? 'bg-ds-info-soft text-ds-info-text' :
+                                'bg-ds-warning-soft text-ds-warning-text'
                               }`}>
                                 {img.status.replace('_', ' ').toUpperCase()}
                               </span>
@@ -1822,24 +1836,24 @@ const PatientDetails: React.FC = () => {
                         <div className="px-6 py-4">
                           <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                             <div>
-                              <span className="text-gray-500">Ordered:</span>
-                              <span className="ml-2 font-medium text-gray-900">
+                              <span className="text-ds-text-muted">Ordered:</span>
+                              <span className="ml-2 font-medium text-ds-text">
                                 {safeFormatDate(img.ordered_date, 'MMM d, yyyy h:mm a')}
                               </span>
                             </div>
                             {img.completed_date && (
                               <div>
-                                <span className="text-gray-500">Completed:</span>
-                                <span className="ml-2 font-medium text-gray-900">
+                                <span className="text-ds-text-muted">Completed:</span>
+                                <span className="ml-2 font-medium text-ds-text">
                                   {safeFormatDate(img.completed_date, 'MMM d, yyyy h:mm a')}
                                 </span>
                               </div>
                             )}
                           </div>
                           {img.findings && (
-                            <div className="bg-success-50 rounded-lg p-4 border border-success-200">
-                              <h4 className="text-sm font-bold text-success-800 mb-2">Findings:</h4>
-                              <p className="text-gray-900 whitespace-pre-wrap">{img.findings}</p>
+                            <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
+                              <h4 className="text-sm font-bold text-ds-success-text mb-2">Findings:</h4>
+                              <p className="text-ds-text whitespace-pre-wrap">{img.findings}</p>
                             </div>
                           )}
                         </div>
@@ -1867,35 +1881,35 @@ const PatientDetails: React.FC = () => {
       {/* Edit Patient Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowEditModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl sticky top-0">
-              <h3 className="text-lg font-bold text-gray-900">Edit Patient Information</h3>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-accent-soft to-ds-accent-soft rounded-t-xl sticky top-0">
+              <h3 className="text-lg font-bold text-ds-text">Edit Patient Information</h3>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input type="text" value={editData.first_name || ''} onChange={(e) => setEditData({ ...editData, first_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">First Name</label>
+                  <input type="text" value={editData.first_name || ''} onChange={(e) => setEditData({ ...editData, first_name: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input type="text" value={editData.last_name || ''} onChange={(e) => setEditData({ ...editData, last_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input type="text" value={editData.phone || ''} onChange={(e) => setEditData({ ...editData, phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" value={editData.email || ''} onChange={(e) => setEditData({ ...editData, email: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Last Name</label>
+                  <input type="text" value={editData.last_name || ''} onChange={(e) => setEditData({ ...editData, last_name: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                  <input type="date" value={editData.date_of_birth || ''} onChange={(e) => setEditData({ ...editData, date_of_birth: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Phone</label>
+                  <input type="text" value={editData.phone || ''} onChange={(e) => setEditData({ ...editData, phone: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Email</label>
+                  <input type="email" value={editData.email || ''} onChange={(e) => setEditData({ ...editData, email: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Date of Birth</label>
+                  <input type="date" value={editData.date_of_birth || ''} onChange={(e) => setEditData({ ...editData, date_of_birth: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
                 <AppSelect
                   label="Gender"
@@ -1905,44 +1919,44 @@ const PatientDetails: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <input type="text" value={editData.address || ''} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Address</label>
+                <input type="text" value={editData.address || ''} onChange={(e) => setEditData({ ...editData, address: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                <input type="text" value={editData.city || ''} onChange={(e) => setEditData({ ...editData, city: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">City</label>
+                <input type="text" value={editData.city || ''} onChange={(e) => setEditData({ ...editData, city: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
-                <input type="text" value={editData.allergies || ''} onChange={(e) => setEditData({ ...editData, allergies: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" placeholder="e.g., Penicillin, Nuts" />
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Allergies</label>
+                <input type="text" value={editData.allergies || ''} onChange={(e) => setEditData({ ...editData, allergies: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" placeholder="e.g., Penicillin, Nuts" />
               </div>
-              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Emergency Contact</h4>
+              <h4 className="text-sm font-semibold text-ds-text-secondary pt-2 border-t">Emergency Contact</h4>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input type="text" value={editData.emergency_contact_name || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Name</label>
+                  <input type="text" value={editData.emergency_contact_name || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_name: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input type="text" value={editData.emergency_contact_phone || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Phone</label>
+                  <input type="text" value={editData.emergency_contact_phone || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_phone: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
-                  <input type="text" value={editData.emergency_contact_relationship || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_relationship: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Relationship</label>
+                  <input type="text" value={editData.emergency_contact_relationship || ''} onChange={(e) => setEditData({ ...editData, emergency_contact_relationship: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
               </div>
-              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Primary Care Physician</h4>
+              <h4 className="text-sm font-semibold text-ds-text-secondary pt-2 border-t">Primary Care Physician</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">PCP Name</label>
-                  <input type="text" value={editData.pcp_name || ''} onChange={(e) => setEditData({ ...editData, pcp_name: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">PCP Name</label>
+                  <input type="text" value={editData.pcp_name || ''} onChange={(e) => setEditData({ ...editData, pcp_name: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">PCP Phone</label>
-                  <input type="text" value={editData.pcp_phone || ''} onChange={(e) => setEditData({ ...editData, pcp_phone: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500" />
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">PCP Phone</label>
+                  <input type="text" value={editData.pcp_phone || ''} onChange={(e) => setEditData({ ...editData, pcp_phone: e.target.value })} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring" />
                 </div>
               </div>
-              <h4 className="text-sm font-semibold text-gray-700 pt-2 border-t">Insurance & Billing</h4>
+              <h4 className="text-sm font-semibold text-ds-text-secondary pt-2 border-t">Insurance & Billing</h4>
               <div className="grid grid-cols-2 gap-4">
                 <AppSelect
                   label="Payer Type"
@@ -1968,17 +1982,17 @@ const PatientDetails: React.FC = () => {
                 )}
                 {editPayerType === 'staff' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Annual staff package (GHS)</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Annual staff package (GHS)</label>
                     <input
                       type="number"
                       step="0.01"
                       value={editStaffLimit}
                       onChange={(e) => setEditStaffLimit(e.target.value)}
                       placeholder="e.g. 1000"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                     />
                     {staffBenefit && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-ds-text-muted mt-1">
                         Used GHS {staffBenefit.used.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Remaining GHS {staffBenefit.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} this year
                       </p>
                     )}
@@ -1986,11 +2000,11 @@ const PatientDetails: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end sticky bottom-0">
-              <button onClick={() => setShowEditModal(false)} className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex gap-3 justify-end sticky bottom-0">
+              <button onClick={() => setShowEditModal(false)} className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors">
                 Cancel
               </button>
-              <button onClick={handleSaveEdit} disabled={saving} className="px-6 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50">
+              <button onClick={handleSaveEdit} disabled={saving} className="min-h-ds-touch px-6 py-2 bg-ds-accent text-ds-on-accent font-semibold rounded-lg hover:bg-ds-accent-hover transition-colors disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>

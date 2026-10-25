@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState, useEffect } from 'react';
 import {
   LineChart,
@@ -105,7 +106,7 @@ const DispensingAnalytics: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className={dsClass("animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600")}></div>
       </div>
     );
   }
@@ -113,28 +114,28 @@ const DispensingAnalytics: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Date Range Selector */}
-      <div className="flex items-center gap-4 bg-white p-4 rounded-lg shadow-sm">
+      <div className={dsClass("flex items-center gap-4 bg-white p-4 rounded-lg shadow-sm")}>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+          <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>From Date</label>
           <input
             type="date"
             value={dateRange.from}
             onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2"
+            className={dsClass("border border-gray-300 rounded-lg px-3 py-2")}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+          <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>To Date</label>
           <input
             type="date"
             value={dateRange.to}
             onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-            className="border border-gray-300 rounded-lg px-3 py-2"
+            className={dsClass("border border-gray-300 rounded-lg px-3 py-2")}
           />
         </div>
         <button
           onClick={fetchAnalytics}
-          className="mt-6 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          className={dsClass("mt-6 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700")}
         >
           Refresh
         </button>
@@ -203,8 +204,8 @@ const DispensingAnalytics: React.FC = () => {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Hourly Volume Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Hourly Dispensing (Last 24h)</h3>
+        <div className={dsClass("bg-white p-4 rounded-lg shadow-sm")}>
+          <h3 className={dsClass("text-lg font-semibold text-gray-800 mb-4")}>Hourly Dispensing (Last 24h)</h3>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={formatHourlyData()}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -217,8 +218,8 @@ const DispensingAnalytics: React.FC = () => {
         </div>
 
         {/* Daily Trends Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Daily Dispensing Trends</h3>
+        <div className={dsClass("bg-white p-4 rounded-lg shadow-sm")}>
+          <h3 className={dsClass("text-lg font-semibold text-gray-800 mb-4")}>Daily Dispensing Trends</h3>
           <ResponsiveContainer width="100%" height={250}>
             <LineChart data={data?.daily || []}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -238,8 +239,8 @@ const DispensingAnalytics: React.FC = () => {
         </div>
 
         {/* Top Medications Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Top 10 Medications</h3>
+        <div className={dsClass("bg-white p-4 rounded-lg shadow-sm")}>
+          <h3 className={dsClass("text-lg font-semibold text-gray-800 mb-4")}>Top 10 Medications</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
               data={data?.topMedications || []}
@@ -261,8 +262,8 @@ const DispensingAnalytics: React.FC = () => {
         </div>
 
         {/* Priority Distribution Chart */}
-        <div className="bg-white p-4 rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Orders by Priority</h3>
+        <div className={dsClass("bg-white p-4 rounded-lg shadow-sm")}>
+          <h3 className={dsClass("text-lg font-semibold text-gray-800 mb-4")}>Orders by Priority</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie

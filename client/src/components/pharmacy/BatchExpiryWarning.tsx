@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 import { format, differenceInDays } from 'date-fns';
 import { Modal } from '../ui';
@@ -49,22 +50,22 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
       <div className="text-center">
         {/* Warning Icon */}
         <div
-          className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
+          className={dsClass(`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
             severity === 'red'
               ? 'bg-danger-100'
               : severity === 'orange'
               ? 'bg-orange-100'
               : 'bg-warning-100'
-          }`}
+          }`)}
         >
           <svg
-            className={`w-8 h-8 ${
+            className={dsClass(`w-8 h-8 ${
               severity === 'red'
                 ? 'text-danger-600'
                 : severity === 'orange'
                 ? 'text-orange-600'
                 : 'text-warning-600'
-            }`}
+            }`)}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -80,19 +81,19 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
 
         {/* Title */}
         <h3
-          className={`text-xl font-bold mb-2 ${
+          className={dsClass(`text-xl font-bold mb-2 ${
             severity === 'red'
               ? 'text-danger-700'
               : severity === 'orange'
               ? 'text-orange-700'
               : 'text-warning-700'
-          }`}
+          }`)}
         >
           {isExpired ? 'Batch Expired!' : 'Near-Expiry Warning'}
         </h3>
 
         {/* Message */}
-        <p className="text-gray-600 mb-4">
+        <p className={dsClass("text-gray-600 mb-4")}>
           {isExpired
             ? 'This batch has already expired and should not be dispensed.'
             : `This batch expires in ${daysUntilExpiry} day${daysUntilExpiry !== 1 ? 's' : ''}.`}
@@ -100,39 +101,39 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
 
         {/* Batch Details */}
         <div
-          className={`rounded-lg p-4 mb-6 ${
+          className={dsClass(`rounded-lg p-4 mb-6 ${
             severity === 'red'
               ? 'bg-danger-50 border border-danger-200'
               : severity === 'orange'
               ? 'bg-orange-50 border border-orange-200'
               : 'bg-warning-50 border border-warning-200'
-          }`}
+          }`)}
         >
           <div className="text-left space-y-2">
             <div className="flex justify-between">
-              <span className="text-gray-600">Medication:</span>
+              <span className={dsClass("text-gray-600")}>Medication:</span>
               <span className="font-semibold">{medicationName}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Batch Number:</span>
+              <span className={dsClass("text-gray-600")}>Batch Number:</span>
               <span className="font-semibold">{batch.batch_number}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Expiry Date:</span>
+              <span className={dsClass("text-gray-600")}>Expiry Date:</span>
               <span
-                className={`font-semibold ${
+                className={dsClass(`font-semibold ${
                   severity === 'red' ? 'text-danger-600' : severity === 'orange' ? 'text-orange-600' : 'text-warning-600'
-                }`}
+                }`)}
               >
                 {format(expiryDate, 'MMMM d, yyyy')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Available Quantity:</span>
+              <span className={dsClass("text-gray-600")}>Available Quantity:</span>
               <span className="font-semibold">{batch.quantity}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600">Dispensing:</span>
+              <span className={dsClass("text-gray-600")}>Dispensing:</span>
               <span className="font-semibold">{quantityToDispense} units</span>
             </div>
           </div>
@@ -142,20 +143,20 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
         <div className="flex gap-3">
           <button
             onClick={onSelectDifferentBatch}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            className={dsClass("flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors")}
           >
             Select Different Batch
           </button>
           {!isExpired && (
             <button
               onClick={onProceed}
-              className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors ${
+              className={dsClass(`flex-1 px-4 py-2 rounded-lg text-white transition-colors ${
                 severity === 'red'
                   ? 'bg-danger-600 hover:bg-danger-700'
                   : severity === 'orange'
                   ? 'bg-orange-600 hover:bg-orange-700'
                   : 'bg-warning-600 hover:bg-warning-700'
-              }`}
+              }`)}
             >
               Proceed Anyway
             </button>
@@ -163,7 +164,7 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
           {isExpired && (
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className={dsClass("flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors")}
             >
               Cancel
             </button>
@@ -171,7 +172,7 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
         </div>
 
         {!isExpired && (
-          <p className="text-xs text-gray-500 mt-3">
+          <p className={dsClass("text-xs text-gray-500 mt-3")}>
             Proceeding will dispense from this near-expiry batch. Ensure patient is informed.
           </p>
         )}

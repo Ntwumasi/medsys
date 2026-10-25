@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useEffect, useRef } from 'react';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
@@ -88,18 +89,18 @@ const Modal: React.FC<ModalProps> = ({
         <div
           ref={modalRef}
           tabIndex={-1}
-          className={`relative bg-white rounded-2xl shadow-hard w-full ${sizeStyles[size]} animate-slide-in-up outline-none`}
+          className={dsClass(`relative bg-white rounded-2xl shadow-hard w-full ${sizeStyles[size]} animate-slide-in-up outline-none`)}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              {title && <h2 id={titleId} className="text-lg font-semibold text-gray-900">{title}</h2>}
+            <div className={dsClass("flex items-center justify-between px-6 py-4 border-b border-gray-100")}>
+              {title && <h2 id={titleId} className={dsClass("text-lg font-semibold text-gray-900")}>{title}</h2>}
               {showCloseButton && (
                 <button
                   onClick={onClose}
                   aria-label="Close modal"
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                  className={dsClass("p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors")}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -114,7 +115,7 @@ const Modal: React.FC<ModalProps> = ({
 
           {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <div className={dsClass("px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl")}>
               {footer}
             </div>
           )}
