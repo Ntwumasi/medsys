@@ -35,7 +35,8 @@ export const STAFF_ROLES = [
  */
 const PATIENT_ALLOWED_ROUTES: { method: string; path: RegExp }[] = [
   // Portal records: own patient only, results held until released.
-  { method: 'GET', path: /^\/patient-portal\/(me|labs|imaging|medications|appointments|bills)$/ },
+  { method: 'GET', path: /^\/patient-portal\/(me|labs|imaging|medications|appointments|bills|visits|messages)$/ },
+  { method: 'POST', path: /^\/patient-portal\/messages$/ },
   { method: 'GET', path: /^\/auth\/me$/ },
   { method: 'POST', path: /^\/auth\/logout(-all)?$/ },
   // Notifications are always scoped to the caller's own rows.

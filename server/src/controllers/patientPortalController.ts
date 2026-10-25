@@ -27,7 +27,7 @@ const getClientIP = (req: Request): string => {
   return req.socket?.remoteAddress || 'unknown';
 };
 
-const getBaseUrl = (): string => {
+export const getBaseUrl = (): string => {
   const fromEnv = process.env.FRONTEND_URL?.split(',')[0]?.trim();
   return fromEnv || 'http://localhost:5173';
 };
@@ -60,6 +60,38 @@ const PLACEHOLDER_EMAIL_DOMAIN = 'noemail.medsys.local';
 export const isRealEmail = (email: string | null | undefined): boolean =>
   !!email && validateEmail(email) && !email.toLowerCase().endsWith(`@${PLACEHOLDER_EMAIL_DOMAIN}`);
 
+/**
+ * Store a portal access token and return the raw value (only its hash is
+ * kept). 'login' links last 15 minutes and replace any earlier unused login
+ * link; 'notify' links (after-visit text, message replies) last 7 days and open `target`.
+ * Either way the patient confirms their date of birth before anything shows.
+ */
+export const NOTIFY_LINK_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
+export const createPortalToken = async (
+  patientId: number,
+  opts: { purpose: 'login' | 'notify'; target?: string | null; deliveryMethod: string; sentBy?: number | null; ip?: string | null; userAgent?: string | null }
+): Promise<string> => {
+  const token = generateResetToken();
+  const expiresAt = new Date(Date.now() + (opts.purpose === 'notify' ? NOTIFY_LINK_EXPIRY_MS : LINK_EXPIRY_MS));
+  if (opts.purpose === 'login') {
+    await pool.query(
+      `UPDATE patient_portal_access_tokens SET used_at = CURRENT_TIMESTAMP
+       WHERE patient_id = $1 AND used_at IS NULL AND purpose = 'login'`,
+      [patientId]
+    );
+  }
+  await pool.query(
+    `INSERT INTO patient_portal_access_tokens
+       (patient_id, token_hash, expires_at, delivery_method, sent_by, ip_address, user_agent, purpose, target)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [patientId, hashResetToken(token), expiresAt, opts.deliveryMethod, opts.sentBy ?? null,
+     opts.ip ?? null, opts.userAgent ?? null, opts.purpose, opts.target ?? null]
+  );
+  return token;
+};
+
+export const portalLinkFor = (token: string): string => `${getBaseUrl()}/portal/verify?token=${token}`;
+
 // Create + store an access token for a patient and send the link. Shared by
 // self-service and staff; `channel` picks SMS or email as the delivery route.
 const createAndSendLink = async (
@@ -70,25 +102,10 @@ const createAndSendLink = async (
   sentBy: number | null,
   req: Request
 ): Promise<boolean> => {
-  const token = generateResetToken();
-  const tokenHash = hashResetToken(token);
-  const expiresAt = new Date(Date.now() + LINK_EXPIRY_MS);
-
-  // Invalidate any prior unused tokens for this patient
-  await pool.query(
-    `UPDATE patient_portal_access_tokens SET used_at = CURRENT_TIMESTAMP
-     WHERE patient_id = $1 AND used_at IS NULL`,
-    [patientId]
-  );
-
-  await pool.query(
-    `INSERT INTO patient_portal_access_tokens
-       (patient_id, token_hash, expires_at, delivery_method, sent_by, ip_address, user_agent)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [patientId, tokenHash, expiresAt, deliveryMethod, sentBy, getClientIP(req), req.headers['user-agent'] || null]
-  );
-
-  const link = `${getBaseUrl()}/portal/verify?token=${token}`;
+  const token = await createPortalToken(patientId, {
+    purpose: 'login', deliveryMethod, sentBy, ip: getClientIP(req), userAgent: req.headers['user-agent'] || null,
+  });
+  const link = portalLinkFor(token);
   const message = `Access your clinic records: ${link} (valid 15 min). You'll confirm your date of birth.`;
 
   let success: boolean;
@@ -308,7 +325,7 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
 
     const tokenHash = hashResetToken(token);
     const tokenResult = await pool.query(
-      `SELECT t.id, t.patient_id, t.used_at, t.expires_at, t.dob_attempts, t.locked_until,
+      `SELECT t.id, t.patient_id, t.used_at, t.expires_at, t.dob_attempts, t.locked_until, t.purpose, t.target,
               to_char(p.date_of_birth, 'YYYY-MM-DD') AS dob,
               p.user_id, u.username, u.first_name, u.last_name
        FROM patient_portal_access_tokens t
@@ -356,7 +373,7 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
       action: 'read',
       entityType: 'patient_portal_login',
       entityId: row.patient_id,
-      details: { method: 'sms_link' },
+      details: { method: row.purpose === 'notify' ? 'notify_link' : 'sms_link', target: row.target || undefined },
       ipAddress: getClientIP(req),
       userAgent: req.headers['user-agent'] || undefined,
     });
@@ -372,6 +389,8 @@ export const verify = async (req: Request, res: Response): Promise<void> => {
         is_super_admin: false,
       },
       token: sessionToken,
+      // Where the link should land, e.g. 'visit:123' from the after-visit text.
+      target: row.target || null,
     });
   } catch (error) {
     console.error('Portal verify error:', error);
@@ -395,7 +414,9 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const result = await pool.query(
       `SELECT p.id AS patient_id, p.patient_number,
               to_char(p.date_of_birth, 'YYYY-MM-DD') AS date_of_birth,
-              u.first_name, u.last_name, u.username
+              u.first_name, u.last_name, u.username,
+              (SELECT COUNT(*)::int FROM patient_portal_messages m
+                WHERE m.patient_id = p.id AND m.sender = 'staff' AND m.read_by_patient_at IS NULL) AS unread_messages
        FROM patients p
        JOIN users u ON p.user_id = u.id
        WHERE p.user_id = $1`,

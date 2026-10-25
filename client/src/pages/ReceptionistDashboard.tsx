@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import { format, isValid, parseISO, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getDay, parse } from 'date-fns';
@@ -236,6 +236,17 @@ const CALENDAR_COLOURS = {
 const ReceptionistDashboard: React.FC = () => {
   useDesignSystemPage();
   useAuth(); // Ensure authenticated
+  const navigate = useNavigate();
+  // Unread patient-portal messages for the front desk (header pill → inbox).
+  const [unreadPortalMessages, setUnreadPortalMessages] = useState(0);
+  useEffect(() => {
+    const load = () => apiClient.get('/portal-messages')
+      .then((r) => setUnreadPortalMessages(r.data.unread_total || 0))
+      .catch(() => { /* the pill just stays as it was */ });
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1733,6 +1744,13 @@ const ReceptionistDashboard: React.FC = () => {
             <StatPill label="today" value={todayAppointments.length} tone="primary" title="Today's appointments" />
             <StatPill label="checked in" value={checkedInToday} tone="success" title="Patients checked in today" />
             <StatPill label="billing" value={billingAlerts.length} tone={billingAlerts.length > 0 ? 'warning' : 'neutral'} title="Patients ready for checkout" />
+            <StatPill
+              label={unreadPortalMessages === 1 ? 'message' : 'messages'}
+              value={unreadPortalMessages}
+              tone={unreadPortalMessages > 0 ? 'primary' : 'neutral'}
+              title="Unread messages from patients — open the inbox"
+              onClick={() => navigate('/patient-messages')}
+            />
           </>
         )}
       />

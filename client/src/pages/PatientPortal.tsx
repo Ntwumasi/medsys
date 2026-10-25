@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { setActiveToken } from '../api/client';
@@ -10,11 +10,14 @@ import type {
   PortalLab,
   PortalMe,
   PortalMedication,
+  PortalMessage,
+  PortalVisit,
 } from '../api/patientPortal';
 import { branding } from '../config/branding';
 import { parseLabResult, labFlag, rangeText, FLAG_TEXT } from '../components/portal/labDisplay';
 import type { LabFlag } from '../components/portal/labDisplay';
-import { printBill, printLabReport } from '../components/portal/portalPrint';
+import { printBill, printLabReport, printVisitSummary, medicineLine, followUpLine } from '../components/portal/portalPrint';
+import { getApiError } from '../utils/apiError';
 import PortalShell, { PortalIcon } from '../components/portal/PortalShell';
 import { PORTAL_NAV } from '../components/portal/portalNav';
 import type { PortalView } from '../components/portal/portalNav';
@@ -49,16 +52,6 @@ const isUpcoming = (a: PortalAppointment) => {
   const d = new Date(a.appointment_date);
   const cutoff = a.has_time ? new Date() : isToday0();
   return ['scheduled', 'confirmed'].includes(a.status) && d >= cutoff;
-};
-
-const VISIT_STATUS: Record<string, { text: string; cls: string }> = {
-  scheduled: { text: 'Booked', cls: 'bg-ds-accent-soft text-ds-accent-text' },
-  confirmed: { text: 'Confirmed', cls: 'bg-ds-accent-soft text-ds-accent-text' },
-  'checked-in': { text: 'Attended', cls: 'bg-ds-subtle text-ds-text-secondary' },
-  'in-progress': { text: 'Attended', cls: 'bg-ds-subtle text-ds-text-secondary' },
-  completed: { text: 'Attended', cls: 'bg-ds-subtle text-ds-text-secondary' },
-  cancelled: { text: 'Cancelled', cls: 'bg-ds-subtle text-ds-text-muted' },
-  'no-show': { text: 'Missed', cls: 'bg-ds-warning-soft text-ds-warning-text' },
 };
 
 const FLAG_CLS: Record<LabFlag, string> = {
@@ -447,6 +440,212 @@ const BillCard: React.FC<{ bill: PortalBill; me: PortalMe | null; onPopupBlocked
   );
 };
 
+const SummaryBlock: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <p className="text-xs font-semibold text-ds-text-muted uppercase tracking-wide mb-1">{label}</p>
+    {children}
+  </div>
+);
+
+const VisitCard: React.FC<{
+  visit: PortalVisit; bill: PortalBill | undefined; me: PortalMe | null;
+  initiallyOpen: boolean; onPopupBlocked: () => void; onSeeResults: () => void;
+}> = ({ visit, bill, me, initiallyOpen, onPopupBlocked, onSeeResults }) => {
+  const [open, setOpen] = useState(initiallyOpen);
+  const ref = useRef<HTMLDivElement>(null);
+  // Opened from a texted link: bring it into view.
+  useEffect(() => {
+    if (initiallyOpen) ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [initiallyOpen]);
+  const owes = (bill?.balance_due ?? 0) > 0;
+  const d = new Date(visit.visit_date);
+
+  return (
+    <div ref={ref} className={`scroll-mt-20 bg-ds-surface rounded-ds-card border transition-shadow ${open ? 'border-ds-accent/40 shadow-ds-card' : 'border-ds-border shadow-ds-card'}`}>
+      <button className="w-full text-left p-4 flex items-center gap-3 min-h-ds-touch" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="w-12 h-12 rounded-ds-control bg-ds-subtle text-ds-text flex flex-col items-center justify-center shrink-0">
+          <span className="text-[10px] font-semibold uppercase leading-none text-ds-text-muted">{d.toLocaleDateString('en-GB', { month: 'short' })}</span>
+          <span className="text-lg font-bold leading-none mt-0.5">{d.getDate()}</span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-ds-text">{fmtDate(visit.visit_date)}</p>
+          <p className="text-xs text-ds-text-muted truncate">{[visit.clinic, visit.doctor_name].filter(Boolean).join(' · ') || 'Clinic visit'}</p>
+          {visit.diagnoses.length > 0 && <p className="text-sm text-ds-text-secondary truncate mt-0.5">{visit.diagnoses.join(', ')}</p>}
+        </div>
+        {bill && (
+          <Chip className={owes ? 'bg-ds-warning-soft text-ds-warning-text' : 'bg-ds-success-soft text-ds-success-text'}>
+            {owes ? `Owe ${ghs(bill.balance_due)}` : 'Paid'}
+          </Chip>
+        )}
+        <svg className={`w-5 h-5 text-ds-text-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4">
+          <div className="border-t border-ds-border pt-4 space-y-4">
+            {visit.patient_note && (
+              <div className="rounded-ds-control bg-ds-accent-soft border border-ds-accent/30 p-3">
+                <p className="text-xs font-semibold text-ds-accent-text uppercase tracking-wide mb-1">Notes from your doctor</p>
+                <p className="text-sm text-ds-text whitespace-pre-wrap">{visit.patient_note}</p>
+              </div>
+            )}
+            {visit.reason && (
+              <SummaryBlock label="Reason for visit"><p className="text-sm text-ds-text">{visit.reason}</p></SummaryBlock>
+            )}
+            <SummaryBlock label="Diagnosis">
+              {visit.diagnoses.length
+                ? <ul className="text-sm text-ds-text list-disc pl-5 space-y-0.5">{visit.diagnoses.map((x) => <li key={x}>{x}</li>)}</ul>
+                : <p className="text-sm text-ds-text-muted">None recorded</p>}
+            </SummaryBlock>
+            <SummaryBlock label="Medicines prescribed">
+              {visit.medicines.length
+                ? <ul className="text-sm text-ds-text list-disc pl-5 space-y-0.5">{visit.medicines.map((m, i) => <li key={i}>{medicineLine(m)}</li>)}</ul>
+                : <p className="text-sm text-ds-text-muted">None</p>}
+            </SummaryBlock>
+            <SummaryBlock label="Tests ordered">
+              {visit.tests.length ? (
+                <>
+                  <ul className="text-sm text-ds-text list-disc pl-5 space-y-0.5">{visit.tests.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                  <button onClick={onSeeResults} className="mt-1 text-sm font-semibold text-ds-accent-text hover:text-ds-accent-hover min-h-ds-touch">See results →</button>
+                </>
+              ) : <p className="text-sm text-ds-text-muted">None</p>}
+            </SummaryBlock>
+            {visit.follow_up && (
+              <SummaryBlock label="Follow-up"><p className="text-sm text-ds-text">{followUpLine(visit.follow_up)}</p></SummaryBlock>
+            )}
+            {bill && (
+              <SummaryBlock label="Invoice">
+                <dl className="rounded-ds-control bg-ds-subtle p-3 text-sm space-y-1.5">
+                  <div className="flex justify-between"><dt className="text-ds-text-muted">{bill.invoice_number}</dt><dd className="tabular-nums">{ghs(bill.covered ? bill.your_share : bill.total)}</dd></div>
+                  {bill.covered && <div className="flex justify-between"><dt className="text-ds-text-muted">Covered by {bill.payer_name || 'your cover'}</dt><dd className="tabular-nums">{ghs(bill.covered_share)}</dd></div>}
+                  <div className="flex justify-between"><dt className="text-ds-text-muted">You paid</dt><dd className="tabular-nums">{ghs(bill.you_paid)}</dd></div>
+                  <div className="flex justify-between font-bold text-ds-text"><dt>Balance due</dt><dd className="tabular-nums">{ghs(bill.balance_due)}</dd></div>
+                </dl>
+              </SummaryBlock>
+            )}
+            {me && (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <SecondaryButton onClick={() => { if (!printVisitSummary(visit, me)) onPopupBlocked(); }}>Download visit summary (PDF)</SecondaryButton>
+                {bill && <SecondaryButton onClick={() => { if (!printBill(bill, me)) onPopupBlocked(); }}>Download invoice (PDF)</SecondaryButton>}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const fmtWhen = (iso: string) => {
+  const d = new Date(iso);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? fmtTime(iso) : `${fmtDate(iso, false)}, ${fmtTime(iso)}`;
+};
+
+/** Conversation with the front desk. Mounted only on the Messages view (opening it marks replies read). */
+const MessagesPanel: React.FC<{ onRead: () => void }> = ({ onRead }) => {
+  const [messages, setMessages] = useState<PortalMessage[] | null>(null);
+  const [error, setError] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const endRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(() => {
+    patientPortalAPI.messages()
+      .then((m) => { setMessages(m); setError(false); onRead(); })
+      .catch(() => setError(true));
+  }, [onRead]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [messages?.length]);
+
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || sending) return;
+    setSending(true);
+    setSendError('');
+    try {
+      const m = await patientPortalAPI.sendMessage(body);
+      setMessages((prev) => [...(prev || []), m]);
+      setDraft('');
+    } catch (err) {
+      setSendError(getApiError(err, 'Your message could not be sent. Please try again.'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 items-start">
+      <Card className="lg:col-span-2">
+        {error && !messages && <SectionState loading={false} error retry={load} what="messages" />}
+        {!messages && !error && <SectionState loading error={false} retry={load} what="messages" />}
+        {messages && (messages.length ? (
+          <ol className="space-y-3 max-h-[60vh] overflow-y-auto pr-1" aria-label="Conversation with the clinic">
+            {messages.map((m) => {
+              const mine = m.sender === 'patient';
+              return (
+                <li key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-ds-card px-4 py-2.5 ${mine ? 'bg-ds-accent text-ds-on-accent rounded-br-ds-sm' : 'bg-ds-subtle text-ds-text rounded-bl-ds-sm'}`}>
+                    {!mine && <p className="text-xs font-semibold text-ds-accent-text mb-0.5">{m.staff_name ? `${m.staff_name} · Front desk` : 'Front desk'}</p>}
+                    <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+                    <p className={`text-[11px] mt-1 ${mine ? 'opacity-80' : 'text-ds-text-muted'}`}>
+                      {fmtWhen(m.created_at)}{mine ? (m.read ? ' · Seen' : ' · Sent') : ''}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+            <div ref={endRef} />
+          </ol>
+        ) : (
+          <EmptyState icon="messages" title="No messages yet" text="Send the front desk a question about appointments, bills or your records." />
+        ))}
+
+        <form onSubmit={send} className="mt-4 border-t border-ds-border pt-4">
+          <label htmlFor="portal-message" className="sr-only">Your message</label>
+          <textarea
+            id="portal-message"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={1000}
+            rows={3}
+            placeholder="Write your message…"
+            className="w-full rounded-ds-control border border-ds-border-control bg-ds-surface text-ds-text p-3 text-base focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
+          />
+          {sendError && <p role="alert" className="text-sm text-ds-critical-text mt-2">{sendError}</p>}
+          <div className="flex items-center justify-between gap-3 mt-2">
+            <span className="text-xs text-ds-text-muted">{draft.length}/1000</span>
+            <button
+              type="submit"
+              disabled={!draft.trim() || sending}
+              className="min-h-ds-touch px-5 rounded-ds-control bg-ds-accent text-ds-on-accent font-semibold hover:bg-ds-accent-hover disabled:opacity-50"
+            >
+              {sending ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+        </form>
+      </Card>
+
+      <section className="order-first lg:order-none rounded-ds-card bg-ds-warning-soft border border-ds-warning-border p-5 text-ds-warning-text">
+        <h3 className="font-semibold">Not for emergencies</h3>
+        <p className="text-sm mt-1">
+          Messages go to our front desk and are answered during clinic hours. They're for appointments, bills and general questions — not medical advice.
+        </p>
+        <p className="text-sm mt-2 font-semibold">In an emergency, go to the nearest emergency room{branding.clinicPhone ? ` or call ${branding.clinicPhone}` : ''}.</p>
+        <p className="text-xs mt-3">We'll text you when we reply.</p>
+      </section>
+    </div>
+  );
+};
+
 // ── page ───────────────────────────────────────────────────────────────────
 
 const greeting = () => {
@@ -479,6 +678,11 @@ const PatientPortal: React.FC = () => {
   const imaging = useSection(patientPortalAPI.imaging);
   const meds = useSection(patientPortalAPI.medications);
   const visits = useSection(patientPortalAPI.appointments);
+  const pastVisitData = useSection(patientPortalAPI.visits);
+  const openVisitId = Number(params.get('visit')) || null;
+  const [unreadCleared, setUnreadCleared] = useState(false);
+  const onMessagesRead = useCallback(() => setUnreadCleared(true), []);
+  const unreadMessages = unreadCleared ? 0 : me.data?.unread_messages ?? 0;
   const bills = useSection(patientPortalAPI.bills);
 
   const releasedLabs = (labs.data || []).filter((l) => l.release_state === 'released');
@@ -488,7 +692,11 @@ const PatientPortal: React.FC = () => {
   const currentMeds = (meds.data || []).filter(isCurrentMed);
   const pastMeds = (meds.data || []).filter((m) => !isCurrentMed(m));
   const upcoming = (visits.data || []).filter(isUpcoming).sort((a, b) => a.appointment_date.localeCompare(b.appointment_date));
-  const pastVisits = (visits.data || []).filter((a) => !isUpcoming(a));
+  const pastVisits = pastVisitData.data || [];
+  const billByVisit = useMemo(
+    () => new Map((bills.data?.bills || []).filter((b) => b.encounter_id).map((b) => [b.encounter_id as number, b])),
+    [bills.data]
+  );
   const nextVisit = upcoming[0];
   const totalDue = bills.data?.total_due ?? 0;
 
@@ -503,7 +711,11 @@ const PatientPortal: React.FC = () => {
       onNavigate={go}
       onSignOut={logout}
       patientName={fullName || 'My account'}
-      badges={{ results: recentResults.length || undefined, bills: totalDue > 0 ? bills.data!.bills.filter((b) => b.balance_due > 0).length : undefined }}
+      badges={{
+        results: recentResults.length || undefined,
+        bills: totalDue > 0 ? bills.data!.bills.filter((b) => b.balance_due > 0).length : undefined,
+        messages: unreadMessages || undefined,
+      }}
     >
       {popupBlocked && (
         <div className="mb-4 text-sm bg-ds-warning-soft border border-ds-warning-border text-ds-warning-text rounded-ds-control p-3 flex justify-between gap-3">
@@ -564,7 +776,7 @@ const PatientPortal: React.FC = () => {
               onClick={() => go('medicines')}
             />
             <StatTile
-              icon="visits" tone="primary" label="Visits" loading={visits.loading}
+              icon="visits" tone="primary" label="Visits" loading={visits.loading || pastVisitData.loading}
               value={visits.error ? '—' : upcoming.length ? `${upcoming.length} upcoming` : 'None booked'}
               hint={pastVisits.length ? `${pastVisits.length} past visit${pastVisits.length > 1 ? 's' : ''}` : undefined}
               onClick={() => go('visits')}
@@ -609,7 +821,16 @@ const PatientPortal: React.FC = () => {
                   Questions about results, bills or medicines? Our team is happy to help.
                 </p>
                 {branding.clinicAddress && <p className="text-xs text-ds-text-muted mt-2">{branding.clinicAddress}</p>}
-                <div className="mt-4"><CallButton /></div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => go('messages')}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-ds-touch text-sm font-semibold rounded-ds-control bg-ds-surface text-ds-accent-text border border-ds-accent/40 hover:bg-ds-accent-soft"
+                  >
+                    <PortalIcon name="messages" className="w-4 h-4" />
+                    Message the front desk
+                  </button>
+                  <CallButton />
+                </div>
                 <p className="text-xs text-ds-text-muted mt-3">In an emergency, go to the nearest emergency room.</p>
               </section>
             </div>
@@ -708,7 +929,7 @@ const PatientPortal: React.FC = () => {
 
       {view === 'visits' && (
         <>
-          <PageHeader title="Visits" subtitle="Your upcoming appointments and the visits you've had with us." />
+          <PageHeader title="Visits" subtitle="Your upcoming appointments, and a summary and invoice for every visit you've had." />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
             <Card title="Upcoming" icon="visits">
               <SectionState {...visits} what="visits" />
@@ -731,25 +952,31 @@ const PatientPortal: React.FC = () => {
                 <EmptyState icon="visits" title="No visits booked" text="Call us and we'll find a time that suits you." action={<CallButton label="Call to book" />} />
               ))}
             </Card>
-            <Card title="Past visits" icon="visits">
-              {!visits.loading && !visits.error && (pastVisits.length ? (
-                <ul className="divide-y divide-ds-border">
-                  {pastVisits.map((a) => {
-                    const st = VISIT_STATUS[a.status] || { text: a.status, cls: 'bg-ds-subtle text-ds-text-secondary' };
-                    return (
-                      <li key={a.id} className="py-3 flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-ds-text">{fmtDate(a.appointment_date)}</p>
-                          <p className="text-xs text-ds-text-muted truncate">{[a.provider_name, a.reason].filter(Boolean).join(' · ')}</p>
-                        </div>
-                        <Chip className={st.cls}>{st.text}</Chip>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : <EmptyState icon="visits" title="No past visits" />)}
-            </Card>
+            <ListSection title="Past visits" icon="visits">
+              <SectionState {...pastVisitData} what="past visits" />
+              {!pastVisitData.loading && !pastVisitData.error && (pastVisits.length ? (
+                <div className="space-y-3">
+                  {pastVisits.map((v) => (
+                    <VisitCard
+                      key={v.id}
+                      visit={v}
+                      bill={billByVisit.get(v.id)}
+                      me={me.data}
+                      initiallyOpen={v.id === openVisitId}
+                      onPopupBlocked={onPopupBlocked}
+                      onSeeResults={() => go('results')}
+                    />
+                  ))}
+                </div>
+              ) : <Card><EmptyState icon="visits" title="No past visits yet" text="After each visit you'll find a summary and the invoice here." /></Card>)}
+            </ListSection>
           </div>
+        </>
+      )}
+      {view === 'messages' && (
+        <>
+          <PageHeader title="Messages" subtitle="Write to our front desk about appointments, bills or your records." />
+          <MessagesPanel onRead={onMessagesRead} />
         </>
       )}
     </PortalShell>

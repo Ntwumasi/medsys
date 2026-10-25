@@ -306,6 +306,7 @@ const DoctorDashboard: React.FC = () => {
   const [reviewRequired, setReviewRequired] = useState(false);
   const [reviewDate, setReviewDate] = useState('');
   const [reviewReason, setReviewReason] = useState('');
+  const [patientNote, setPatientNote] = useState('');
 
   // Smart polling for the main dashboard queues — paused when tab hidden,
   // immediate refresh on tab-return.
@@ -1220,6 +1221,7 @@ const DoctorDashboard: React.FC = () => {
     setReviewRequired(false);
     setReviewDate('');
     setReviewReason('');
+    setPatientNote('');
     setShowFollowUpModal(true);
   };
 
@@ -1236,6 +1238,8 @@ const DoctorDashboard: React.FC = () => {
         review_required: reviewRequired,
         review_date: reviewRequired ? reviewDate : null,
         review_reason: reviewRequired ? reviewReason : null,
+        // Only sent when written, so signing off again doesn't wipe an earlier note.
+        ...(patientNote.trim() ? { patient_note: patientNote.trim() } : {}),
       });
       console.log('Alert nurse response:', response.data);
 
@@ -4067,6 +4071,25 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Shown on the patient's portal visit summary */}
+              <div>
+                <label htmlFor="patient-note" className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes for the patient <span className="font-normal text-gray-500">(optional)</span>
+                </label>
+                <textarea
+                  id="patient-note"
+                  value={patientNote}
+                  onChange={(e) => setPatientNote(e.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder="e.g., Drink plenty of water, rest for 2 days, come back if the fever lasts more than 3 days."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  The patient sees this in their portal visit summary, with the diagnosis, medicines, tests and follow-up (including its reason). Your assessment and plan stay private.
+                </p>
+              </div>
 
               {/* Review call checkbox */}
               <label className="flex items-center gap-3 p-3 bg-warning-50 rounded-lg cursor-pointer hover:bg-warning-100 transition-colors border border-warning-200">
