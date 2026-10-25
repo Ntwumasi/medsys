@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useCallback, useRef } from 'react';
 import { useVoiceDictation } from '../hooks/useVoiceDictation';
 
@@ -84,10 +85,10 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       <button
         type="button"
         disabled
-        className={`${sizeClasses[size]} rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed ${className}`}
+        className={dsClass(`${sizeClasses[size]} rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed ${className}`)}
         title="Voice dictation not supported in this browser"
       >
-        <MicrophoneOffIcon className={iconSizes[size]} />
+        <MicrophoneOffIcon className={dsClass(iconSizes[size])} />
       </button>
     );
   }
@@ -98,7 +99,7 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
         type="button"
         onClick={handleClick}
         disabled={disabled}
-        className={`
+        className={dsClass(`
           ${sizeClasses[size]}
           rounded-lg
           transition-all
@@ -114,13 +115,13 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
               : 'bg-primary-100 hover:bg-primary-200 text-primary-700 focus:ring-primary-500'
           }
           ${className}
-        `}
+        `)}
         title={isListening ? 'Stop dictation' : 'Start voice dictation'}
       >
         {isListening ? (
-          <MicrophoneActiveIcon className={iconSizes[size]} />
+          <MicrophoneActiveIcon className={dsClass(iconSizes[size])} />
         ) : (
-          <MicrophoneIcon className={iconSizes[size]} />
+          <MicrophoneIcon className={dsClass(iconSizes[size])} />
         )}
       </button>
 
@@ -128,14 +129,14 @@ export const VoiceDictationButton: React.FC<VoiceDictationButtonProps> = ({
       {showStatus && (isListening || interimTranscript || error) && (
         <div className="absolute left-full ml-2 whitespace-nowrap z-10">
           {error ? (
-            <span className="text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded">
+            <span className={dsClass("text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded")}>
               {error}
             </span>
           ) : isListening ? (
-            <span className="text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded flex items-center gap-1">
-              <span className="w-2 h-2 bg-danger-500 rounded-full animate-pulse" />
+            <span className={dsClass("text-xs text-danger-600 bg-danger-50 px-2 py-1 rounded flex items-center gap-1")}>
+              <span className={dsClass("w-2 h-2 bg-danger-500 rounded-full animate-pulse")} />
               {interimTranscript ? (
-                <span className="max-w-[200px] truncate italic text-gray-600">
+                <span className={dsClass("max-w-[200px] truncate italic text-gray-600")}>
                   {interimTranscript}
                 </span>
               ) : (

@@ -231,3 +231,15 @@ Measured in the codebase today (75k lines of TSX, 44 pages, 83 components): 953 
 6. The portal last; it already follows a close variant.
 
 **Each step is styling and layout only (Clinical rule 6)**, behind the existing tests, one screen per PR, verified with screenshots in light, dark, phone and tablet.
+
+## Migrating a screen (how it's been done)
+
+1. Call `useDesignSystemPage()` at the top of the page and pass `designSystem` to `AppLayout`.
+2. Convert the page's own colour classes to `ds` tokens. `utils/dsClass.ts` holds the hand-written map and `utils/dsClassMap.generated.ts` the rule-based one. Regenerate it with `node scripts/generate-ds-class-map.mjs` (in `client/`) whenever a screen uses legacy colour classes that aren't mapped yet. Families collapse onto roles: rose/red → critical, orange/amber/yellow → warning, green/emerald → success, blue/indigo/cyan → info, teal/primary → accent, purple/pink → brand plum.
+3. Shared child components that other, unmigrated screens also use go through `dsClass()` (translated only while a migrated screen is open) instead of being converted.
+4. Never translate markup that a print window copies via `innerHTML`. A printed document keeps its own classes.
+5. Text on a solid fill must follow the fill: accent, warning, success, info and plum fills turn light in dark mode, so use `text-ds-on-accent` or `text-white dark:text-ds-canvas`. Critical stays dark, so white is fine there.
+6. Red (critical) is for alarms only. A section's decorative colour moves to the accent.
+7. Interactive elements are at least 44px tall (`min-h-ds-touch`).
+8. Long patient charts use `components/PatientStickyBar` so name, ID and age (and allergies) stay visible while scrolling.
+9. Screenshot light, dark and tablet/phone (headless Chrome's minimum width is 500px, so render narrow widths in an iframe, and switch animations off: its virtual clock freezes them).

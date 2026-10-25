@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { labTestSetsAPI } from '../api/labTestSets';
 import type { LabTestSet, LabTestSetItem } from '../api/labTestSets';
@@ -155,9 +156,9 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
   if (loading && sets.length === 0) {
     return (
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-semibold text-primary-700">Test Sets</span>
-        <div className="h-7 w-32 bg-primary-100 rounded-full animate-pulse" />
-        <div className="h-7 w-24 bg-primary-100 rounded-full animate-pulse" />
+        <span className={dsClass("text-xs font-semibold text-primary-700")}>Test Sets</span>
+        <div className={dsClass("h-7 w-32 bg-primary-100 rounded-full animate-pulse")} />
+        <div className={dsClass("h-7 w-24 bg-primary-100 rounded-full animate-pulse")} />
       </div>
     );
   }
@@ -166,14 +167,14 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
     <div className="mb-3">
       {/* Chip row */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-xs font-semibold text-primary-800 uppercase tracking-wide mr-1">
+        <span className={dsClass("text-xs font-semibold text-primary-800 uppercase tracking-wide mr-1")}>
           Test Sets
         </span>
 
         {pinned.length === 0 && (
-          <span className="text-xs text-gray-500 italic">
+          <span className={dsClass("text-xs text-gray-500 italic")}>
             {canAuthorSets
-              ? <>No saved sets yet. Add lab tests below, then click <span className="font-semibold text-primary-700">Save current as set</span> on the right.</>
+              ? <>No saved sets yet. Add lab tests below, then click <span className={dsClass("font-semibold text-primary-700")}>Save current as set</span> on the right.</>
               : 'No saved sets yet — ask a doctor to create one.'}
           </span>
         )}
@@ -184,7 +185,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           <button
             type="button"
             disabled
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 cursor-not-allowed"
+            className={dsClass("ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 border-dashed border-gray-300 bg-gray-50 text-gray-400 cursor-not-allowed")}
             title="Add at least one lab test below, then save the staged tests as a set"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -200,19 +201,19 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
             type="button"
             onClick={() => handleApply(set)}
             title={set.items.map(i => i.test_name).join(', ')}
-            className={`group inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all shadow-sm border ${
+            className={dsClass(`group inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all shadow-sm border ${
               idx === 0
                 ? 'bg-white border-primary-300 text-primary-800 hover:bg-primary-100 hover:border-primary-400'
                 : 'bg-white border-primary-200 text-primary-700 hover:bg-primary-50 hover:border-primary-300'
-            }`}
+            }`)}
           >
             {idx === 0 && set.use_count > 0 && (
-              <svg className="w-3.5 h-3.5 text-warning-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <svg className={dsClass("w-3.5 h-3.5 text-warning-500 flex-shrink-0")} fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.922-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
             )}
             <span>{set.name}</span>
-            <span className="px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold leading-none">
+            <span className={dsClass("px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold leading-none")}>
               {set.items.length}
             </span>
           </button>
@@ -222,10 +223,10 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           <button
             type="button"
             onClick={() => setShowMore(v => !v)}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-sm"
+            className={dsClass("inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 shadow-sm")}
           >
             More sets ({sets.length - pinned.length})
-            <svg className={`w-3 h-3 transition-transform ${showMore ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className={dsClass(`w-3 h-3 transition-transform ${showMore ? 'rotate-180' : ''}`)} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </button>
@@ -235,7 +236,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           <button
             type="button"
             onClick={() => setShowMore(v => !v)}
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+            className={dsClass("inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-white text-gray-600 border border-gray-300 hover:bg-gray-50")}
             title="Browse, search and manage all sets"
           >
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -249,7 +250,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           <button
             type="button"
             onClick={openSaveModal}
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 border-dashed border-primary-400 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-500 transition-all"
+            className={dsClass("ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border-2 border-dashed border-primary-400 bg-primary-50 text-primary-700 hover:bg-primary-100 hover:border-primary-500 transition-all")}
             title={`Save current ${pendingLabOrders.length} tests as a reusable set`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -266,48 +267,48 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           ref={popoverRef}
           className="relative mt-2"
         >
-          <div className="absolute left-0 right-0 z-40 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-            <div className="p-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+          <div className={dsClass("absolute left-0 right-0 z-40 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden")}>
+            <div className={dsClass("p-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2")}>
               <input
                 type="text"
                 value={moreSearch}
                 onChange={e => setMoreSearch(e.target.value)}
                 placeholder="Search sets or test names…"
-                className="flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                className={dsClass("flex-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white")}
                 autoFocus
               />
-              <div className="flex bg-white border border-gray-300 rounded-lg overflow-hidden text-xs">
+              <div className={dsClass("flex bg-white border border-gray-300 rounded-lg overflow-hidden text-xs")}>
                 <button
                   type="button"
                   onClick={() => setMoreTab('all')}
-                  className={`px-3 py-1.5 font-medium ${
+                  className={dsClass(`px-3 py-1.5 font-medium ${
                     moreTab === 'all' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                  }`)}
                 >
                   All
                 </button>
                 <button
                   type="button"
                   onClick={() => setMoreTab('mine')}
-                  className={`px-3 py-1.5 font-medium ${
+                  className={dsClass(`px-3 py-1.5 font-medium ${
                     moreTab === 'mine' ? 'bg-primary-600 text-white' : 'text-gray-700 hover:bg-gray-50'
-                  }`}
+                  }`)}
                 >
                   Mine
                 </button>
               </div>
             </div>
 
-            <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+            <div className={dsClass("max-h-80 overflow-y-auto divide-y divide-gray-100")}>
               {filteredAll.length === 0 ? (
-                <div className="p-6 text-center text-sm text-gray-500">
+                <div className={dsClass("p-6 text-center text-sm text-gray-500")}>
                   {moreSearch ? 'No matches.' : 'No sets in this view yet.'}
                 </div>
               ) : (
                 filteredAll.map(set => (
                   <div
                     key={set.id}
-                    className="px-4 py-3 hover:bg-primary-50/50 transition-colors flex items-start gap-3"
+                    className={dsClass("px-4 py-3 hover:bg-primary-50/50 transition-colors flex items-start gap-3")}
                   >
                     <button
                       type="button"
@@ -315,32 +316,32 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
                       className="flex-1 text-left min-w-0"
                     >
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm text-gray-900 truncate">{set.name}</span>
-                        <span className="px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold leading-none">
+                        <span className={dsClass("font-semibold text-sm text-gray-900 truncate")}>{set.name}</span>
+                        <span className={dsClass("px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold leading-none")}>
                           {set.items.length} tests
                         </span>
                         {set.is_shared ? (
-                          <span className="text-[10px] font-medium text-success-700 bg-success-50 border border-success-200 px-1.5 py-0.5 rounded">
+                          <span className={dsClass("text-[10px] font-medium text-success-700 bg-success-50 border border-success-200 px-1.5 py-0.5 rounded")}>
                             Clinic
                           </span>
                         ) : (
-                          <span className="text-[10px] font-medium text-gray-700 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">
+                          <span className={dsClass("text-[10px] font-medium text-gray-700 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded")}>
                             Personal
                           </span>
                         )}
                         {set.is_mine && (
-                          <span className="text-[10px] font-medium text-primary-700 bg-primary-50 border border-primary-200 px-1.5 py-0.5 rounded">
+                          <span className={dsClass("text-[10px] font-medium text-primary-700 bg-primary-50 border border-primary-200 px-1.5 py-0.5 rounded")}>
                             Mine
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5 truncate">
+                      <div className={dsClass("text-xs text-gray-500 mt-0.5 truncate")}>
                         {set.items.map(i => i.test_name).join(' · ')}
                       </div>
                       {set.description && (
-                        <div className="text-xs text-gray-400 mt-0.5 truncate">{set.description}</div>
+                        <div className={dsClass("text-xs text-gray-400 mt-0.5 truncate")}>{set.description}</div>
                       )}
-                      <div className="text-[10px] text-gray-400 mt-1">
+                      <div className={dsClass("text-[10px] text-gray-400 mt-1")}>
                         By {set.created_by_name}
                         {set.use_count > 0 && ` · Used ${set.use_count}×`}
                       </div>
@@ -349,7 +350,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
                       <button
                         type="button"
                         onClick={() => handleDelete(set)}
-                        className="p-1.5 text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded transition-colors flex-shrink-0"
+                        className={dsClass("p-1.5 text-gray-400 hover:text-danger-600 hover:bg-danger-50 rounded transition-colors flex-shrink-0")}
                         title="Delete set"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -372,12 +373,12 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
           onClick={() => !savingSet && setShowSaveModal(false)}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md"
+            className={dsClass("bg-white rounded-xl shadow-2xl w-full max-w-md")}
             onClick={e => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Save as test set</h3>
-              <p className="text-xs text-gray-500 mt-1">
+            <div className={dsClass("p-5 border-b border-gray-200")}>
+              <h3 className={dsClass("text-lg font-bold text-gray-900")}>Save as test set</h3>
+              <p className={dsClass("text-xs text-gray-500 mt-1")}>
                 Saving {pendingLabOrders.length} tests as a reusable set.
                 {' '}{saveIsShared
                   ? 'Every doctor in the clinic will see it.'
@@ -386,43 +387,43 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
             </div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Set name <span className="text-danger-500">*</span>
+                <label className={dsClass("block text-xs font-semibold text-gray-700 mb-1")}>
+                  Set name <span className={dsClass("text-danger-500")}>*</span>
                 </label>
                 <input
                   type="text"
                   value={saveName}
                   onChange={e => setSaveName(e.target.value)}
                   placeholder="e.g. BIGPAY Screening"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className={dsClass("w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500")}
                   autoFocus
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Description <span className="text-gray-400 font-normal">(optional)</span>
+                <label className={dsClass("block text-xs font-semibold text-gray-700 mb-1")}>
+                  Description <span className={dsClass("text-gray-400 font-normal")}>(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={saveDescription}
                   onChange={e => setSaveDescription(e.target.value)}
                   placeholder="e.g. Pre-employment medical exams for Olam"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className={dsClass("w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500")}
                 />
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                <div className="text-xs font-semibold text-gray-700 mb-2">
+              <div className={dsClass("bg-gray-50 rounded-lg p-3 border border-gray-200")}>
+                <div className={dsClass("text-xs font-semibold text-gray-700 mb-2")}>
                   Tests in this set
                 </div>
                 <ul className="space-y-1 max-h-40 overflow-y-auto">
                   {pendingLabOrders.map((o, i) => (
                     <li key={i} className="flex items-center gap-2 text-sm">
-                      <svg className="w-3.5 h-3.5 text-success-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className={dsClass("w-3.5 h-3.5 text-success-600 flex-shrink-0")} fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="flex-1 text-gray-800">{o.test_name}</span>
-                      <span className="text-[10px] uppercase font-bold text-gray-400">
+                      <span className={dsClass("flex-1 text-gray-800")}>{o.test_name}</span>
+                      <span className={dsClass("text-[10px] uppercase font-bold text-gray-400")}>
                         {o.priority}
                       </span>
                     </li>
@@ -435,22 +436,22 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
                   type="checkbox"
                   checked={saveIsShared}
                   onChange={e => setSaveIsShared(e.target.checked)}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                  className={dsClass("h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded")}
                 />
                 <div>
-                  <div className="text-sm font-medium text-gray-800">Share with clinic</div>
-                  <div className="text-xs text-gray-500">
+                  <div className={dsClass("text-sm font-medium text-gray-800")}>Share with clinic</div>
+                  <div className={dsClass("text-xs text-gray-500")}>
                     All doctors can use this set. Recommended for corporate screening packages.
                   </div>
                 </div>
               </label>
             </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 rounded-b-xl">
+            <div className={dsClass("flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 rounded-b-xl")}>
               <button
                 type="button"
                 onClick={() => setShowSaveModal(false)}
                 disabled={savingSet}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                className={dsClass("px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60")}
               >
                 Cancel
               </button>
@@ -458,7 +459,7 @@ const LabTestSetChips: React.FC<Props> = ({ pendingLabOrders, onApplySet }) => {
                 type="button"
                 onClick={handleSave}
                 disabled={savingSet || !saveName.trim()}
-                className="px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60 shadow-sm"
+                className={dsClass("px-4 py-2 text-sm font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60 shadow-sm")}
               >
                 {savingSet ? 'Saving…' : 'Save set'}
               </button>

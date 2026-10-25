@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useState } from 'react';
 import apiClient from '../api/client';
 
@@ -113,9 +114,9 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
       />
 
       {/* Side Panel */}
-      <div className="absolute inset-y-0 right-0 max-w-md w-full bg-white shadow-xl transform transition-transform">
+      <div className={dsClass("absolute inset-y-0 right-0 max-w-md w-full bg-white shadow-xl transform transition-transform")}>
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
+        <div className={dsClass("px-6 py-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white")}>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Patient Quick View</h2>
             <button
@@ -131,22 +132,22 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <div className={dsClass("animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600")}></div>
           </div>
         ) : patient ? (
           <div className="overflow-y-auto h-full pb-20">
             {/* Patient Info */}
             <div className="px-6 py-4 border-b">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-secondary-600 flex items-center justify-center text-white text-xl font-bold">
+                <div className={dsClass("w-16 h-16 rounded-full bg-gradient-to-br from-primary-500 to-secondary-600 flex items-center justify-center text-white text-xl font-bold")}>
                   {patient.first_name[0]}{patient.last_name[0]}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">
+                  <h3 className={dsClass("text-xl font-bold text-gray-900")}>
                     {patient.first_name} {patient.last_name}
                   </h3>
-                  <p className="text-sm text-gray-500">{patient.patient_number}</p>
-                  <p className="text-sm text-gray-600">
+                  <p className={dsClass("text-sm text-gray-500")}>{patient.patient_number}</p>
+                  <p className={dsClass("text-sm text-gray-600")}>
                     {calculateAge(patient.date_of_birth)} yrs | {patient.gender}
                     {patient.allergies && ` | Allergies: ${patient.allergies}`}
                   </p>
@@ -156,8 +157,8 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
             {/* Vital Signs Section */}
             <div className="px-6 py-4 border-b">
-              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h4 className={dsClass("text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2")}>
+                <svg className={dsClass("w-4 h-4 text-danger-500")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
                 </svg>
                 Latest Vital Signs
@@ -166,9 +167,9 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
               {vitals ? (
                 <div className="grid grid-cols-2 gap-3">
                   {/* Blood Pressure */}
-                  <div className="bg-danger-50 rounded-lg p-3">
-                    <div className="text-xs text-danger-600 font-medium">Blood Pressure</div>
-                    <div className="text-lg font-bold text-danger-700">
+                  <div className={dsClass("bg-danger-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-danger-600 font-medium")}>Blood Pressure</div>
+                    <div className={dsClass("text-lg font-bold text-danger-700")}>
                       {vitals.blood_pressure_systolic && vitals.blood_pressure_diastolic
                         ? `${vitals.blood_pressure_systolic}/${vitals.blood_pressure_diastolic}`
                         : '--/--'} <span className="text-sm font-normal">mmHg</span>
@@ -176,48 +177,48 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
                   </div>
 
                   {/* Heart Rate */}
-                  <div className="bg-pink-50 rounded-lg p-3">
-                    <div className="text-xs text-pink-600 font-medium">Heart Rate</div>
-                    <div className="text-lg font-bold text-pink-700">
+                  <div className={dsClass("bg-pink-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-pink-600 font-medium")}>Heart Rate</div>
+                    <div className={dsClass("text-lg font-bold text-pink-700")}>
                       {vitals.heart_rate || '--'} <span className="text-sm font-normal">bpm</span>
                     </div>
                   </div>
 
                   {/* Temperature */}
-                  <div className="bg-orange-50 rounded-lg p-3">
-                    <div className="text-xs text-orange-600 font-medium">Temperature</div>
-                    <div className="text-lg font-bold text-orange-700">
+                  <div className={dsClass("bg-orange-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-orange-600 font-medium")}>Temperature</div>
+                    <div className={dsClass("text-lg font-bold text-orange-700")}>
                       {vitals.temperature || '--'}°{vitals.temperature_unit || 'C'}
                     </div>
                   </div>
 
                   {/* SpO2 */}
-                  <div className="bg-primary-50 rounded-lg p-3">
-                    <div className="text-xs text-primary-600 font-medium">SpO2</div>
-                    <div className="text-lg font-bold text-primary-700">
+                  <div className={dsClass("bg-primary-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-primary-600 font-medium")}>SpO2</div>
+                    <div className={dsClass("text-lg font-bold text-primary-700")}>
                       {vitals.oxygen_saturation || '--'}<span className="text-sm font-normal">%</span>
                     </div>
                   </div>
 
                   {/* Respiratory Rate */}
-                  <div className="bg-cyan-50 rounded-lg p-3">
-                    <div className="text-xs text-cyan-600 font-medium">Resp. Rate</div>
-                    <div className="text-lg font-bold text-cyan-700">
+                  <div className={dsClass("bg-cyan-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-cyan-600 font-medium")}>Resp. Rate</div>
+                    <div className={dsClass("text-lg font-bold text-cyan-700")}>
                       {vitals.respiratory_rate || '--'} <span className="text-sm font-normal">/min</span>
                     </div>
                   </div>
 
                   {/* Weight */}
-                  <div className="bg-success-50 rounded-lg p-3">
-                    <div className="text-xs text-success-600 font-medium">Weight</div>
-                    <div className="text-lg font-bold text-success-700">
+                  <div className={dsClass("bg-success-50 rounded-lg p-3")}>
+                    <div className={dsClass("text-xs text-success-600 font-medium")}>Weight</div>
+                    <div className={dsClass("text-lg font-bold text-success-700")}>
                       {vitals.weight || '--'} <span className="text-sm font-normal">{vitals.weight_unit || 'kg'}</span>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-4 text-gray-500 bg-gray-50 rounded-lg">
-                  <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={dsClass("text-center py-4 text-gray-500 bg-gray-50 rounded-lg")}>
+                  <svg className={dsClass("w-8 h-8 mx-auto mb-2 text-gray-400")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   No vital signs recorded yet
@@ -225,7 +226,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
               )}
 
               {latestEncounter && (
-                <p className="text-xs text-gray-400 mt-2">
+                <p className={dsClass("text-xs text-gray-400 mt-2")}>
                   From encounter {latestEncounter.encounter_number} on{' '}
                   {new Date(latestEncounter.created_at).toLocaleDateString()}
                 </p>
@@ -235,8 +236,8 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
             {/* Health Status Section - Only for Doctors */}
             {showHealthStatus && (
               <div className="px-6 py-4 border-b">
-                <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <svg className="w-4 h-4 text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <h4 className={dsClass("text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2")}>
+                  <svg className={dsClass("w-4 h-4 text-secondary-500")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   Health Status
@@ -244,39 +245,39 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">HIV Status</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hiv_status)}`}>
+                    <span className={dsClass("text-sm text-gray-600")}>HIV Status</span>
+                    <span className={dsClass(`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hiv_status)}`)}>
                       {patient.hiv_status || 'Unknown'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Hepatitis B</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hepatitis_b_status)}`}>
+                    <span className={dsClass("text-sm text-gray-600")}>Hepatitis B</span>
+                    <span className={dsClass(`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hepatitis_b_status)}`)}>
                       {patient.hepatitis_b_status || 'Unknown'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Hepatitis C</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hepatitis_c_status)}`}>
+                    <span className={dsClass("text-sm text-gray-600")}>Hepatitis C</span>
+                    <span className={dsClass(`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.hepatitis_c_status)}`)}>
                       {patient.hepatitis_c_status || 'Unknown'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">TB Status</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.tb_status)}`}>
+                    <span className={dsClass("text-sm text-gray-600")}>TB Status</span>
+                    <span className={dsClass(`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.tb_status)}`)}>
                       {patient.tb_status || 'Unknown'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Sickle Cell</span>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.sickle_cell_status)}`}>
+                    <span className={dsClass("text-sm text-gray-600")}>Sickle Cell</span>
+                    <span className={dsClass(`px-2 py-1 rounded text-xs font-medium ${getStatusColor(patient.sickle_cell_status)}`)}>
                       {patient.sickle_cell_status || 'Unknown'}
                     </span>
                   </div>
                   {patient.other_health_conditions && (
-                    <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium mb-1">Other Conditions</p>
-                      <p className="text-sm text-gray-700">{patient.other_health_conditions}</p>
+                    <div className={dsClass("mt-3 p-3 bg-gray-50 rounded-lg")}>
+                      <p className={dsClass("text-xs text-gray-500 font-medium mb-1")}>Other Conditions</p>
+                      <p className={dsClass("text-sm text-gray-700")}>{patient.other_health_conditions}</p>
                     </div>
                   )}
                 </div>
@@ -285,21 +286,21 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
 
             {/* Contact Info */}
             <div className="px-6 py-4">
-              <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <svg className="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <h4 className={dsClass("text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2")}>
+                <svg className={dsClass("w-4 h-4 text-success-500")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
                 Contact
               </h4>
               {patient.phone ? (
-                <p className="text-gray-700">{patient.phone}</p>
+                <p className={dsClass("text-gray-700")}>{patient.phone}</p>
               ) : (
-                <p className="text-gray-400 italic">No phone number</p>
+                <p className={dsClass("text-gray-400 italic")}>No phone number</p>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-64 text-gray-500">
+          <div className={dsClass("flex items-center justify-center h-64 text-gray-500")}>
             Patient not found
           </div>
         )}

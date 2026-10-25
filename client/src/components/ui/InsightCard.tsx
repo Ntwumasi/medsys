@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 
 // Small accent-bordered card surfacing one auto-derived observation per
@@ -42,10 +43,10 @@ const toneClasses: Record<InsightTone, { stripe: string; iconBg: string; iconFg:
 const InsightCard: React.FC<InsightCardProps> = ({ tone = 'info', title, body, action, icon }) => {
   const t = toneClasses[tone];
   return (
-    <div className="relative bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex items-stretch">
-      <div className={`w-1 ${t.stripe}`} />
+    <div className={dsClass("relative bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex items-stretch")}>
+      <div className={dsClass(`w-1 ${t.stripe}`)} />
       <div className="flex-1 p-4 flex items-start gap-3">
-        <div className={`w-9 h-9 rounded-lg ${t.iconBg} ${t.iconFg} flex items-center justify-center flex-shrink-0`}>
+        <div className={dsClass(`w-9 h-9 rounded-lg ${t.iconBg} ${t.iconFg} flex items-center justify-center flex-shrink-0`)}>
           {icon || (
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
@@ -55,16 +56,16 @@ const InsightCard: React.FC<InsightCardProps> = ({ tone = 'info', title, body, a
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${t.chip}`}>
+            <span className={dsClass(`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${t.chip}`)}>
               Insight
             </span>
-            <h4 className="text-sm font-semibold text-gray-900 truncate">{title}</h4>
+            <h4 className={dsClass("text-sm font-semibold text-gray-900 truncate")}>{title}</h4>
           </div>
-          <p className="text-xs text-gray-600 mt-1 leading-relaxed">{body}</p>
+          <p className={dsClass("text-xs text-gray-600 mt-1 leading-relaxed")}>{body}</p>
           {action && (
             <button
               onClick={action.onClick}
-              className={`mt-2 text-xs font-semibold ${t.iconFg} hover:underline inline-flex items-center gap-1`}
+              className={dsClass(`mt-2 text-xs font-semibold ${t.iconFg} hover:underline inline-flex items-center gap-1`)}
             >
               {action.label}
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
