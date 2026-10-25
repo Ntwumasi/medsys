@@ -136,6 +136,14 @@ interface DoctorAlert {
 
 const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
+  // Unacknowledged critical lab values on this doctor's orders.
+  const [criticalAlerts, setCriticalAlerts] = useState<Array<{
+    id: number; patient_name: string; patient_number: string; test_name: string;
+    result_value: string; alert_type: string; created_at: string; room_number?: string | null;
+  }>>([]);
+  const [acknowledgingAlertId, setAcknowledgingAlertId] = useState<number | null>(null);
+  // Unreviewed lab results older than the 30-day alerts window.
+  const [olderUnreviewedLabs, setOlderUnreviewedLabs] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
@@ -369,13 +377,31 @@ const DoctorDashboard: React.FC = () => {
     return () => clearTimeout(t);
   }, [highlightAlertId]);
 
+  // The encounter whose chart is on screen. Loaders drop any response for a
+  // different encounter, so a slow reply for patient A can never land under
+  // patient B; switching patients clears the chart before B's data arrives.
+  const activeEncounterIdRef = useRef<number | null>(null);
   useEffect(() => {
+    const id = selectedEncounter?.id ?? null;
+    if (id !== activeEncounterIdRef.current) {
+      activeEncounterIdRef.current = id;
+      setNotes([]);
+      setEncounterLabOrders([]);
+      setEncounterImagingOrders([]);
+      setEncounterPharmacyOrders([]);
+      setEncounterDiagnoses([]);
+      setSoapSigned(false);
+      setSoapSignedAt(null);
+      setSoapSignedBy(null);
+    }
     if (selectedEncounter) {
       loadEncounterNotes(selectedEncounter.id);
       loadEncounterOrders(selectedEncounter.id);
       loadEncounterDiagnoses(selectedEncounter.id);
+      loadSOAPSignStatus(selectedEncounter.id);
     }
   }, [selectedEncounter]);
+  const isActiveEncounter = (encounterId: number) => activeEncounterIdRef.current === encounterId;
 
   // Orders for the active encounter refresh on the same smart cadence so
   // labs/imaging/Rx the nurse just sent appear without a manual refresh.
@@ -425,20 +451,25 @@ const DoctorDashboard: React.FC = () => {
   const loadEncounterNotes = async (encounterId: number) => {
     try {
       const res = await apiClient.get(`/clinical-notes/encounter/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       const allNotes = res.data.notes || [];
       setNotes(allNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
+      if (isActiveEncounter(encounterId)) showToast("Couldn't load this patient's notes — reselect the patient to retry", 'error');
     }
   };
 
   const loadEncounterOrders = async (encounterId: number) => {
     try {
       const res = await apiClient.get(`/orders/encounter/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       setEncounterLabOrders(res.data.lab_orders || []);
       setEncounterImagingOrders(res.data.imaging_orders || []);
       setEncounterPharmacyOrders(res.data.pharmacy_orders || []);
     } catch (error) {
+      // Background polling retries every 30s; keep what's shown for THIS
+      // encounter rather than flashing an empty list.
       console.error('Error loading orders:', error);
     }
   };
@@ -448,8 +479,30 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get('/orders/doctor-alerts');
       setLabAlerts(res.data.lab_alerts || []);
       setImagingAlerts(res.data.imaging_alerts || []);
+      setOlderUnreviewedLabs(res.data.older_unreviewed_lab_count || 0);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
+    }
+    try {
+      const res = await apiClient.get('/lab/critical-alerts', { params: { unacknowledged_only: 'true', mine: 'true' } });
+      setCriticalAlerts(res.data.alerts || []);
+    } catch (error) {
+      console.error('Error loading critical alerts:', error);
+    }
+  };
+
+  const acknowledgeCriticalAlert = async (alertId: number) => {
+    if (acknowledgingAlertId) return;
+    setAcknowledgingAlertId(alertId);
+    try {
+      await apiClient.post(`/lab/critical-alerts/${alertId}/acknowledge`);
+      setCriticalAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      showToast('Critical result acknowledged', 'success');
+    } catch (error) {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      showToast(msg || 'Could not acknowledge — try again', 'error');
+    } finally {
+      setAcknowledgingAlertId(null);
     }
   };
 
@@ -563,6 +616,7 @@ const DoctorDashboard: React.FC = () => {
   const loadSOAPSignStatus = async (encounterId: number) => {
     try {
       const response = await apiClient.get(`/hp/${encounterId}/status`);
+      if (activeEncounterIdRef.current !== null && activeEncounterIdRef.current !== encounterId) return;
       setSoapSigned(response.data.is_signed || false);
       setSoapSignedAt(response.data.signed_at || null);
       setSoapSignedBy(response.data.signed_by_name || null);
@@ -1054,31 +1108,49 @@ const DoctorDashboard: React.FC = () => {
     }
 
     setSubmittingOrders(true);
+    const baseData = {
+      patient_id: selectedEncounter.patient_id,
+      encounter_id: selectedEncounter.id,
+    };
+    // Each order leaves the pending list the moment it is created, so a
+    // failure part-way through never leaves already-created orders behind to
+    // be submitted again (that used to duplicate orders and charges).
+    const labsLeft = [...pendingLabOrders];
+    const imagingLeft = [...pendingImagingOrders];
+    const pharmacyLeft = [...pendingPharmacyOrders];
+    let submitted = 0;
+    let skipped = 0;
+    let failedName = '';
     try {
-      const baseData = {
-        patient_id: selectedEncounter.patient_id,
-        encounter_id: selectedEncounter.id,
-      };
-
-      // Submit all lab orders (strip frontend-only fields)
-      for (const order of pendingLabOrders) {
+      // Lab orders (strip frontend-only fields)
+      while (labsLeft.length) {
+        const order = labsLeft[0];
+        failedName = order.test_name || 'lab order';
         const { frequency: _f, occurrences: _o, customFrequency: _c, scheduled_time: _st, ...labFields } = order as any;
         void _f; void _o; void _c; void _st;
         await apiClient.post('/orders/lab', { ...baseData, ...labFields });
+        labsLeft.shift();
+        submitted++;
       }
 
-      // Submit all imaging orders
-      for (const order of pendingImagingOrders) {
+      while (imagingLeft.length) {
+        const order = imagingLeft[0];
+        failedName = order.imaging_type || 'imaging order';
         await apiClient.post('/orders/imaging', { ...baseData, ...order });
+        imagingLeft.shift();
+        submitted++;
       }
 
-      // Submit all pharmacy orders. If the backend reports the med is already on
-      // this encounter (409), confirm the intentional repeat and retry with the
+      // Pharmacy orders. If the backend reports the med is already on this
+      // encounter (409), confirm the intentional repeat and retry with the
       // override — covers legit re-dosing (e.g. a 2nd salbutamol dose) even when
       // the on-screen order list was stale and didn't pre-flag it.
-      for (const order of pendingPharmacyOrders) {
+      while (pharmacyLeft.length) {
+        const order = pharmacyLeft[0];
+        failedName = order.medication_name || 'prescription';
         try {
           await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
+          submitted++;
         } catch (err: any) {
           if (
             err?.response?.status === 409 &&
@@ -1094,29 +1166,36 @@ const DoctorDashboard: React.FC = () => {
             });
             if (proceed) {
               await apiClient.post('/orders/pharmacy', { ...baseData, ...order, allow_duplicate: true });
+              submitted++;
+            } else {
+              skipped++;
             }
           } else {
             throw err;
           }
         }
+        pharmacyLeft.shift();
       }
 
-      showToast(`Successfully submitted ${totalOrders} order(s)!`, 'success');
-
-      // Clear all pending orders
-      setPendingLabOrders([]);
-      setPendingImagingOrders([]);
-      setPendingPharmacyOrders([]);
-
-      // Refresh the orders display so doctor can see what they just ordered
-      if (selectedEncounter) {
-        loadEncounterOrders(selectedEncounter.id);
-      }
+      showToast(
+        `Submitted ${submitted} order(s)${skipped ? ` (${skipped} skipped as already ordered)` : ''}.`,
+        'success'
+      );
     } catch (error: any) {
       console.error('Error submitting orders:', error);
       const msg = error?.response?.data?.error || error?.message || 'Unknown error';
-      showToast(`Failed to submit orders: ${msg}`, 'error');
+      const remaining = labsLeft.length + imagingLeft.length + pharmacyLeft.length;
+      showToast(
+        `${submitted} of ${totalOrders} order(s) submitted. "${failedName}" failed: ${msg}. ` +
+          `The ${remaining} not yet submitted are still in your list — fix and submit again.`,
+        'error'
+      );
     } finally {
+      setPendingLabOrders(labsLeft);
+      setPendingImagingOrders(imagingLeft);
+      setPendingPharmacyOrders(pharmacyLeft);
+      // Refresh the orders display so the doctor sees what was created
+      if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
       setSubmittingOrders(false);
     }
   };
@@ -1193,11 +1272,13 @@ const DoctorDashboard: React.FC = () => {
   const loadEncounterDiagnoses = async (encounterId: number) => {
     try {
       const response = await apiClient.get(`/encounters/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       setEncounterDiagnoses(response.data.encounter?.diagnoses || response.data.diagnoses || []);
       // Fresh chart — drop any warning left over from the previous patient.
       setDiagnosisRequired(false);
     } catch (error) {
       console.error('Error loading diagnoses:', error);
+      if (isActiveEncounter(encounterId)) showToast("Couldn't load this patient's diagnoses — reselect the patient to retry", 'error');
     }
   };
 
@@ -1298,6 +1379,36 @@ const DoctorDashboard: React.FC = () => {
           </>
         )}
       />
+
+      {criticalAlerts.length > 0 && (
+        <section role="alert" className="mb-4 rounded-xl border-2 border-danger-300 bg-danger-50 p-4">
+          <h2 className="!text-base font-bold text-danger-800 mb-2">
+            {criticalAlerts.length} critical lab result{criticalAlerts.length > 1 ? 's' : ''} — act now
+          </h2>
+          <ul className="space-y-2">
+            {criticalAlerts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-lg border border-danger-200 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900">
+                    {a.patient_name} <span className="font-normal text-gray-500">· {a.patient_number}{a.room_number ? ` · Room ${a.room_number}` : ''}</span>
+                  </p>
+                  <p className="text-sm text-danger-700">
+                    <span className="font-bold">{a.result_value}</span> ({a.test_name}, {a.alert_type === 'critical_low' ? 'critically low' : 'critically high'})
+                    <span className="text-gray-500"> · {new Date(a.created_at).toLocaleString()}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => acknowledgeCriticalAlert(a.id)}
+                  disabled={acknowledgingAlertId === a.id}
+                  className="px-3 py-1.5 text-sm font-semibold text-white bg-danger-600 rounded-lg hover:bg-danger-700 disabled:opacity-50"
+                >
+                  {acknowledgingAlertId === a.id ? 'Saving…' : 'Acknowledge'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 30-day personal stat strip — today's count up top, sparkline
           shows the doctor's own arc over the last month. */}
@@ -1491,6 +1602,11 @@ const DoctorDashboard: React.FC = () => {
 
               {/* Alert Content */}
               <div className="max-h-[250px] overflow-y-auto">
+                {alertsTab === 'lab' && olderUnreviewedLabs > 0 && (
+                  <p className="px-3 py-2 text-xs text-warning-800 bg-warning-50 border-b border-warning-100">
+                    {olderUnreviewedLabs} older result{olderUnreviewedLabs > 1 ? 's' : ''} (over 30 days) still not reviewed — open the patient's chart to review.
+                  </p>
+                )}
                 {alertsTab === 'lab' && (
                   <>
                     {labAlerts.length === 0 ? (

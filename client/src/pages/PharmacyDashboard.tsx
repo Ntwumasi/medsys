@@ -646,6 +646,8 @@ const PharmacyDashboard: React.FC = () => {
   const [showAIAssist, setShowAIAssist] = useState(false);
   const [patientDiagnoses, setPatientDiagnoses] = useState<Diagnosis[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<Allergy[]>([]);
+  // 'failed' must never render as "No known allergies".
+  const [allergiesStatus, setAllergiesStatus] = useState<'loading' | 'loaded' | 'failed'>('loaded');
   const [expandedMedication, setExpandedMedication] = useState<number | null>(null);
   const [pharmacyAllergyWarnings, setPharmacyAllergyWarnings] = useState<Array<{allergen: string, reaction: string, severity: string, match_type: string, explanation: string}>>([]);
   const [showPharmacyAllergyModal, setShowPharmacyAllergyModal] = useState(false);
@@ -2098,6 +2100,8 @@ const PharmacyDashboard: React.FC = () => {
   const patientReqRef = useRef(0);
   const fetchPatientDetails = async (patientId: number, encounterId: number) => {
     const ticket = ++patientReqRef.current;
+    setPatientAllergies([]);
+    setAllergiesStatus('loading');
     try {
       // Fetch diagnoses
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
@@ -2108,8 +2112,10 @@ const PharmacyDashboard: React.FC = () => {
       const patientRes = await apiClient.get(`/patients/${patientId}`);
       if (ticket !== patientReqRef.current) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
+      setAllergiesStatus('loaded');
     } catch (error) {
       console.error('Error fetching patient details:', error);
+      if (ticket === patientReqRef.current) setAllergiesStatus('failed');
     }
   };
 
@@ -2328,7 +2334,31 @@ const PharmacyDashboard: React.FC = () => {
   // Returns 'stopped' when it opened an allergy modal or the user cancelled (a
   // decision is pending) so batch "Dispense All" can stop instead of blasting
   // past warnings; 'done' when the dispense was attempted.
+  // Orders with a dispense in flight — a double-click used to run the allergy
+  // check and the dispense twice. The ref is the synchronous guard; the state
+  // drives the disabled buttons.
+  const dispensingRef = useRef<Set<number>>(new Set());
+  const [dispensingIds, setDispensingIds] = useState<Set<number>>(new Set());
+  const markDispensing = (orderId: number, on: boolean) => {
+    if (on) dispensingRef.current.add(orderId); else dispensingRef.current.delete(orderId);
+    setDispensingIds(new Set(dispensingRef.current));
+  };
+
   const dispenseMedication = async (
+    orderId: number,
+    medicationName?: string,
+    patientId?: number
+  ): Promise<'done' | 'stopped'> => {
+    if (dispensingRef.current.has(orderId)) return 'stopped';
+    markDispensing(orderId, true);
+    try {
+      return await checkAllergiesAndDispense(orderId, medicationName, patientId);
+    } finally {
+      markDispensing(orderId, false);
+    }
+  };
+
+  const checkAllergiesAndDispense = async (
     orderId: number,
     medicationName?: string,
     patientId?: number
@@ -2861,7 +2891,8 @@ const PharmacyDashboard: React.FC = () => {
                                   e.stopPropagation();
                                   dispenseAllInGroup(group.orders);
                                 }}
-                                className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700"
+                                disabled={group.orders.some((o: { id: number }) => dispensingIds.has(o.id))}
+                                className="px-3 py-1.5 bg-success-600 text-white text-sm rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 Dispense All
                               </button>
@@ -3077,9 +3108,10 @@ const PharmacyDashboard: React.FC = () => {
                                           e.stopPropagation();
                                           dispenseMedication(order.id, order.medication_name, order.patient_id);
                                         }}
-                                        className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700"
+                                        disabled={dispensingIds.has(order.id)}
+                                        className="px-3 py-1 bg-success-600 text-white text-sm rounded hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                       >
-                                        Dispense
+                                        {dispensingIds.has(order.id) ? 'Dispensing…' : 'Dispense'}
                                       </button>
                                     )}
                                     {(group.payer_type === 'insurance' || group.payer_type === 'corporate') &&
@@ -3262,7 +3294,13 @@ const PharmacyDashboard: React.FC = () => {
                           <div className="font-medium text-danger-700">{selectedOrder.patient_allergies}</div>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No known allergies</p>
+                        allergiesStatus === 'loading' ? (
+                          <p className="text-sm text-gray-500 italic">Checking allergies…</p>
+                        ) : allergiesStatus === 'failed' ? (
+                          <p className="text-sm font-medium text-danger-700" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No known allergies</p>
+                        )
                       )}
                     </div>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { patientsAPI } from '../api/patients';
 import { patientPortalAPI } from '../api/patientPortal';
@@ -167,6 +167,7 @@ const PatientDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [summary, setSummary] = useState<PatientSummary | null>(null);
+  const [summaryLoadFailed, setSummaryLoadFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as 'overview' | 'encounters' | 'medications' | 'appointments' | 'vitals' | 'labs' | 'imaging' | 'documents' | null) || 'overview';
@@ -271,7 +272,21 @@ const PatientDetails: React.FC = () => {
     }
   };
 
+  // Same component instance is reused across /patients/:id, so moving from
+  // patient A's chart to B's must wipe A first — and any late reply for A is
+  // ignored (isCurrentPatient) so it can never render under B's URL.
+  const currentPatientIdRef = useRef<string | undefined>(id);
+  const isCurrentPatient = (patientId: number) => currentPatientIdRef.current === String(patientId);
   useEffect(() => {
+    currentPatientIdRef.current = id;
+    setSummary(null);
+    setSummaryLoadFailed(false);
+    setLoading(true);
+    setLabResults([]);
+    setImagingResults([]);
+    setAiSummary(null);
+    setInteractions([]);
+    setInteractionData({ aiAvailable: false, summary: '', loaded: false });
     if (id) {
       loadPatientSummary(parseInt(id));
       loadLabResults(parseInt(id));
@@ -284,6 +299,7 @@ const PatientDetails: React.FC = () => {
     setInteractionsLoading(true);
     try {
       const { data } = await apiClient.get(`/patients/${patientId}/medication-interactions`);
+      if (!isCurrentPatient(patientId)) return;
       setInteractions(data.interactions || []);
       setInteractionData({ aiAvailable: !!data.aiAvailable, summary: data.summary || '', loaded: true });
     } catch (error) {
@@ -305,6 +321,7 @@ const PatientDetails: React.FC = () => {
   const loadImagingResults = async (patientId: number) => {
     try {
       const response = await apiClient.get(`/orders/imaging?patient_id=${patientId}`);
+      if (!isCurrentPatient(patientId)) return;
       setImagingResults(response.data.imaging_orders || []);
     } catch (error) {
       console.error('Error loading imaging results:', error);
@@ -346,6 +363,7 @@ const PatientDetails: React.FC = () => {
     setLabsLoading(true);
     try {
       const response = await apiClient.get(`/orders/lab?patient_id=${patientId}`);
+      if (!isCurrentPatient(patientId)) return;
       setLabResults(response.data.lab_orders || []);
     } catch (error) {
       console.error('Error loading lab results:', error);
@@ -357,13 +375,19 @@ const PatientDetails: React.FC = () => {
   const loadPatientSummary = async (patientId: number) => {
     try {
       const data = await patientsAPI.getPatientSummary(patientId);
+      if (!isCurrentPatient(patientId)) return;
       setSummary(data);
       setMarketingOptOut(Boolean((data as any)?.patient?.marketing_opt_out));
       setReminderOptOut(Boolean((data as any)?.patient?.sms_reminders_opt_out));
     } catch (error) {
       console.error('Error loading patient summary:', error);
+      // A 404 really is "not found"; anything else is a failed load and must
+      // not be presented as a missing patient.
+      if (isCurrentPatient(patientId) && (error as { response?: { status?: number } })?.response?.status !== 404) {
+        setSummaryLoadFailed(true);
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentPatient(patientId)) setLoading(false);
     }
   };
 
@@ -371,6 +395,7 @@ const PatientDetails: React.FC = () => {
     setAiSummaryLoading(true);
     try {
       const { data } = await apiClient.get(`/patients/${patientId}/ai-summary`);
+      if (!isCurrentPatient(patientId)) return;
       setAiSummary(data.summary || null);
     } catch {
       // Non-blocking
@@ -505,6 +530,20 @@ const PatientDetails: React.FC = () => {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
             <p className="mt-4 text-gray-600">Loading patient information...</p>
           </div>
+        </Card>
+      </AppLayout>
+    );
+  }
+
+  if (!summary && summaryLoadFailed) {
+    return (
+      <AppLayout title="Patient Details">
+        <Card>
+          <EmptyState
+            title="Couldn't load this patient"
+            description="The patient's record didn't load. Check your connection and try again."
+            action={{ label: 'Try again', onClick: () => { if (id) { setSummaryLoadFailed(false); setLoading(true); loadPatientSummary(parseInt(id)); } } }}
+          />
         </Card>
       </AppLayout>
     );

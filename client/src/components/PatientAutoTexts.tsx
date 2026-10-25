@@ -80,11 +80,14 @@ const PatientAutoTexts: React.FC = () => {
   const [env, setEnv] = useState<{ sms_configured: boolean; sandbox: boolean; sender_approved: boolean } | null>(null);
   const [log, setLog] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not render every switch as OFF.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [details, setDetails] = useState({ clinicName: '', clinicPhone: '', refillDays: '3', followUpDays: '3' });
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const [s, l] = await Promise.all([
         apiClient.get('/patient-texts/settings'),
@@ -101,6 +104,7 @@ const PatientAutoTexts: React.FC = () => {
       });
       setLog(l.data.log || []);
     } catch (e) {
+      setLoadFailed(true);
       showToast(getApiError(e, 'Could not load text settings'), 'error');
     } finally {
       setLoading(false);
@@ -174,6 +178,17 @@ const PatientAutoTexts: React.FC = () => {
   };
 
   if (loading) return <div className="py-12 text-center text-gray-500">Loading…</div>;
+  if (loadFailed) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+        <p className="font-semibold text-gray-900">Couldn't load the automatic text settings.</p>
+        <p className="text-sm text-gray-600 mt-1">Nothing has been changed. Check your connection and try again.</p>
+        <button onClick={() => { setLoading(true); load(); }} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

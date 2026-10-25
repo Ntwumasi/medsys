@@ -446,6 +446,8 @@ const LabDashboard: React.FC = () => {
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<LabOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<any[]>([]);
+  // 'failed' must never render as "No known allergies".
+  const [allergiesStatus, setAllergiesStatus] = useState<'loading' | 'loaded' | 'failed'>('loaded');
   const [patientLabHistory, setPatientLabHistory] = useState<any[]>([]);
   const [patientDOB, setPatientDOB] = useState<string | null>(null);
   const [encounterDetails, setEncounterDetails] = useState<any>(null);
@@ -543,6 +545,9 @@ const LabDashboard: React.FC = () => {
   const [labReviewers, setLabReviewers] = useState<LabReviewer[]>([]);
   const [assignedReviewerId, setAssignedReviewerId] = useState<number | ''>('');
   const [skipVerification, setSkipVerification] = useState(false);
+  // In-flight guard: a double-click used to submit the result twice (duplicate
+  // reviewer notifications and critical-alert checks).
+  const [submittingResult, setSubmittingResult] = useState(false);
   const [pendingVerification, setPendingVerification] = useState<LabOrder[]>([]);
   const [rejectingOrder, setRejectingOrder] = useState<LabOrder | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -583,6 +588,8 @@ const LabDashboard: React.FC = () => {
   const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
     const reqId = ++activePanelReqRef.current;
     const isStale = () => activePanelReqRef.current !== reqId;
+    setPatientAllergies([]);
+    setAllergiesStatus('loading');
     try {
       // Fetch diagnoses and encounter details
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
@@ -594,6 +601,7 @@ const LabDashboard: React.FC = () => {
       const patientRes = await apiClient.get(`/patients/${patientId}`);
       if (isStale()) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
+      setAllergiesStatus('loaded');
       setPatientDOB(patientRes.data.patient?.date_of_birth || null);
 
       // Fetch recent lab history for this patient
@@ -602,6 +610,7 @@ const LabDashboard: React.FC = () => {
       setPatientLabHistory(labHistoryRes.data.lab_orders || []);
     } catch (error) {
       console.error('Error fetching patient details for panel:', error);
+      if (!isStale()) setAllergiesStatus('failed');
     }
   };
 
@@ -1068,18 +1077,6 @@ const LabDashboard: React.FC = () => {
     }
   };
 
-  // Acknowledge critical alert
-  const acknowledgeAlert = async (alertId: number) => {
-    try {
-      await apiClient.post(`/lab/critical-alerts/${alertId}/acknowledge`);
-      showToast('Critical result acknowledged', 'success');
-      fetchCriticalAlerts();
-    } catch (error) {
-      console.error('Error acknowledging alert:', error);
-      showToast('Failed to acknowledge alert', 'error');
-    }
-  };
-
   // Inventory CRUD operations
   const saveInventoryItem = async () => {
     try {
@@ -1156,7 +1153,7 @@ const LabDashboard: React.FC = () => {
 
   // Submit structured result with optional file upload
   const submitStructuredResult = async () => {
-    if (!selectedOrderForResult) return;
+    if (!selectedOrderForResult || submittingResult) return;
 
     // Verification flow: any result entered against an order that has not
     // already been verified must be assigned to a peer reviewer. The server
@@ -1193,6 +1190,7 @@ const LabDashboard: React.FC = () => {
       if (!reason) return; // user cancelled the reason prompt
     }
 
+    setSubmittingResult(true);
     try {
       // Templated tests submit a JSON payload keyed by parameter_code so the
       // server can run per-parameter critical-value checks and the printed
@@ -1290,6 +1288,8 @@ const LabDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error submitting result:', error);
       showToast('Failed to submit result', 'error');
+    } finally {
+      setSubmittingResult(false);
     }
   };
 
@@ -2774,7 +2774,13 @@ const LabDashboard: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No known allergies</p>
+                        allergiesStatus === 'loading' ? (
+                          <p className="text-sm text-gray-500 italic">Checking allergies…</p>
+                        ) : allergiesStatus === 'failed' ? (
+                          <p className="text-sm font-medium text-danger-700" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">No known allergies</p>
+                        )
                       )}
                     </div>
 
@@ -3454,13 +3460,12 @@ const LabDashboard: React.FC = () => {
                           </div>
                         </div>
                         <div>
+                          {/* Acknowledging is the doctor's job (their dashboard); lab sees
+                              whether it has happened, so they know when to phone. */}
                           {!alert.is_acknowledged && (
-                            <button
-                              onClick={() => acknowledgeAlert(alert.id)}
-                              className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
-                            >
-                              Acknowledge
-                            </button>
+                            <span className="inline-block px-3 py-1.5 text-xs font-semibold rounded-lg bg-warning-100 text-warning-800">
+                              Waiting for the doctor — phone if urgent
+                            </span>
                           )}
                         </div>
                       </div>
@@ -4614,7 +4619,8 @@ const LabDashboard: React.FC = () => {
                       return (templateValues[key] || '').trim() !== '';
                     })) ||
                   uploadingFile ||
-                  (selectedOrderForResult.verification_status !== 'verified' && !assignedReviewerId)
+                  submittingResult ||
+                  (selectedOrderForResult.verification_status !== 'verified' && !skipVerification && !assignedReviewerId)
                 }
                 className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >

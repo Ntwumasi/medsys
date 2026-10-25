@@ -224,6 +224,9 @@ const NurseDashboard: React.FC = () => {
   const [assignedPatients, setAssignedPatients] = useState<AssignedPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<AssignedPatient | null>(null);
   const selectedPatientRef = useRef<AssignedPatient | null>(null);
+  // Every path that changes the selection (including notifications) keeps the
+  // ref current — loaders use it to drop replies for a patient no longer open.
+  useEffect(() => { selectedPatientRef.current = selectedPatient; }, [selectedPatient]);
   const prevPatientCountRef = useRef<number>(0);
   const [loading, setLoading] = useState(true);
   const [nurseProcedures, setNurseProcedures] = useState<NurseProcedure[]>([]);
@@ -413,13 +416,20 @@ const NurseDashboard: React.FC = () => {
     loadDoctors();
   }, []);
 
-  // Load orders/notes when selected patient changes
+  // Load orders/notes when selected patient changes — clearing the previous
+  // patient's first, so they can never show under the new one.
   useEffect(() => {
+    setLabOrders([]);
+    setImagingOrders([]);
+    setPharmacyOrders([]);
+    setPatientLabHistory([]);
+    setClinicalNotes([]);
     if (selectedPatient) {
       loadOrders();
       loadClinicalNotes();
     }
   }, [selectedPatient?.id]);
+  const stillSelected = (encounterId: number) => selectedPatientRef.current?.id === encounterId;
 
   // Smart polling: pauses when tab is hidden, refreshes immediately on
   // tab return. selectedPatientRef avoids re-subscribing on each patient
@@ -821,6 +831,27 @@ const NurseDashboard: React.FC = () => {
 
   // Start encounter when nurse begins working with a patient
   const handleSelectPatient = async (patient: AssignedPatient) => {
+    // Vitals typed for the previous patient must never follow the nurse to the
+    // next one (the 3s auto-save used to post them to the newly selected
+    // encounter). Save them to the patient they were typed for, then clear.
+    const previous = selectedPatientRef.current;
+    if (previous && previous.id !== patient.id) {
+      const hasValues = vitals.temperature || vitals.heart_rate ||
+        vitals.blood_pressure_systolic || vitals.blood_pressure_diastolic ||
+        vitals.respiratory_rate || vitals.oxygen_saturation || vitals.weight || vitals.height;
+      if (vitalsModified && hasValues && Object.keys(vitalErrors).length === 0) {
+        const pendingVitals = vitals;
+        apiClient
+          .post('/workflow/nurse/vitals', { encounter_id: previous.id, vital_signs: pendingVitals })
+          .then(() => showToast(`Vitals saved for ${previous.patient_name}`, 'info'))
+          .catch(() => showToast(`Vitals for ${previous.patient_name} were NOT saved — reopen them and save again.`, 'error'));
+      } else if (vitalsModified && hasValues) {
+        showToast(`Unsaved vitals for ${previous.patient_name} were discarded (some values were out of range).`, 'warning');
+      }
+      setVitals({ temperature_unit: 'C', weight_unit: 'kg', height_unit: 'cm' });
+      setVitalsModified(false);
+      setVitalErrors({});
+    }
     setSelectedPatient(patient);
     selectedPatientRef.current = patient;
     setEditingRoom(false);
@@ -1072,6 +1103,7 @@ const NurseDashboard: React.FC = () => {
 
     try {
       const res = await apiClient.get(`/orders/encounter/${selectedPatient.id}`);
+      if (!stillSelected(selectedPatient.id)) return;
       setLabOrders(res.data.lab_orders || []);
       setImagingOrders(res.data.imaging_orders || []);
       setPharmacyOrders(res.data.pharmacy_orders || []);
@@ -1084,10 +1116,11 @@ const NurseDashboard: React.FC = () => {
       const histRes = await apiClient.get(
         `/orders/lab?patient_id=${selectedPatient.patient_id}&status=completed&limit=20`
       );
+      if (!stillSelected(selectedPatient.id)) return;
       setPatientLabHistory(histRes.data.lab_orders || []);
     } catch (error) {
       console.error('Error loading patient lab history:', error);
-      setPatientLabHistory([]);
+      if (stillSelected(selectedPatient.id)) setPatientLabHistory([]);
     }
   };
 
@@ -1096,6 +1129,7 @@ const NurseDashboard: React.FC = () => {
 
     try {
       const res = await apiClient.get(`/clinical-notes/encounter/${selectedPatient.id}`);
+      if (!stillSelected(selectedPatient.id)) return;
       setClinicalNotes(res.data.notes || []);
     } catch (error) {
       console.error('Error loading clinical notes:', error);

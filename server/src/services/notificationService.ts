@@ -6,7 +6,7 @@ const sseConnections: Map<number, Response[]> = new Map();
 
 export interface NotificationPayload {
   userId: number;
-  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert' | 'pharmacy_tech_action' | 'lab_result_rejected' | 'price_change';
+  type: 'lab_complete' | 'imaging_complete' | 'pharmacy_dispensed' | 'pharmacy_ready' | 'patient_alert' | 'order_created' | 'encounter_complete' | 'stat_order' | 'ready_for_discharge' | 'drug_interaction_alert' | 'low_stock_alert' | 'expiry_alert' | 'pharmacy_tech_action' | 'lab_result_rejected' | 'price_change' | 'critical_result' | 'critical_vitals';
   title: string;
   message: string;
   entityType?: string;
@@ -58,7 +58,7 @@ export const notificationService = {
          VALUES ($1, $2, $3, $4)`,
         [
           notification.userId,
-          notification.type === 'stat_order' ? 'warning' :
+          notification.type === 'stat_order' || notification.type.startsWith('critical_') ? 'warning' :
           notification.type === 'order_created' ? 'info' :
           notification.type.includes('complete') ? 'success' : 'info',
           fullMessage,
@@ -143,6 +143,67 @@ export const notificationService = {
   /**
    * Notify all doctors when lab results are ready (role-based)
    */
+  /**
+   * A critical lab value: tell the ORDERING doctor and the visit's nurse by
+   * name (not the generic "results ready" broadcast). If nobody is attached
+   * to the order, every doctor is told.
+   */
+  async notifyCriticalResult(orderId: number, values: string[]): Promise<void> {
+    const r = await pool.query(
+      `SELECT lo.test_name, lo.ordering_provider, e.nurse_id, e.provider_id,
+              p.patient_number, u.first_name || ' ' || u.last_name AS patient_name
+         FROM lab_orders lo
+         JOIN patients p ON p.id = lo.patient_id
+         JOIN users u ON u.id = p.user_id
+         LEFT JOIN encounters e ON e.id = lo.encounter_id
+        WHERE lo.id = $1`,
+      [orderId]
+    );
+    const o = r.rows[0];
+    if (!o) return;
+    const payload = {
+      type: 'critical_result' as const,
+      title: `CRITICAL lab result — ${o.patient_name}`,
+      message: `${o.test_name} for ${o.patient_name} (${o.patient_number}): ${values.join('; ')}. Review and contact the patient now.`,
+      entityType: 'lab_order',
+      entityId: orderId,
+    };
+    const recipients = [...new Set([o.ordering_provider, o.provider_id, o.nurse_id].filter(Boolean) as number[])];
+    if (recipients.length === 0) {
+      await this.sendToRole('doctor', payload);
+      return;
+    }
+    for (const userId of recipients) await this.send({ ...payload, userId });
+  },
+
+  /** Critical vital signs at triage/nursing: the visit's doctor and nurse, else every doctor. */
+  async notifyCriticalVitals(encounterId: number, values: string[]): Promise<void> {
+    const r = await pool.query(
+      `SELECT e.provider_id, e.nurse_id, p.patient_number,
+              u.first_name || ' ' || u.last_name AS patient_name
+         FROM encounters e
+         JOIN patients p ON p.id = e.patient_id
+         JOIN users u ON u.id = p.user_id
+        WHERE e.id = $1`,
+      [encounterId]
+    );
+    const e = r.rows[0];
+    if (!e) return;
+    const payload = {
+      type: 'critical_vitals' as const,
+      title: `CRITICAL vital signs — ${e.patient_name}`,
+      message: `${e.patient_name} (${e.patient_number}): ${values.join('; ')}.`,
+      entityType: 'encounter',
+      entityId: encounterId,
+    };
+    if (e.provider_id) {
+      await this.send({ ...payload, userId: e.provider_id });
+    } else {
+      await this.sendToRole('doctor', payload);
+    }
+    if (e.nurse_id && e.nurse_id !== e.provider_id) await this.send({ ...payload, userId: e.nurse_id });
+  },
+
   async notifyLabComplete(orderId: number): Promise<void> {
     const result = await pool.query(
       `SELECT lo.*, p.patient_number,
