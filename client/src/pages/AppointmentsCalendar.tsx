@@ -177,11 +177,11 @@ const AppointmentsCalendar: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'scheduled': return 'bg-blue-100 text-blue-800 border-blue-300';
-      case 'confirmed': return 'bg-green-100 text-green-800 border-green-300';
+      case 'confirmed': return 'bg-success-100 text-success-800 border-success-300';
       case 'checked_in': return 'bg-secondary-100 text-secondary-800 border-secondary-300';
       case 'completed': return 'bg-gray-100 text-gray-800 border-gray-300';
-      case 'cancelled': return 'bg-red-100 text-red-800 border-red-300';
-      case 'no_show': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'cancelled': return 'bg-danger-100 text-danger-800 border-danger-300';
+      case 'no_show': return 'bg-warning-100 text-warning-800 border-warning-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
@@ -440,7 +440,7 @@ const AppointmentsCalendar: React.FC = () => {
                     {apt.status !== 'cancelled' && apt.status !== 'completed' && (
                       <button
                         onClick={() => handleCancelAppointment(apt.id)}
-                        className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded border border-red-300"
+                        className="px-3 py-1 text-sm text-danger-600 hover:bg-danger-50 rounded border border-danger-300"
                       >
                         Cancel
                       </button>
@@ -620,7 +620,7 @@ const AppointmentsCalendar: React.FC = () => {
                 <span>Scheduled</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-green-100 border border-green-300"></div>
+                <div className="w-4 h-4 rounded bg-success-100 border border-success-300"></div>
                 <span>Confirmed</span>
               </div>
               <div className="flex items-center gap-2">
@@ -632,11 +632,11 @@ const AppointmentsCalendar: React.FC = () => {
                 <span>Completed</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
+                <div className="w-4 h-4 rounded bg-danger-100 border border-danger-300"></div>
                 <span>Cancelled</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300"></div>
+                <div className="w-4 h-4 rounded bg-warning-100 border border-warning-300"></div>
                 <span>No Show</span>
               </div>
             </div>

@@ -51,19 +51,19 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
         <div
           className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
             severity === 'red'
-              ? 'bg-red-100'
+              ? 'bg-danger-100'
               : severity === 'orange'
               ? 'bg-orange-100'
-              : 'bg-yellow-100'
+              : 'bg-warning-100'
           }`}
         >
           <svg
             className={`w-8 h-8 ${
               severity === 'red'
-                ? 'text-red-600'
+                ? 'text-danger-600'
                 : severity === 'orange'
                 ? 'text-orange-600'
-                : 'text-yellow-600'
+                : 'text-warning-600'
             }`}
             fill="none"
             stroke="currentColor"
@@ -82,10 +82,10 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
         <h3
           className={`text-xl font-bold mb-2 ${
             severity === 'red'
-              ? 'text-red-700'
+              ? 'text-danger-700'
               : severity === 'orange'
               ? 'text-orange-700'
-              : 'text-yellow-700'
+              : 'text-warning-700'
           }`}
         >
           {isExpired ? 'Batch Expired!' : 'Near-Expiry Warning'}
@@ -102,10 +102,10 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
         <div
           className={`rounded-lg p-4 mb-6 ${
             severity === 'red'
-              ? 'bg-red-50 border border-red-200'
+              ? 'bg-danger-50 border border-danger-200'
               : severity === 'orange'
               ? 'bg-orange-50 border border-orange-200'
-              : 'bg-yellow-50 border border-yellow-200'
+              : 'bg-warning-50 border border-warning-200'
           }`}
         >
           <div className="text-left space-y-2">
@@ -121,7 +121,7 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
               <span className="text-gray-600">Expiry Date:</span>
               <span
                 className={`font-semibold ${
-                  severity === 'red' ? 'text-red-600' : severity === 'orange' ? 'text-orange-600' : 'text-yellow-600'
+                  severity === 'red' ? 'text-danger-600' : severity === 'orange' ? 'text-orange-600' : 'text-warning-600'
                 }`}
               >
                 {format(expiryDate, 'MMMM d, yyyy')}
@@ -151,10 +151,10 @@ const BatchExpiryWarning: React.FC<BatchExpiryWarningProps> = ({
               onClick={onProceed}
               className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors ${
                 severity === 'red'
-                  ? 'bg-red-600 hover:bg-red-700'
+                  ? 'bg-danger-600 hover:bg-danger-700'
                   : severity === 'orange'
                   ? 'bg-orange-600 hover:bg-orange-700'
-                  : 'bg-yellow-600 hover:bg-yellow-700'
+                  : 'bg-warning-600 hover:bg-warning-700'
               }`}
             >
               Proceed Anyway

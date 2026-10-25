@@ -2184,7 +2184,7 @@ const LabDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          walkin.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          walkin.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                           walkin.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
@@ -2805,9 +2805,9 @@ const LabDashboard: React.FC = () => {
                         </div>
                       ) : encounterDetails?.chief_complaint ? (
                         <div className="space-y-2">
-                          <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                            <div className="text-xs font-semibold text-yellow-600 uppercase mb-1">Presumptive / Chief Complaint</div>
-                            <span className="font-medium text-yellow-800">{encounterDetails.chief_complaint}</span>
+                          <div className="p-2 bg-warning-50 border border-warning-200 rounded text-sm">
+                            <div className="text-xs font-semibold text-warning-600 uppercase mb-1">Presumptive / Chief Complaint</div>
+                            <span className="font-medium text-warning-800">{encounterDetails.chief_complaint}</span>
                           </div>
                           {encounterDetails?.assessment && (
                             <div className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">

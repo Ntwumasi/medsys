@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/AppLayout';
+import DashboardHeader from '../components/DashboardHeader';
 
 interface RoleOption {
   role: string;
@@ -23,7 +24,7 @@ const roleOptions: RoleOption[] = [
     label: 'Office Manager',
     description: 'Front-office operations, billing and payers (no system/audit access)',
     icon: 'M3 21v-2a4 4 0 014-4h4M21 21v-2a4 4 0 00-3-3.87M9 7a4 4 0 108 0 4 4 0 00-8 0zM17 11h4m-2-2v4',
-    color: 'bg-amber-500',
+    color: 'bg-warning-500',
   },
   {
     role: 'receptionist',
@@ -44,14 +45,14 @@ const roleOptions: RoleOption[] = [
     label: 'Doctor',
     description: 'Patient consultations, diagnoses, and treatment plans',
     icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-    color: 'bg-green-500',
+    color: 'bg-success-500',
   },
   {
     role: 'lab',
     label: 'Laboratory',
     description: 'Lab orders, sample collection, and test results',
     icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
-    color: 'bg-yellow-500',
+    color: 'bg-warning-500',
   },
   {
     role: 'pharmacy',
@@ -91,7 +92,7 @@ const roleOptions: RoleOption[] = [
 ];
 
 const SuperAdminDashboard: React.FC = () => {
-  const { user, setActiveRole } = useAuth();
+  const { setActiveRole } = useAuth();
   const [switchingRole, setSwitchingRole] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,18 +114,14 @@ const SuperAdminDashboard: React.FC = () => {
 
   return (
     <AppLayout title="Super Admin Portal">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">
-            Welcome, {user?.first_name} {user?.last_name}
-          </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            As a super admin, you have access to all role dashboards. Choose which view you'd like to access.
-          </p>
-        </div>
+      <div>
+        <DashboardHeader
+          title="Choose a dashboard"
+          subtitle="As a super admin you can open any role's dashboard."
+        />
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-6 p-4 bg-danger-50 border border-danger-200 rounded-lg text-sm text-danger-700" role="alert">
             {error}
           </div>
         )}
@@ -139,7 +136,7 @@ const SuperAdminDashboard: React.FC = () => {
                 key={option.role}
                 onClick={() => handleRoleSelect(option.role)}
                 disabled={isAnySwitching}
-                className="group relative bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="group relative bg-white rounded-xl shadow-lg border border-gray-200 p-6 hover:shadow-xl hover:border-primary-300 transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {/* Icon */}
                 <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg ${option.color} text-white mb-4 group-hover:scale-110 transition-transform`}>

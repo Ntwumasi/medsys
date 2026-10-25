@@ -1907,7 +1907,7 @@ const DoctorDashboard: React.FC = () => {
             {/* Claims Review Section */}
             {pendingClaims.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-3">
+                <div className="bg-gradient-to-r from-warning-600 to-warning-700 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1915,14 +1915,14 @@ const DoctorDashboard: React.FC = () => {
                       </svg>
                       <h2 className="text-sm font-semibold text-white">Claims Pending Review</h2>
                     </div>
-                    <span className="px-2.5 py-1 bg-white text-amber-700 text-xs font-bold rounded-full">
+                    <span className="px-2.5 py-1 bg-white text-warning-700 text-xs font-bold rounded-full">
                       {pendingClaims.length}
                     </span>
                   </div>
                 </div>
                 <div className="max-h-[200px] overflow-y-auto divide-y divide-gray-100">
                   {pendingClaims.map((claim) => (
-                    <div key={claim.id} className="px-4 py-3 hover:bg-amber-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
+                    <div key={claim.id} className="px-4 py-3 hover:bg-warning-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-semibold text-gray-900 text-sm">{claim.claim_number}</div>
@@ -1931,7 +1931,7 @@ const DoctorDashboard: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-gray-900 text-sm">GHS {parseFloat(claim.total_charged || 0).toFixed(2)}</div>
-                          <button className="text-xs text-amber-600 font-medium hover:underline">Review</button>
+                          <button className="text-xs text-warning-600 font-medium hover:underline">Review</button>
                         </div>
                       </div>
                     </div>
@@ -2101,7 +2101,7 @@ const DoctorDashboard: React.FC = () => {
                   {(selectedEncounter.allergies_list?.length || selectedEncounter.patient_allergies) && (
                     <div className="pt-4 mt-4 border-t border-gray-200">
                       <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                         </svg>
                         Allergies
@@ -3896,7 +3896,7 @@ const DoctorDashboard: React.FC = () => {
       {showClaimReviewModal && selectedReviewClaim && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-amber-100">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-warning-50 to-warning-100">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">Review Claim {selectedReviewClaim.claim_number}</h3>
@@ -3933,17 +3933,17 @@ const DoctorDashboard: React.FC = () => {
               </div>
 
               {/* Claim Amount */}
-              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-green-600 font-medium">Claim Amount</p>
-                <p className="text-2xl font-bold text-green-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
+              <div className="bg-success-50 rounded-lg p-3 border border-success-200">
+                <p className="text-xs text-success-600 font-medium">Claim Amount</p>
+                <p className="text-2xl font-bold text-success-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
               </div>
 
               {/* Validation Issues */}
               {selectedReviewClaim.validation_issues && selectedReviewClaim.validation_issues.length > 0 && (
-                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-                  <p className="text-xs text-red-600 font-medium mb-2">Validation Issues</p>
+                <div className="bg-danger-50 rounded-lg p-3 border border-danger-200">
+                  <p className="text-xs text-danger-600 font-medium mb-2">Validation Issues</p>
                   {selectedReviewClaim.validation_issues.map((issue: any, idx: number) => (
-                    <p key={idx} className="text-sm text-red-700">{issue.issue}</p>
+                    <p key={idx} className="text-sm text-danger-700">{issue.issue}</p>
                   ))}
                   {selectedReviewClaim.validation_override_reason && (
                     <p className="text-sm text-gray-700 mt-2 p-2 bg-white rounded">
@@ -3961,7 +3961,7 @@ const DoctorDashboard: React.FC = () => {
                   onChange={(e) => setClaimReviewNotes(e.target.value)}
                   placeholder="Enter your review notes (required for rejection)..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
                 />
               </div>
             </div>
@@ -3974,13 +3974,13 @@ const DoctorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleRejectClaim}
-                className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                className="px-4 py-2 bg-danger-600 text-white font-semibold rounded-lg hover:bg-danger-700 transition-colors"
               >
                 Reject Claim
               </button>
               <button
                 onClick={handleApproveClaim}
-                className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                className="px-4 py-2 bg-success-600 text-white font-semibold rounded-lg hover:bg-success-700 transition-colors"
               >
                 Approve Claim
               </button>

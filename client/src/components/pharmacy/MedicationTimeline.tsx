@@ -53,15 +53,15 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'dispensed':
-        return 'bg-green-500';
+        return 'bg-success-500';
       case 'ready':
         return 'bg-blue-500';
       case 'in_progress':
-        return 'bg-yellow-500';
+        return 'bg-warning-500';
       case 'ordered':
         return 'bg-gray-400';
       case 'cancelled':
-        return 'bg-red-500';
+        return 'bg-danger-500';
       default:
         return 'bg-gray-400';
     }
@@ -69,11 +69,11 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      dispensed: 'bg-green-100 text-green-800',
+      dispensed: 'bg-success-100 text-success-800',
       ready: 'bg-blue-100 text-blue-800',
-      in_progress: 'bg-yellow-100 text-yellow-800',
+      in_progress: 'bg-warning-100 text-warning-800',
       ordered: 'bg-gray-100 text-gray-800',
-      cancelled: 'bg-red-100 text-red-800',
+      cancelled: 'bg-danger-100 text-danger-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -90,15 +90,15 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
     <div className="space-y-4">
       {/* Active Medications Summary */}
       {activeMeds.length > 0 && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <h4 className="text-sm font-semibold text-green-800 mb-2">
+        <div className="bg-success-50 border border-success-200 rounded-lg p-3">
+          <h4 className="text-sm font-semibold text-success-800 mb-2">
             Active Medications (Last 30 Days)
           </h4>
           <div className="flex flex-wrap gap-2">
             {activeMeds.map((med, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs"
+                className="inline-flex items-center px-2 py-1 bg-success-100 text-success-800 rounded-full text-xs"
               >
                 {med.medication_name} {med.dosage}
               </span>
@@ -154,7 +154,7 @@ const MedicationTimeline: React.FC<MedicationTimelineProps> = ({ patientId }) =>
                     <div className="text-right text-xs text-gray-500">
                       <div>Ordered: {format(new Date(entry.start_date), 'MMM d, yyyy')}</div>
                       {entry.dispensed_date && (
-                        <div className="text-green-600">
+                        <div className="text-success-600">
                           Dispensed: {format(new Date(entry.dispensed_date), 'MMM d, yyyy')}
                         </div>
                       )}

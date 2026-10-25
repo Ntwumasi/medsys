@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import type { Appointment, ApiError } from '../types';
 import { format } from 'date-fns';
@@ -27,31 +27,7 @@ import {
   buildAuditChangeSet,
   auditChangePreview,
 } from '../utils/audit';
-import {
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Tabs,
-  Tab,
-  Box,
-  Chip,
-  TextField,
-  Button,
-  CircularProgress,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Typography,
-} from '@mui/material';
-import {
-  Clear as ClearIcon,
-  Search as SearchIcon,
-} from '@mui/icons-material';
+import AppointmentsPanel from '../components/admin/AppointmentsPanel';
 
 interface CorporateClient {
   id: number;
@@ -1687,15 +1663,15 @@ const Dashboard: React.FC = () => {
       })()}
 
       {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6 bg-white rounded-t-xl shadow-lg">
-          <nav className="-mb-px flex space-x-8 px-6">
+        <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200">
+          <nav className="-mb-px flex overflow-x-auto" aria-label="Admin sections">
             <button
               onClick={() => setActiveTab('tasks')}
               className={`${
                 activeTab === 'tasks'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -1711,9 +1687,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('staff')}
               className={`${
                 activeTab === 'staff'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Staff Management
             </button>
@@ -1721,9 +1697,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('appointments')}
               className={`${
                 activeTab === 'appointments'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Appointments
             </button>
@@ -1731,9 +1707,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('corporate')}
               className={`${
                 activeTab === 'corporate'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Corporate Clients
             </button>
@@ -1741,9 +1717,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('insurance')}
               className={`${
                 activeTab === 'insurance'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Insurance Providers
             </button>
@@ -1751,9 +1727,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('charges')}
               className={`${
                 activeTab === 'charges'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1762,7 +1738,7 @@ const Dashboard: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/price-list')}
-              className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2"
+              className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2"
               title="Full price list: service + lab prices and per-payer tariffs"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1774,9 +1750,9 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('revenue')}
               className={`${
                 activeTab === 'revenue'
-                  ? 'border-primary-500 text-primary-600'
+                  ? 'border-primary-600 text-primary-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1788,9 +1764,9 @@ const Dashboard: React.FC = () => {
                 onClick={() => { setActiveTab('reports'); if (!reportData) fetchStaffReport(false); }}
                 className={`${
                   activeTab === 'reports'
-                    ? 'border-primary-500 text-primary-600'
+                    ? 'border-primary-600 text-primary-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1802,9 +1778,9 @@ const Dashboard: React.FC = () => {
                   onClick={() => setActiveTab('audit')}
                   className={`${
                     activeTab === 'audit'
-                      ? 'border-primary-500 text-primary-600'
+                      ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                  } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1815,9 +1791,9 @@ const Dashboard: React.FC = () => {
                   onClick={() => setActiveTab('logins')}
                   className={`${
                     activeTab === 'logins'
-                      ? 'border-primary-500 text-primary-600'
+                      ? 'border-primary-600 text-primary-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                  } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1830,275 +1806,16 @@ const Dashboard: React.FC = () => {
 
         {/* Appointments Tab */}
         {activeTab === 'appointments' && (
-          <Paper elevation={3} sx={{ borderRadius: 3, overflow: 'hidden' }}>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: '#f8fafc' }}>
-              <Tabs
-                value={appointmentsSubTab}
-                onChange={(_, newValue) => setAppointmentsSubTab(newValue)}
-                sx={{
-                  px: 3,
-                  '& .MuiTab-root': {
-                    textTransform: 'none',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    minHeight: 64,
-                  },
-                }}
-              >
-                <Tab label="Today's Appointments" value="current" />
-                <Tab label="Future Appointments" value="future" />
-                <Tab label="Past Appointments" value="past" />
-              </Tabs>
-            </Box>
-
-            <Box sx={{ p: 3 }}>
-              {appointmentsSubTab === 'current' && (
-                <>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h6" fontWeight={600}>
-                      Today's Appointments
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {format(new Date(), 'EEEE, MMMM d, yyyy')}
-                    </Typography>
-                  </Box>
-
-                  {loading ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
-                      <CircularProgress size={40} />
-                      <Typography sx={{ mt: 2 }} color="text.secondary">
-                        Loading appointments...
-                      </Typography>
-                    </Box>
-                  ) : todayAppointments.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 8 }}>
-                      <Typography color="text.secondary">No appointments scheduled for today</Typography>
-                    </Box>
-                  ) : (
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Time</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {todayAppointments.map((appointment) => (
-                            <TableRow key={appointment.id} hover>
-                              <TableCell>{format(new Date(appointment.appointment_date), 'h:mm a')}</TableCell>
-                              <TableCell>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {appointment.patient_name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {appointment.patient_number}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={appointment.status}
-                                  size="small"
-                                  color={
-                                    appointment.status === 'completed'
-                                      ? 'success'
-                                      : appointment.status === 'scheduled'
-                                      ? 'info'
-                                      : appointment.status === 'cancelled'
-                                      ? 'error'
-                                      : 'default'
-                                  }
-                                  sx={{ fontWeight: 600 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  component={Link}
-                                  to={`/patients/${appointment.patient_id}`}
-                                  variant="text"
-                                  size="small"
-                                >
-                                  View Patient
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </>
-              )}
-
-              {appointmentsSubTab === 'future' && (
-                <>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h6" fontWeight={600}>
-                      Future Appointments
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Upcoming scheduled appointments
-                    </Typography>
-                  </Box>
-
-                  {loadingFutureAppointments ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
-                      <CircularProgress size={40} />
-                      <Typography sx={{ mt: 2 }} color="text.secondary">
-                        Loading future appointments...
-                      </Typography>
-                    </Box>
-                  ) : futureAppointments.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 8 }}>
-                      <Typography color="text.secondary">No future appointments scheduled</Typography>
-                    </Box>
-                  ) : (
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Date & Time</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Provider</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {futureAppointments.map((appointment) => (
-                            <TableRow key={appointment.id} hover>
-                              <TableCell>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {format(new Date(appointment.appointment_date), 'MMM d, yyyy')}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {format(new Date(appointment.appointment_date), 'h:mm a')}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {appointment.patient_name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {appointment.patient_number}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
-                              <TableCell>{appointment.provider_name || '-'}</TableCell>
-                              <TableCell>
-                                <Chip
-                                  label={appointment.status}
-                                  size="small"
-                                  color={
-                                    appointment.status === 'confirmed'
-                                      ? 'success'
-                                      : appointment.status === 'scheduled'
-                                      ? 'info'
-                                      : 'default'
-                                  }
-                                  sx={{ fontWeight: 600 }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  component={Link}
-                                  to={`/patients/${appointment.patient_id}`}
-                                  variant="text"
-                                  size="small"
-                                >
-                                  View Patient
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </>
-              )}
-
-              {appointmentsSubTab === 'past' && (
-                <>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                    <Typography variant="h6" fontWeight={600}>
-                      Past Appointments
-                    </Typography>
-                  </Box>
-
-                  {loadingPastAppointments ? (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8 }}>
-                      <CircularProgress size={40} />
-                      <Typography sx={{ mt: 2 }} color="text.secondary">
-                        Loading past appointments...
-                      </Typography>
-                    </Box>
-                  ) : pastAppointments.length === 0 ? (
-                    <Box sx={{ textAlign: 'center', py: 8 }}>
-                      <Typography color="text.secondary">No past appointments found</Typography>
-                    </Box>
-                  ) : (
-                    <TableContainer>
-                      <Table>
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: '#f8fafc' }}>
-                            <TableCell sx={{ fontWeight: 600 }}>Date & Time</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Patient</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Type</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Provider</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                            <TableCell sx={{ fontWeight: 600 }}>Actions</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {pastAppointments.map((appointment) => (
-                            <TableRow key={appointment.id} hover>
-                              <TableCell>
-                                <Typography variant="body2">
-                                  {format(new Date(appointment.appointment_date), 'MMM d, yyyy')}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {format(new Date(appointment.appointment_date), 'h:mm a')}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {appointment.patient_name}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {appointment.patient_number}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>{appointment.appointment_type || 'General'}</TableCell>
-                              <TableCell>{appointment.provider_name || 'N/A'}</TableCell>
-                              <TableCell>
-                                <Chip label={appointment.status} size="small" color="default" sx={{ fontWeight: 600 }} />
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  component={Link}
-                                  to={`/patients/${appointment.patient_id}`}
-                                  variant="text"
-                                  size="small"
-                                >
-                                  View Patient
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  )}
-                </>
-              )}
-            </Box>
-          </Paper>
+          <AppointmentsPanel
+            subTab={appointmentsSubTab}
+            onSubTabChange={setAppointmentsSubTab}
+            today={todayAppointments}
+            future={futureAppointments}
+            past={pastAppointments}
+            loadingToday={loading}
+            loadingFuture={loadingFutureAppointments}
+            loadingPast={loadingPastAppointments}
+          />
         )}
 
         {/* Invoices Tab */}
@@ -2643,19 +2360,19 @@ const Dashboard: React.FC = () => {
                     <span className="text-sm font-medium text-gray-700">{selectedStaff.size} selected</span>
                     <button
                       onClick={handleBulkActivate}
-                      className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                      className="px-2 py-1 text-xs bg-success-600 text-white rounded hover:bg-success-700"
                     >
                       Activate
                     </button>
                     <button
                       onClick={handleBulkDeactivate}
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                      className="px-2 py-1 text-xs bg-danger-600 text-white rounded hover:bg-danger-700"
                     >
                       Deactivate
                     </button>
                     <button
                       onClick={handleBulkResetPassword}
-                      className="px-2 py-1 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                      className="px-2 py-1 text-xs bg-warning-600 text-white rounded hover:bg-warning-700"
                     >
                       Reset Passwords
                     </button>
@@ -2683,78 +2400,81 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Filter and Search Controls */}
-            <Box sx={{ mb: 3, display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
-              <TextField
-                fullWidth
-                label="Search"
-                placeholder="Name or username..."
-                value={staffSearchTerm}
-                onChange={(e) => {
-                  setStaffSearchTerm(e.target.value);
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div>
+                <label htmlFor="staff-search" className="block text-sm font-medium text-gray-700 mb-1.5">Search</label>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    id="staff-search"
+                    type="text"
+                    placeholder="Name or username..."
+                    value={staffSearchTerm}
+                    onChange={(e) => {
+                      setStaffSearchTerm(e.target.value);
+                      setStaffPage(1);
+                    }}
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <AppSelect
+                label="Role / Department"
+                value={staffRoleFilter}
+                onChange={(val) => {
+                  setStaffRoleFilter(val);
                   setStaffPage(1);
                 }}
-                InputProps={{
-                  startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-                }}
-                size="medium"
+                options={[
+                  { value: 'all', label: 'All Roles' },
+                  { value: 'doctor', label: 'Doctor' },
+                  { value: 'nurse', label: 'Nurse' },
+                  { value: 'receptionist', label: 'Receptionist' },
+                  { value: 'lab', label: 'Lab Technician' },
+                  { value: 'pharmacist', label: 'Pharmacist' },
+                  { value: 'pharmacy', label: 'Pharmacy' },
+                  { value: 'pharmacy_tech', label: 'Pharmacy Technician' },
+                  { value: 'imaging', label: 'Imaging/Radiology' },
+                  { value: 'accountant', label: 'Accountant' },
+                  { value: 'marketing', label: 'Marketing' },
+                  { value: 'office_manager', label: 'Office Manager' },
+                  { value: 'admin', label: 'Administrator' },
+                ]}
               />
 
-              <FormControl fullWidth size="medium">
-                <InputLabel>Role / Department</InputLabel>
-                <Select
-                  value={staffRoleFilter}
-                  label="Role / Department"
-                  onChange={(e) => {
-                    setStaffRoleFilter(e.target.value);
-                    setStaffPage(1);
-                  }}
-                >
-                  <MenuItem value="all">All Roles</MenuItem>
-                  <MenuItem value="doctor">Doctor</MenuItem>
-                  <MenuItem value="nurse">Nurse</MenuItem>
-                  <MenuItem value="receptionist">Receptionist</MenuItem>
-                  <MenuItem value="lab">Lab Technician</MenuItem>
-                  <MenuItem value="pharmacy">Pharmacy</MenuItem>
-                  <MenuItem value="imaging">Imaging/Radiology</MenuItem>
-                  <MenuItem value="admin">Administrator</MenuItem>
-                </Select>
-              </FormControl>
+              <AppSelect
+                label="Status"
+                value={staffStatusFilter}
+                onChange={(val) => {
+                  setStaffStatusFilter(val);
+                  setStaffPage(1);
+                }}
+                options={[
+                  { value: 'all', label: 'All Status' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                ]}
+              />
 
-              <FormControl fullWidth size="medium">
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={staffStatusFilter}
-                  label="Status"
-                  onChange={(e) => {
-                    setStaffStatusFilter(e.target.value);
-                    setStaffPage(1);
-                  }}
-                >
-                  <MenuItem value="all">All Status</MenuItem>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="inactive">Inactive</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <div>
                 {(staffSearchTerm || staffRoleFilter !== 'all' || staffStatusFilter !== 'all') && (
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    startIcon={<ClearIcon />}
+                  <button
                     onClick={() => {
                       setStaffSearchTerm('');
                       setStaffRoleFilter('all');
                       setStaffStatusFilter('all');
                       setStaffPage(1);
                     }}
-                    sx={{ height: '56px' }}
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Clear Filters
-                  </Button>
+                    Clear filters
+                  </button>
                 )}
-              </Box>
-            </Box>
+              </div>
+            </div>
 
             {showStaffForm && (
               <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
@@ -3035,7 +2755,7 @@ const Dashboard: React.FC = () => {
                         )}
                         <button
                           onClick={() => handleToggleStaffStatus(member.id, member.is_active)}
-                          className={member.is_active ? 'text-danger-600 hover:text-danger-900' : 'text-success-600 hover:text-green-900'}
+                          className={member.is_active ? 'text-danger-600 hover:text-danger-900' : 'text-success-600 hover:text-success-900'}
                         >
                           {member.is_active ? 'Deactivate' : 'Activate'}
                         </button>
@@ -3297,7 +3017,7 @@ const Dashboard: React.FC = () => {
                                   title={due.badge || 'Set deadline'}
                                 />
                                 {due.badge && (
-                                  <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-amber-600'}`}>{due.badge}</span>
+                                  <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-warning-600'}`}>{due.badge}</span>
                                 )}
                               </td>
                               <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
@@ -3532,7 +3252,7 @@ const Dashboard: React.FC = () => {
             {/* Loading State */}
             {loadingPastPatients && (
               <div className="text-center py-12">
-                <CircularProgress size={40} />
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
                 <p className="mt-4 text-gray-600">Loading past patients...</p>
               </div>
             )}
@@ -3829,7 +3549,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => exportAuditLogs('csv')}
-                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                    className="px-3 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors text-sm font-semibold flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -3896,7 +3616,7 @@ const Dashboard: React.FC = () => {
 
             {auditLoading ? (
               <div className="p-12 text-center">
-                <CircularProgress />
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
                 <p className="text-gray-500 mt-4">Loading audit logs...</p>
               </div>
             ) : auditLogs.length === 0 ? (
@@ -4204,7 +3924,7 @@ const Dashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-3 text-sm font-semibold text-right">
                           {selectedPayerFilter !== 'cash' && charge.payer_excluded ? (
-                            <span className="text-red-600 font-medium">EXCLUDED</span>
+                            <span className="text-danger-600 font-medium">EXCLUDED</span>
                           ) : selectedPayerFilter !== 'cash' && charge.payer_price != null ? (
                             <span className="text-primary-700">{parseFloat(charge.payer_price).toFixed(2)}</span>
                           ) : selectedPayerFilter !== 'cash' ? (
@@ -4366,7 +4086,7 @@ const Dashboard: React.FC = () => {
                       )}
                     </div>
                     {(editingCharge.category === 'lab') && (
-                      <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg mb-3">
+                      <p className="text-xs text-warning-600 bg-warning-50 px-3 py-2 rounded-lg mb-3">
                         Lab tests use MDS Lancet rates uniformly for all payers. Payer overrides do not apply.
                       </p>
                     )}
@@ -4400,7 +4120,7 @@ const Dashboard: React.FC = () => {
                                   updated[idx] = { ...pp, is_excluded: e.target.checked, price: e.target.checked ? '' : pp.price };
                                   setEditPayerPrices(updated);
                                 }}
-                                className="rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                className="rounded border-gray-300 text-danger-600 focus:ring-danger-500"
                               />
                               Excluded
                             </label>

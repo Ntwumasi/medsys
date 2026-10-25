@@ -365,7 +365,7 @@ const LabelRow: React.FC<{ label: string; value: string; onChange: (v: string) =
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="text-right border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+      className="text-right border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
       style={{ width: '60%' }}
     />
   </div>
@@ -4459,7 +4459,7 @@ const PharmacyDashboard: React.FC = () => {
                       {procurementItems.length > 1 && (
                         <button
                           onClick={() => removeLineItem(idx)}
-                          className="absolute top-3 right-3 text-red-400 hover:text-red-600 transition-colors"
+                          className="absolute top-3 right-3 text-danger-400 hover:text-danger-600 transition-colors"
                           title="Remove item"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4673,7 +4673,7 @@ const PharmacyDashboard: React.FC = () => {
                 </div>
               </div>
               {purchaseTruncated && (
-                <div className="px-6 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
+                <div className="px-6 py-2 bg-warning-50 border-b border-warning-200 text-xs text-warning-800">
                   Showing the most recent {purchaseHistory.length} of {purchaseTotalGroups} purchases. Narrow the date range to see older ones.
                 </div>
               )}
@@ -4749,11 +4749,11 @@ const PharmacyDashboard: React.FC = () => {
                                             <button
                                               onClick={(e) => { e.stopPropagation(); handleDeletePurchase(purchase.id); }}
                                               disabled={deletingPurchaseId === purchase.id}
-                                              className="text-red-500 hover:text-red-700 disabled:opacity-50 transition-colors p-1"
+                                              className="text-danger-500 hover:text-danger-700 disabled:opacity-50 transition-colors p-1"
                                               title="Delete this line (reverses its inventory change)"
                                             >
                                               {deletingPurchaseId === purchase.id ? (
-                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-500 border-t-transparent"></div>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-2 border-danger-500 border-t-transparent"></div>
                                               ) : (
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -5150,7 +5150,7 @@ const PharmacyDashboard: React.FC = () => {
           )}
 
           {importError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{importError}</div>
+            <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-700">{importError}</div>
           )}
 
           {importPreview && (
@@ -5158,13 +5158,13 @@ const PharmacyDashboard: React.FC = () => {
               {/* Detected columns + summary */}
               <div className="flex flex-wrap gap-2 text-xs">
                 {Object.entries(importPreview.detectedColumns || {}).map(([field, col]) => (
-                  <span key={field} className={`px-2 py-1 rounded-full border ${col ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
+                  <span key={field} className={`px-2 py-1 rounded-full border ${col ? 'bg-success-50 border-success-200 text-success-700' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
                     {field}: {col ? String(col) : 'not found'}
                   </span>
                 ))}
               </div>
               {!importPreview.detectedColumns?.selling && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-sm text-warning-800">
                   ⚠️ No <strong>Selling Price</strong> column was found in this file, so existing selling prices will be
                   kept unchanged (only cost{importUpdateStock ? ' and stock' : ''} will update). Add a "Selling Price" column to update prices.
                 </div>
@@ -5173,7 +5173,7 @@ const PharmacyDashboard: React.FC = () => {
                 <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toUpdate}</div><div className="text-xs text-gray-500">to update</div></div>
                 <div className="bg-gray-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-gray-900">{importPreview.summary.toCreate}</div><div className="text-xs text-gray-500">new items</div></div>
                 <div className="bg-blue-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-blue-700">{importPreview.summary.priceChanges}</div><div className="text-xs text-blue-500">price changes</div></div>
-                <div className="bg-amber-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-amber-700">{importPreview.summary.warnings}</div><div className="text-xs text-amber-500">warnings</div></div>
+                <div className="bg-warning-50 rounded-lg p-3 text-center"><div className="text-2xl font-bold text-warning-700">{importPreview.summary.warnings}</div><div className="text-xs text-warning-500">warnings</div></div>
               </div>
 
               {/* Preview table */}
@@ -5191,10 +5191,10 @@ const PharmacyDashboard: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {importPreview.rows.map((r: any) => (
-                      <tr key={r.rowNum} className={r.action === 'skip' ? 'bg-red-50' : r.warnings.length ? 'bg-amber-50/40' : ''}>
+                      <tr key={r.rowNum} className={r.action === 'skip' ? 'bg-danger-50' : r.warnings.length ? 'bg-warning-50/40' : ''}>
                         <td className="px-3 py-2">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            r.action === 'new' ? 'bg-blue-100 text-blue-700' : r.action === 'skip' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            r.action === 'new' ? 'bg-blue-100 text-blue-700' : r.action === 'skip' ? 'bg-danger-100 text-danger-700' : 'bg-success-100 text-success-700'
                           }`}>{r.action}</span>
                         </td>
                         <td className="px-3 py-2 text-gray-500">{r.code || '—'}</td>
@@ -5209,7 +5209,7 @@ const PharmacyDashboard: React.FC = () => {
                             ? <span>{Number(r.currentSelling).toFixed(2)} <span className="text-gray-400">→</span> <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong></span>
                             : (r.selling != null && r.selling > 0 ? <strong className="text-blue-700">{Number(r.selling).toFixed(2)}</strong> : (r.currentSelling != null ? <span className="text-gray-400">{Number(r.currentSelling).toFixed(2)} (kept)</span> : '—'))}
                         </td>
-                        <td className="px-3 py-2 text-xs text-amber-700">{r.warnings.join('; ')}</td>
+                        <td className="px-3 py-2 text-xs text-warning-700">{r.warnings.join('; ')}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -5517,7 +5517,7 @@ const PharmacyDashboard: React.FC = () => {
                         const currentExp = editedExp !== undefined ? editedExp : prevExp;
                         const expChanged = editedExp !== undefined && editedExp !== prevExp;
                         return (
-                          <tr key={batch.id || idx} className={isExpired ? 'bg-red-50' : isExpiringSoon ? 'bg-yellow-50' : ''}>
+                          <tr key={batch.id || idx} className={isExpired ? 'bg-danger-50' : isExpiringSoon ? 'bg-warning-50' : ''}>
                             <td className="px-2 py-1 text-gray-900">{batch.batch_number || '-'}</td>
                             <td className="px-2 py-1 text-right">
                               <input
@@ -5543,8 +5543,8 @@ const PharmacyDashboard: React.FC = () => {
                                 onChange={(e) => setBatchExpiryEdits(prev => ({ ...prev, [batch.id]: e.target.value }))}
                                 className={`px-1 py-0.5 border rounded text-sm ${
                                   expChanged ? 'border-blue-500 bg-blue-50' :
-                                  isExpired ? 'border-red-300 text-red-600 font-semibold' :
-                                  isExpiringSoon ? 'border-yellow-300 text-yellow-700' : 'border-gray-300'
+                                  isExpired ? 'border-danger-300 text-danger-600 font-semibold' :
+                                  isExpiringSoon ? 'border-warning-300 text-warning-700' : 'border-gray-300'
                                 }`}
                               />
                             </td>
@@ -6034,13 +6034,13 @@ const PharmacyDashboard: React.FC = () => {
                     type="text"
                     value={labelEdit.medication_name}
                     onChange={(e) => setLabelEdit({ ...labelEdit, medication_name: e.target.value })}
-                    className="text-lg font-bold w-full text-center border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                    className="text-lg font-bold w-full text-center border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
                   />
                   <input
                     type="text"
                     value={labelEdit.dosage}
                     onChange={(e) => setLabelEdit({ ...labelEdit, dosage: e.target.value })}
-                    className="text-base w-full text-center border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
+                    className="text-base w-full text-center border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 print:bg-transparent print:ring-0"
                   />
                 </div>
                 <hr className="my-2" />
@@ -6076,7 +6076,7 @@ const PharmacyDashboard: React.FC = () => {
                     onChange={(e) => setLabelEdit({ ...labelEdit, notes: e.target.value })}
                     placeholder="e.g. Take with food. May cause drowsiness."
                     rows={2}
-                    className="mt-1 w-full text-sm border-0 bg-transparent focus:bg-yellow-50 focus:ring-1 focus:ring-primary-400 rounded px-1 resize-none print:bg-transparent print:ring-0 print:placeholder-transparent"
+                    className="mt-1 w-full text-sm border-0 bg-transparent focus:bg-warning-50 focus:ring-1 focus:ring-primary-400 rounded px-1 resize-none print:bg-transparent print:ring-0 print:placeholder-transparent"
                   />
                 </div>
                 <hr className="my-2" />
@@ -6411,7 +6411,7 @@ const PharmacyDashboard: React.FC = () => {
                       )}
                       <button
                         onClick={() => removePrescriptionFile(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute -top-2 -right-2 bg-danger-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                       >
                         ×
                       </button>
@@ -6517,7 +6517,7 @@ const PharmacyDashboard: React.FC = () => {
                             </div>
                             <button
                               onClick={() => removeWalkInMedication(index)}
-                              className="text-red-400 hover:text-red-600 transition-colors p-1"
+                              className="text-danger-400 hover:text-danger-600 transition-colors p-1"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

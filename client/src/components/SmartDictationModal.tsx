@@ -142,7 +142,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             /* Recording Step */
             <div className="max-w-3xl mx-auto space-y-6">
               {!isSupported && (
-                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
+                <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-danger-700">
                   <p className="font-medium">Voice dictation is not supported in this browser.</p>
                   <p className="text-sm mt-1">Please use Chrome, Edge, or Safari.</p>
                 </div>
@@ -180,7 +180,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
               </div>
 
               {recordingError && (
-                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
+                <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-danger-700">
                   {recordingError}
                 </div>
               )}
@@ -221,7 +221,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
             /* Review Step */
             <div className="space-y-6">
               {parseError && (
-                <div className="bg-danger-50 border border-red-200 rounded-lg p-4 text-danger-700">
+                <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-danger-700">
                   {parseError}
                 </div>
               )}
@@ -289,7 +289,7 @@ const SmartDictationModal: React.FC<SmartDictationModalProps> = ({
                           />
                           <h4 className="font-semibold text-gray-800">{section.title}</h4>
                           {hasExisting && (
-                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full font-medium">
+                            <span className="text-xs bg-warning-100 text-warning-700 px-2 py-1 rounded-full font-medium">
                               Has existing content
                             </span>
                           )}

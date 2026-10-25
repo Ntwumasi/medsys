@@ -185,8 +185,8 @@ const WorkflowSection: React.FC = () => (
         />
       </div>
 
-      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4">
-        <h4 className="font-semibold text-amber-900 mb-2">Priority Levels</h4>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+        <h4 className="font-semibold text-warning-900 mb-2">Priority Levels</h4>
         <ul className="text-warning-800 text-sm space-y-1">
           <li><span className="font-semibold text-danger-600">STAT:</span> Emergency - process immediately (target: &lt;1 hour)</li>
           <li><span className="font-semibold text-warning-600">Urgent:</span> High priority - process same day (target: &lt;4 hours)</li>
@@ -242,8 +242,8 @@ const OrdersSection: React.FC = () => (
         <li>Use the batch action bar that appears above the list</li>
       </ul>
 
-      <div className="bg-danger-50 border border-red-200 rounded-lg p-4">
-        <h4 className="font-semibold text-red-900 mb-2">STAT Orders</h4>
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
+        <h4 className="font-semibold text-danger-900 mb-2">STAT Orders</h4>
         <p className="text-danger-800 text-sm">
           STAT orders are highlighted with a red border and background. These require immediate attention
           and should be processed before routine orders.
@@ -296,8 +296,8 @@ Platelets: 250 x10^9/L (150-400)
         <li>Critical values must be acknowledged by a clinician</li>
       </ul>
 
-      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-amber-900 mb-2">Best Practices</h4>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-warning-900 mb-2">Best Practices</h4>
         <ul className="text-warning-800 text-sm space-y-1">
           <li>Always double-check values before submitting</li>
           <li>Include units with all numeric values</li>
@@ -325,8 +325,8 @@ const CriticalAlertsSection: React.FC = () => (
     <h2 className="text-2xl font-bold text-gray-900 mb-6">Critical Alerts</h2>
 
     <div className="prose max-w-none">
-      <div className="bg-danger-50 border border-red-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-red-900 mb-2">Important</h4>
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-danger-900 mb-2">Important</h4>
         <p className="text-danger-800 text-sm">
           Critical alerts represent potentially life-threatening results that require immediate clinical attention.
           These must be acknowledged and acted upon promptly.
@@ -408,7 +408,7 @@ const InventorySection: React.FC = () => (
         </div>
         <div className="bg-warning-50 rounded-lg p-3">
           <div className="text-sm text-warning-600">Calibration Due</div>
-          <div className="font-bold text-amber-700">Equipment needing calibration</div>
+          <div className="font-bold text-warning-700">Equipment needing calibration</div>
         </div>
       </div>
 
@@ -424,8 +424,8 @@ const InventorySection: React.FC = () => (
         <li><strong>Edit details:</strong> Modify item information</li>
       </ul>
 
-      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4">
-        <h4 className="font-semibold text-amber-900 mb-2">Low Stock Alerts</h4>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+        <h4 className="font-semibold text-warning-900 mb-2">Low Stock Alerts</h4>
         <p className="text-warning-800 text-sm">
           Items are marked as low stock when quantity on hand falls below the reorder level.
           The "Low Stock" count on the main dashboard header links directly to filtered view.
@@ -523,12 +523,12 @@ const AnalyticsSection: React.FC = () => (
           <p className="text-sm text-secondary-700">Mean turnaround time across all tests</p>
         </div>
         <div className="bg-danger-50 rounded-lg p-4">
-          <h4 className="font-semibold text-red-900">STAT Tests</h4>
+          <h4 className="font-semibold text-danger-900">STAT Tests</h4>
           <p className="text-sm text-danger-700">Emergency priority test count</p>
         </div>
         <div className="bg-warning-50 rounded-lg p-4">
-          <h4 className="font-semibold text-amber-900">Critical Results</h4>
-          <p className="text-sm text-amber-700">Results outside critical limits</p>
+          <h4 className="font-semibold text-warning-900">Critical Results</h4>
+          <p className="text-sm text-warning-700">Results outside critical limits</p>
         </div>
       </div>
 

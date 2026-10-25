@@ -135,7 +135,7 @@ const BillButton: React.FC<BillButtonProps> = ({
         disabled={saving || (sources === null && !loadError)}
         className={`px-4 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 border ${
           buttonColored
-            ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+            ? 'bg-warning-50 text-warning-800 border-warning-300 hover:bg-warning-100'
             : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
         } ${saving ? 'opacity-60 cursor-wait' : ''}`}
         title="Bill — pick the payer / tier"
@@ -188,8 +188,8 @@ const BillButton: React.FC<BillButtonProps> = ({
                     key={`tier-${lvl}`}
                     onClick={() => handleSetTier(lvl)}
                     disabled={saving}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-amber-50 flex items-center justify-between ${
-                      selfPayTier === lvl ? 'bg-amber-100 font-semibold' : ''
+                    className={`w-full px-3 py-2 text-left text-sm hover:bg-warning-50 flex items-center justify-between ${
+                      selfPayTier === lvl ? 'bg-warning-100 font-semibold' : ''
                     }`}
                   >
                     <span>Level {lvl}</span>

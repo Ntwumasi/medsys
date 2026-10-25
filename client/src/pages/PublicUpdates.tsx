@@ -113,7 +113,7 @@ const PublicUpdates: React.FC = () => {
   const getCategoryBadge = (category: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
       feature: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Feature' },
-      improvement: { bg: 'bg-green-100', text: 'text-green-800', label: 'Improvement' },
+      improvement: { bg: 'bg-success-100', text: 'text-success-800', label: 'Improvement' },
       bugfix: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Bug Fix' },
       planned: { bg: 'bg-secondary-100', text: 'text-secondary-800', label: 'Planned' },
     };
@@ -127,8 +127,8 @@ const PublicUpdates: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
-      completed: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Completed' },
-      in_progress: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'In Progress' },
+      completed: { bg: 'bg-success-100', text: 'text-success-800', label: 'Completed' },
+      in_progress: { bg: 'bg-warning-100', text: 'text-warning-800', label: 'In Progress' },
       planned: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Planned' },
     };
     const badge = badges[status] || badges.completed;
@@ -186,7 +186,7 @@ const PublicUpdates: React.FC = () => {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Success Message */}
         {submitSuccess && (
-          <div className="mb-6 p-4 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-center font-medium">
+          <div className="mb-6 p-4 bg-success-100 border border-success-300 text-success-800 rounded-xl text-center font-medium">
             Update added successfully!
           </div>
         )}
@@ -198,9 +198,9 @@ const PublicUpdates: React.FC = () => {
               <div className="text-2xl sm:text-3xl font-bold text-blue-700">{stats.features}</div>
               <div className="text-xs sm:text-sm text-blue-600">Features</div>
             </div>
-            <div className="bg-white rounded-xl p-4 border border-green-200 shadow-sm">
-              <div className="text-2xl sm:text-3xl font-bold text-green-700">{stats.improvements}</div>
-              <div className="text-xs sm:text-sm text-green-600">Improvements</div>
+            <div className="bg-white rounded-xl p-4 border border-success-200 shadow-sm">
+              <div className="text-2xl sm:text-3xl font-bold text-success-700">{stats.improvements}</div>
+              <div className="text-xs sm:text-sm text-success-600">Improvements</div>
             </div>
             <div className="bg-white rounded-xl p-4 border border-orange-200 shadow-sm">
               <div className="text-2xl sm:text-3xl font-bold text-orange-700">{stats.bugfixes}</div>
@@ -302,7 +302,7 @@ const PublicUpdates: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium disabled:opacity-50"
                 >
                   {submitting ? 'Adding...' : 'Add Update'}
                 </button>

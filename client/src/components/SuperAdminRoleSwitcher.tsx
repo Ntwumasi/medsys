@@ -96,7 +96,7 @@ const SuperAdminRoleSwitcher: React.FC = () => {
           </div>
 
           {error && (
-            <div className="px-3 py-2 text-xs text-red-600 bg-red-50 border-b border-red-100">
+            <div className="px-3 py-2 text-xs text-danger-600 bg-danger-50 border-b border-danger-100">
               {error}
             </div>
           )}

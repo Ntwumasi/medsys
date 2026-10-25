@@ -63,7 +63,7 @@ class ErrorBoundary extends Component<Props, State> {
                   <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</h1>
                   <p className="text-gray-600 mb-4">The application encountered an error.</p>
                   {this.state.error && (
-                    <div className="bg-danger-50 border border-red-200 rounded p-4 mb-4 text-left">
+                    <div className="bg-danger-50 border border-danger-200 rounded p-4 mb-4 text-left">
                       <p className="text-sm text-danger-800 font-mono break-all">
                         {this.state.error.message}
                       </p>

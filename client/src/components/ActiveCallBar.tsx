@@ -15,17 +15,17 @@ const ActiveCallBar: React.FC = () => {
   }
 
   return (
-    <div className="fixed top-14 left-0 right-0 z-40 h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white flex items-center px-4 shadow-md">
+    <div className="fixed top-14 left-0 right-0 z-40 h-12 bg-gradient-to-r from-success-500 to-success-600 text-white flex items-center px-4 shadow-md">
       {/* Left: user info */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <span className="relative flex h-3 w-3 shrink-0">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
-          <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-200" />
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success-300 opacity-75" />
+          <span className="relative inline-flex rounded-full h-3 w-3 bg-success-200" />
         </span>
         {remoteUser && (
           <span className="truncate text-sm font-medium">
             {remoteUser.name}
-            <span className="ml-1.5 text-emerald-100 text-xs capitalize">({remoteUser.role})</span>
+            <span className="ml-1.5 text-success-100 text-xs capitalize">({remoteUser.role})</span>
           </span>
         )}
       </div>
@@ -52,7 +52,7 @@ const ActiveCallBar: React.FC = () => {
         <button
           onClick={toggleMute}
           className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-            isMuted ? 'bg-white/20 text-red-200' : 'hover:bg-white/10'
+            isMuted ? 'bg-white/20 text-danger-200' : 'hover:bg-white/10'
           }`}
           aria-label={isMuted ? 'Unmute' : 'Mute'}
         >
@@ -79,7 +79,7 @@ const ActiveCallBar: React.FC = () => {
         {/* Hang up */}
         <button
           onClick={hangUp}
-          className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-colors"
+          className="w-8 h-8 rounded-full bg-danger-500 hover:bg-danger-600 flex items-center justify-center transition-colors"
           aria-label="Hang up"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

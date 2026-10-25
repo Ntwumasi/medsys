@@ -165,7 +165,7 @@ interface DoctorNotification {
 const getNotificationBadge = (notification: DoctorNotification): { label: string; color: string } => {
   const msg = (notification.message || '').toLowerCase();
   if (msg.includes('critical') || msg.includes('urgent') || msg.includes('stat'))
-    return { label: 'Critical', color: 'bg-red-100 text-red-700' };
+    return { label: 'Critical', color: 'bg-danger-100 text-danger-700' };
   if (msg.includes('follow-up') || msg.includes('follow up') || msg.includes('review'))
     return { label: 'Follow-up', color: 'bg-purple-100 text-purple-700' };
   if (msg.includes('ready') || msg.includes('completed') || msg.includes('returned'))
@@ -2015,7 +2015,7 @@ const NurseDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          walkin.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          walkin.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                           walkin.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
@@ -2569,9 +2569,9 @@ const NurseDashboard: React.FC = () => {
                     {/* AI Triage Suggestion */}
                     {aiTriageSuggestion && (
                       <div className={`mt-2 p-3 rounded-lg border text-xs ${
-                        aiTriageSuggestion.suggested_priority === 'red' ? 'bg-red-50 border-red-200' :
-                        aiTriageSuggestion.suggested_priority === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
-                        'bg-green-50 border-green-200'
+                        aiTriageSuggestion.suggested_priority === 'red' ? 'bg-danger-50 border-danger-200' :
+                        aiTriageSuggestion.suggested_priority === 'yellow' ? 'bg-warning-50 border-warning-200' :
+                        'bg-success-50 border-success-200'
                       }`}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-bold">
@@ -2603,10 +2603,10 @@ const NurseDashboard: React.FC = () => {
                   {selectedPatient.vital_signs && Object.keys(selectedPatient.vital_signs).length > 0 && (
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                       {selectedPatient.vital_signs.blood_pressure_systolic && (
-                        <div className="bg-red-50 rounded-lg p-2.5 text-center border border-red-100">
-                          <p className="text-[10px] font-semibold text-red-600 uppercase">BP</p>
-                          <p className="text-sm font-bold text-red-900">{selectedPatient.vital_signs.blood_pressure_systolic}/{selectedPatient.vital_signs.blood_pressure_diastolic}</p>
-                          <p className="text-[10px] text-red-500">mmHg</p>
+                        <div className="bg-danger-50 rounded-lg p-2.5 text-center border border-danger-100">
+                          <p className="text-[10px] font-semibold text-danger-600 uppercase">BP</p>
+                          <p className="text-sm font-bold text-danger-900">{selectedPatient.vital_signs.blood_pressure_systolic}/{selectedPatient.vital_signs.blood_pressure_diastolic}</p>
+                          <p className="text-[10px] text-danger-500">mmHg</p>
                         </div>
                       )}
                       {selectedPatient.vital_signs.heart_rate && (
@@ -2639,9 +2639,9 @@ const NurseDashboard: React.FC = () => {
                       )}
                       {selectedPatient.vital_signs.pain_level != null && (
                         <div className={`rounded-lg p-2.5 text-center border ${
-                          selectedPatient.vital_signs.pain_level >= 7 ? 'bg-red-50 border-red-100' :
-                          selectedPatient.vital_signs.pain_level >= 4 ? 'bg-yellow-50 border-yellow-100' :
-                          'bg-green-50 border-green-100'
+                          selectedPatient.vital_signs.pain_level >= 7 ? 'bg-danger-50 border-danger-100' :
+                          selectedPatient.vital_signs.pain_level >= 4 ? 'bg-warning-50 border-warning-100' :
+                          'bg-success-50 border-success-100'
                         }`}>
                           <p className="text-[10px] font-semibold text-gray-600 uppercase">Pain</p>
                           <p className="text-sm font-bold text-gray-900">{selectedPatient.vital_signs.pain_level}/10</p>
@@ -2670,13 +2670,13 @@ const NurseDashboard: React.FC = () => {
                         'in_room': { stage: 'In Room', progress: 15, color: 'bg-blue-500' },
                         'vitals_complete': { stage: 'Vitals Complete', progress: 30, color: 'bg-blue-600' },
                         'with_nurse': { stage: 'With Nurse', progress: 35, color: 'bg-primary-500' },
-                        'waiting_for_doctor': { stage: 'Waiting for Doctor', progress: 45, color: 'bg-yellow-500' },
+                        'waiting_for_doctor': { stage: 'Waiting for Doctor', progress: 45, color: 'bg-warning-500' },
                         'with_doctor': { stage: 'With Doctor', progress: 55, color: 'bg-purple-500' },
                         'at_lab': { stage: 'At Lab', progress: 65, color: 'bg-teal-500' },
                         'at_imaging': { stage: 'At Imaging', progress: 65, color: 'bg-indigo-500' },
-                        'at_pharmacy': { stage: 'At Pharmacy', progress: 75, color: 'bg-green-500' },
+                        'at_pharmacy': { stage: 'At Pharmacy', progress: 75, color: 'bg-success-500' },
                         'ready_for_checkout': { stage: 'Ready for Checkout', progress: 90, color: 'bg-success-500' },
-                        'completed': { stage: 'Completed', progress: 95, color: 'bg-emerald-500' },
+                        'completed': { stage: 'Completed', progress: 95, color: 'bg-success-500' },
                         'discharged': { stage: 'Discharged', progress: 100, color: 'bg-gray-500' },
                         'checked_out': { stage: 'Checked Out', progress: 100, color: 'bg-gray-500' },
                       };
@@ -2733,7 +2733,7 @@ const NurseDashboard: React.FC = () => {
                           <div className="flex items-center justify-between mb-4">
                             <div className="text-xs font-bold text-gray-500 uppercase tracking-wider">Patient Journey</div>
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              progress >= 90 ? 'bg-emerald-100 text-emerald-800' :
+                              progress >= 90 ? 'bg-success-100 text-success-800' :
                               progress >= 55 ? 'bg-primary-100 text-primary-800' :
                               'bg-gray-100 text-gray-700'
                             }`}>
@@ -2791,21 +2791,21 @@ const NurseDashboard: React.FC = () => {
                             <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap gap-2">
                               {labOrders.length > 0 && (
                                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                  labsComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-teal-100 text-teal-700'
+                                  labsComplete ? 'bg-success-100 text-success-700' : 'bg-teal-100 text-teal-700'
                                 }`}>
                                   Lab ({labOrders.filter(o => o.status === 'completed').length}/{labOrders.length})
                                 </span>
                               )}
                               {imagingOrders.length > 0 && (
                                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                  imagingComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
+                                  imagingComplete ? 'bg-success-100 text-success-700' : 'bg-indigo-100 text-indigo-700'
                                 }`}>
                                   Imaging ({imagingOrders.filter(o => o.status === 'completed').length}/{imagingOrders.length})
                                 </span>
                               )}
                               {pharmacyOrders.length > 0 && (
                                 <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                  pharmacyComplete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                                  pharmacyComplete ? 'bg-success-100 text-success-700' : 'bg-warning-100 text-warning-700'
                                 }`}>
                                   Pharmacy ({pharmacyOrders.filter(o => o.status === 'completed' || o.status === 'dispensed').length}/{pharmacyOrders.length})
                                 </span>
@@ -2962,7 +2962,7 @@ const NurseDashboard: React.FC = () => {
                         onClick={() => setActiveTab('pharmacy')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'pharmacy'
-                            ? 'border-amber-500 text-amber-600 bg-amber-50'
+                            ? 'border-warning-500 text-warning-600 bg-warning-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -2972,7 +2972,7 @@ const NurseDashboard: React.FC = () => {
                           </svg>
                           Pharmacy
                           {pharmacyOrders.length > 0 && (
-                            <span className="px-2 py-0.5 text-xs bg-amber-100 text-amber-800 rounded-full">
+                            <span className="px-2 py-0.5 text-xs bg-warning-100 text-warning-800 rounded-full">
                               {pharmacyOrders.length}
                             </span>
                           )}
@@ -3060,7 +3060,7 @@ const NurseDashboard: React.FC = () => {
                         }}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           activeTab === 'billing'
-                            ? 'border-emerald-600 text-emerald-600 bg-emerald-50'
+                            ? 'border-success-600 text-success-600 bg-success-50'
                             : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
                         }`}
                       >
@@ -3369,9 +3369,9 @@ const NurseDashboard: React.FC = () => {
                             </div>
 
                             {/* Row 2: Blood Pressure */}
-                            <div className="bg-white rounded-lg p-3 border border-gray-200 border-l-4 border-l-red-400">
+                            <div className="bg-white rounded-lg p-3 border border-gray-200 border-l-4 border-l-danger-400">
                               <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                                <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                 </svg>
                                 Blood Pressure
@@ -3515,9 +3515,9 @@ const NurseDashboard: React.FC = () => {
                             {/* Row 4: Weight & Height */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {/* Weight */}
-                              <div className="bg-white rounded-lg p-3 border border-gray-200 border-l-4 border-l-green-400">
+                              <div className="bg-white rounded-lg p-3 border border-gray-200 border-l-4 border-l-success-400">
                                 <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
-                                  <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-4 h-4 text-success-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
                                   </svg>
                                   Weight
@@ -3591,8 +3591,8 @@ const NurseDashboard: React.FC = () => {
                                     const heightM = vitals.height_unit === 'cm' ? vitals.height / 100 : vitals.height * 0.0254;
                                     const bmi = weightKg / (heightM * heightM);
                                     const bmiCategory = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
-                                    const categoryColor = bmi < 18.5 ? 'text-blue-600' : bmi < 25 ? 'text-green-600' : bmi < 30 ? 'text-yellow-600' : 'text-red-600';
-                                    const categoryBg = bmi < 18.5 ? 'bg-blue-100' : bmi < 25 ? 'bg-green-100' : bmi < 30 ? 'bg-yellow-100' : 'bg-red-100';
+                                    const categoryColor = bmi < 18.5 ? 'text-blue-600' : bmi < 25 ? 'text-success-600' : bmi < 30 ? 'text-warning-600' : 'text-danger-600';
+                                    const categoryBg = bmi < 18.5 ? 'bg-blue-100' : bmi < 25 ? 'bg-success-100' : bmi < 30 ? 'bg-warning-100' : 'bg-danger-100';
                                     return (
                                       <div className="flex items-center gap-3">
                                         <span className="text-lg font-bold text-gray-900">{bmi.toFixed(1)}</span>
@@ -3925,7 +3925,7 @@ const NurseDashboard: React.FC = () => {
                     {activeTab === 'pharmacy' && (
                       <div className="space-y-4">
                         <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-lg font-semibold text-amber-700">Pharmacy Orders</h3>
+                          <h3 className="text-lg font-semibold text-warning-700">Pharmacy Orders</h3>
                           <span className="text-sm text-gray-500">{pharmacyOrders.length} order{pharmacyOrders.length !== 1 ? 's' : ''}</span>
                         </div>
                         {pharmacyOrders.length > 0 ? (
@@ -3934,7 +3934,7 @@ const NurseDashboard: React.FC = () => {
                               <div key={order.id} className={`border rounded-lg p-4 ${
                                 order.status === 'ready' ? 'border-orange-300 bg-orange-50' :
                                 order.status === 'dispensed' ? 'border-success-200 bg-success-50' :
-                                'border-amber-200 bg-amber-50'
+                                'border-warning-200 bg-warning-50'
                               }`}>
                                 <div className="flex justify-between items-start">
                                   <div className="flex-1">
@@ -4426,13 +4426,13 @@ const NurseDashboard: React.FC = () => {
                                 <div className={`mb-4 p-4 rounded-lg border-2 ${
                                   workflowStatus === 'at_lab' ? 'bg-teal-50 border-teal-300' :
                                   workflowStatus === 'at_imaging' ? 'bg-indigo-50 border-indigo-300' :
-                                  'bg-green-50 border-green-300'
+                                  'bg-success-50 border-success-300'
                                 }`}>
                                   <div className="flex items-center gap-3">
                                     <div className={`w-3 h-3 rounded-full animate-pulse ${
                                       workflowStatus === 'at_lab' ? 'bg-teal-500' :
                                       workflowStatus === 'at_imaging' ? 'bg-indigo-500' :
-                                      'bg-green-500'
+                                      'bg-success-500'
                                     }`}></div>
                                     <span className="font-bold text-gray-900">
                                       Patient is currently at {currentDept}
@@ -4478,7 +4478,7 @@ const NurseDashboard: React.FC = () => {
                                     disabled={atPharmacy || (isAtDepartment && !atPharmacy)}
                                     className={`py-3 rounded-lg font-semibold transition-colors ${
                                       atPharmacy
-                                        ? 'bg-green-600 text-white cursor-default'
+                                        ? 'bg-success-600 text-white cursor-default'
                                         : isAtDepartment
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                                         : 'bg-primary-600 text-white hover:bg-primary-700'
@@ -4797,7 +4797,7 @@ const NurseDashboard: React.FC = () => {
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                           item.category === 'PPE' ? 'bg-blue-100 text-blue-800' :
                           item.category === 'Equipment' ? 'bg-purple-100 text-purple-800' :
-                          item.category === 'Medications' ? 'bg-green-100 text-green-800' :
+                          item.category === 'Medications' ? 'bg-success-100 text-success-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
                           {item.category}
@@ -5549,12 +5549,12 @@ const NurseDashboard: React.FC = () => {
 
                   {/* Review call task */}
                   {notificationDetails?.review_task ? (
-                    <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                    <div className="bg-warning-50 rounded-lg p-4 border border-warning-200">
                       <div className="flex justify-between items-start mb-2">
-                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                        <p className="text-xs font-semibold text-warning-700 uppercase tracking-wider">
                           Review call
                         </p>
-                        <span className="text-xs text-amber-600">in your Calls queue</span>
+                        <span className="text-xs text-warning-600">in your Calls queue</span>
                       </div>
                       {notificationDetails.review_task.review_reason && (
                         <p className="text-sm text-gray-900 mb-2">
@@ -5575,7 +5575,7 @@ const NurseDashboard: React.FC = () => {
                           onClick={rescheduleReviewTask}
                           disabled={savingReschedule || !editingReviewDate ||
                             editingReviewDate === new Date(notificationDetails.review_task.scheduled_date).toISOString().slice(0, 10)}
-                          className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 text-sm"
+                          className="px-4 py-2 bg-warning-600 text-white rounded-lg hover:bg-warning-700 disabled:opacity-50 text-sm"
                         >
                           {savingReschedule ? 'Saving...' : 'Reschedule'}
                         </button>

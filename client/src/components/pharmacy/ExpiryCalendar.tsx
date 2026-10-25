@@ -138,7 +138,7 @@ const ExpiryCalendar: React.FC = () => {
             {batches.length > 0 && (
               <div className="space-y-0.5">
                 {expiredCount > 0 && (
-                  <div className="text-xs bg-red-100 text-red-700 rounded px-1 truncate">
+                  <div className="text-xs bg-danger-100 text-danger-700 rounded px-1 truncate">
                     {expiredCount} expired
                   </div>
                 )}
@@ -148,7 +148,7 @@ const ExpiryCalendar: React.FC = () => {
                   </div>
                 )}
                 {warningCount > 0 && (
-                  <div className="text-xs bg-yellow-100 text-yellow-700 rounded px-1 truncate">
+                  <div className="text-xs bg-warning-100 text-warning-700 rounded px-1 truncate">
                     {warningCount} warning
                   </div>
                 )}
@@ -170,17 +170,17 @@ const ExpiryCalendar: React.FC = () => {
 
   const renderSummary = () => (
     <div className="grid grid-cols-3 gap-4 mb-4">
-      <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
-        <div className="text-2xl font-bold text-red-600">{data?.summary?.expired_count || 0}</div>
-        <div className="text-sm text-red-700">Expired</div>
+      <div className="bg-danger-50 border border-danger-200 rounded-lg p-3 text-center">
+        <div className="text-2xl font-bold text-danger-600">{data?.summary?.expired_count || 0}</div>
+        <div className="text-sm text-danger-700">Expired</div>
       </div>
       <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
         <div className="text-2xl font-bold text-orange-600">{data?.summary?.critical_count || 0}</div>
         <div className="text-sm text-orange-700">Critical (&lt;30 days)</div>
       </div>
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
-        <div className="text-2xl font-bold text-yellow-600">{data?.summary?.warning_count || 0}</div>
-        <div className="text-sm text-yellow-700">Warning (&lt;90 days)</div>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-center">
+        <div className="text-2xl font-bold text-warning-600">{data?.summary?.warning_count || 0}</div>
+        <div className="text-sm text-warning-700">Warning (&lt;90 days)</div>
       </div>
     </div>
   );
@@ -200,10 +200,10 @@ const ExpiryCalendar: React.FC = () => {
               key={batch.id}
               className={`flex items-center justify-between p-3 rounded-lg ${
                 batch.status === 'expired'
-                  ? 'bg-red-50 border border-red-200'
+                  ? 'bg-danger-50 border border-danger-200'
                   : batch.status === 'critical'
                   ? 'bg-orange-50 border border-orange-200'
-                  : 'bg-yellow-50 border border-yellow-200'
+                  : 'bg-warning-50 border border-warning-200'
               }`}
             >
               <div>
@@ -215,10 +215,10 @@ const ExpiryCalendar: React.FC = () => {
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${
                     batch.status === 'expired'
-                      ? 'bg-red-200 text-red-800'
+                      ? 'bg-danger-200 text-danger-800'
                       : batch.status === 'critical'
                       ? 'bg-orange-200 text-orange-800'
-                      : 'bg-yellow-200 text-yellow-800'
+                      : 'bg-warning-200 text-warning-800'
                   }`}
                 >
                   {batch.status}

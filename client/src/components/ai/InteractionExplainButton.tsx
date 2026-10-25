@@ -53,9 +53,9 @@ const InteractionExplainButton: React.FC<InteractionExplainButtonProps> = ({
 
   const riskColor = (risk?: string) => {
     const r = (risk || '').toLowerCase();
-    if (r.includes('contra')) return 'bg-red-100 text-red-800';
+    if (r.includes('contra')) return 'bg-danger-100 text-danger-800';
     if (r.includes('high')) return 'bg-orange-100 text-orange-800';
-    if (r.includes('moder')) return 'bg-yellow-100 text-yellow-800';
+    if (r.includes('moder')) return 'bg-warning-100 text-warning-800';
     return 'bg-gray-100 text-gray-700';
   };
 
@@ -91,13 +91,13 @@ const InteractionExplainButton: React.FC<InteractionExplainButtonProps> = ({
         )}
 
         {unavailable && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+          <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800">
             AI explanations aren’t configured on this environment. The detected interaction and
             recommendation above still apply.
           </div>
         )}
 
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">{error}</div>}
+        {error && <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800">{error}</div>}
 
         {data && (
           <div className="space-y-3">

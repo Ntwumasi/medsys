@@ -743,7 +743,7 @@ const DoctorRevenuePanel: React.FC = () => {
                                   <td className="py-1.5 text-center">
                                     <button
                                       onClick={() => removeEditLine(l.key)}
-                                      className="text-red-500 hover:text-red-700 text-lg leading-none"
+                                      className="text-danger-500 hover:text-danger-700 text-lg leading-none"
                                       title="Remove line"
                                       aria-label="Remove line"
                                     >

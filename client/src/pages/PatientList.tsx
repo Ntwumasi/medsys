@@ -65,7 +65,7 @@ const PatientList: React.FC = () => {
                 patient.vip_status === 'platinum'
                   ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-800'
                   : patient.vip_status === 'gold'
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-amber-900'
+                    ? 'bg-gradient-to-r from-warning-400 to-warning-500 text-warning-900'
                     : 'bg-gradient-to-r from-gray-200 to-slate-300 text-gray-700'
               }`}>
                 ★ {patient.vip_status.charAt(0).toUpperCase() + patient.vip_status.slice(1)}

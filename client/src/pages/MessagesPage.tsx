@@ -140,10 +140,10 @@ const MessagesPage: React.FC = () => {
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-700',
-      doctor: 'bg-green-100 text-green-700',
+      doctor: 'bg-success-100 text-success-700',
       nurse: 'bg-pink-100 text-pink-700',
       receptionist: 'bg-blue-100 text-blue-700',
-      lab: 'bg-yellow-100 text-yellow-700',
+      lab: 'bg-warning-100 text-warning-700',
       pharmacy: 'bg-orange-100 text-orange-700',
       pharmacist: 'bg-orange-100 text-orange-700',
       pharmacy_tech: 'bg-orange-100 text-orange-700',
