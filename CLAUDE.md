@@ -169,6 +169,8 @@ These are patient-safety rules, not style preferences. Check every UI change aga
 5. **Touch and contrast.** Minimum 44×44px touch targets (nurses use tablets); WCAG AA contrast (4.5:1 text, 3:1 large text/UI).
 6. **UI work changes UI only.** Styling and layout only — no business logic, API, validation or data changes during UI work unless the user explicitly approves it.
 
+Design system: **`docs/design-system.md`** (direction "Care"). New UI uses the `ds` Tailwind tokens (`bg-ds-surface`, `text-ds-text-muted`, `rounded-ds-control`, `h-ds-control` …) from `client/src/styles/design-tokens.json` → `npm run tokens`; never raw hex or the legacy `primary`/`danger` palette in new code.
+
 Design guidance: the `ui-ux-pro-max` skill (`.claude/skills/ui-ux-pro-max/`) — run its search script for style, colour, typography and UX checks.
 
 ---
