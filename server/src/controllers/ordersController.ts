@@ -964,6 +964,29 @@ export const deferLabOrder = async (req: Request, res: Response): Promise<void> 
   }
 };
 
+// PUT /orders/{lab,imaging}/:id is the department's own update. Outside the
+// department (doctors), the only change allowed is cancelling the order —
+// never entering/verifying a result or moving the order to another patient.
+const ORDER_FIELDS_NEVER_FROM_CLIENT = [
+  'patient_id', 'encounter_id', 'ordering_provider', 'entered_by',
+  'verification_status', 'verified_by', 'verified_at', 'rejection_count',
+];
+
+/** Returns an error message if this caller may not make this update, else null. */
+const checkOrderUpdateAllowed = (user: any, department: 'lab' | 'imaging', body: Record<string, unknown>): string | null => {
+  const isDepartment =
+    user?.is_super_admin === true || user?.role === department ||
+    user?.role === 'admin' || user?.role === 'office_manager';
+  if (isDepartment) return null;
+  const keys = Object.keys(body || {}).filter((k) => k !== 'reason' && k !== 'notes');
+  if (keys.length === 1 && keys[0] === 'status' && body.status === 'cancelled') return null;
+  return `Only ${department} staff can update this order (you may cancel it).`;
+};
+
+const stripClientOnlyOrderFields = (data: Record<string, unknown>): void => {
+  for (const f of ORDER_FIELDS_NEVER_FROM_CLIENT) delete data[f];
+};
+
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureLabVerificationSchema();
@@ -971,7 +994,13 @@ export const updateLabOrder = async (req: Request, res: Response): Promise<void>
     const authReq = req as any;
     const userId = authReq.user?.id;
     const id = req.params.id as string;
+    const denied = checkOrderUpdateAllowed(authReq.user, 'lab', req.body);
+    if (denied) {
+      res.status(403).json({ error: denied });
+      return;
+    }
     const updateData = { ...req.body };
+    stripClientOnlyOrderFields(updateData);
     const reason: string | undefined = updateData.reason;
     delete updateData.reason; // never goes into the lab_orders row
     const assignedReviewerIdRaw = updateData.assigned_reviewer_id;
@@ -1820,7 +1849,13 @@ export const getImagingOrders = async (req: Request, res: Response): Promise<voi
 export const updateImagingOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
-    const updateData = req.body;
+    const denied = checkOrderUpdateAllowed((req as any).user, 'imaging', req.body);
+    if (denied) {
+      res.status(403).json({ error: denied });
+      return;
+    }
+    const updateData = { ...req.body };
+    stripClientOnlyOrderFields(updateData);
 
     const { setClause, values } = buildSafeUpdateClause('imaging_orders', updateData, 2);
 

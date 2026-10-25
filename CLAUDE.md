@@ -163,7 +163,7 @@ import { someFunction } from './module';   // For values
 ### Adding a New API Endpoint
 1. Create/update controller in `server/src/controllers/`
 2. Add route in `server/src/routes/index.ts` — **all routes live in this one monolithic ~1000-line file**, grouped by feature; add yours to the matching group
-3. Add auth middleware: `authenticateToken, authorizeRoles('role')`. For patient-facing data, also chain `enforcePatientOwnership` (in `middleware/auth.ts`) so `patient`-role users can only reach their own records — it 403s on mismatched path `:patient_id` and force-rewrites `?patient_id=` query params
+3. Add auth middleware: `authenticateToken, authorizeRoles('role')`. For patient-facing data, also chain `enforcePatientOwnership` (in `middleware/auth.ts`) so `patient`-role users can only reach their own records — it 403s on mismatched path `:patient_id` and force-rewrites `?patient_id=` query params. Patient-portal tokens can ONLY reach the routes in `PATIENT_ALLOWED_ROUTES` (`middleware/auth.ts`) — every other route 403s for them, so a new portal endpoint must be added there. `authenticateToken` also rejects deactivated accounts and tokens issued before `users.tokens_revoked_at` ("log out everywhere", admin password reset)
 4. Add API function in `client/src/api/`
 
 ### Adding a New Database Table
