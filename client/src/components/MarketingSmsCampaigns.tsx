@@ -369,7 +369,7 @@ const MarketingSmsCampaigns: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow border border-gray-200 overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-x-auto">
         {campaigns.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No campaigns yet. Click “New campaign” to write one.</div>
         ) : (
@@ -414,21 +414,21 @@ const MarketingSmsCampaigns: React.FC = () => {
                       <div className="flex flex-wrap justify-end gap-2">
                         {c.status === 'pending_approval' && isAdmin && (
                           <>
-                            <button onClick={() => approve(c)} className="px-3 py-1 text-xs font-medium text-white bg-success-600 rounded hover:bg-success-700">Approve</button>
-                            <button onClick={() => reject(c)} className="px-3 py-1 text-xs font-medium text-danger-700 bg-danger-50 rounded hover:bg-danger-100">Reject</button>
+                            <button onClick={() => approve(c)} className="px-3 py-1 text-xs font-medium text-white bg-success-600 rounded-lg hover:bg-success-700">Approve</button>
+                            <button onClick={() => reject(c)} className="px-3 py-1 text-xs font-medium text-danger-700 bg-danger-50 rounded-lg hover:bg-danger-100">Reject</button>
                           </>
                         )}
                         {(c.status === 'approved' || (c.status === 'sending' && c.pending_count > 0)) && (
                           <button
                             onClick={() => send(c)}
                             disabled={busy}
-                            className="px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded hover:bg-primary-700 disabled:opacity-50"
+                            className="px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
                           >
                             {c.status === 'sending' ? 'Resume sending' : 'Send'}
                           </button>
                         )}
                         {['pending_approval', 'approved', 'sending'].includes(c.status) && (
-                          <button onClick={() => cancel(c)} disabled={sendingId === c.id} className="px-3 py-1 text-xs text-gray-700 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50">Cancel</button>
+                          <button onClick={() => cancel(c)} disabled={sendingId === c.id} className="px-3 py-1 text-xs text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">Cancel</button>
                         )}
                       </div>
                     </td>
@@ -444,23 +444,23 @@ const MarketingSmsCampaigns: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-labelledby="sms-compose-title">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
             <div className="px-6 py-4 border-b">
-              <h3 id="sms-compose-title" className="text-lg font-semibold">New SMS campaign</h3>
+              <h3 id="sms-compose-title" className="text-lg font-semibold text-gray-900">New SMS campaign</h3>
             </div>
             <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
                   <label htmlFor="sms-name" className="block text-sm font-medium text-gray-700 mb-1">Campaign name (internal)</label>
-                  <input id="sms-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. October BP check" className="w-full px-3 py-2 border rounded-lg" />
+                  <input id="sms-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. October BP check" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                 </div>
                 <fieldset className="space-y-3">
                   <legend className="text-sm font-medium text-gray-700">Who gets it</legend>
                   <div>
                     <label htmlFor="sms-since" className="block text-xs text-gray-600 mb-1">Visited since (optional)</label>
-                    <input id="sms-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                    <input id="sms-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                   </div>
                   <div>
                     <label htmlFor="sms-gender" className="block text-xs text-gray-600 mb-1">Sex</label>
-                    <select id="sms-gender" value={gender} onChange={(e) => setGender(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                    <select id="sms-gender" value={gender} onChange={(e) => setGender(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                       <option value="">Everyone</option>
                       <option value="female">Women</option>
                       <option value="male">Men</option>
@@ -469,11 +469,11 @@ const MarketingSmsCampaigns: React.FC = () => {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label htmlFor="sms-min-age" className="block text-xs text-gray-600 mb-1">Min age</label>
-                      <input id="sms-min-age" type="number" min={0} max={130} value={minAge} onChange={(e) => setMinAge(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                      <input id="sms-min-age" type="number" min={0} max={130} value={minAge} onChange={(e) => setMinAge(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                     </div>
                     <div className="flex-1">
                       <label htmlFor="sms-max-age" className="block text-xs text-gray-600 mb-1">Max age</label>
-                      <input id="sms-max-age" type="number" min={0} max={130} value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                      <input id="sms-max-age" type="number" min={0} max={130} value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                     </div>
                   </div>
                   <p className="text-xs text-gray-500">Age filters leave out patients with no date of birth on file.</p>
@@ -491,11 +491,11 @@ const MarketingSmsCampaigns: React.FC = () => {
                     rows={6}
                     maxLength={640}
                     placeholder="Hello {first_name}, …"
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                   />
                   <div className="flex flex-wrap gap-2 mt-1">
-                    <button type="button" onClick={() => insertAtCursor('{first_name}')} className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200">+ First name</button>
-                    <button type="button" onClick={() => setMessage((m) => (m.trim() ? `${m.trim()} ${optOutLine}` : optOutLine))} disabled={hasOptOut} className="px-2 py-1 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50">+ Opt-out line</button>
+                    <button type="button" onClick={() => insertAtCursor('{first_name}')} className="px-2 py-1 text-xs bg-gray-100 rounded-lg hover:bg-gray-200">+ First name</button>
+                    <button type="button" onClick={() => setMessage((m) => (m.trim() ? `${m.trim()} ${optOutLine}` : optOutLine))} disabled={hasOptOut} className="px-2 py-1 text-xs bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">+ Opt-out line</button>
                   </div>
                 </div>
 
@@ -544,7 +544,7 @@ const MarketingSmsCampaigns: React.FC = () => {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex justify-between items-start gap-4">
               <div>
-                <h3 id="sms-detail-title" className="text-lg font-semibold">{detail.campaign.name}</h3>
+                <h3 id="sms-detail-title" className="text-lg font-semibold text-gray-900">{detail.campaign.name}</h3>
                 <p className="text-xs text-gray-500">
                   {describeFilters(detail.campaign.filters)} · approved by {detail.campaign.approved_by_name || '—'}
                 </p>

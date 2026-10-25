@@ -33,11 +33,11 @@ const AllergyWarningModal: React.FC<AllergyWarningModalProps> = ({
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
       case 'severe':
-        return 'bg-red-100 text-red-800 border-red-300';
+        return 'bg-danger-100 text-danger-800 border-danger-300';
       case 'moderate':
         return 'bg-orange-100 text-orange-800 border-orange-300';
       default:
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-warning-100 text-warning-800 border-warning-300';
     }
   };
 
@@ -54,7 +54,7 @@ const AllergyWarningModal: React.FC<AllergyWarningModalProps> = ({
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden animate-slide-in-up">
         {/* Header */}
-        <div className={`px-6 py-4 ${hasSevere || hasExact ? 'bg-red-600' : 'bg-orange-500'}`}>
+        <div className={`px-6 py-4 ${hasSevere || hasExact ? 'bg-danger-600' : 'bg-orange-500'}`}>
           <div className="flex items-center gap-3">
             <div className="bg-white/20 rounded-full p-2">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -110,7 +110,7 @@ const AllergyWarningModal: React.FC<AllergyWarningModalProps> = ({
             onChange={(e) => setOverrideReason(e.target.value)}
             placeholder="e.g., Patient has tolerated this medication before, benefit outweighs risk..."
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-danger-500 focus:border-transparent"
           />
         </div>
 
@@ -127,7 +127,7 @@ const AllergyWarningModal: React.FC<AllergyWarningModalProps> = ({
             disabled={!overrideReason.trim()}
             className={`px-5 py-2.5 rounded-lg font-semibold transition-colors flex items-center gap-2 ${
               overrideReason.trim()
-                ? 'bg-red-600 text-white hover:bg-red-700'
+                ? 'bg-danger-600 text-white hover:bg-danger-700'
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }`}
           >

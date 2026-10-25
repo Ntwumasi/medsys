@@ -130,6 +130,7 @@ export const sendPatientText = async (args: SendArgs): Promise<TextOutcome> => {
          SET status = 'pending', channel = EXCLUDED.channel, destination = EXCLUDED.destination,
              message = EXCLUDED.message, error = NULL, created_at = CURRENT_TIMESTAMP
          WHERE patient_sms_log.status = 'failed'
+            OR (patient_sms_log.status = 'pending' AND patient_sms_log.created_at < NOW() - INTERVAL '10 minutes')
        RETURNING id`,
       [args.patientId, args.kind, args.refKey, channel, destination, useSms ? text : mail!.body]
     );
@@ -164,36 +165,47 @@ export const sendPatientText = async (args: SendArgs): Promise<TextOutcome> => {
 // Event texts — called right where the thing happens
 // ---------------------------------------------------------------------------
 
+/**
+ * Event texts are sent from inside staff actions (verifying a lab result,
+ * marking a prescription ready, taking a payment). SMS providers can take up
+ * to 15s each, so the staff action waits at most EVENT_TEXT_WAIT_MS; a slower
+ * send carries on in the background (and is retried later if it never lands).
+ */
+const EVENT_TEXT_WAIT_MS = 4000;
+const capWait = async (send: Promise<unknown>): Promise<void> => {
+  await Promise.race([send.catch(() => undefined), new Promise((r) => setTimeout(r, EVENT_TEXT_WAIT_MS))]);
+};
+
 /** Lab result verified/completed. At most one text per patient per day. */
 export const textLabResultsReady = async (patientId: number | null | undefined): Promise<void> => {
   if (!patientId) return;
   const today = new Date().toISOString().slice(0, 10);
-  await sendPatientText({
+  await capWait(sendPatientText({
     kind: 'lab_ready',
     refKey: `${patientId}:${today}`,
     patientId,
     message: (n, s) =>
       `Hello ${n}, your lab results at ${s.clinicName} are ready. Your doctor will go over them with you.${callLine(s)}`,
-  });
+  }));
 };
 
 /** Pharmacy marked an order ready. At most one text per patient per day. */
 export const textMedicationReady = async (patientId: number | null | undefined): Promise<void> => {
   if (!patientId) return;
   const today = new Date().toISOString().slice(0, 10);
-  await sendPatientText({
+  await capWait(sendPatientText({
     kind: 'pharmacy_ready',
     refKey: `${patientId}:${today}`,
     patientId,
     message: (n, s) =>
       `Hello ${n}, your medication is ready for pickup at the ${s.clinicName} pharmacy.${callLine(s)}`,
-  });
+  }));
 };
 
 /** A patient payment was recorded. One text per payment. */
 export const textPaymentReceipt = async (paymentId: number): Promise<void> => {
   try {
-    await sendPaymentReceipt(paymentId);
+    await capWait(sendPaymentReceipt(paymentId));
   } catch (err) {
     console.error(`[patient-text] payment receipt ${paymentId} failed:`, err);
   }

@@ -352,8 +352,8 @@ const MarketingDashboard: React.FC = () => {
                 Loading contacts…
               </div>
             ) : contactsError ? (
-              <div className="bg-white rounded-xl shadow-sm border border-red-200 p-8 text-center">
-                <p className="text-red-700 font-semibold">Couldn't load the contact list</p>
+              <div className="bg-white rounded-xl shadow-sm border border-danger-200 p-8 text-center">
+                <p className="text-danger-700 font-semibold">Couldn't load the contact list</p>
                 <p className="text-gray-600 text-sm mt-1">{contactsError}</p>
                 <button onClick={() => loadContacts()} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
                   Try again
@@ -515,7 +515,7 @@ const MarketingDashboard: React.FC = () => {
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span className={`text-xs px-2 py-1 rounded border bg-white ${due.inputCls}`}>{fmt(t.due_date)}</span>
                           {due.badge && (
-                            <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-amber-600'}`}>
+                            <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-warning-600'}`}>
                               {due.badge}
                             </span>
                           )}

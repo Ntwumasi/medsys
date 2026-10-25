@@ -8,6 +8,7 @@ import { dispenseFromBatches } from './inventoryController';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 import { resolveEncounterInvoiceId, getOrCreateEncounterInvoice } from '../services/invoiceResolver';
 import { textLabResultsReady, textMedicationReady } from '../services/patientAutoTextService';
+import { checkCriticalLabValues } from '../services/criticalResultService';
 
 // Allocate the next Path No for today. Format is DDMM###, daily sequence,
 // matching the lab's existing convention (e.g. "2205001" = 22nd May, #001).
@@ -48,6 +49,19 @@ const allocatePathNo = async (): Promise<string> => {
 };
 
 // Lab Orders
+// An order must land on the right chart: if a visit is given, it has to be
+// that patient's visit (a stale screen could otherwise send B's visit id with
+// A's patient id). Returns an error message, or null when consistent.
+const encounterPatientMismatch = async (patientId: unknown, encounterId: unknown): Promise<string | null> => {
+  if (!encounterId) return null;
+  const r = await pool.query('SELECT patient_id FROM encounters WHERE id = $1', [encounterId]);
+  if (r.rows.length === 0) return 'Visit not found.';
+  if (patientId && Number(r.rows[0].patient_id) !== Number(patientId)) {
+    return "This visit belongs to a different patient — reopen the patient's chart and try again.";
+  }
+  return null;
+};
+
 export const createLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
@@ -55,6 +69,11 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
     const currentUserRole = authReq.user?.role;
 
     const { patient_id, encounter_id, test_name, test_code, priority, notes, ordering_provider_id, scheduled_time } = req.body;
+    const mismatch = await encounterPatientMismatch(patient_id, encounter_id);
+    if (mismatch) {
+      res.status(400).json({ error: mismatch });
+      return;
+    }
 
     // Determine the ordering provider:
     // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
@@ -210,7 +229,9 @@ export const getLabOrders = async (req: Request, res: Response): Promise<void> =
     // stays open; the lab dashboard moves it to "Awaiting patient" after 3 days.
     // The old 3-day auto-cancel silently dropped paid-for tests.
 
-    const { patient_id, encounter_id, status, start_date, end_date, priority } = req.query;
+    const { encounter_id, status, start_date, end_date, priority } = req.query;
+    // A patient caller is pinned to their own record (set by enforcePatientOwnership).
+    const patient_id = (req as any).ownPatientId ?? req.query.patient_id;
 
     const authReqGet = req as any;
     const requesterRole = authReqGet.user?.role;
@@ -680,108 +701,9 @@ const runLabCompletionSideEffects = async (
   orderId: number,
   order: any
 ): Promise<void> => {
-  // 1. Critical-result alerts
-  //
-  // Two shapes are possible in lab_orders.result:
-  //   - JSON {parameter_code: value, ...} from the structured entry modal
-  //   - Free text (legacy / non-templated tests like "5.4 mmol/L Normal")
-  //
-  // For the JSON case we look up critical thresholds per parameter in
-  // lab_test_parameters and fire an alert for every parameter that is out
-  // of critical range. For the free-text case we fall back to the legacy
-  // single-number parse against lab_test_catalog.
-  if (order.result) {
-    try {
-      // Try to parse as structured JSON first.
-      let structured: Record<string, string> | null = null;
-      const trimmed = (order.result || '').trim();
-      if (trimmed.startsWith('{')) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            structured = parsed as Record<string, string>;
-          }
-        } catch {
-          // Not valid JSON — fall through to legacy path
-        }
-      }
-
-      if (structured) {
-        // Resolve the order to its template, then check every parameter.
-        const tmpl = await pool.query(
-          `SELECT id FROM lab_test_catalog
-            WHERE test_code = $1 OR test_name = $2
-            LIMIT 1`,
-          [order.test_code, order.test_name],
-        );
-        if (tmpl.rows.length > 0) {
-          const params = await pool.query(
-            `SELECT parameter_name, parameter_code, critical_low, critical_high
-               FROM lab_test_parameters
-              WHERE lab_test_id = $1 AND value_type = 'numeric'`,
-            [tmpl.rows[0].id],
-          );
-          for (const p of params.rows) {
-            const key = p.parameter_code || p.parameter_name;
-            const raw = structured[key];
-            if (raw == null || raw === '') continue;
-            const v = parseFloat(String(raw));
-            if (Number.isNaN(v)) continue;
-
-            let alertType: string | null = null;
-            if (p.critical_low != null && v < parseFloat(p.critical_low)) {
-              alertType = 'critical_low';
-            } else if (p.critical_high != null && v > parseFloat(p.critical_high)) {
-              alertType = 'critical_high';
-            }
-            if (alertType) {
-              await pool.query(
-                `INSERT INTO critical_result_alerts
-                   (lab_order_id, ordering_provider_id, alert_type, result_value)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT DO NOTHING`,
-                [orderId, order.ordering_provider, alertType, `${p.parameter_name}: ${raw}`],
-              );
-            }
-          }
-        }
-      } else {
-        // Legacy single-number path
-        const catalogResult = await pool.query(
-          `SELECT * FROM lab_test_catalog
-           WHERE test_code = $1 OR test_name ILIKE $2
-           LIMIT 1`,
-          [order.test_code, order.test_name],
-        );
-
-        if (catalogResult.rows.length > 0) {
-          const catalog = catalogResult.rows[0];
-          const resultValue = parseFloat(order.result);
-
-          if (!isNaN(resultValue)) {
-            let alertType: string | null = null;
-            if (catalog.critical_low !== null && resultValue < catalog.critical_low) {
-              alertType = 'critical_low';
-            } else if (catalog.critical_high !== null && resultValue > catalog.critical_high) {
-              alertType = 'critical_high';
-            }
-
-            if (alertType) {
-              await pool.query(
-                `INSERT INTO critical_result_alerts
-                   (lab_order_id, ordering_provider_id, alert_type, result_value)
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT DO NOTHING`,
-                [orderId, order.ordering_provider, alertType, order.result],
-              );
-            }
-          }
-        }
-      }
-    } catch (criticalError) {
-      console.error('Error checking critical result:', criticalError);
-    }
-  }
+  // 1. Critical-result alerts — sex/age-aware template, lenient value
+  // parsing, ordering doctor + visit nurse notified (criticalResultService).
+  await checkCriticalLabValues(orderId, order);
 
   // 2. Billing — lab_test_catalog is the single source of truth; bill by code.
   try {
@@ -1699,6 +1621,11 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
     const currentUserRole = authReq.user?.role;
 
     const { patient_id, encounter_id, imaging_type, study_type, body_part, priority, clinical_indication, notes, ordering_provider_id, scheduled_time } = req.body;
+    const mismatch = await encounterPatientMismatch(patient_id, encounter_id);
+    if (mismatch) {
+      res.status(400).json({ error: mismatch });
+      return;
+    }
 
     // Determine the ordering provider:
     // - If nurse provides ordering_provider_id, use that (ordering on behalf of doctor)
@@ -1796,7 +1723,9 @@ export const createImagingOrder = async (req: Request, res: Response): Promise<v
 
 export const getImagingOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, encounter_id, status } = req.query;
+    const { encounter_id, status } = req.query;
+    // A patient caller is pinned to their own record (set by enforcePatientOwnership).
+    const patient_id = (req as any).ownPatientId ?? req.query.patient_id;
 
     let query = `
       SELECT io.*,
@@ -1940,6 +1869,11 @@ export const createPharmacyOrder = async (req: Request, res: Response): Promise<
       inventory_id,
       allow_duplicate,
     } = req.body;
+    const mismatch = await encounterPatientMismatch(patient_id, encounter_id);
+    if (mismatch) {
+      res.status(400).json({ error: mismatch });
+      return;
+    }
 
     // Guard against ACCIDENTAL duplicate orders (e.g. a double-click) — but allow
     // an intentional repeat when the prescriber explicitly confirms it. Some meds
@@ -3267,7 +3201,9 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
     const authReq = req as any;
     const doctorId = authReq.user?.id;
 
-    // Lab results completed in the last 7 days for this doctor's orders.
+    // Unreviewed lab results on this doctor's orders. Was a 7-day window, so a
+    // doctor away for a week never saw a result; now 30 days (newest first),
+    // plus a count of anything older that is still unreviewed.
     // Patient name lives on the users table (patients.user_id), and room info
     // comes from the rooms table via encounters.room_id.
     const labAlerts = await pool.query(
@@ -3287,10 +3223,18 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
         WHERE lo.ordering_provider = $1
           AND lo.status = 'completed'
           AND lo.verification_status IN ('verified', 'not_required')
-          AND lo.result_date >= NOW() - INTERVAL '7 days'
+          AND lo.result_date >= NOW() - INTERVAL '30 days'
           AND lo.doctor_reviewed_at IS NULL
         ORDER BY lo.result_date DESC
-        LIMIT 20`,
+        LIMIT 50`,
+      [doctorId]
+    );
+    const olderUnreviewed = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM lab_orders
+        WHERE ordering_provider = $1 AND status = 'completed'
+          AND verification_status IN ('verified', 'not_required')
+          AND doctor_reviewed_at IS NULL
+          AND result_date < NOW() - INTERVAL '30 days'`,
       [doctorId]
     );
 
@@ -3339,6 +3283,7 @@ export const getDoctorAlerts = async (req: Request, res: Response): Promise<void
       lab_alerts: labAlerts.rows,
       imaging_alerts: imagingAlerts.rows,
       pharmacy_alerts: pharmacyAlerts.rows,
+      older_unreviewed_lab_count: olderUnreviewed.rows[0]?.n ?? 0,
       total_alerts:
         labAlerts.rows.length + imagingAlerts.rows.length + pharmacyAlerts.rows.length,
     });
@@ -3494,7 +3439,7 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
       JOIN lab_orders lo ON cra.lab_order_id = lo.id
       JOIN patients p ON lo.patient_id = p.id
       JOIN users u_patient ON p.user_id = u_patient.id
-      JOIN users u_provider ON cra.ordering_provider_id = u_provider.id
+      LEFT JOIN users u_provider ON cra.ordering_provider_id = u_provider.id
       LEFT JOIN users u_ack ON cra.acknowledged_by = u_ack.id
       LEFT JOIN encounters e ON lo.encounter_id = e.id
       LEFT JOIN rooms rm ON e.room_id = rm.id
@@ -3510,6 +3455,14 @@ export const getCriticalResultAlerts = async (req: Request, res: Response): Prom
     if (doctor_id) {
       query += ` AND cra.ordering_provider_id = $${paramIndex}`;
       params.push(doctor_id);
+      paramIndex++;
+    }
+
+    // ?mine=true — the caller's own orders, plus alerts with no ordering
+    // doctor (someone has to see those).
+    if (req.query.mine === 'true' && authReq.user?.id) {
+      query += ` AND (cra.ordering_provider_id = $${paramIndex} OR cra.ordering_provider_id IS NULL)`;
+      params.push(authReq.user.id);
       paramIndex++;
     }
 

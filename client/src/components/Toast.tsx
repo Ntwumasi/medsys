@@ -21,11 +21,11 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', onClose, duration
   const getTypeStyles = () => {
     switch (type) {
       case 'success':
-        return 'bg-success-50 border-emerald-200 text-emerald-900';
+        return 'bg-success-50 border-success-200 text-success-900';
       case 'error':
-        return 'bg-danger-50 border-red-200 text-red-900';
+        return 'bg-danger-50 border-danger-200 text-danger-900';
       case 'warning':
-        return 'bg-warning-50 border-amber-200 text-amber-900';
+        return 'bg-warning-50 border-warning-200 text-warning-900';
       default:
         return 'bg-primary-50 border-primary-200 text-primary-900';
     }

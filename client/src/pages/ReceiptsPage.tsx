@@ -176,9 +176,9 @@ const ReceiptsPage: React.FC = () => {
 
   const methodBadgeColor = (method: string) => {
     const map: Record<string, string> = {
-      cash: 'bg-green-100 text-green-800',
+      cash: 'bg-success-100 text-success-800',
       card: 'bg-blue-100 text-blue-800',
-      mobile_money: 'bg-yellow-100 text-yellow-800',
+      mobile_money: 'bg-warning-100 text-warning-800',
       rpay: 'bg-purple-100 text-purple-800',
       bank_transfer: 'bg-indigo-100 text-indigo-800',
       cheque: 'bg-gray-100 text-gray-800',
@@ -410,12 +410,12 @@ const ReceiptsPage: React.FC = () => {
               )}
 
               {/* Payment details */}
-              <div className="bg-success-50 border border-green-200 rounded-lg p-5 mb-6">
+              <div className="bg-success-50 border border-success-200 rounded-lg p-5 mb-6">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-gray-700 font-medium">Invoice Total:</span>
                   <span className="font-semibold">GHS {parseFloat(selectedReceipt.total_amount).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center mb-3 border-t border-green-200 pt-3">
+                <div className="flex justify-between items-center mb-3 border-t border-success-200 pt-3">
                   <span className="text-gray-700 font-medium">Amount Paid (this receipt):</span>
                   <span className="text-2xl font-bold text-success-600">GHS {parseFloat(selectedReceipt.amount).toFixed(2)}</span>
                 </div>

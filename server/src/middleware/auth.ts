@@ -11,6 +11,8 @@ export interface AuthRequest extends Request {
     is_super_admin?: boolean;
   };
   token?: string; // Store token for logout
+  /** Set by enforcePatientOwnership for patient callers: the only record they may see. */
+  ownPatientId?: number;
 }
 
 /**
@@ -48,17 +50,14 @@ const isPatientAllowedRoute = (req: Request): boolean => {
 };
 
 /**
- * Account status, looked up per request (cached briefly per instance) so that
- * deactivating a user or "log out everywhere" takes effect within seconds
- * instead of when the JWT expires (24h staff, 90 days portal).
+ * Account status, looked up on every authenticated request (staff and portal)
+ * so deactivating a user, resetting their password or "log out everywhere"
+ * ends their sessions immediately instead of when the JWT expires (24h staff,
+ * 90 days portal).
  */
-interface AccountStatus { isActive: boolean; revokedAtSec: number | null; isSuperAdmin: boolean; at: number }
-const ACCOUNT_STATUS_TTL_MS = 30_000;
-const accountStatusCache = new Map<number, AccountStatus>();
+interface AccountStatus { isActive: boolean; revokedAtSec: number | null; isSuperAdmin: boolean }
 
 const getAccountStatus = async (userId: number): Promise<AccountStatus | null> => {
-  const cached = accountStatusCache.get(userId);
-  if (cached && Date.now() - cached.at < ACCOUNT_STATUS_TTL_MS) return cached;
   const r = await pool.query(
     `SELECT is_active, is_super_admin,
             FLOOR(EXTRACT(EPOCH FROM tokens_revoked_at))::bigint AS revoked_at_sec
@@ -70,15 +69,8 @@ const getAccountStatus = async (userId: number): Promise<AccountStatus | null> =
     isActive: r.rows[0].is_active !== false,
     revokedAtSec: r.rows[0].revoked_at_sec != null ? Number(r.rows[0].revoked_at_sec) : null,
     isSuperAdmin: r.rows[0].is_super_admin === true,
-    at: Date.now(),
   };
-  accountStatusCache.set(userId, status);
   return status;
-};
-
-/** Drop a user's cached status so a deactivation / revoke applies immediately on this instance. */
-export const forgetAccountStatus = (userId: number): void => {
-  accountStatusCache.delete(userId);
 };
 
 const getJwtSecret = (): string => {
@@ -87,6 +79,59 @@ const getJwtSecret = (): string => {
     throw new Error('JWT_SECRET environment variable is required');
   }
   return secret;
+};
+
+type SessionClaims = {
+  id: number;
+  email: string;
+  role: string;
+  is_super_admin?: boolean;
+  iat?: number;
+  exp?: number;
+};
+
+/**
+ * Every check a session token must pass, for every authenticated request
+ * (staff and portal, including the notifications stream): signature/expiry,
+ * not individually revoked, account still active, and not issued before
+ * users.tokens_revoked_at ("log out everywhere", password reset). Returns the
+ * claims, or the HTTP status + message to refuse with.
+ */
+export const verifySessionToken = async (
+  token: string
+): Promise<{ ok: true; claims: SessionClaims } | { ok: false; status: number; error: string }> => {
+  let decoded: SessionClaims;
+  try {
+    decoded = jwt.verify(token, getJwtSecret()) as SessionClaims;
+  } catch (error) {
+    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
+      console.error('CRITICAL: JWT_SECRET not configured');
+      return { ok: false, status: 500, error: 'Server configuration error' };
+    }
+    return { ok: false, status: 401, error: 'Invalid or expired token' };
+  }
+
+  if (await isTokenRevoked(token)) {
+    return { ok: false, status: 401, error: 'Token has been revoked' };
+  }
+
+  // Fail-OPEN on a DB error, like the blacklist check: a Neon hiccup must not
+  // log everyone out.
+  try {
+    const status = await getAccountStatus(decoded.id);
+    if (!status || !status.isActive) {
+      return { ok: false, status: 401, error: 'Account is inactive' };
+    }
+    if (status.revokedAtSec !== null && decoded.iat !== undefined && decoded.iat < status.revokedAtSec) {
+      return { ok: false, status: 401, error: 'Session has been signed out' };
+    }
+    // A super-admin flag removed in the DB stops applying straight away.
+    if (decoded.is_super_admin && !status.isSuperAdmin) decoded.is_super_admin = false;
+  } catch (statusError) {
+    console.error('Account status check failed (allowing request):', statusError);
+  }
+
+  return { ok: true, claims: decoded };
 };
 
 export const authenticateToken = async (
@@ -103,60 +148,22 @@ export const authenticateToken = async (
     return;
   }
 
-  try {
-    const secret = getJwtSecret();
-    const decoded = jwt.verify(token, secret) as {
-      id: number;
-      email: string;
-      role: string;
-      is_super_admin?: boolean;
-      iat?: number;
-      exp?: number;
-    };
-
-    // Check if token is blacklisted (revoked)
-    const revoked = await isTokenRevoked(token);
-    if (revoked) {
-      res.status(401).json({ error: 'Token has been revoked' });
-      return;
-    }
-
-    // Deactivated accounts and "log out everywhere" end existing sessions.
-    // Fail-OPEN on a DB error, like the blacklist check above: a Neon hiccup
-    // must not log everyone out.
-    try {
-      const status = await getAccountStatus(decoded.id);
-      if (!status || !status.isActive) {
-        res.status(401).json({ error: 'Account is inactive' });
-        return;
-      }
-      if (status.revokedAtSec !== null && decoded.iat !== undefined && decoded.iat < status.revokedAtSec) {
-        res.status(401).json({ error: 'Session has been signed out' });
-        return;
-      }
-      // A super-admin flag removed in the DB stops applying straight away.
-      if (decoded.is_super_admin && !status.isSuperAdmin) decoded.is_super_admin = false;
-    } catch (statusError) {
-      console.error('Account status check failed (allowing request):', statusError);
-    }
-
-    // Patient-portal tokens may only reach the portal's own routes.
-    if (decoded.role === 'patient' && !decoded.is_super_admin && !isPatientAllowedRoute(req)) {
-      res.status(403).json({ error: 'Insufficient permissions' });
-      return;
-    }
-
-    (req as AuthRequest).user = decoded;
-    (req as AuthRequest).token = token; // Store for potential logout
-    next();
-  } catch (error) {
-    if (error instanceof Error && error.message === 'JWT_SECRET environment variable is required') {
-      console.error('CRITICAL: JWT_SECRET not configured');
-      res.status(500).json({ error: 'Server configuration error' });
-      return;
-    }
-    res.status(401).json({ error: 'Invalid or expired token' });
+  const session = await verifySessionToken(token);
+  if (!session.ok) {
+    res.status(session.status).json({ error: session.error });
+    return;
   }
+  const decoded = session.claims;
+
+  // Patient-portal tokens may only reach the portal's own routes.
+  if (decoded.role === 'patient' && !decoded.is_super_admin && !isPatientAllowedRoute(req)) {
+    res.status(403).json({ error: 'Insufficient permissions' });
+    return;
+  }
+
+  (req as AuthRequest).user = decoded;
+  (req as AuthRequest).token = token; // Store for potential logout
+  next();
 };
 
 /**
@@ -204,15 +211,17 @@ export const enforcePatientOwnership = async (
       }
     }
 
-    // Query-param endpoints: force scoping to the caller's own record.
-    // Express 5 re-parses req.query from the URL on every read, so assigning
-    // req.query.patient_id is silently lost — replace the property instead.
-    Object.defineProperty(req, 'query', {
-      value: { ...req.query, patient_id: ownPatientId },
-      writable: true,
-      configurable: true,
-      enumerable: true,
-    });
+    // Query-param endpoints. req.query is read-only in Express 5 (re-parsed
+    // from the URL on every read), so the old "overwrite patient_id" silently
+    // did nothing and a patient could read every record. Don't rewrite the
+    // request: refuse anything but the caller's own id, and hand handlers the
+    // owned id explicitly.
+    const asked = (req.query as Record<string, unknown>).patient_id;
+    if (asked === undefined || String(asked) !== ownPatientId) {
+      res.status(403).json({ error: 'You can only view your own records' });
+      return;
+    }
+    (req as AuthRequest).ownPatientId = Number(ownPatientId);
     next();
   } catch (error) {
     console.error('enforcePatientOwnership error:', error);

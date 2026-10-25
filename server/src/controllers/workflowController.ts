@@ -732,12 +732,29 @@ export const addVitalSigns = async (req: Request, res: Response): Promise<void> 
     if (isCritical) {
       const criticalMessage = `Critical vital signs detected: ${validation.criticalValues.join(', ')}`;
 
-      await pool.query(
+      // Vitals auto-save posts repeatedly; record and alert once per reading.
+      const inserted = await pool.query(
         `INSERT INTO alerts (encounter_id, patient_id, to_user_id, alert_type, message)
-         SELECT $1, patient_id, provider_id, 'vitals_critical', $2
-         FROM encounters WHERE id = $1`,
+         SELECT $1, e.patient_id, e.provider_id, 'vitals_critical', $2
+           FROM encounters e
+          WHERE e.id = $1
+            AND NOT EXISTS (
+              SELECT 1 FROM alerts a
+               WHERE a.encounter_id = $1 AND a.alert_type = 'vitals_critical' AND a.message = $2
+                 AND a.created_at > NOW() - INTERVAL '2 hours'
+            )
+         RETURNING id`,
         [encounter_id, criticalMessage]
       );
+      // Nothing ever read these alert rows, so a SpO2 of 82% reached no one.
+      // Tell the visit's doctor (or every doctor) and nurse directly.
+      if (inserted.rows.length) {
+        try {
+          await notificationService.notifyCriticalVitals(Number(encounter_id), validation.criticalValues);
+        } catch (notifyError) {
+          console.error('Critical vitals notification failed:', notifyError);
+        }
+      }
     }
 
     res.json({
@@ -839,9 +856,12 @@ export const recordMedicationAdministration = async (req: Request, res: Response
   try {
     const authReq = req as any;
     const nurse_id = authReq.user?.id;
-    const { pharmacy_order_id, notes } = req.body;
+    const { pharmacy_order_id, notes, encounter_id } = req.body;
 
-    // Verify the order exists and is dispensed
+    // Only a dispensed order that hasn't been given yet, on the visit the
+    // nurse has open. Status stays 'dispensed' (refills and billing key on it);
+    // administered_at marks the dose. The conditional UPDATE is the guard
+    // against a double record.
     const orderResult = await pool.query(
       `SELECT po.*, e.patient_id FROM pharmacy_orders po
        JOIN encounters e ON po.encounter_id = e.id
@@ -855,18 +875,29 @@ export const recordMedicationAdministration = async (req: Request, res: Response
     }
 
     const order = orderResult.rows[0];
+    if (encounter_id && Number(encounter_id) !== Number(order.encounter_id)) {
+      res.status(409).json({ error: 'This medication belongs to a different visit — check the patient.' });
+      return;
+    }
+    if (order.status !== 'dispensed') {
+      res.status(409).json({ error: `This medication hasn't been dispensed (status: ${order.status}) — it can't be recorded as given.` });
+      return;
+    }
 
-    // Update pharmacy order with administration info
-    await pool.query(
+    const updated = await pool.query(
       `UPDATE pharmacy_orders
-       SET status = 'completed',
-           administered_by = $1,
+       SET administered_by = $1,
            administered_at = CURRENT_TIMESTAMP,
            administration_notes = $2,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3`,
+       WHERE id = $3 AND administered_at IS NULL
+       RETURNING id`,
       [nurse_id, notes || null, pharmacy_order_id]
     );
+    if (updated.rows.length === 0) {
+      res.status(409).json({ error: 'This dose has already been recorded as given.' });
+      return;
+    }
 
     await auditService.log({
       userId: nurse_id,

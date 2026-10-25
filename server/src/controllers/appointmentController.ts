@@ -86,7 +86,9 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
 
 export const getAppointments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { patient_id, provider_id, status, from_date, to_date, future, limit = 100, offset = 0 } = req.query;
+    const { provider_id, status, from_date, to_date, future, limit = 100, offset = 0 } = req.query;
+    // A patient caller is pinned to their own record (set by enforcePatientOwnership).
+    const patient_id = (req as any).ownPatientId ?? req.query.patient_id;
 
     let query = `
       SELECT a.*,

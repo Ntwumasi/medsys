@@ -266,7 +266,7 @@ const VitalSignsHistory: React.FC<VitalSignsHistoryProps> = ({ patientId, onClos
         <div
           key={record.id}
           className={`border rounded-xl p-4 ${
-            index === 0 ? 'border-red-200 bg-danger-50' : 'border-gray-200 bg-white'
+            index === 0 ? 'border-danger-200 bg-danger-50' : 'border-gray-200 bg-white'
           }`}
         >
           {/* Record Header */}

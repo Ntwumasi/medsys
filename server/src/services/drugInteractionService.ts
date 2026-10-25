@@ -8,42 +8,82 @@ export interface DrugInteraction {
   recommendation: string;
 }
 
+// Table entries can be a drug ("Warfarin") or a class ("NSAIDs"). A
+// prescription matches an entry when its name CONTAINS the drug or any class
+// member — "Warfarin 5mg tab" matches "Warfarin". (The old query searched for
+// the whole prescription text inside the short table name, so it almost never
+// matched and the check reported "no interactions".)
+const DRUG_CLASSES: Record<string, string[]> = {
+  nsaids: ['ibuprofen', 'diclofenac', 'naproxen', 'piroxicam', 'indomethacin', 'ketorolac', 'meloxicam', 'celecoxib', 'mefenamic', 'ketoprofen', 'etoricoxib', 'aceclofenac', 'nsaid'],
+  ssris: ['fluoxetine', 'sertraline', 'paroxetine', 'citalopram', 'escitalopram', 'fluvoxamine'],
+  maois: ['phenelzine', 'tranylcypromine', 'isocarboxazid', 'selegiline', 'moclobemide'],
+  'ace inhibitors': ['lisinopril', 'enalapril', 'ramipril', 'captopril', 'perindopril', 'quinapril', 'fosinopril'],
+  arbs: ['losartan', 'valsartan', 'telmisartan', 'irbesartan', 'candesartan', 'olmesartan'],
+  antacids: ['antacid', 'aluminium hydroxide', 'aluminum hydroxide', 'magnesium trisilicate', 'magnesium hydroxide', 'calcium carbonate', 'gaviscon', 'relcer', 'mist mag'],
+  potassium: ['potassium chloride', 'slow-k', 'k-cl', 'potassium citrate'],
+};
+
+const termsFor = (entry: string): string[] => {
+  const key = entry.trim().toLowerCase();
+  return DRUG_CLASSES[key] || [key];
+};
+
+export const medicationMatches = (medication: string, entry: string): boolean => {
+  const name = medication.toLowerCase();
+  return termsFor(entry).some((t) => t && name.includes(t));
+};
+
+type InteractionRow = { id: number; drug1_name: string; drug2_name: string; severity: DrugInteraction['severity']; description: string; recommendation: string };
+
+const toInteraction = (row: InteractionRow): DrugInteraction => ({
+  drug1: row.drug1_name,
+  drug2: row.drug2_name,
+  severity: row.severity,
+  description: row.description,
+  recommendation: row.recommendation,
+});
+
+/** Interactions between two named medications, from the given table rows. */
+export const findPairInteractions = (a: string, b: string, rows: InteractionRow[]): InteractionRow[] =>
+  rows.filter(
+    (r) =>
+      (medicationMatches(a, r.drug1_name) && medicationMatches(b, r.drug2_name)) ||
+      (medicationMatches(a, r.drug2_name) && medicationMatches(b, r.drug1_name))
+  );
+
+const loadInteractionTable = async (): Promise<InteractionRow[]> =>
+  (await pool.query(`SELECT id, drug1_name, drug2_name, severity, description, recommendation FROM drug_interactions`)).rows;
+
 export const drugInteractionService = {
   /**
-   * Check for interactions between a new medication and patient's current medications
+   * Check a new medication against everything the patient is currently on:
+   * dispensed in the last 30 days, long-term meds dispensed in the last
+   * 6 months, and active entries on their medication list.
    */
   async checkInteractions(patientId: number, newMedication: string): Promise<DrugInteraction[]> {
-    // Get patient's current active medications
     const currentMedsResult = await pool.query(
-      `SELECT DISTINCT medication_name FROM pharmacy_orders
-       WHERE patient_id = $1 AND status = 'dispensed'
-       AND ordered_date > NOW() - INTERVAL '30 days'`,
+      `SELECT DISTINCT LOWER(name) AS name FROM (
+         SELECT COALESCE(substitute_medication, medication_name) AS name FROM pharmacy_orders
+          WHERE patient_id = $1 AND status = 'dispensed'
+            AND (ordered_date > NOW() - INTERVAL '30 days'
+                 OR (is_long_term IS TRUE AND ordered_date > NOW() - INTERVAL '180 days'))
+         UNION
+         SELECT medication_name FROM medications
+          WHERE patient_id = $1 AND status = 'active'
+            AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+       ) m WHERE name IS NOT NULL`,
       [patientId]
     );
-
-    const currentMeds = currentMedsResult.rows.map(r => r.medication_name.toLowerCase());
+    const rows = await loadInteractionTable();
+    const seen = new Set<number>();
     const interactions: DrugInteraction[] = [];
-
-    // Check each current medication against the new one
-    for (const med of currentMeds) {
-      const interactionResult = await pool.query(
-        `SELECT * FROM drug_interactions
-         WHERE (LOWER(drug1_name) LIKE $1 AND LOWER(drug2_name) LIKE $2)
-            OR (LOWER(drug1_name) LIKE $2 AND LOWER(drug2_name) LIKE $1)`,
-        [`%${med}%`, `%${newMedication.toLowerCase()}%`]
-      );
-
-      for (const row of interactionResult.rows) {
-        interactions.push({
-          drug1: row.drug1_name,
-          drug2: row.drug2_name,
-          severity: row.severity,
-          description: row.description,
-          recommendation: row.recommendation,
-        });
+    for (const { name } of currentMedsResult.rows) {
+      for (const row of findPairInteractions(name, newMedication, rows)) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        interactions.push(toInteraction(row));
       }
     }
-
     return interactions;
   },
 
@@ -51,30 +91,18 @@ export const drugInteractionService = {
    * Check interactions between multiple medications (for new prescriptions)
    */
   async checkMultipleInteractions(medications: string[]): Promise<DrugInteraction[]> {
+    const rows = await loadInteractionTable();
+    const seen = new Set<number>();
     const interactions: DrugInteraction[] = [];
-
-    // Check each pair of medications
     for (let i = 0; i < medications.length; i++) {
       for (let j = i + 1; j < medications.length; j++) {
-        const interactionResult = await pool.query(
-          `SELECT * FROM drug_interactions
-           WHERE (LOWER(drug1_name) LIKE $1 AND LOWER(drug2_name) LIKE $2)
-              OR (LOWER(drug1_name) LIKE $2 AND LOWER(drug2_name) LIKE $1)`,
-          [`%${medications[i].toLowerCase()}%`, `%${medications[j].toLowerCase()}%`]
-        );
-
-        for (const row of interactionResult.rows) {
-          interactions.push({
-            drug1: row.drug1_name,
-            drug2: row.drug2_name,
-            severity: row.severity,
-            description: row.description,
-            recommendation: row.recommendation,
-          });
+        for (const row of findPairInteractions(medications[i], medications[j], rows)) {
+          if (seen.has(row.id)) continue;
+          seen.add(row.id);
+          interactions.push(toInteraction(row));
         }
       }
     }
-
     return interactions;
   },
 

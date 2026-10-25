@@ -121,7 +121,7 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       {error ? (
         <div className="p-8 text-center">
-          <p className="text-red-700 font-semibold">Couldn't load the contact list</p>
+          <p className="text-danger-700 font-semibold">Couldn't load the contact list</p>
           <p className="text-gray-600 text-sm mt-1">{error}</p>
           <button
             onClick={() => setReloadKey((k) => k + 1)}

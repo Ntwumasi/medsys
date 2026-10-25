@@ -365,7 +365,7 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
                       <button
                         type="button"
                         onClick={() => handleDelete(doc)}
-                        className="text-red-500 hover:text-red-700 p-1"
+                        className="text-danger-500 hover:text-danger-700 p-1"
                         title="Delete"
                       >
                         <svg

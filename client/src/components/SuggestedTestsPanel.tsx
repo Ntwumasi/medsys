@@ -47,9 +47,9 @@ interface SuggestedTestsPanelProps {
 
 const priorityChip = (priority: string): string =>
   priority === 'stat'
-    ? 'bg-red-100 text-red-700'
+    ? 'bg-danger-100 text-danger-700'
     : priority === 'urgent'
-    ? 'bg-amber-100 text-amber-700'
+    ? 'bg-warning-100 text-warning-700'
     : 'bg-gray-100 text-gray-600';
 
 const lastDoneLabel = (months: number | null): string | null => {
@@ -182,7 +182,7 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
           {test.rationale && <p className="text-xs text-gray-600 mt-0.5">{test.rationale}</p>}
           <div className="flex items-center gap-2 mt-1">
             {test.interval && <span className="text-[11px] text-gray-400">{test.interval}</span>}
-            {done && <span className="text-[11px] text-amber-600">{done}</span>}
+            {done && <span className="text-[11px] text-warning-600">{done}</span>}
           </div>
         </div>
         {mode === 'doctor' && (

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useActiveId } from '../hooks/useActiveId';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import apiClient from '../api/client';
@@ -136,6 +137,14 @@ interface DoctorAlert {
 
 const DoctorDashboard: React.FC = () => {
   const { user } = useAuth();
+  // Unacknowledged critical lab values on this doctor's orders.
+  const [criticalAlerts, setCriticalAlerts] = useState<Array<{
+    id: number; patient_name: string; patient_number: string; test_name: string;
+    result_value: string; alert_type: string; created_at: string; room_number?: string | null;
+  }>>([]);
+  const [acknowledgingAlertId, setAcknowledgingAlertId] = useState<number | null>(null);
+  // Unreviewed lab results older than the 30-day alerts window.
+  const [olderUnreviewedLabs, setOlderUnreviewedLabs] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
@@ -369,13 +378,31 @@ const DoctorDashboard: React.FC = () => {
     return () => clearTimeout(t);
   }, [highlightAlertId]);
 
+  // The encounter whose chart is on screen. Loaders drop any response for a
+  // different encounter, so a slow reply for patient A can never land under
+  // patient B; switching patients clears the chart before B's data arrives.
+  const activeEncounterIdRef = useRef<number | null>(null);
   useEffect(() => {
+    const id = selectedEncounter?.id ?? null;
+    if (id !== activeEncounterIdRef.current) {
+      activeEncounterIdRef.current = id;
+      setNotes([]);
+      setEncounterLabOrders([]);
+      setEncounterImagingOrders([]);
+      setEncounterPharmacyOrders([]);
+      setEncounterDiagnoses([]);
+      setSoapSigned(false);
+      setSoapSignedAt(null);
+      setSoapSignedBy(null);
+    }
     if (selectedEncounter) {
       loadEncounterNotes(selectedEncounter.id);
       loadEncounterOrders(selectedEncounter.id);
       loadEncounterDiagnoses(selectedEncounter.id);
+      loadSOAPSignStatus(selectedEncounter.id);
     }
   }, [selectedEncounter]);
+  const isActiveEncounter = useActiveId<number | null>(selectedEncounter?.id ?? null);
 
   // Orders for the active encounter refresh on the same smart cadence so
   // labs/imaging/Rx the nurse just sent appear without a manual refresh.
@@ -425,20 +452,25 @@ const DoctorDashboard: React.FC = () => {
   const loadEncounterNotes = async (encounterId: number) => {
     try {
       const res = await apiClient.get(`/clinical-notes/encounter/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       const allNotes = res.data.notes || [];
       setNotes(allNotes);
     } catch (error) {
       console.error('Error loading notes:', error);
+      if (isActiveEncounter(encounterId)) showToast("Couldn't load this patient's notes — reselect the patient to retry", 'error');
     }
   };
 
   const loadEncounterOrders = async (encounterId: number) => {
     try {
       const res = await apiClient.get(`/orders/encounter/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       setEncounterLabOrders(res.data.lab_orders || []);
       setEncounterImagingOrders(res.data.imaging_orders || []);
       setEncounterPharmacyOrders(res.data.pharmacy_orders || []);
     } catch (error) {
+      // Background polling retries every 30s; keep what's shown for THIS
+      // encounter rather than flashing an empty list.
       console.error('Error loading orders:', error);
     }
   };
@@ -448,8 +480,30 @@ const DoctorDashboard: React.FC = () => {
       const res = await apiClient.get('/orders/doctor-alerts');
       setLabAlerts(res.data.lab_alerts || []);
       setImagingAlerts(res.data.imaging_alerts || []);
+      setOlderUnreviewedLabs(res.data.older_unreviewed_lab_count || 0);
     } catch (error) {
       console.error('Error loading doctor alerts:', error);
+    }
+    try {
+      const res = await apiClient.get('/lab/critical-alerts', { params: { unacknowledged_only: 'true', mine: 'true' } });
+      setCriticalAlerts(res.data.alerts || []);
+    } catch (error) {
+      console.error('Error loading critical alerts:', error);
+    }
+  };
+
+  const acknowledgeCriticalAlert = async (alertId: number) => {
+    if (acknowledgingAlertId) return;
+    setAcknowledgingAlertId(alertId);
+    try {
+      await apiClient.post(`/lab/critical-alerts/${alertId}/acknowledge`);
+      setCriticalAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      showToast('Critical result acknowledged', 'success');
+    } catch (error) {
+      const msg = (error as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      showToast(msg || 'Could not acknowledge — try again', 'error');
+    } finally {
+      setAcknowledgingAlertId(null);
     }
   };
 
@@ -563,6 +617,7 @@ const DoctorDashboard: React.FC = () => {
   const loadSOAPSignStatus = async (encounterId: number) => {
     try {
       const response = await apiClient.get(`/hp/${encounterId}/status`);
+      if (activeEncounterIdRef.current !== null && activeEncounterIdRef.current !== encounterId) return;
       setSoapSigned(response.data.is_signed || false);
       setSoapSignedAt(response.data.signed_at || null);
       setSoapSignedBy(response.data.signed_by_name || null);
@@ -1054,31 +1109,49 @@ const DoctorDashboard: React.FC = () => {
     }
 
     setSubmittingOrders(true);
+    const baseData = {
+      patient_id: selectedEncounter.patient_id,
+      encounter_id: selectedEncounter.id,
+    };
+    // Each order leaves the pending list the moment it is created, so a
+    // failure part-way through never leaves already-created orders behind to
+    // be submitted again (that used to duplicate orders and charges).
+    const labsLeft = [...pendingLabOrders];
+    const imagingLeft = [...pendingImagingOrders];
+    const pharmacyLeft = [...pendingPharmacyOrders];
+    let submitted = 0;
+    let skipped = 0;
+    let failedName = '';
     try {
-      const baseData = {
-        patient_id: selectedEncounter.patient_id,
-        encounter_id: selectedEncounter.id,
-      };
-
-      // Submit all lab orders (strip frontend-only fields)
-      for (const order of pendingLabOrders) {
+      // Lab orders (strip frontend-only fields)
+      while (labsLeft.length) {
+        const order = labsLeft[0];
+        failedName = order.test_name || 'lab order';
         const { frequency: _f, occurrences: _o, customFrequency: _c, scheduled_time: _st, ...labFields } = order as any;
         void _f; void _o; void _c; void _st;
         await apiClient.post('/orders/lab', { ...baseData, ...labFields });
+        labsLeft.shift();
+        submitted++;
       }
 
-      // Submit all imaging orders
-      for (const order of pendingImagingOrders) {
+      while (imagingLeft.length) {
+        const order = imagingLeft[0];
+        failedName = order.imaging_type || 'imaging order';
         await apiClient.post('/orders/imaging', { ...baseData, ...order });
+        imagingLeft.shift();
+        submitted++;
       }
 
-      // Submit all pharmacy orders. If the backend reports the med is already on
-      // this encounter (409), confirm the intentional repeat and retry with the
+      // Pharmacy orders. If the backend reports the med is already on this
+      // encounter (409), confirm the intentional repeat and retry with the
       // override — covers legit re-dosing (e.g. a 2nd salbutamol dose) even when
       // the on-screen order list was stale and didn't pre-flag it.
-      for (const order of pendingPharmacyOrders) {
+      while (pharmacyLeft.length) {
+        const order = pharmacyLeft[0];
+        failedName = order.medication_name || 'prescription';
         try {
           await apiClient.post('/orders/pharmacy', { ...baseData, ...order });
+          submitted++;
         } catch (err: any) {
           if (
             err?.response?.status === 409 &&
@@ -1094,29 +1167,36 @@ const DoctorDashboard: React.FC = () => {
             });
             if (proceed) {
               await apiClient.post('/orders/pharmacy', { ...baseData, ...order, allow_duplicate: true });
+              submitted++;
+            } else {
+              skipped++;
             }
           } else {
             throw err;
           }
         }
+        pharmacyLeft.shift();
       }
 
-      showToast(`Successfully submitted ${totalOrders} order(s)!`, 'success');
-
-      // Clear all pending orders
-      setPendingLabOrders([]);
-      setPendingImagingOrders([]);
-      setPendingPharmacyOrders([]);
-
-      // Refresh the orders display so doctor can see what they just ordered
-      if (selectedEncounter) {
-        loadEncounterOrders(selectedEncounter.id);
-      }
+      showToast(
+        `Submitted ${submitted} order(s)${skipped ? ` (${skipped} skipped as already ordered)` : ''}.`,
+        'success'
+      );
     } catch (error: any) {
       console.error('Error submitting orders:', error);
       const msg = error?.response?.data?.error || error?.message || 'Unknown error';
-      showToast(`Failed to submit orders: ${msg}`, 'error');
+      const remaining = labsLeft.length + imagingLeft.length + pharmacyLeft.length;
+      showToast(
+        `${submitted} of ${totalOrders} order(s) submitted. "${failedName}" failed: ${msg}. ` +
+          `The ${remaining} not yet submitted are still in your list — fix and submit again.`,
+        'error'
+      );
     } finally {
+      setPendingLabOrders(labsLeft);
+      setPendingImagingOrders(imagingLeft);
+      setPendingPharmacyOrders(pharmacyLeft);
+      // Refresh the orders display so the doctor sees what was created
+      if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
       setSubmittingOrders(false);
     }
   };
@@ -1193,11 +1273,13 @@ const DoctorDashboard: React.FC = () => {
   const loadEncounterDiagnoses = async (encounterId: number) => {
     try {
       const response = await apiClient.get(`/encounters/${encounterId}`);
+      if (!isActiveEncounter(encounterId)) return;
       setEncounterDiagnoses(response.data.encounter?.diagnoses || response.data.diagnoses || []);
       // Fresh chart — drop any warning left over from the previous patient.
       setDiagnosisRequired(false);
     } catch (error) {
       console.error('Error loading diagnoses:', error);
+      if (isActiveEncounter(encounterId)) showToast("Couldn't load this patient's diagnoses — reselect the patient to retry", 'error');
     }
   };
 
@@ -1298,6 +1380,36 @@ const DoctorDashboard: React.FC = () => {
           </>
         )}
       />
+
+      {criticalAlerts.length > 0 && (
+        <section role="alert" className="mb-4 rounded-xl border-2 border-danger-300 bg-danger-50 p-4">
+          <h2 className="!text-base font-bold text-danger-800 mb-2">
+            {criticalAlerts.length} critical lab result{criticalAlerts.length > 1 ? 's' : ''} — act now
+          </h2>
+          <ul className="space-y-2">
+            {criticalAlerts.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-lg border border-danger-200 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-900">
+                    {a.patient_name} <span className="font-normal text-gray-500">· {a.patient_number}{a.room_number ? ` · Room ${a.room_number}` : ''}</span>
+                  </p>
+                  <p className="text-sm text-danger-700">
+                    <span className="font-bold">{a.result_value}</span> ({a.test_name}, {a.alert_type === 'critical_low' ? 'critically low' : 'critically high'})
+                    <span className="text-gray-500"> · {new Date(a.created_at).toLocaleString()}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => acknowledgeCriticalAlert(a.id)}
+                  disabled={acknowledgingAlertId === a.id}
+                  className="px-3 py-1.5 text-sm font-semibold text-white bg-danger-600 rounded-lg hover:bg-danger-700 disabled:opacity-50"
+                >
+                  {acknowledgingAlertId === a.id ? 'Saving…' : 'Acknowledge'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 30-day personal stat strip — today's count up top, sparkline
           shows the doctor's own arc over the last month. */}
@@ -1491,6 +1603,11 @@ const DoctorDashboard: React.FC = () => {
 
               {/* Alert Content */}
               <div className="max-h-[250px] overflow-y-auto">
+                {alertsTab === 'lab' && olderUnreviewedLabs > 0 && (
+                  <p className="px-3 py-2 text-xs text-warning-800 bg-warning-50 border-b border-warning-100">
+                    {olderUnreviewedLabs} older result{olderUnreviewedLabs > 1 ? 's' : ''} (over 30 days) still not reviewed — open the patient's chart to review.
+                  </p>
+                )}
                 {alertsTab === 'lab' && (
                   <>
                     {labAlerts.length === 0 ? (
@@ -1791,7 +1908,7 @@ const DoctorDashboard: React.FC = () => {
             {/* Claims Review Section */}
             {pendingClaims.length > 0 && (
               <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-3">
+                <div className="bg-gradient-to-r from-warning-600 to-warning-700 px-4 py-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1799,14 +1916,14 @@ const DoctorDashboard: React.FC = () => {
                       </svg>
                       <h2 className="text-sm font-semibold text-white">Claims Pending Review</h2>
                     </div>
-                    <span className="px-2.5 py-1 bg-white text-amber-700 text-xs font-bold rounded-full">
+                    <span className="px-2.5 py-1 bg-white text-warning-700 text-xs font-bold rounded-full">
                       {pendingClaims.length}
                     </span>
                   </div>
                 </div>
                 <div className="max-h-[200px] overflow-y-auto divide-y divide-gray-100">
                   {pendingClaims.map((claim) => (
-                    <div key={claim.id} className="px-4 py-3 hover:bg-amber-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
+                    <div key={claim.id} className="px-4 py-3 hover:bg-warning-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="font-semibold text-gray-900 text-sm">{claim.claim_number}</div>
@@ -1815,7 +1932,7 @@ const DoctorDashboard: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-bold text-gray-900 text-sm">GHS {parseFloat(claim.total_charged || 0).toFixed(2)}</div>
-                          <button className="text-xs text-amber-600 font-medium hover:underline">Review</button>
+                          <button className="text-xs text-warning-600 font-medium hover:underline">Review</button>
                         </div>
                       </div>
                     </div>
@@ -1985,7 +2102,7 @@ const DoctorDashboard: React.FC = () => {
                   {(selectedEncounter.allergies_list?.length || selectedEncounter.patient_allergies) && (
                     <div className="pt-4 mt-4 border-t border-gray-200">
                       <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                         </svg>
                         Allergies
@@ -3780,7 +3897,7 @@ const DoctorDashboard: React.FC = () => {
       {showClaimReviewModal && selectedReviewClaim && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-amber-100">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-warning-50 to-warning-100">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-gray-900">Review Claim {selectedReviewClaim.claim_number}</h3>
@@ -3817,17 +3934,17 @@ const DoctorDashboard: React.FC = () => {
               </div>
 
               {/* Claim Amount */}
-              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
-                <p className="text-xs text-green-600 font-medium">Claim Amount</p>
-                <p className="text-2xl font-bold text-green-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
+              <div className="bg-success-50 rounded-lg p-3 border border-success-200">
+                <p className="text-xs text-success-600 font-medium">Claim Amount</p>
+                <p className="text-2xl font-bold text-success-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
               </div>
 
               {/* Validation Issues */}
               {selectedReviewClaim.validation_issues && selectedReviewClaim.validation_issues.length > 0 && (
-                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
-                  <p className="text-xs text-red-600 font-medium mb-2">Validation Issues</p>
+                <div className="bg-danger-50 rounded-lg p-3 border border-danger-200">
+                  <p className="text-xs text-danger-600 font-medium mb-2">Validation Issues</p>
                   {selectedReviewClaim.validation_issues.map((issue: any, idx: number) => (
-                    <p key={idx} className="text-sm text-red-700">{issue.issue}</p>
+                    <p key={idx} className="text-sm text-danger-700">{issue.issue}</p>
                   ))}
                   {selectedReviewClaim.validation_override_reason && (
                     <p className="text-sm text-gray-700 mt-2 p-2 bg-white rounded">
@@ -3845,7 +3962,7 @@ const DoctorDashboard: React.FC = () => {
                   onChange={(e) => setClaimReviewNotes(e.target.value)}
                   placeholder="Enter your review notes (required for rejection)..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
                 />
               </div>
             </div>
@@ -3858,13 +3975,13 @@ const DoctorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleRejectClaim}
-                className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors"
+                className="px-4 py-2 bg-danger-600 text-white font-semibold rounded-lg hover:bg-danger-700 transition-colors"
               >
                 Reject Claim
               </button>
               <button
                 onClick={handleApproveClaim}
-                className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+                className="px-4 py-2 bg-success-600 text-white font-semibold rounded-lg hover:bg-success-700 transition-colors"
               >
                 Approve Claim
               </button>

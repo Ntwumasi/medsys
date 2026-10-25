@@ -77,7 +77,7 @@ export default function DuplicatePatients() {
         </div>
 
         {!isSuperAdmin && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+          <div className="p-4 bg-warning-50 border border-warning-200 rounded-lg text-warning-800 text-sm">
             Only super admins can merge patient records. You can review the list below.
           </div>
         )}
@@ -105,7 +105,7 @@ export default function DuplicatePatients() {
                   <tr key={pairKey(c)} className="hover:bg-gray-50 align-top">
                     <td className="px-6 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
-                        c.confidence === 'strong' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                        c.confidence === 'strong' ? 'bg-success-100 text-success-800' : 'bg-warning-100 text-warning-800'
                       }`}>
                         {c.confidence === 'strong' ? 'Strong' : 'Review'}
                       </span>

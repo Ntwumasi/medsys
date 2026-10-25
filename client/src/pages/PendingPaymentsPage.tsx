@@ -183,21 +183,21 @@ const PendingPaymentsPage: React.FC = () => {
         {/* Summary Cards */}
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-              <h4 className="text-sm font-medium text-green-700">0-30 Days</h4>
-              <p className="text-2xl font-bold text-green-900">{summary.bucket_0_30}</p>
+            <div className="bg-success-50 rounded-xl p-4 border border-success-200">
+              <h4 className="text-sm font-medium text-success-700">0-30 Days</h4>
+              <p className="text-2xl font-bold text-success-900">{summary.bucket_0_30}</p>
             </div>
-            <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-              <h4 className="text-sm font-medium text-yellow-700">31-60 Days</h4>
-              <p className="text-2xl font-bold text-yellow-900">{summary.bucket_31_60}</p>
+            <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
+              <h4 className="text-sm font-medium text-warning-700">31-60 Days</h4>
+              <p className="text-2xl font-bold text-warning-900">{summary.bucket_31_60}</p>
             </div>
             <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
               <h4 className="text-sm font-medium text-orange-700">61-90 Days</h4>
               <p className="text-2xl font-bold text-orange-900">{summary.bucket_61_90}</p>
             </div>
-            <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-              <h4 className="text-sm font-medium text-red-700">90+ Days</h4>
-              <p className="text-2xl font-bold text-red-900">{summary.bucket_90_plus}</p>
+            <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
+              <h4 className="text-sm font-medium text-danger-700">90+ Days</h4>
+              <p className="text-2xl font-bold text-danger-900">{summary.bucket_90_plus}</p>
             </div>
             <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
               <h4 className="text-sm font-medium text-blue-700">Total Outstanding</h4>
@@ -294,15 +294,15 @@ const PendingPaymentsPage: React.FC = () => {
                       <td className="px-6 py-4 text-sm font-medium text-gray-900">
                         {invoice.invoice_number}
                       </td>
-                      <td className="px-6 py-4 text-sm text-right font-bold text-red-600">
+                      <td className="px-6 py-4 text-sm text-right font-bold text-danger-600">
                         GHS {Number(invoice.balance || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          invoice.days_outstanding > 90 ? 'bg-red-100 text-red-800' :
+                          invoice.days_outstanding > 90 ? 'bg-danger-100 text-danger-800' :
                           invoice.days_outstanding > 60 ? 'bg-orange-100 text-orange-800' :
-                          invoice.days_outstanding > 30 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                          invoice.days_outstanding > 30 ? 'bg-warning-100 text-warning-800' :
+                          'bg-success-100 text-success-800'
                         }`}>
                           {invoice.days_outstanding}d
                         </span>

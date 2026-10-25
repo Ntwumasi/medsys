@@ -66,7 +66,7 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
   };
 
   const confColor = (c?: string) =>
-    c === 'high' ? 'bg-green-100 text-green-800' : c === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-700';
+    c === 'high' ? 'bg-success-100 text-success-800' : c === 'medium' ? 'bg-warning-100 text-warning-800' : 'bg-gray-100 text-gray-700';
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-3">
@@ -88,7 +88,7 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
           <button
             onClick={toggleListen}
             title={listening ? 'Stop' : 'Dictate'}
-            className={`p-2 rounded-lg border ${listening ? 'bg-red-50 border-red-300 text-red-600 animate-pulse' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
+            className={`p-2 rounded-lg border ${listening ? 'bg-danger-50 border-danger-300 text-danger-600 animate-pulse' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3a3 3 0 00-3 3v5a3 3 0 006 0V6a3 3 0 00-3-3z" />
@@ -101,9 +101,9 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
       </div>
 
       {unavailable && (
-        <p className="mt-2 text-xs text-amber-700">AI command parsing isn’t configured on this environment.</p>
+        <p className="mt-2 text-xs text-warning-700">AI command parsing isn’t configured on this environment.</p>
       )}
-      {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger-700">{error}</p>}
 
       {result && (
         <div className="mt-3 border-t border-gray-100 pt-3">
@@ -121,7 +121,7 @@ const VoiceCommandBar: React.FC<VoiceCommandBarProps> = ({ onParsed }) => {
             <p className="mt-2 text-xs text-gray-500">Notes: {result.specialInstructions}</p>
           )}
           {!result.understood && (
-            <p className="mt-2 text-xs text-amber-700">Command not fully understood — please rephrase or use the manual flow.</p>
+            <p className="mt-2 text-xs text-warning-700">Command not fully understood — please rephrase or use the manual flow.</p>
           )}
           <p className="mt-2 text-[11px] text-gray-400">Preview only — confirm and dispense through the normal flow.</p>
         </div>

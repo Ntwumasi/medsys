@@ -75,8 +75,8 @@ const OverviewSection: React.FC = () => (
         automatically synced to QuickBooks when patients check out - <strong>no more Excel exports/imports needed</strong>.
       </p>
 
-      <div className="bg-success-50 border border-green-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-green-900 mb-2">Key Benefits</h4>
+      <div className="bg-success-50 border border-success-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-success-900 mb-2">Key Benefits</h4>
         <ul className="text-success-800 text-sm space-y-1">
           <li>No more manual Excel exports/imports</li>
           <li>Data flows directly to QuickBooks</li>
@@ -230,7 +230,7 @@ const CashSalesSection: React.FC = () => (
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Why Use Cash Sales Mode?</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-success-50 rounded-lg p-4 border border-green-200">
+        <div className="bg-success-50 rounded-lg p-4 border border-success-200">
           <h4 className="font-semibold text-success-800 mb-2">Benefits</h4>
           <ul className="text-sm text-success-700 space-y-1">
             <li>Keeps QB customer list clean (no hundreds of patients)</li>
@@ -339,8 +339,8 @@ const CashSalesSection: React.FC = () => (
         </table>
       </div>
 
-      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-amber-900 mb-2">Important Note</h4>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 mb-6">
+        <h4 className="font-semibold text-warning-900 mb-2">Important Note</h4>
         <p className="text-warning-800 text-sm">
           Cash Sales Mode is <strong>enabled by default</strong>. If you need individual patient tracking
           in QuickBooks, you can disable it in QuickBooks Settings.
@@ -424,8 +424,8 @@ const ReceptionistSection: React.FC = () => (
         </table>
       </div>
 
-      <div className="bg-warning-50 border border-amber-200 rounded-lg p-4">
-        <h4 className="font-semibold text-amber-900 mb-2">Payment Methods</h4>
+      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+        <h4 className="font-semibold text-warning-900 mb-2">Payment Methods</h4>
         <p className="text-warning-800 text-sm">
           Available payment methods: Cash, Card, Mobile Money (MTN, Vodafone, AirtelTigo),
           Bank Transfer, Cheque, Insurance

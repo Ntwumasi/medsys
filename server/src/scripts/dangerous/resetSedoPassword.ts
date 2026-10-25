@@ -1,4 +1,5 @@
-import pool from '../db';
+import pool from '../../database/db';
+import { requireDangerousOptIn } from './guard';
 import bcrypt from 'bcrypt';
 
 /**
@@ -56,6 +57,7 @@ export async function resetSedoPassword() {
 }
 
 if (require.main === module) {
+  requireDangerousOptIn('resetSedoPassword');
   resetSedoPassword()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));

@@ -244,7 +244,7 @@ export default function ClinicManagement() {
                       <td className="px-6 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           clinic.is_active
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-success-100 text-success-700'
                             : 'bg-gray-100 text-gray-500'
                         }`}>
                           {clinic.is_active ? 'Active' : 'Inactive'}
@@ -263,7 +263,7 @@ export default function ClinicManagement() {
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDeactivate(clinic); }}
-                            className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            className="p-1.5 text-gray-500 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
                             title="Deactivate"
                           >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -308,7 +308,7 @@ export default function ClinicManagement() {
                             {shown.map((p) => (
                               <div key={p.payer_id} className="flex justify-between text-sm">
                                 <span className="text-gray-700">{p.name}</span>
-                                <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-green-600 font-medium' : 'text-gray-900 font-medium'}>{fmtPayer(p)}</span>
+                                <span className={p.excluded ? 'text-gray-400' : p.price === 0 ? 'text-success-600 font-medium' : 'text-gray-900 font-medium'}>{fmtPayer(p)}</span>
                               </div>
                             ))}
                           </div>

@@ -102,6 +102,8 @@ const ImagingDashboard: React.FC = () => {
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState<ImagingOrder | null>(null);
   const [patientDiagnoses, setPatientDiagnoses] = useState<any[]>([]);
   const [patientAllergies, setPatientAllergies] = useState<any[]>([]);
+  // 'failed' must never render as "No known allergies".
+  const [allergiesStatus, setAllergiesStatus] = useState<'loading' | 'loaded' | 'failed'>('loaded');
   const [patientImagingHistory, setPatientImagingHistory] = useState<any[]>([]);
 
   // Patient Quick View modal
@@ -247,6 +249,8 @@ const ImagingDashboard: React.FC = () => {
   const fetchPatientDetailsForPanel = async (patientId: number, encounterId: number) => {
     const reqId = ++activePanelReqRef.current;
     const isStale = () => activePanelReqRef.current !== reqId;
+    setPatientAllergies([]);
+    setAllergiesStatus('loading');
     try {
       // Fetch diagnoses from encounter
       const encounterRes = await apiClient.get(`/encounters/${encounterId}`);
@@ -257,6 +261,7 @@ const ImagingDashboard: React.FC = () => {
       const patientRes = await apiClient.get(`/patients/${patientId}`);
       if (isStale()) return;
       setPatientAllergies(patientRes.data.patient?.allergies || []);
+      setAllergiesStatus('loaded');
 
       // Fetch recent imaging history for this patient
       const imagingHistoryRes = await apiClient.get(`/orders/imaging?patient_id=${patientId}&limit=10`);
@@ -264,6 +269,7 @@ const ImagingDashboard: React.FC = () => {
       setPatientImagingHistory(imagingHistoryRes.data.imaging_orders || []);
     } catch (error) {
       console.error('Error fetching patient details for panel:', error);
+      if (!isStale()) setAllergiesStatus('failed');
     }
   };
 
@@ -849,7 +855,13 @@ const ImagingDashboard: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 italic">No known allergies</p>
+                      allergiesStatus === 'loading' ? (
+                        <p className="text-sm text-gray-500 italic">Checking allergies…</p>
+                      ) : allergiesStatus === 'failed' ? (
+                        <p className="text-sm font-medium text-danger-700" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No known allergies</p>
+                      )
                     )}
                   </div>
 

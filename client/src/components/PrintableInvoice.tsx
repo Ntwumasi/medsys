@@ -255,12 +255,12 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
             .text-gray-600 { color: #4b5563; }
             .text-gray-500 { color: #6b7280; }
             .text-success-600 { color: #059669; }
-            .text-green-800 { color: #166534; }
-            .text-yellow-800 { color: #854d0e; }
+            .text-success-800 { color: #166534; }
+            .text-warning-800 { color: #854d0e; }
             .bg-gray-50 { background: #f9fafb; }
             .bg-gray-100 { background: #f3f4f6; }
             .bg-success-100 { background: #d1fae5; }
-            .bg-yellow-100 { background: #fef3c7; }
+            .bg-warning-100 { background: #fef3c7; }
             .bg-primary-100 { background: #ccfbf1; }
             .text-primary-800 { color: #115e59; }
             .border-primary-600 { border-color: #0d9488; }
@@ -650,7 +650,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                     <button
                       onClick={handleMarkAsPaid}
                       disabled={isProcessing}
-                      className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+                      className="flex-1 px-6 py-3 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
                     >
                       {isProcessing ? (
                         <>
@@ -725,8 +725,8 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                 <p className="text-sm text-gray-600">
                   <span className="font-semibold">Status:</span>{' '}
                   <span className={`px-2 py-1 rounded ${
-                    invoice.status === 'paid' ? 'bg-success-100 text-green-800' :
-                    invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    invoice.status === 'paid' ? 'bg-success-100 text-success-800' :
+                    invoice.status === 'pending' ? 'bg-warning-100 text-warning-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {invoice.status.toUpperCase()}
@@ -861,7 +861,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
           {/* Invoice Items Table */}
           <div className="mb-8">
             {isPaid && (
-              <div className="mb-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 print:hidden print-hidden">
+              <div className="mb-3 flex items-center gap-2 text-sm text-success-700 bg-success-50 border border-success-200 rounded-lg px-3 py-2 print:hidden print-hidden">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
@@ -928,7 +928,7 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(item.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
+                          className="text-gray-400 hover:text-danger-600 transition-colors"
                           title="Remove item"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

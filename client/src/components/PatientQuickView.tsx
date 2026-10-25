@@ -97,7 +97,7 @@ const PatientQuickView: React.FC<PatientQuickViewProps> = ({
     if (!status || status === '' || status === 'Unknown') return 'bg-gray-100 text-gray-600';
     if (status === 'Negative' || status === 'AA') return 'bg-success-100 text-success-700';
     if (status === 'Positive' || status === 'SS' || status === 'SC') return 'bg-danger-100 text-danger-700';
-    if (status === 'AS') return 'bg-yellow-100 text-yellow-700';
+    if (status === 'AS') return 'bg-warning-100 text-warning-700';
     if (status === 'Not Tested') return 'bg-gray-100 text-gray-600';
     return 'bg-gray-100 text-gray-600';
   };

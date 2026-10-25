@@ -1,4 +1,5 @@
-import pool from '../db';
+import pool from '../../database/db';
+import { requireDangerousOptIn } from './guard';
 import bcrypt from 'bcrypt';
 
 /**
@@ -55,6 +56,7 @@ export async function resetNtwumasiPassword() {
 }
 
 if (require.main === module) {
+  requireDangerousOptIn('resetNtwumasiPassword');
   resetNtwumasiPassword()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));

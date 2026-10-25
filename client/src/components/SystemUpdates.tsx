@@ -141,7 +141,7 @@ const SystemUpdates: React.FC = () => {
   const getCategoryBadge = (category: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
       feature: { bg: 'bg-primary-100', text: 'text-primary-800', label: 'Feature' },
-      improvement: { bg: 'bg-success-100', text: 'text-green-800', label: 'Improvement' },
+      improvement: { bg: 'bg-success-100', text: 'text-success-800', label: 'Improvement' },
       bugfix: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Bug Fix' },
       planned: { bg: 'bg-secondary-100', text: 'text-secondary-800', label: 'Planned' },
     };
@@ -156,7 +156,7 @@ const SystemUpdates: React.FC = () => {
   const getStatusBadge = (status: string) => {
     const badges: { [key: string]: { bg: string; text: string; label: string } } = {
       completed: { bg: 'bg-success-100', text: 'text-success-800', label: 'Completed' },
-      in_progress: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'In Progress' },
+      in_progress: { bg: 'bg-warning-100', text: 'text-warning-800', label: 'In Progress' },
       planned: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Planned' },
     };
     const badge = badges[status] || badges.completed;
@@ -208,7 +208,7 @@ const SystemUpdates: React.FC = () => {
             <div className="text-2xl font-bold text-primary-700">{stats.features}</div>
             <div className="text-sm text-primary-600">Features</div>
           </div>
-          <div className="bg-gradient-to-br from-success-50 to-success-100 rounded-xl p-4 border border-green-200">
+          <div className="bg-gradient-to-br from-success-50 to-success-100 rounded-xl p-4 border border-success-200">
             <div className="text-2xl font-bold text-success-700">{stats.improvements}</div>
             <div className="text-sm text-success-600">Improvements</div>
           </div>
@@ -347,7 +347,7 @@ const SystemUpdates: React.FC = () => {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+              className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
             >
               {editingUpdate ? 'Save Changes' : 'Add Update'}
             </button>

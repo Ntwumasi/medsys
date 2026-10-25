@@ -2124,7 +2124,7 @@ const ReceptionistDashboard: React.FC = () => {
                           {item.vip_status && (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                               item.vip_status === 'platinum' ? 'bg-gray-800 text-white' :
-                              item.vip_status === 'gold' ? 'bg-yellow-400 text-yellow-900' :
+                              item.vip_status === 'gold' ? 'bg-warning-400 text-warning-900' :
                               'bg-gray-300 text-gray-700'
                             }`}>
                               {item.vip_status.toUpperCase()}
@@ -2851,16 +2851,16 @@ const ReceptionistDashboard: React.FC = () => {
             <p className="text-sm text-gray-500 mb-6">Register & Check-In</p>
             {/* Duplicate patient warning */}
             {duplicateMatches.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+              <div className="bg-warning-50 border border-warning-200 rounded-xl p-4 mb-4">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <svg className="w-5 h-5 text-warning-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" />
                   </svg>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-amber-800">Possible duplicate patient{duplicateMatches.length > 1 ? 's' : ''} found</p>
+                    <p className="text-sm font-semibold text-warning-800">Possible duplicate patient{duplicateMatches.length > 1 ? 's' : ''} found</p>
                     <div className="mt-2 space-y-2">
                       {duplicateMatches.map(dup => (
-                        <div key={dup.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                        <div key={dup.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-warning-100">
                           <div>
                             <p className="text-sm font-medium text-gray-900">{dup.first_name} {dup.last_name}</p>
                             <p className="text-xs text-gray-500">
@@ -2868,8 +2868,8 @@ const ReceptionistDashboard: React.FC = () => {
                             </p>
                           </div>
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            dup.confidence === 'exact' ? 'bg-red-100 text-red-700' :
-                            dup.confidence === 'likely' ? 'bg-amber-100 text-amber-700' :
+                            dup.confidence === 'exact' ? 'bg-danger-100 text-danger-700' :
+                            dup.confidence === 'likely' ? 'bg-warning-100 text-warning-700' :
                             'bg-gray-100 text-gray-600'
                           }`}>
                             {dup.confidence}
@@ -2881,14 +2881,14 @@ const ReceptionistDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => { setDuplicateMatches([]); setDuplicateCheckDone(true); }}
-                        className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                        className="px-3 py-1.5 text-xs font-medium bg-warning-600 text-white rounded-lg hover:bg-warning-700"
                       >
                         Not a duplicate — continue registration
                       </button>
                       <button
                         type="button"
                         onClick={() => { setDuplicateMatches([]); setDuplicateCheckDone(false); setActiveView('checkin'); }}
-                        className="px-3 py-1.5 text-xs font-medium text-amber-700 bg-white border border-amber-300 rounded-lg hover:bg-amber-50"
+                        className="px-3 py-1.5 text-xs font-medium text-warning-700 bg-white border border-warning-300 rounded-lg hover:bg-warning-50"
                       >
                         Go to check-in instead
                       </button>

@@ -107,12 +107,12 @@ const UnbilledPayerEncounters: React.FC = () => {
                     <div className="text-xs text-gray-500">{inv.patient_number}</div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
-                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-warning-100 text-warning-700'}`}>
                       {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
                     </span>
                     <span className="ml-2">{payerLabel(inv)}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
+                  <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
                     {fmtGHS((parseFloat(inv.total_amount as string) || 0) - (parseFloat(inv.amount_paid as string) || 0))}
                   </td>
                   <td className="px-4 py-3 text-center">

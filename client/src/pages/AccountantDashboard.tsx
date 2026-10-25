@@ -922,15 +922,15 @@ const AccountantDashboard: React.FC = () => {
     const colors: Record<string, string> = {
       draft: 'bg-gray-100 text-gray-800',
       pending_validation: 'bg-blue-100 text-blue-800',
-      pending_doctor_review: 'bg-yellow-100 text-yellow-800',
-      doctor_rejected: 'bg-red-100 text-red-800',
-      approved_by_doctor: 'bg-green-100 text-green-800',
+      pending_doctor_review: 'bg-warning-100 text-warning-800',
+      doctor_rejected: 'bg-danger-100 text-danger-800',
+      approved_by_doctor: 'bg-success-100 text-success-800',
       submitted: 'bg-purple-100 text-purple-800',
       processing: 'bg-indigo-100 text-indigo-800',
-      approved: 'bg-emerald-100 text-emerald-800',
+      approved: 'bg-success-100 text-success-800',
       partial: 'bg-orange-100 text-orange-800',
-      denied: 'bg-red-100 text-red-800',
-      paid: 'bg-green-100 text-green-800',
+      denied: 'bg-danger-100 text-danger-800',
+      paid: 'bg-success-100 text-success-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -1227,7 +1227,7 @@ const AccountantDashboard: React.FC = () => {
                         <button
                           onClick={handleExportRevenueTrend}
                           disabled={exportingTrend || dailyRevenue.length === 0}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                          className="px-3 py-1.5 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2 text-sm disabled:opacity-50"
                         >
                           {exportingTrend ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -1516,7 +1516,7 @@ const AccountantDashboard: React.FC = () => {
                   <button
                     onClick={handleExportInvoices}
                     disabled={exporting}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
+                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2 disabled:opacity-50"
                   >
                     {exporting ? (
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -1570,8 +1570,8 @@ const AccountantDashboard: React.FC = () => {
                               <td className="px-4 py-3 text-sm text-gray-700">{payerLabel(inv)}</td>
                             )}
                             <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(inv.total_amount)}</td>
-                            <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(inv.amount_paid)}</td>
-                            <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
+                            <td className="px-4 py-3 text-sm text-right text-success-600">{formatCurrency(inv.amount_paid)}</td>
+                            <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -1581,9 +1581,9 @@ const AccountantDashboard: React.FC = () => {
                                 </span>
                               ) : (
                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                  inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                                  inv.status === 'paid' ? 'bg-success-100 text-success-800' :
                                   inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-yellow-100 text-yellow-800'
+                                  'bg-warning-100 text-warning-800'
                                 }`}>
                                   {inv.status.toUpperCase()}
                                 </span>
@@ -1608,7 +1608,7 @@ const AccountantDashboard: React.FC = () => {
                                 )}
                                 <button
                                   onClick={() => handleExportSingleInvoice(inv.id)}
-                                  className="text-green-600 hover:text-green-900 text-sm font-medium"
+                                  className="text-success-600 hover:text-success-900 text-sm font-medium"
                                 >
                                   Excel
                                 </button>
@@ -1627,8 +1627,8 @@ const AccountantDashboard: React.FC = () => {
                 not yet submitted to their payer (catch what front desk missed). */}
             {activeTab === 'unbilled' && (
               <div className="space-y-4">
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-gray-700 space-y-2">
-                  <div className="font-semibold text-amber-800">What "Awaiting Submission" means</div>
+                <div className="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-gray-700 space-y-2">
+                  <div className="font-semibold text-warning-800">What "Awaiting Submission" means</div>
                   <p>
                     These are visits for patients paid by a <span className="font-semibold">company (corporate)</span> or an <span className="font-semibold">insurance</span> — not by the patient in cash. The visit is done and billed, but the bill <span className="font-semibold">hasn't been sent to that company/insurer yet</span>, so we can't get paid for it until it is.
                   </p>
@@ -1670,12 +1670,12 @@ const AccountantDashboard: React.FC = () => {
                               <div className="text-xs text-gray-500">{inv.patient_number}</div>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-700">
-                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-amber-100 text-amber-700'}`}>
+                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-warning-100 text-warning-700'}`}>
                                 {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
                               </span>
                               <span className="ml-2">{payerLabel(inv)}</span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
+                            <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -1714,20 +1714,20 @@ const AccountantDashboard: React.FC = () => {
                         <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(financials.headline.total_billed)}</p>
                         <p className="text-xs text-gray-500 mt-1">{financials.headline.invoice_count} invoices</p>
                       </div>
-                      <div className="rounded-xl p-4 bg-green-50 border border-green-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-green-700">Collected</h4>
-                        <p className="text-2xl font-bold text-green-900 mt-1">{formatCurrency(financials.headline.total_collected)}</p>
-                        <p className="text-xs text-green-600 mt-1">{financials.headline.payment_count} payments</p>
+                      <div className="rounded-xl p-4 bg-success-50 border border-success-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-success-700">Collected</h4>
+                        <p className="text-2xl font-bold text-success-900 mt-1">{formatCurrency(financials.headline.total_collected)}</p>
+                        <p className="text-xs text-success-600 mt-1">{financials.headline.payment_count} payments</p>
                       </div>
                       <div className="rounded-xl p-4 bg-primary-50 border border-primary-200 shadow-sm">
                         <h4 className="text-sm font-medium text-primary-700">Collection Rate</h4>
                         <p className="text-2xl font-bold text-primary-900 mt-1">{financials.headline.collection_rate}%</p>
                         <p className="text-xs text-primary-600 mt-1">collected ÷ billed</p>
                       </div>
-                      <div className="rounded-xl p-4 bg-red-50 border border-red-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-red-700">Outstanding (A/R)</h4>
-                        <p className="text-2xl font-bold text-red-900 mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
-                        <p className="text-xs text-red-600 mt-1">current, all-time</p>
+                      <div className="rounded-xl p-4 bg-danger-50 border border-danger-200 shadow-sm">
+                        <h4 className="text-sm font-medium text-danger-700">Outstanding (A/R)</h4>
+                        <p className="text-2xl font-bold text-danger-900 mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
+                        <p className="text-xs text-danger-600 mt-1">current, all-time</p>
                       </div>
                     </div>
 
@@ -1800,8 +1800,8 @@ const AccountantDashboard: React.FC = () => {
                               <tr key={r.payer_type}>
                                 <td className="px-4 py-2 text-gray-700 capitalize">{r.payer_type.replace(/_/g, ' ')}</td>
                                 <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(r.billed)}</td>
-                                <td className="px-4 py-2 text-right text-green-700">{formatCurrency(r.collected)}</td>
-                                <td className="px-4 py-2 text-right text-red-600">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
+                                <td className="px-4 py-2 text-right text-success-700">{formatCurrency(r.collected)}</td>
+                                <td className="px-4 py-2 text-right text-danger-600">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1815,10 +1815,10 @@ const AccountantDashboard: React.FC = () => {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {financials.aging.map((b) => (
                           <div key={b.aging_bucket} className={`rounded-lg p-3 ${
-                            b.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
+                            b.aging_bucket === '90+ days' ? 'bg-danger-50 border border-danger-200' :
                             b.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
-                            b.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
-                            'bg-green-50 border border-green-200'
+                            b.aging_bucket === '31-60 days' ? 'bg-warning-50 border border-warning-200' :
+                            'bg-success-50 border border-success-200'
                           }`}>
                             <h4 className="text-xs font-medium text-gray-700">{b.aging_bucket}</h4>
                             <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(b.total_balance)}</p>
@@ -1838,8 +1838,8 @@ const AccountantDashboard: React.FC = () => {
                 {agingLoading ? (
                   <AgingSkeleton />
                 ) : agingError ? (
-                  <div className="bg-white rounded-xl shadow p-12 text-center border border-red-200">
-                    <p className="text-red-700 font-semibold">Couldn't load the aging report</p>
+                  <div className="bg-white rounded-xl shadow p-12 text-center border border-danger-200">
+                    <p className="text-danger-700 font-semibold">Couldn't load the aging report</p>
                     <p className="text-gray-600 mt-1 text-sm">{agingError}</p>
                     <button
                       onClick={loadAgingReport}
@@ -1860,10 +1860,10 @@ const AccountantDashboard: React.FC = () => {
                         <div
                           key={bucket.aging_bucket}
                           className={`rounded-xl p-4 ${
-                            bucket.aging_bucket === '90+ days' ? 'bg-red-50 border border-red-200' :
+                            bucket.aging_bucket === '90+ days' ? 'bg-danger-50 border border-danger-200' :
                             bucket.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
-                            bucket.aging_bucket === '31-60 days' ? 'bg-yellow-50 border border-yellow-200' :
-                            'bg-green-50 border border-green-200'
+                            bucket.aging_bucket === '31-60 days' ? 'bg-warning-50 border border-warning-200' :
+                            'bg-success-50 border border-success-200'
                           }`}
                         >
                           <h4 className="text-sm font-medium text-gray-700">{bucket.aging_bucket}</h4>
@@ -1898,15 +1898,15 @@ const AccountantDashboard: React.FC = () => {
                             <div className="text-xs text-gray-500">{inv.patient_number}</div>
                           </td>
                           <td className="px-4 py-3 text-sm text-right">{formatCurrency(inv.total_amount)}</td>
-                          <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(inv.amount_paid)}</td>
-                          <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">{formatCurrency(inv.balance)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-success-600">{formatCurrency(inv.amount_paid)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">{formatCurrency(inv.balance)}</td>
                           <td className="px-4 py-3 text-sm text-center font-medium">{inv.days_outstanding}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              inv.aging_bucket === '90+ days' ? 'bg-red-100 text-red-800' :
+                              inv.aging_bucket === '90+ days' ? 'bg-danger-100 text-danger-800' :
                               inv.aging_bucket === '61-90 days' ? 'bg-orange-100 text-orange-800' :
-                              inv.aging_bucket === '31-60 days' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-green-100 text-green-800'
+                              inv.aging_bucket === '31-60 days' ? 'bg-warning-100 text-warning-800' :
+                              'bg-success-100 text-success-800'
                             }`}>
                               {inv.aging_bucket}
                               </span>
@@ -1927,21 +1927,21 @@ const AccountantDashboard: React.FC = () => {
                 {/* Summary Cards */}
                 {outstandingSummary && (
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                      <h4 className="text-sm font-medium text-green-700">0-30 Days</h4>
-                      <p className="text-2xl font-bold text-green-900">{outstandingSummary.bucket_0_30}</p>
+                    <div className="bg-success-50 rounded-xl p-4 border border-success-200">
+                      <h4 className="text-sm font-medium text-success-700">0-30 Days</h4>
+                      <p className="text-2xl font-bold text-success-900">{outstandingSummary.bucket_0_30}</p>
                     </div>
-                    <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                      <h4 className="text-sm font-medium text-yellow-700">31-60 Days</h4>
-                      <p className="text-2xl font-bold text-yellow-900">{outstandingSummary.bucket_31_60}</p>
+                    <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
+                      <h4 className="text-sm font-medium text-warning-700">31-60 Days</h4>
+                      <p className="text-2xl font-bold text-warning-900">{outstandingSummary.bucket_31_60}</p>
                     </div>
                     <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
                       <h4 className="text-sm font-medium text-orange-700">61-90 Days</h4>
                       <p className="text-2xl font-bold text-orange-900">{outstandingSummary.bucket_61_90}</p>
                     </div>
-                    <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                      <h4 className="text-sm font-medium text-red-700">90+ Days</h4>
-                      <p className="text-2xl font-bold text-red-900">{outstandingSummary.bucket_90_plus}</p>
+                    <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
+                      <h4 className="text-sm font-medium text-danger-700">90+ Days</h4>
+                      <p className="text-2xl font-bold text-danger-900">{outstandingSummary.bucket_90_plus}</p>
                     </div>
                     <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                       <h4 className="text-sm font-medium text-blue-700">Total Outstanding</h4>
@@ -1961,7 +1961,7 @@ const AccountantDashboard: React.FC = () => {
                     </svg>
                     Reminder Settings
                     {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full ml-2">
+                      <span className="text-xs bg-warning-100 text-warning-800 px-2 py-1 rounded-full ml-2">
                         SMS/Email not configured - reminders will be logged only
                       </span>
                     )}
@@ -2104,13 +2104,13 @@ const AccountantDashboard: React.FC = () => {
                               <div className="text-xs text-gray-500">{inv.patient_number}</div>
                             </td>
                             <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                            <td className="px-4 py-3 text-sm text-right font-bold text-red-600">{formatCurrency(inv.balance)}</td>
+                            <td className="px-4 py-3 text-sm text-right font-bold text-danger-600">{formatCurrency(inv.balance)}</td>
                             <td className="px-4 py-3 text-sm text-center">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                inv.days_outstanding > 90 ? 'bg-red-100 text-red-800' :
+                                inv.days_outstanding > 90 ? 'bg-danger-100 text-danger-800' :
                                 inv.days_outstanding > 60 ? 'bg-orange-100 text-orange-800' :
-                                inv.days_outstanding > 30 ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-green-100 text-green-800'
+                                inv.days_outstanding > 30 ? 'bg-warning-100 text-warning-800' :
+                                'bg-success-100 text-success-800'
                               }`}>
                                 {inv.days_outstanding}d
                               </span>
@@ -2130,7 +2130,7 @@ const AccountantDashboard: React.FC = () => {
                             <td className="px-4 py-3 text-center">
                               <div className="flex justify-center gap-1">
                                 {inv.patient_phone && (
-                                  <span className="px-1.5 py-0.5 bg-green-100 text-green-800 rounded text-xs">Phone</span>
+                                  <span className="px-1.5 py-0.5 bg-success-100 text-success-800 rounded text-xs">Phone</span>
                                 )}
                                 {inv.patient_email && (
                                   <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">Email</span>
@@ -2181,22 +2181,22 @@ const AccountantDashboard: React.FC = () => {
                       <h4 className="text-sm font-medium text-gray-700">Draft</h4>
                       <p className="text-2xl font-bold text-gray-900">{claimsSummary.draft}</p>
                     </div>
-                    <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
-                      <h4 className="text-sm font-medium text-yellow-700">Pending Review</h4>
-                      <p className="text-2xl font-bold text-yellow-900">{claimsSummary.pending_review}</p>
+                    <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
+                      <h4 className="text-sm font-medium text-warning-700">Pending Review</h4>
+                      <p className="text-2xl font-bold text-warning-900">{claimsSummary.pending_review}</p>
                     </div>
                     <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
                       <h4 className="text-sm font-medium text-purple-700">Submitted</h4>
                       <p className="text-2xl font-bold text-purple-900">{claimsSummary.submitted}</p>
                     </div>
-                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                      <h4 className="text-sm font-medium text-green-700">Approved</h4>
-                      <p className="text-2xl font-bold text-green-900">{claimsSummary.approved}</p>
-                      <p className="text-xs text-green-600">{formatCurrency(claimsSummary.total_approved)}</p>
+                    <div className="bg-success-50 rounded-xl p-4 border border-success-200">
+                      <h4 className="text-sm font-medium text-success-700">Approved</h4>
+                      <p className="text-2xl font-bold text-success-900">{claimsSummary.approved}</p>
+                      <p className="text-xs text-success-600">{formatCurrency(claimsSummary.total_approved)}</p>
                     </div>
-                    <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                      <h4 className="text-sm font-medium text-red-700">Denied</h4>
-                      <p className="text-2xl font-bold text-red-900">{claimsSummary.denied}</p>
+                    <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
+                      <h4 className="text-sm font-medium text-danger-700">Denied</h4>
+                      <p className="text-2xl font-bold text-danger-900">{claimsSummary.denied}</p>
                     </div>
                   </div>
                 )}
@@ -2362,9 +2362,9 @@ const AccountantDashboard: React.FC = () => {
                         <div className="text-right">
                           <p className="font-bold text-gray-900">{formatCurrency(inv.total_amount)}</p>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            inv.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            inv.status === 'paid' ? 'bg-success-100 text-success-800' :
                             inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                            'bg-yellow-100 text-yellow-800'
+                            'bg-warning-100 text-warning-800'
                           }`}>
                             {inv.status.toUpperCase()}
                           </span>
@@ -2431,9 +2431,9 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Coverage Info */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-green-50 rounded-lg p-4 text-center">
+                <div className="bg-success-50 rounded-lg p-4 text-center">
                   <p className="text-sm text-gray-600">Annual Limit</p>
-                  <p className="text-xl font-bold text-green-700">{formatCurrency(selectedClaim.annual_limit || 0)}</p>
+                  <p className="text-xl font-bold text-success-700">{formatCurrency(selectedClaim.annual_limit || 0)}</p>
                 </div>
                 <div className="bg-orange-50 rounded-lg p-4 text-center">
                   <p className="text-sm text-gray-600">Used to Date</p>
@@ -2447,17 +2447,17 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Validation Result */}
               {validationResult && (
-                <div className={`rounded-lg p-4 ${validationResult.validated ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <div className={`rounded-lg p-4 ${validationResult.validated ? 'bg-success-50 border border-success-200' : 'bg-danger-50 border border-danger-200'}`}>
                   <h3 className="font-semibold mb-2">{validationResult.validated ? 'Validation Passed' : 'Validation Issues'}</h3>
                   {validationResult.issues?.map((issue: any, idx: number) => (
-                    <p key={idx} className="text-sm text-red-700">{issue.issue}</p>
+                    <p key={idx} className="text-sm text-danger-700">{issue.issue}</p>
                   ))}
                 </div>
               )}
 
               {/* Coverage Result */}
               {coverageResult && (
-                <div className={`rounded-lg p-4 ${coverageResult.exceeds_limit ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
+                <div className={`rounded-lg p-4 ${coverageResult.exceeds_limit ? 'bg-danger-50 border border-danger-200' : 'bg-success-50 border border-success-200'}`}>
                   <h3 className="font-semibold mb-2">{coverageResult.message}</h3>
                   <p className="text-sm">Remaining Coverage: {formatCurrency(coverageResult.remaining_coverage)}</p>
                 </div>
@@ -2485,7 +2485,7 @@ const AccountantDashboard: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleCheckCoverage(selectedClaim.id)}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
                     >
                       Check Coverage
                     </button>
@@ -2532,13 +2532,13 @@ const AccountantDashboard: React.FC = () => {
                           handleUpdateClaimStatus(selectedClaim.id, 'approved', { amount_approved: parseFloat(amount) });
                         }
                       }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
                     >
                       Mark Approved
                     </button>
                     <button
                       onClick={() => handleUpdateClaimStatus(selectedClaim.id, 'denied')}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                      className="px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700"
                     >
                       Mark Denied
                     </button>
@@ -2557,7 +2557,7 @@ const AccountantDashboard: React.FC = () => {
                         handleUpdateClaimStatus(selectedClaim.id, 'paid', { amount_paid: parseFloat(amount) });
                       }
                     }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
                   >
                     Record Payment Received
                   </button>
@@ -2597,13 +2597,13 @@ const AccountantDashboard: React.FC = () => {
                   <p className="text-sm">{reminderPreview.patient.name}</p>
                   <div className="mt-2 space-y-1">
                     <p className="text-xs text-gray-500 flex items-center gap-2">
-                      <span className={reminderPreview.patient.phoneValid ? 'text-green-600' : 'text-red-600'}>
+                      <span className={reminderPreview.patient.phoneValid ? 'text-success-600' : 'text-danger-600'}>
                         {reminderPreview.patient.phoneValid ? '✓' : '✗'}
                       </span>
                       Phone: {reminderPreview.patient.phone || 'Not set'}
                     </p>
                     <p className="text-xs text-gray-500 flex items-center gap-2">
-                      <span className={reminderPreview.patient.emailValid ? 'text-green-600' : 'text-red-600'}>
+                      <span className={reminderPreview.patient.emailValid ? 'text-success-600' : 'text-danger-600'}>
                         {reminderPreview.patient.emailValid ? '✓' : '✗'}
                       </span>
                       Email: {reminderPreview.patient.email || 'Not set'}
@@ -2613,7 +2613,7 @@ const AccountantDashboard: React.FC = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-semibold text-gray-900 mb-2">Invoice</h3>
                   <p className="text-sm font-medium">{reminderPreview.invoice.number}</p>
-                  <p className="text-xl font-bold text-red-600 mt-1">{formatCurrency(reminderPreview.invoice.balance)}</p>
+                  <p className="text-xl font-bold text-danger-600 mt-1">{formatCurrency(reminderPreview.invoice.balance)}</p>
                   <p className="text-xs text-gray-500 mt-1">
                     Reminders sent: {reminderPreview.invoice.reminderCount}
                   </p>
@@ -2671,7 +2671,7 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Message Preview */}
               {(reminderType === 'sms' || reminderType === 'both') && reminderPreview.sms && (
-                <div className="bg-green-50 rounded-lg p-4">
+                <div className="bg-success-50 rounded-lg p-4">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="font-semibold text-gray-900">SMS Preview</h3>
                     <span className="text-xs text-gray-500">{reminderPreview.sms.characterCount} characters</span>
@@ -2692,12 +2692,12 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Info Banner */}
               {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-sm text-yellow-800">
+                    <p className="text-sm text-warning-800">
                       <strong>Stub Mode:</strong> SMS/Email APIs are not configured. This reminder will be logged but not actually sent. Configure API keys when ready for production.
                     </p>
                   </div>
@@ -2756,14 +2756,14 @@ const AccountantDashboard: React.FC = () => {
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            reminder.reminder_type === 'sms' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                            reminder.reminder_type === 'sms' ? 'bg-success-100 text-success-800' : 'bg-blue-100 text-blue-800'
                           }`}>
                             {reminder.reminder_type.toUpperCase()}
                           </span>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            reminder.status === 'sent' ? 'bg-green-100 text-green-800' :
-                            reminder.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                            reminder.status === 'failed' ? 'bg-red-100 text-red-800' :
+                            reminder.status === 'sent' ? 'bg-success-100 text-success-800' :
+                            reminder.status === 'delivered' ? 'bg-success-100 text-success-800' :
+                            reminder.status === 'failed' ? 'bg-danger-100 text-danger-800' :
                             'bg-gray-100 text-gray-800'
                           }`}>
                             {reminder.status}

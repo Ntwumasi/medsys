@@ -80,11 +80,14 @@ const PatientAutoTexts: React.FC = () => {
   const [env, setEnv] = useState<{ sms_configured: boolean; sandbox: boolean; sender_approved: boolean } | null>(null);
   const [log, setLog] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not render every switch as OFF.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [details, setDetails] = useState({ clinicName: '', clinicPhone: '', refillDays: '3', followUpDays: '3' });
 
   const load = useCallback(async () => {
+    setLoadFailed(false);
     try {
       const [s, l] = await Promise.all([
         apiClient.get('/patient-texts/settings'),
@@ -101,6 +104,7 @@ const PatientAutoTexts: React.FC = () => {
       });
       setLog(l.data.log || []);
     } catch (e) {
+      setLoadFailed(true);
       showToast(getApiError(e, 'Could not load text settings'), 'error');
     } finally {
       setLoading(false);
@@ -174,6 +178,17 @@ const PatientAutoTexts: React.FC = () => {
   };
 
   if (loading) return <div className="py-12 text-center text-gray-500">Loading…</div>;
+  if (loadFailed) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+        <p className="font-semibold text-gray-900">Couldn't load the automatic text settings.</p>
+        <p className="text-sm text-gray-600 mt-1">Nothing has been changed. Check your connection and try again.</p>
+        <button onClick={() => { setLoading(true); load(); }} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -204,12 +219,12 @@ const PatientAutoTexts: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 divide-y">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 divide-y divide-gray-200">
         {KINDS.map((k) => {
           const key = `patient_sms_${k.kind}_enabled`;
           const on = settings[key] === 'true';
           return (
-            <div key={k.kind} className="p-4 flex flex-wrap items-start justify-between gap-3">
+            <div key={k.kind} className="px-6 py-4 flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-gray-900">{k.label}</div>
                 <div className="text-sm text-gray-600">{k.when}</div>
@@ -230,13 +245,13 @@ const PatientAutoTexts: React.FC = () => {
         })}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <div className="font-medium text-gray-900 mb-3">Text details</div>
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+        <h3 className="font-semibold text-gray-900 mb-4">Text details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="text-sm text-gray-700">
             Clinic name in texts
             <input
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={details.clinicName}
               onChange={(e) => setDetails((d) => ({ ...d, clinicName: e.target.value }))}
             />
@@ -244,7 +259,7 @@ const PatientAutoTexts: React.FC = () => {
           <label className="text-sm text-gray-700">
             Phone patients should call
             <input
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={details.clinicPhone}
               onChange={(e) => setDetails((d) => ({ ...d, clinicPhone: e.target.value }))}
             />
@@ -253,7 +268,7 @@ const PatientAutoTexts: React.FC = () => {
             Follow-up reminder: days before the visit
             <input
               type="number" min={1} max={14}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={details.followUpDays}
               onChange={(e) => setDetails((d) => ({ ...d, followUpDays: e.target.value }))}
             />
@@ -262,7 +277,7 @@ const PatientAutoTexts: React.FC = () => {
             Refill reminder: days before it runs out
             <input
               type="number" min={1} max={14}
-              className="mt-1 w-full border rounded-lg px-3 py-2"
+              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               value={details.refillDays}
               onChange={(e) => setDetails((d) => ({ ...d, refillDays: e.target.value }))}
             />
@@ -279,14 +294,14 @@ const PatientAutoTexts: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200">
-        <div className="p-4 font-medium text-gray-900">Recent automatic texts</div>
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+        <div className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-200">Recent automatic texts</div>
         {log.length === 0 ? (
           <div className="px-4 pb-6 text-sm text-gray-500">None sent yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 text-left">
+              <thead className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">
                 <tr>
                   <th className="px-4 py-2">When</th>
                   <th className="px-4 py-2">Patient</th>

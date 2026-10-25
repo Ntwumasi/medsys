@@ -563,7 +563,7 @@ export default function ProfilePage() {
             to="/notifications"
             className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
           >
-            <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
+            <div className="w-11 h-11 rounded-xl bg-warning-50 flex items-center justify-center text-warning-600 group-hover:bg-warning-100 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
@@ -580,7 +580,7 @@ export default function ProfilePage() {
             to="/call"
             className="bg-white rounded-2xl shadow-card p-5 flex items-center gap-4 hover:shadow-md transition-shadow group"
           >
-            <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+            <div className="w-11 h-11 rounded-xl bg-success-50 flex items-center justify-center text-success-600 group-hover:bg-success-100 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
               </svg>
@@ -661,7 +661,7 @@ export default function ProfilePage() {
                   <p className="text-xs text-gray-400">
                     {passwordAge !== null ? (
                       passwordAge > 75
-                        ? <span className="text-amber-600">Changed {passwordAge} days ago — expires soon</span>
+                        ? <span className="text-warning-600">Changed {passwordAge} days ago — expires soon</span>
                         : `Changed ${passwordAge} days ago`
                     ) : 'Never changed'}
                   </p>
@@ -732,7 +732,7 @@ export default function ProfilePage() {
 
               <button
                 onClick={handleLogoutAllDevices}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-warning-700 bg-warning-50 rounded-lg hover:bg-warning-100 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -861,8 +861,8 @@ export default function ProfilePage() {
               </div>
 
               <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <div className="w-10 h-10 rounded-lg bg-success-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                 </div>
@@ -901,7 +901,7 @@ export default function ProfilePage() {
                 {loginHistory.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
                     <div className="flex items-center gap-3">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${entry.success ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${entry.success ? 'bg-success-500' : 'bg-danger-500'}`} />
                       <div>
                         <p className="text-sm text-gray-900">{entry.success ? 'Successful login' : 'Failed attempt'}</p>
                         <p className="text-xs text-gray-400">{entry.ip_address}</p>

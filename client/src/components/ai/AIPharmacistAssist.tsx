@@ -41,14 +41,14 @@ const Spinner: React.FC<{ label: string }> = ({ label }) => (
 );
 
 const Unavailable: React.FC = () => (
-  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+  <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800">
     AI assistance isn’t configured on this environment. Everything else still works — this
     panel just needs the AI service enabled.
   </div>
 );
 
 const ErrorBox: React.FC<{ message: string }> = ({ message }) => (
-  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">{message}</div>
+  <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800">{message}</div>
 );
 
 const AiDisclaimer: React.FC = () => (
@@ -172,8 +172,8 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
 
   const riskBadge = (appropriate: boolean, requiresReview: boolean) => {
     if (requiresReview || !appropriate)
-      return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">Needs review</span>;
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Appropriate</span>;
+      return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-danger-100 text-danger-800">Needs review</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-success-100 text-success-800">Appropriate</span>;
   };
 
   return (
@@ -218,7 +218,7 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                     {dosageState.data.cached && <span className="text-xs text-gray-400">(cached)</span>}
                   </div>
                   {dosageState.data.requiresReview && dosageState.data.reviewReason && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+                    <div className="bg-danger-50 border border-danger-200 rounded-lg p-3 text-sm text-danger-800">
                       {dosageState.data.reviewReason}
                     </div>
                   )}
@@ -287,14 +287,14 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
               )}
               {subState.data.alternatives?.length ? (
                 subState.data.alternatives.map((alt, i) => (
-                  <div key={i} className={`border rounded-lg p-3 ${alt.recommended ? 'border-green-300 bg-green-50/40' : 'border-gray-200'}`}>
+                  <div key={i} className={`border rounded-lg p-3 ${alt.recommended ? 'border-success-300 bg-success-50/40' : 'border-gray-200'}`}>
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-gray-900 text-sm">
                         {alt.genericName}
                         {alt.brandName ? <span className="font-normal text-gray-500"> ({alt.brandName})</span> : ''}
                       </div>
                       <div className="flex items-center gap-1">
-                        {alt.recommended && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-800">Recommended</span>}
+                        {alt.recommended && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-100 text-success-800">Recommended</span>}
                         {alt.approximateCost && <span className="px-2 py-0.5 rounded-full text-[11px] bg-gray-100 text-gray-600">cost: {alt.approximateCost}</span>}
                       </div>
                     </div>
@@ -302,7 +302,7 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                     {alt.rationale && <p className="text-sm text-gray-700 mt-1">{alt.rationale}</p>}
                     {alt.keyDifferences && <p className="text-xs text-gray-500 mt-1">Differences: {alt.keyDifferences}</p>}
                     {alt.contraindications?.length > 0 && (
-                      <p className="text-xs text-red-700 mt-1">Caution: {alt.contraindications.join(', ')}</p>
+                      <p className="text-xs text-danger-700 mt-1">Caution: {alt.contraindications.join(', ')}</p>
                     )}
                   </div>
                 ))
@@ -354,8 +354,8 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                   </div>
                   {counselState.data.seriousSideEffects?.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-red-700 mb-1">Seek medical attention if</div>
-                      <ul className="list-disc pl-5 text-sm text-red-800 space-y-0.5">
+                      <div className="text-xs font-semibold text-danger-700 mb-1">Seek medical attention if</div>
+                      <ul className="list-disc pl-5 text-sm text-danger-800 space-y-0.5">
                         {counselState.data.seriousSideEffects.map((c, i) => <li key={i}>{c}</li>)}
                       </ul>
                     </div>

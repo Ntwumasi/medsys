@@ -34,7 +34,7 @@ export function taskDueMeta(
       level: 'soon',
       dd,
       daysUntil: days,
-      inputCls: 'border-amber-400 text-amber-700 font-semibold',
+      inputCls: 'border-warning-400 text-warning-700 font-semibold',
       badge: days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : 'Due soon',
     };
   }
