@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import QBDashboard from './qb/QBDashboard';
 import QBCustomers from './qb/QBCustomers';
 import QBInvoices from './qb/QBInvoices';
@@ -72,6 +73,7 @@ const tabs: TabItem[] = [
 ];
 
 const QuickBooksData: React.FC = () => {
+  useDesignSystemPage();
   const location = useLocation();
 
   const isActive = (path: string) => {
@@ -82,7 +84,7 @@ const QuickBooksData: React.FC = () => {
   };
 
   return (
-    <AppLayout
+    <AppLayout designSystem
       title="QuickBooks Data"
       breadcrumbs={[
         { label: 'Dashboard', path: '/dashboard' },
@@ -90,7 +92,7 @@ const QuickBooksData: React.FC = () => {
       ]}
     >
       {/* Tab Navigation */}
-      <div className="bg-surface rounded-xl shadow-card border border-border mb-6">
+      <div className="bg-ds-surface rounded-ds-card shadow-card border border-ds-border mb-6">
         <div className="flex overflow-x-auto scrollbar-hide">
           {tabs.map((tab) => (
             <Link
@@ -98,8 +100,8 @@ const QuickBooksData: React.FC = () => {
               to={tab.path}
               className={`flex items-center gap-2 px-6 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
                 isActive(tab.path)
-                  ? 'border-primary-500 text-primary-600 bg-primary-50/50'
-                  : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-gray-50'
+                  ? 'border-ds-accent text-ds-accent-text bg-ds-accent-soft/50'
+                  : 'border-transparent text-ds-text-muted hover:text-text-primary hover:bg-ds-subtle'
               }`}
             >
               {tab.icon}

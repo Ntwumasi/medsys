@@ -9,6 +9,7 @@ import { taskDueMeta } from '../utils/taskDue';
 import PrintableInvoice from '../components/PrintableInvoice';
 import SystemUpdates from '../components/SystemUpdates';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import LoginActivityPanel from '../components/LoginActivityPanel';
 import DashboardHeader from '../components/DashboardHeader';
@@ -148,11 +149,11 @@ interface PastPatientEncounter {
 // read as data, not decoration.
 type AdminStatAccent = 'neutral' | 'primary' | 'warning' | 'danger' | 'success';
 const ADMIN_ACCENT: Record<AdminStatAccent, { num: string; ring: string; iconBg: string; iconFg: string; chip: string }> = {
-  neutral: { num: 'text-text-primary', ring: 'ring-gray-200/60', iconBg: 'bg-gray-100', iconFg: 'text-gray-500', chip: 'bg-gray-100 text-gray-600' },
-  primary: { num: 'text-primary-700', ring: 'ring-primary-200/60', iconBg: 'bg-primary-100', iconFg: 'text-primary-600', chip: 'bg-primary-100 text-primary-700' },
-  warning: { num: 'text-warning-700', ring: 'ring-warning-200/60', iconBg: 'bg-warning-100', iconFg: 'text-warning-600', chip: 'bg-warning-100 text-warning-700' },
-  danger:  { num: 'text-danger-700',  ring: 'ring-danger-200/60',  iconBg: 'bg-danger-100',  iconFg: 'text-danger-600',  chip: 'bg-danger-100 text-danger-700'  },
-  success: { num: 'text-success-700', ring: 'ring-success-200/60', iconBg: 'bg-success-100', iconFg: 'text-success-600', chip: 'bg-success-100 text-success-700' },
+  neutral: { num: 'text-ds-text', ring: 'ring-ds-border/60', iconBg: 'bg-ds-subtle', iconFg: 'text-ds-text-muted', chip: 'bg-ds-subtle text-ds-text-secondary' },
+  primary: { num: 'text-ds-accent-text', ring: 'ring-ds-focus-ring/30', iconBg: 'bg-ds-accent-soft', iconFg: 'text-ds-accent-text', chip: 'bg-ds-accent-soft text-ds-accent-text' },
+  warning: { num: 'text-ds-warning-text', ring: 'ring-ds-warning/30', iconBg: 'bg-ds-warning-soft', iconFg: 'text-ds-warning-text', chip: 'bg-ds-warning-soft text-ds-warning-text' },
+  danger:  { num: 'text-ds-critical-text',  ring: 'ring-ds-critical/30',  iconBg: 'bg-ds-critical-soft',  iconFg: 'text-ds-critical-text',  chip: 'bg-ds-critical-soft text-ds-critical-text'  },
+  success: { num: 'text-ds-success-text', ring: 'ring-ds-success/30', iconBg: 'bg-ds-success-soft', iconFg: 'text-ds-success-text', chip: 'bg-ds-success-soft text-ds-success-text' },
 };
 
 interface AdminStatCardProps {
@@ -171,10 +172,10 @@ const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hin
   return (
     <button
       onClick={onClick}
-      className={`group text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-1 transition-all p-4 ${a.ring}`}
+      className={`group text-left bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card hover:shadow-ds-overlay hover:ring-1 transition-all p-4 ${a.ring}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-medium text-ds-text-muted uppercase tracking-wider">{label}</span>
         <span className={`w-9 h-9 rounded-lg ${a.iconBg} ${a.iconFg} flex items-center justify-center`}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
         </span>
@@ -188,12 +189,13 @@ const AdminStatCard: React.FC<AdminStatCardProps> = ({ label, value, accent, hin
           <Delta series={series.map((p) => p.value)} direction={trendDirection} />
         </div>
       )}
-      {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-ds-text-muted mt-1">{hint}</p>}
     </button>
   );
 };
 
 const Dashboard: React.FC = () => {
+  useDesignSystemPage();
   const { user, impersonateUser, impersonation, activeRole } = useAuth();
   // Office Manager = curated admin view: hides system/oversight sections
   // (audit, login records, system updates, docs). Triggered by the super-admin
@@ -1578,7 +1580,7 @@ const Dashboard: React.FC = () => {
   const todayAppointmentsCount = todayAppointments.length;
 
   return (
-    <AppLayout>
+    <AppLayout designSystem>
       <DashboardHeader title={isOfficeManager ? 'Office Manager Dashboard' : user?.display_title ? `${user.display_title} Dashboard` : 'Admin Dashboard'} />
       {/* Summary cards — refined number-first style. Color carries signal,
           not decoration. NumberTicker gives a subtle count-up on load. */}
@@ -1663,14 +1665,14 @@ const Dashboard: React.FC = () => {
       })()}
 
       {/* Tabs */}
-        <div className="mb-6 bg-white rounded-xl shadow-lg border border-gray-200">
+        <div className="mb-6 bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
           <nav className="-mb-px flex overflow-x-auto" aria-label="Admin sections">
             <button
               onClick={() => setActiveTab('tasks')}
               className={`${
                 activeTab === 'tasks'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1678,7 +1680,7 @@ const Dashboard: React.FC = () => {
               </svg>
               Tasks
               {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0) > 0 && (
-                <span className="ml-1 px-2 py-0.5 text-xs bg-warning-100 text-warning-700 rounded-full font-bold">
+                <span className="ml-1 px-2 py-0.5 text-xs bg-ds-warning-soft text-ds-warning-text rounded-full font-bold">
                   {(adminTasksCounts.pending || 0) + (adminTasksCounts.in_progress || 0)}
                 </span>
               )}
@@ -1687,8 +1689,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('staff')}
               className={`${
                 activeTab === 'staff'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Staff Management
@@ -1697,8 +1699,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('appointments')}
               className={`${
                 activeTab === 'appointments'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Appointments
@@ -1707,8 +1709,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('corporate')}
               className={`${
                 activeTab === 'corporate'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Corporate Clients
@@ -1717,8 +1719,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('insurance')}
               className={`${
                 activeTab === 'insurance'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors`}
             >
               Insurance Providers
@@ -1727,8 +1729,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('charges')}
               className={`${
                 activeTab === 'charges'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1738,7 +1740,7 @@ const Dashboard: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/price-list')}
-              className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2"
+              className="border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2"
               title="Full price list: service + lab prices and per-payer tariffs"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1750,8 +1752,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setActiveTab('revenue')}
               className={`${
                 activeTab === 'revenue'
-                  ? 'border-primary-600 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-ds-accent text-ds-accent-text'
+                  : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
               } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1764,8 +1766,8 @@ const Dashboard: React.FC = () => {
                 onClick={() => { setActiveTab('reports'); if (!reportData) fetchStaffReport(false); }}
                 className={`${
                   activeTab === 'reports'
-                    ? 'border-primary-600 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'border-ds-accent text-ds-accent-text'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
                 } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1778,8 +1780,8 @@ const Dashboard: React.FC = () => {
                   onClick={() => setActiveTab('audit')}
                   className={`${
                     activeTab === 'audit'
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-ds-accent text-ds-accent-text'
+                      : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
                   } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1791,8 +1793,8 @@ const Dashboard: React.FC = () => {
                   onClick={() => setActiveTab('logins')}
                   className={`${
                     activeTab === 'logins'
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-ds-accent text-ds-accent-text'
+                      : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
                   } whitespace-nowrap px-5 py-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-2`}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1820,8 +1822,8 @@ const Dashboard: React.FC = () => {
 
         {/* Invoices Tab */}
         {activeTab === 'invoices' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Patient Invoices</h2>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
+            <h2 className="text-xl font-semibold text-ds-text mb-6">Patient Invoices</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Patient Selection */}
@@ -1842,59 +1844,59 @@ const Dashboard: React.FC = () => {
             {/* Invoices List */}
             {selectedPatientId && (
               <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Invoices for Selected Patient</h3>
+                <h3 className="text-lg font-semibold text-ds-text mb-4">Invoices for Selected Patient</h3>
                 {invoices.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-ds-text-muted">
                     <p>No invoices found for this patient</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                    <table className="min-w-full divide-y divide-ds-border">
+                      <thead className="bg-ds-subtle">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Invoice #
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Date
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Today's Visit
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Total
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
+                      <tbody className="bg-ds-surface divide-y divide-ds-border">
                         {invoices.map((invoice) => (
-                          <tr key={invoice.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <tr key={invoice.id} className="hover:bg-ds-subtle">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ds-text">
                               {invoice.invoice_number}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                               {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'MMM dd, yyyy') : 'N/A'}
                             </td>
-                            <td className="px-6 py-4 text-sm text-gray-500">
+                            <td className="px-6 py-4 text-sm text-ds-text-muted">
                               {invoice.chief_complaint || 'N/A'}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ds-text">
                               ${parseFloat(invoice.total || '0').toFixed(2)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                   invoice.status === 'paid'
-                                    ? 'bg-success-100 text-success-800'
+                                    ? 'bg-ds-success-soft text-ds-success-text'
                                     : invoice.status === 'pending'
-                                    ? 'bg-warning-100 text-warning-800'
-                                    : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-ds-warning-soft text-ds-warning-text'
+                                    : 'bg-ds-subtle text-ds-text'
                                 }`}
                               >
                                 {invoice.status.toUpperCase()}
@@ -1903,7 +1905,7 @@ const Dashboard: React.FC = () => {
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <button
                                 onClick={() => handleViewInvoice(invoice.id)}
-                                className="text-primary-600 hover:text-primary-900 flex items-center gap-1"
+                                className="text-ds-accent-text hover:text-ds-accent-text flex items-center gap-1"
                               >
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -1924,66 +1926,66 @@ const Dashboard: React.FC = () => {
 
         {/* Corporate Clients Tab */}
         {activeTab === 'corporate' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Corporate Clients</h2>
+              <h2 className="text-xl font-semibold text-ds-text">Corporate Clients</h2>
               <button
                 onClick={() => (showCorporateForm ? cancelCorporateEdit() : setShowCorporateForm(true))}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
               >
                 {showCorporateForm ? 'Cancel' : 'Add New Client'}
               </button>
             </div>
 
             {showCorporateForm && (
-              <form onSubmit={handleCreateCorporateClient} className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+              <form onSubmit={handleCreateCorporateClient} className="mb-6 p-4 bg-ds-subtle rounded-lg">
+                <h3 className="text-sm font-semibold text-ds-text mb-3">
                   {editingCorporateId ? 'Edit corporate client' : 'New corporate client'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Company Name *
                     </label>
                     <input
                       type="text"
                       value={corporateForm.name}
                       onChange={(e) => setCorporateForm({ ...corporateForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Person
                     </label>
                     <input
                       type="text"
                       value={corporateForm.contact_person}
                       onChange={(e) => setCorporateForm({ ...corporateForm, contact_person: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Email
                     </label>
                     <input
                       type="email"
                       value={corporateForm.contact_email}
                       onChange={(e) => setCorporateForm({ ...corporateForm, contact_email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Phone
                     </label>
                     <input
                       type="tel"
                       value={corporateForm.contact_phone}
                       onChange={(e) => setCorporateForm({ ...corporateForm, contact_phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
@@ -2003,7 +2005,7 @@ const Dashboard: React.FC = () => {
                 <div className="mt-4">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
+                    className="min-h-ds-touch px-6 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors"
                   >
                     {editingCorporateId ? 'Update Corporate Client' : 'Save Corporate Client'}
                   </button>
@@ -2012,67 +2014,67 @@ const Dashboard: React.FC = () => {
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Company Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Contact Person
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Phone
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Assigned Doctor
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-ds-surface divide-y divide-ds-border">
                   {loadingCorporateClients ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRowSkeleton key={i} columns={6} />
                     ))
                   ) : corporateClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={client.id} className="hover:bg-ds-subtle">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ds-text">
                         {client.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {client.contact_person || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {client.contact_email || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {client.contact_phone || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-secondary">
                         {client.assigned_doctor_name ? (
-                          <span className="font-medium text-primary-600">
+                          <span className="font-medium text-ds-accent-text">
                             Dr. {client.assigned_doctor_name}
                           </span>
                         ) : (
-                          <span className="text-gray-400">Not Assigned</span>
+                          <span className="text-ds-text-muted">Not Assigned</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           onClick={() => startEditCorporateClient(client)}
-                          className="text-primary-600 hover:text-primary-900 mr-4"
+                          className="text-ds-accent-text hover:text-ds-accent-text mr-4"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDeleteCorporateClient(client.id)}
-                          className="text-danger-600 hover:text-danger-900"
+                          className="text-ds-critical-text hover:text-ds-critical-text"
                         >
                           Deactivate
                         </button>
@@ -2087,73 +2089,73 @@ const Dashboard: React.FC = () => {
 
         {/* Insurance Providers Tab */}
         {activeTab === 'insurance' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Insurance Providers</h2>
+              <h2 className="text-xl font-semibold text-ds-text">Insurance Providers</h2>
               <button
                 onClick={() => (showInsuranceForm ? cancelInsuranceEdit() : setShowInsuranceForm(true))}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
               >
                 {showInsuranceForm ? 'Cancel' : 'Add New Provider'}
               </button>
             </div>
 
             {showInsuranceForm && (
-              <form onSubmit={handleCreateInsuranceProvider} className="mb-6 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">
+              <form onSubmit={handleCreateInsuranceProvider} className="mb-6 p-4 bg-ds-subtle rounded-lg">
+                <h3 className="text-sm font-semibold text-ds-text mb-3">
                   {editingInsuranceId ? 'Edit insurance provider' : 'New insurance provider'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Provider Name *
                     </label>
                     <input
                       type="text"
                       value={insuranceForm.name}
                       onChange={(e) => setInsuranceForm({ ...insuranceForm, name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Person
                     </label>
                     <input
                       type="text"
                       value={insuranceForm.contact_person}
                       onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_person: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Email
                     </label>
                     <input
                       type="email"
                       value={insuranceForm.contact_email}
                       onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Contact Phone
                     </label>
                     <input
                       type="tel"
                       value={insuranceForm.contact_phone}
                       onChange={(e) => setInsuranceForm({ ...insuranceForm, contact_phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                 </div>
                 <div className="mt-4">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors"
+                    className="min-h-ds-touch px-6 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors"
                   >
                     {editingInsuranceId ? 'Update Insurance Provider' : 'Save Insurance Provider'}
                   </button>
@@ -2162,61 +2164,61 @@ const Dashboard: React.FC = () => {
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Provider Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Contact Person
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Phone
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-ds-surface divide-y divide-ds-border">
                   {loadingInsuranceProviders ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRowSkeleton key={i} columns={5} />
                     ))
                   ) : insuranceProviders.map((provider) => (
-                    <tr key={provider.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={provider.id} className="hover:bg-ds-subtle">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-ds-text">
                         {provider.name}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {provider.contact_person || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {provider.contact_email || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text-muted">
                         {provider.contact_phone || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-4">
                         <button
                           onClick={() => openTariffEditor(provider)}
-                          className="text-primary-600 hover:text-primary-900"
+                          className="text-ds-accent-text hover:text-ds-accent-text"
                         >
                           Tariffs
                         </button>
                         <button
                           onClick={() => startEditInsuranceProvider(provider)}
-                          className="text-primary-600 hover:text-primary-900 mx-4"
+                          className="text-ds-accent-text hover:text-ds-accent-text mx-4"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDeleteInsuranceProvider(provider.id)}
-                          className="text-danger-600 hover:text-danger-900"
+                          className="text-ds-critical-text hover:text-ds-critical-text"
                         >
                           Deactivate
                         </button>
@@ -2248,13 +2250,13 @@ const Dashboard: React.FC = () => {
             <div className="fixed inset-0 z-50 overflow-y-auto">
               <div className="flex items-start justify-center min-h-screen pt-10 px-4 pb-10">
                 <div className="fixed inset-0 bg-black/50" onClick={() => setTariffPayer(null)} />
-                <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full z-10 flex flex-col max-h-[85vh]">
+                <div className="relative bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-4xl w-full z-10 flex flex-col max-h-[85vh]">
                   <div className="px-6 py-4 border-b flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">Tariffs — {tariffPayer.name}</h3>
-                      <p className="text-xs text-gray-500">Set this insurer's negotiated price per service. Leave blank to use the cash price; tick Excluded if the service isn't covered. {pricedCount} of {tariffRows.length} set.</p>
+                      <h3 className="text-lg font-semibold text-ds-text">Tariffs — {tariffPayer.name}</h3>
+                      <p className="text-xs text-ds-text-muted">Set this insurer's negotiated price per service. Leave blank to use the cash price; tick Excluded if the service isn't covered. {pricedCount} of {tariffRows.length} set.</p>
                     </div>
-                    <button onClick={() => setTariffPayer(null)} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={() => setTariffPayer(null)} className="text-ds-text-muted hover:text-ds-text-secondary">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                   </div>
@@ -2263,7 +2265,7 @@ const Dashboard: React.FC = () => {
                     <input
                       type="text" placeholder="Search service…" value={tariffSearch}
                       onChange={(e) => setTariffSearch(e.target.value)}
-                      className="flex-1 min-w-[180px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+                      className="flex-1 min-w-[180px] border border-ds-border-control rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-ds-focus-ring"
                     />
                     <div className="w-44">
                       <AppSelect
@@ -2272,41 +2274,41 @@ const Dashboard: React.FC = () => {
                         options={[{ value: '', label: 'All Categories' }, ...categories.map(c => ({ value: c, label: c }))]}
                       />
                     </div>
-                    <label className="px-3 py-2 text-sm bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 cursor-pointer font-medium">
+                    <label className="px-3 py-2 text-sm bg-ds-surface text-ds-accent-text border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft cursor-pointer font-medium">
                       Upload CSV
                       <input type="file" accept=".csv,text/csv" className="hidden"
                         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleTariffCsv(f); e.target.value = ''; }} />
                     </label>
                   </div>
                   {tariffImportMsg && (
-                    <div className="px-6 py-2 bg-blue-50 text-blue-800 text-xs border-b border-blue-100">{tariffImportMsg}</div>
+                    <div className="px-6 py-2 bg-ds-info-soft text-ds-info-text text-xs border-b border-ds-info/30">{tariffImportMsg}</div>
                   )}
 
                   <div className="overflow-y-auto flex-1">
                     {tariffLoading ? (
-                      <div className="py-12 text-center text-gray-500">Loading services…</div>
+                      <div className="py-12 text-center text-ds-text-muted">Loading services…</div>
                     ) : (
                       <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 sticky top-0">
+                        <thead className="bg-ds-subtle sticky top-0">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Service</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cash</th>
-                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Tariff (GH₵)</th>
-                            <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">Excluded</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Service</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Category</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-ds-text-muted uppercase">Cash</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-ds-text-muted uppercase">Tariff (GH₵)</th>
+                            <th className="px-4 py-2 text-center text-xs font-medium text-ds-text-muted uppercase">Excluded</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-ds-border">
                           {visible.map(r => {
                             const e = tariffEdits[r.id] || { price: '', is_excluded: false };
                             return (
-                              <tr key={r.id} className="hover:bg-gray-50">
+                              <tr key={r.id} className="hover:bg-ds-subtle">
                                 <td className="px-4 py-2">
-                                  <div className="font-medium text-gray-900">{r.service_name}</div>
-                                  <div className="text-xs text-gray-400">{r.service_code}</div>
+                                  <div className="font-medium text-ds-text">{r.service_name}</div>
+                                  <div className="text-xs text-ds-text-muted">{r.service_code}</div>
                                 </td>
-                                <td className="px-4 py-2 text-gray-600 capitalize">{r.category}</td>
-                                <td className="px-4 py-2 text-right text-gray-500">{Number(r.cash_price).toFixed(2)}</td>
+                                <td className="px-4 py-2 text-ds-text-secondary capitalize">{r.category}</td>
+                                <td className="px-4 py-2 text-right text-ds-text-muted">{Number(r.cash_price).toFixed(2)}</td>
                                 <td className="px-4 py-2 text-center">
                                   <input
                                     type="number" min="0" step="0.01"
@@ -2314,7 +2316,7 @@ const Dashboard: React.FC = () => {
                                     value={e.price}
                                     onChange={(ev) => setTariffEdits(prev => ({ ...prev, [r.id]: { price: ev.target.value, is_excluded: prev[r.id]?.is_excluded || false } }))}
                                     placeholder="cash"
-                                    className="w-24 px-2 py-1 text-right border border-gray-300 rounded disabled:bg-gray-100 disabled:text-gray-400"
+                                    className="w-24 px-2 py-1 text-right border border-ds-border-control rounded disabled:bg-ds-subtle disabled:text-ds-text-muted"
                                   />
                                 </td>
                                 <td className="px-4 py-2 text-center">
@@ -2329,7 +2331,7 @@ const Dashboard: React.FC = () => {
                             );
                           })}
                           {visible.length === 0 && (
-                            <tr><td colSpan={5} className="py-8 text-center text-gray-400">No services match.</td></tr>
+                            <tr><td colSpan={5} className="py-8 text-center text-ds-text-muted">No services match.</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -2337,9 +2339,9 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   <div className="px-6 py-4 border-t flex justify-end gap-3">
-                    <button onClick={() => setTariffPayer(null)} className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button onClick={() => setTariffPayer(null)} className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle">Cancel</button>
                     <button onClick={saveTariff} disabled={tariffSaving || tariffLoading}
-                      className="px-5 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 font-medium">
+                      className="min-h-ds-touch px-5 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50 font-medium">
                       {tariffSaving ? 'Saving…' : 'Save Tariff'}
                     </button>
                   </div>
@@ -2351,34 +2353,34 @@ const Dashboard: React.FC = () => {
 
         {/* Staff Management Tab */}
         {activeTab === 'staff' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Staff Management</h2>
+              <h2 className="text-xl font-semibold text-ds-text">Staff Management</h2>
               <div className="flex items-center gap-3">
                 {selectedStaff.size > 0 && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">{selectedStaff.size} selected</span>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-ds-subtle rounded-lg">
+                    <span className="text-sm font-medium text-ds-text-secondary">{selectedStaff.size} selected</span>
                     <button
                       onClick={handleBulkActivate}
-                      className="px-2 py-1 text-xs bg-success-600 text-white rounded hover:bg-success-700"
+                      className="min-h-ds-touch px-2 py-1 text-xs bg-ds-success text-white dark:text-ds-canvas rounded hover:bg-ds-success/90"
                     >
                       Activate
                     </button>
                     <button
                       onClick={handleBulkDeactivate}
-                      className="px-2 py-1 text-xs bg-danger-600 text-white rounded hover:bg-danger-700"
+                      className="min-h-ds-touch px-2 py-1 text-xs bg-ds-critical text-white rounded hover:bg-ds-critical/90"
                     >
                       Deactivate
                     </button>
                     <button
                       onClick={handleBulkResetPassword}
-                      className="px-2 py-1 text-xs bg-warning-600 text-white rounded hover:bg-warning-700"
+                      className="min-h-ds-touch px-2 py-1 text-xs bg-ds-warning text-white dark:text-ds-canvas rounded hover:bg-ds-warning/90"
                     >
                       Reset Passwords
                     </button>
                     <button
                       onClick={() => setSelectedStaff(new Set())}
-                      className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                      className="min-h-ds-touch px-2 py-1 text-xs bg-ds-text-secondary text-ds-canvas rounded hover:bg-ds-text-muted"
                     >
                       Clear
                     </button>
@@ -2392,7 +2394,7 @@ const Dashboard: React.FC = () => {
                       setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '', display_title: '' });
                     }
                   }}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
                 >
                   {showStaffForm ? 'Cancel' : 'Add New Staff Member'}
                 </button>
@@ -2402,9 +2404,9 @@ const Dashboard: React.FC = () => {
             {/* Filter and Search Controls */}
             <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               <div>
-                <label htmlFor="staff-search" className="block text-sm font-medium text-gray-700 mb-1.5">Search</label>
+                <label htmlFor="staff-search" className="block text-sm font-medium text-ds-text-secondary mb-1.5">Search</label>
                 <div className="relative">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ds-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   <input
@@ -2416,7 +2418,7 @@ const Dashboard: React.FC = () => {
                       setStaffSearchTerm(e.target.value);
                       setStaffPage(1);
                     }}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                   />
                 </div>
               </div>
@@ -2468,7 +2470,7 @@ const Dashboard: React.FC = () => {
                       setStaffStatusFilter('all');
                       setStaffPage(1);
                     }}
-                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="min-h-ds-touch w-full px-4 py-2 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
                   >
                     Clear filters
                   </button>
@@ -2477,56 +2479,56 @@ const Dashboard: React.FC = () => {
             </div>
 
             {showStaffForm && (
-              <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-gray-50 rounded-lg border-2 border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              <form onSubmit={handleCreateStaff} className="mb-6 p-6 bg-ds-subtle rounded-lg border-2 border-ds-border">
+                <h3 className="text-lg font-semibold text-ds-text mb-4">
                   {editingStaff ? 'Edit Staff Member' : 'New Staff Member'}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       First Name *
                     </label>
                     <input
                       type="text"
                       value={staffForm.first_name}
                       onChange={(e) => setStaffForm({ ...staffForm, first_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Last Name *
                     </label>
                     <input
                       type="text"
                       value={staffForm.last_name}
                       onChange={(e) => setStaffForm({ ...staffForm, last_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Email *
                     </label>
                     <input
                       type="email"
                       value={staffForm.email}
                       onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Phone
                     </label>
                     <input
                       type="tel"
                       value={staffForm.phone}
                       onChange={(e) => setStaffForm({ ...staffForm, phone: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div>
@@ -2549,7 +2551,7 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Display Title
                     </label>
                     <input
@@ -2557,9 +2559,9 @@ const Dashboard: React.FC = () => {
                       value={staffForm.display_title}
                       onChange={(e) => setStaffForm({ ...staffForm, display_title: e.target.value })}
                       placeholder="e.g. Office Manager (leave blank for role default)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Optional label shown on their dashboard instead of the role name. Does not change permissions.</p>
+                    <p className="text-xs text-ds-text-muted mt-1">Optional label shown on their dashboard instead of the role name. Does not change permissions.</p>
                   </div>
                   {staffForm.role === 'doctor' && (
                     <div>
@@ -2578,21 +2580,21 @@ const Dashboard: React.FC = () => {
                           ...clinicOptions.map((c) => ({ value: c, label: c })),
                         ]}
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-ds-text-muted mt-1">
                         Which clinic this doctor practices in. The list comes from Clinic Management — add a clinic
                         there and it appears here.
                       </p>
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                       Password {editingStaff ? '(leave blank to keep current)' : '*'}
                     </label>
                     <input
                       type="password"
                       value={staffForm.password}
                       onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       required={!editingStaff}
                       placeholder={editingStaff ? 'Leave blank to keep current password' : ''}
                     />
@@ -2601,7 +2603,7 @@ const Dashboard: React.FC = () => {
                 <div className="mt-4 flex gap-3">
                   <button
                     type="submit"
-                    className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-semibold"
+                    className="min-h-ds-touch px-6 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors font-semibold"
                   >
                     {editingStaff ? 'Update Staff Member' : 'Create Staff Member'}
                   </button>
@@ -2613,7 +2615,7 @@ const Dashboard: React.FC = () => {
                         setStaffForm({ email: '', password: '', role: 'doctor', first_name: '', last_name: '', phone: '', clinic: '', display_title: '' });
                         setShowStaffForm(false);
                       }}
-                      className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                      className="min-h-ds-touch px-6 py-2 bg-ds-text-secondary text-ds-canvas rounded-lg hover:bg-ds-text transition-colors"
                     >
                       Cancel Edit
                     </button>
@@ -2623,20 +2625,20 @@ const Dashboard: React.FC = () => {
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
                     <th className="px-3 py-3 text-left">
                       <input
                         type="checkbox"
                         checked={getPaginatedStaff().length > 0 && getPaginatedStaff().every(s => selectedStaff.has(s.id))}
                         onChange={(e) => handleSelectAllStaff(e.target.checked)}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-ds-accent-text border-ds-border-control rounded focus:ring-ds-focus-ring"
                       />
                     </th>
                     <th
                       onClick={() => handleStaffSort('name')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle select-none"
                     >
                       <div className="flex items-center gap-2">
                         Name
@@ -2649,7 +2651,7 @@ const Dashboard: React.FC = () => {
                     </th>
                     <th
                       onClick={() => handleStaffSort('username')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle select-none"
                     >
                       <div className="flex items-center gap-2">
                         Username
@@ -2662,7 +2664,7 @@ const Dashboard: React.FC = () => {
                     </th>
                     <th
                       onClick={() => handleStaffSort('role')}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle select-none"
                     >
                       <div className="flex items-center gap-2">
                         Role / Department
@@ -2673,61 +2675,61 @@ const Dashboard: React.FC = () => {
                         )}
                       </div>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Phone
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-ds-surface divide-y divide-ds-border">
                   {loadingStaff ? (
                     // Skeleton loading rows
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRowSkeleton key={i} columns={7} />
                     ))
                   ) : getPaginatedStaff().map((member) => (
-                    <tr key={member.id} className={`${member.is_active ? '' : 'bg-gray-50 opacity-60'} ${selectedStaff.has(member.id) ? 'bg-primary-50' : ''}`}>
+                    <tr key={member.id} className={`${member.is_active ? '' : 'bg-ds-subtle opacity-60'} ${selectedStaff.has(member.id) ? 'bg-ds-accent-soft' : ''}`}>
                       <td className="px-3 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={selectedStaff.has(member.id)}
                           onChange={(e) => handleSelectStaff(member.id, e.target.checked)}
-                          className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                          className="w-4 h-4 text-ds-accent-text border-ds-border-control rounded focus:ring-ds-focus-ring"
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-ds-text">
                           {member.first_name} {member.last_name}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-600">{member.username}</div>
+                        <div className="text-sm text-ds-text-secondary">{member.username}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          member.role === 'doctor' ? 'bg-primary-100 text-primary-800' :
-                          member.role === 'nurse' ? 'bg-success-100 text-success-800' :
-                          member.role === 'receptionist' ? 'bg-secondary-100 text-secondary-800' :
-                          member.role === 'lab' ? 'bg-warning-100 text-warning-800' :
-                          member.role === 'pharmacy' ? 'bg-success-100 text-success-800' :
-                          member.role === 'imaging' ? 'bg-secondary-100 text-secondary-800' :
-                          member.role === 'admin' ? 'bg-danger-100 text-danger-800' :
-                          'bg-gray-100 text-gray-800'
+                          member.role === 'doctor' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                          member.role === 'nurse' ? 'bg-ds-success-soft text-ds-success-text' :
+                          member.role === 'receptionist' ? 'bg-ds-accent-soft text-ds-brand-plum' :
+                          member.role === 'lab' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                          member.role === 'pharmacy' ? 'bg-ds-success-soft text-ds-success-text' :
+                          member.role === 'imaging' ? 'bg-ds-accent-soft text-ds-brand-plum' :
+                          member.role === 'admin' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                          'bg-ds-subtle text-ds-text'
                         }`}>
                           {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-600">{member.phone || '-'}</div>
+                        <div className="text-sm text-ds-text-secondary">{member.phone || '-'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          member.is_active ? 'bg-success-100 text-success-800' : 'bg-danger-100 text-danger-800'
+                          member.is_active ? 'bg-ds-success-soft text-ds-success-text' : 'bg-ds-critical-soft text-ds-critical-text'
                         }`}>
                           {member.is_active ? 'Active' : 'Inactive'}
                         </span>
@@ -2735,27 +2737,27 @@ const Dashboard: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
                         <button
                           onClick={() => handleEditStaff(member)}
-                          className="text-primary-600 hover:text-primary-900"
+                          className="text-ds-accent-text hover:text-ds-accent-text"
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleResetPassword(member)}
-                          className="text-warning-600 hover:text-warning-700"
+                          className="text-ds-warning-text hover:text-ds-warning-text"
                         >
                           Reset PW
                         </button>
                         {canImpersonate && member.is_active && member.role !== 'admin' && (
                           <button
                             onClick={() => handleImpersonate(member)}
-                            className="text-secondary-600 hover:text-purple-900"
+                            className="text-ds-accent-text hover:text-ds-brand-plum"
                           >
                             Login As
                           </button>
                         )}
                         <button
                           onClick={() => handleToggleStaffStatus(member.id, member.is_active)}
-                          className={member.is_active ? 'text-danger-600 hover:text-danger-900' : 'text-success-600 hover:text-success-900'}
+                          className={member.is_active ? 'text-ds-critical-text hover:text-ds-critical-text' : 'text-ds-success-text hover:text-ds-success-text'}
                         >
                           {member.is_active ? 'Deactivate' : 'Activate'}
                         </button>
@@ -2765,22 +2767,22 @@ const Dashboard: React.FC = () => {
                 </tbody>
               </table>
               {getFilteredAndSortedStaff().length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-ds-text-muted">
                   {staff.length === 0 ? (
                     <div>
-                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="mx-auto h-12 w-12 text-ds-text-muted mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                       </svg>
-                      <p className="text-lg font-medium text-gray-900">No staff members found</p>
-                      <p className="text-sm text-gray-500 mt-1">Click "Add New Staff Member" to get started.</p>
+                      <p className="text-lg font-medium text-ds-text">No staff members found</p>
+                      <p className="text-sm text-ds-text-muted mt-1">Click "Add New Staff Member" to get started.</p>
                     </div>
                   ) : (
                     <div>
-                      <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="mx-auto h-12 w-12 text-ds-text-muted mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
-                      <p className="text-lg font-medium text-gray-900">No matching staff members</p>
-                      <p className="text-sm text-gray-500 mt-1">Try adjusting your search or filters</p>
+                      <p className="text-lg font-medium text-ds-text">No matching staff members</p>
+                      <p className="text-sm text-ds-text-muted mt-1">Try adjusting your search or filters</p>
                     </div>
                   )}
                 </div>
@@ -2789,15 +2791,15 @@ const Dashboard: React.FC = () => {
 
             {/* Pagination Controls */}
             {getFilteredAndSortedStaff().length > 0 && getTotalStaffPages() > 1 && (
-              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
-                <div className="text-sm text-gray-700">
+              <div className="mt-6 flex items-center justify-between border-t border-ds-border pt-4">
+                <div className="text-sm text-ds-text-secondary">
                   Showing {((staffPage - 1) * staffItemsPerPage) + 1} to {Math.min(staffPage * staffItemsPerPage, getFilteredAndSortedStaff().length)} of {getFilteredAndSortedStaff().length} staff members
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setStaffPage(staffPage - 1)}
                     disabled={staffPage === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg text-sm font-medium text-ds-text-secondary bg-ds-surface hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Previous
                   </button>
@@ -2816,7 +2818,7 @@ const Dashboard: React.FC = () => {
                         (pageNum === staffPage + 2 && staffPage < getTotalStaffPages() - 2);
 
                       if (shouldShowEllipsis) {
-                        return <span key={pageNum} className="px-3 py-2 text-gray-500">...</span>;
+                        return <span key={pageNum} className="px-3 py-2 text-ds-text-muted">...</span>;
                       }
 
                       if (!shouldShow) return null;
@@ -2825,10 +2827,10 @@ const Dashboard: React.FC = () => {
                         <button
                           key={pageNum}
                           onClick={() => setStaffPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          className={`min-h-ds-touch px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             pageNum === staffPage
-                              ? 'bg-primary-600 text-white'
-                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                              ? 'bg-ds-accent text-ds-on-accent'
+                              : 'bg-ds-surface border border-ds-border-control text-ds-text-secondary hover:bg-ds-subtle'
                           }`}
                         >
                           {pageNum}
@@ -2840,7 +2842,7 @@ const Dashboard: React.FC = () => {
                   <button
                     onClick={() => setStaffPage(staffPage + 1)}
                     disabled={staffPage === getTotalStaffPages()}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg text-sm font-medium text-ds-text-secondary bg-ds-surface hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     Next
                   </button>
@@ -2852,15 +2854,15 @@ const Dashboard: React.FC = () => {
 
         {/* Tasks Tab — clinic operations tracker */}
         {activeTab === 'tasks' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Tasks</h2>
-                <p className="text-sm text-gray-600 mt-1">Clinic operations — one list, soonest deadline first. Click a column to sort, use the row below the headers to filter.</p>
+                <h2 className="text-xl font-semibold text-ds-text">Tasks</h2>
+                <p className="text-sm text-ds-text-secondary mt-1">Clinic operations — one list, soonest deadline first. Click a column to sort, use the row below the headers to filter.</p>
               </div>
               <button
                 onClick={openCreateTask}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
               >
                 + Add Task
               </button>
@@ -2872,10 +2874,10 @@ const Dashboard: React.FC = () => {
                 <button
                   key={s}
                   onClick={() => setAdminTasksStatusFilter(s)}
-                  className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
+                  className={`min-h-ds-touch px-3 py-1.5 text-sm rounded-full border transition-colors ${
                     adminTasksStatusFilter === s
-                      ? 'bg-primary-600 text-white border-primary-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      ? 'bg-ds-accent text-ds-on-accent border-ds-accent'
+                      : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'
                   }`}
                 >
                   {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -2887,9 +2889,9 @@ const Dashboard: React.FC = () => {
             </div>
 
             {adminTasksLoading ? (
-              <div className="py-8 text-center text-gray-500 text-sm">Loading...</div>
+              <div className="py-8 text-center text-ds-text-muted text-sm">Loading...</div>
             ) : adminTasks.length === 0 ? (
-              <div className="py-12 text-center text-gray-500 text-sm">No tasks match this filter.</div>
+              <div className="py-12 text-center text-ds-text-muted text-sm">No tasks match this filter.</div>
             ) : (() => {
               const today = new Date().toISOString().slice(0, 10);
               const sortArrow = (key: TaskSortKey) =>
@@ -2910,12 +2912,12 @@ const Dashboard: React.FC = () => {
                   value={taskFilters[key]}
                   onChange={(e) => setTaskFilters({ ...taskFilters, [key]: e.target.value })}
                   placeholder={placeholder}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white font-normal"
+                  className="w-full px-2 py-1 text-xs border border-ds-border-control rounded bg-ds-surface font-normal"
                 />
               );
               return (
                 <div>
-                  <div className="flex items-center justify-between mb-2 text-xs text-gray-500">
+                  <div className="flex items-center justify-between mb-2 text-xs text-ds-text-muted">
                     <span>
                       Showing {displayedTasks.length} of {adminTasks.length} task{adminTasks.length === 1 ? '' : 's'}
                       {taskSort ? '' : ' · sorted by soonest deadline (completed last)'}
@@ -2923,32 +2925,32 @@ const Dashboard: React.FC = () => {
                     {(taskFiltersActive || taskSort) && (
                       <button
                         onClick={() => { setTaskFilters(blankTaskFilters); setTaskSort(null); }}
-                        className="text-primary-600 hover:underline"
+                        className="text-ds-accent-text hover:underline"
                       >
                         Clear filters &amp; sorting
                       </button>
                     )}
                   </div>
-                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <div className="overflow-x-auto rounded-lg border border-ds-border">
                     <table className="w-full text-sm">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-ds-subtle">
                         <tr>
                           {columns.map(c => (
-                            <th key={c.key} className="text-left px-3 py-2 font-semibold text-gray-700">
+                            <th key={c.key} className="text-left px-3 py-2 font-semibold text-ds-text-secondary">
                               <button
                                 type="button"
                                 onClick={() => cycleTaskSort(c.key)}
-                                className="inline-flex items-center gap-1 hover:text-primary-600"
+                                className="inline-flex items-center gap-1 hover:text-ds-accent-text"
                                 title="Click to sort"
                               >
                                 {c.label}
-                                <span className="text-primary-600 text-[10px] w-2">{sortArrow(c.key)}</span>
+                                <span className="text-ds-accent-text text-[10px] w-2">{sortArrow(c.key)}</span>
                               </button>
                             </th>
                           ))}
-                          <th className="text-right px-3 py-2 font-semibold text-gray-700">Actions</th>
+                          <th className="text-right px-3 py-2 font-semibold text-ds-text-secondary">Actions</th>
                         </tr>
-                        <tr className="bg-white border-t border-gray-200">
+                        <tr className="bg-ds-surface border-t border-ds-border">
                           <th className="px-3 py-1.5">{filterInput('task')}</th>
                           <th className="px-3 py-1.5">{filterInput('category')}</th>
                           <th className="px-3 py-1.5">{filterInput('contact_person')}</th>
@@ -2957,7 +2959,7 @@ const Dashboard: React.FC = () => {
                             <select
                               value={taskFilters.status}
                               onChange={(e) => setTaskFilters({ ...taskFilters, status: e.target.value })}
-                              className="w-full px-2 py-1 text-xs border border-gray-300 rounded bg-white font-normal"
+                              className="w-full px-2 py-1 text-xs border border-ds-border-control rounded bg-ds-surface font-normal"
                             >
                               <option value="">All</option>
                               <option value="pending">Pending</option>
@@ -2975,7 +2977,7 @@ const Dashboard: React.FC = () => {
                       <tbody>
                         {displayedTasks.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="px-3 py-8 text-center text-gray-500 text-sm">
+                            <td colSpan={9} className="px-3 py-8 text-center text-ds-text-muted text-sm">
                               No tasks match these filters.
                             </td>
                           </tr>
@@ -2984,16 +2986,16 @@ const Dashboard: React.FC = () => {
                           const due = taskDueMeta(t.due_date, done, today);
                           const dd = due.dd;
                           return (
-                            <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${done ? 'bg-gray-50/60' : ''}`}>
-                              <td className={`px-3 py-2 ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                            <tr key={t.id} className={`border-t border-ds-border hover:bg-ds-subtle ${done ? 'bg-ds-subtle/60' : ''}`}>
+                              <td className={`px-3 py-2 ${done ? 'text-ds-text-muted line-through' : 'text-ds-text'}`}>
                                 <div>{t.task}</div>
                                 {t.assigned_to_name && (
-                                  <div className="text-[10px] font-medium text-fuchsia-600 mt-0.5">Assigned: {t.assigned_to_name}</div>
+                                  <div className="text-[10px] font-medium text-ds-brand-plum mt-0.5">Assigned: {t.assigned_to_name}</div>
                                 )}
                               </td>
-                              <td className="px-3 py-2 text-gray-500 text-xs">{t.category}</td>
-                              <td className="px-3 py-2 text-gray-700">{t.contact_person || '—'}</td>
-                              <td className="px-3 py-2 text-gray-700">{t.responsibility || '—'}</td>
+                              <td className="px-3 py-2 text-ds-text-muted text-xs">{t.category}</td>
+                              <td className="px-3 py-2 text-ds-text-secondary">{t.contact_person || '—'}</td>
+                              <td className="px-3 py-2 text-ds-text-secondary">{t.responsibility || '—'}</td>
                               <td className="px-3 py-2">
                                 <AppSelect
                                   value={t.status}
@@ -3007,23 +3009,23 @@ const Dashboard: React.FC = () => {
                                   ]}
                                 />
                               </td>
-                              <td className="px-3 py-2 text-gray-700 text-xs">{t.cost || '—'}</td>
+                              <td className="px-3 py-2 text-ds-text-secondary text-xs">{t.cost || '—'}</td>
                               <td className="px-3 py-2">
                                 <input
                                   type="date"
                                   value={dd}
                                   onChange={(e) => inlineUpdateDueDate(t.id, e.target.value)}
-                                  className={`text-xs px-2 py-1 rounded border bg-white ${due.inputCls}`}
+                                  className={`text-xs px-2 py-1 rounded border bg-ds-surface ${due.inputCls}`}
                                   title={due.badge || 'Set deadline'}
                                 />
                                 {due.badge && (
-                                  <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-warning-600'}`}>{due.badge}</span>
+                                  <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-ds-critical-text' : 'text-ds-warning-text'}`}>{due.badge}</span>
                                 )}
                               </td>
-                              <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
+                              <td className="px-3 py-2 text-ds-text-secondary text-xs max-w-xs truncate" title={t.remarks || ''}>{t.remarks || '—'}</td>
                               <td className="px-3 py-2 text-right whitespace-nowrap">
-                                <button onClick={() => openEditTask(t)} className="text-primary-600 hover:underline text-xs mr-3">Edit</button>
-                                <button onClick={() => deleteTask(t.id)} className="text-danger-600 hover:underline text-xs">Delete</button>
+                                <button onClick={() => openEditTask(t)} className="text-ds-accent-text hover:underline text-xs mr-3">Edit</button>
+                                <button onClick={() => deleteTask(t.id)} className="text-ds-critical-text hover:underline text-xs">Delete</button>
                               </td>
                             </tr>
                           );
@@ -3040,21 +3042,21 @@ const Dashboard: React.FC = () => {
         {/* Add/Edit Task modal */}
         {showTaskModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-              <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-gray-900">{editingTask ? 'Edit Task' : 'Add Task'}</h3>
-                <button onClick={() => setShowTaskModal(false)} className="text-gray-400 hover:text-gray-700 text-2xl leading-none">×</button>
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-ds-border flex justify-between items-center">
+                <h3 className="text-lg font-bold text-ds-text">{editingTask ? 'Edit Task' : 'Add Task'}</h3>
+                <button onClick={() => setShowTaskModal(false)} className="text-ds-text-muted hover:text-ds-text text-2xl leading-none">×</button>
               </div>
               <div className="p-6 overflow-y-auto space-y-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Category *</label>
+                  <label className="block text-xs font-medium text-ds-text-secondary mb-1">Category *</label>
                   <input
                     type="text"
                     list="adminTaskCategories"
                     value={taskForm.category}
                     onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value })}
                     placeholder="e.g. Facility Needs, Marketing, IT"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                   />
                   <datalist id="adminTaskCategories">
                     {[...new Set(adminTasks.map(t => t.category))].map(c => (
@@ -3063,31 +3065,31 @@ const Dashboard: React.FC = () => {
                   </datalist>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Task *</label>
+                  <label className="block text-xs font-medium text-ds-text-secondary mb-1">Task *</label>
                   <input
                     type="text"
                     value={taskForm.task}
                     onChange={(e) => setTaskForm({ ...taskForm, task: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Contact Person</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Contact Person</label>
                     <input
                       type="text"
                       value={taskForm.contact_person}
                       onChange={(e) => setTaskForm({ ...taskForm, contact_person: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Responsibility</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Responsibility</label>
                     <input
                       type="text"
                       value={taskForm.responsibility}
                       onChange={(e) => setTaskForm({ ...taskForm, responsibility: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                     />
                   </div>
                 </div>
@@ -3106,12 +3108,12 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Due Date</label>
+                    <label className="block text-xs font-medium text-ds-text-secondary mb-1">Due Date</label>
                     <input
                       type="date"
                       value={taskForm.due_date}
                       onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                     />
                   </div>
                 </div>
@@ -3130,28 +3132,28 @@ const Dashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Cost</label>
+                  <label className="block text-xs font-medium text-ds-text-secondary mb-1">Cost</label>
                   <input
                     type="text"
                     value={taskForm.cost}
                     onChange={(e) => setTaskForm({ ...taskForm, cost: e.target.value })}
                     placeholder="e.g. GHS 1,200 or GHS 1,200 / head"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                  <label className="block text-xs font-medium text-ds-text-secondary mb-1">Remarks</label>
                   <textarea
                     value={taskForm.remarks}
                     onChange={(e) => setTaskForm({ ...taskForm, remarks: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                   />
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-2">
-                <button onClick={() => setShowTaskModal(false)} className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={saveTask} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+              <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-2">
+                <button onClick={() => setShowTaskModal(false)} className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle">Cancel</button>
+                <button onClick={saveTask} className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover">
                   {editingTask ? 'Save' : 'Create'}
                 </button>
               </div>
@@ -3171,23 +3173,23 @@ const Dashboard: React.FC = () => {
 
         {/* Past Patients Tab */}
         {activeTab === 'pastPatients' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="bg-gray-100 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-ds-subtle p-2 rounded-lg">
+                <svg className="w-6 h-6 text-ds-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Past Patients</h2>
-                <p className="text-sm text-gray-500">View completed encounter history</p>
+                <h2 className="text-xl font-semibold text-ds-text">Past Patients</h2>
+                <p className="text-sm text-ds-text-muted">View completed encounter history</p>
               </div>
             </div>
 
             {/* Search and Filter Controls */}
             <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">
                   Search
                 </label>
                 <input
@@ -3198,12 +3200,12 @@ const Dashboard: React.FC = () => {
                     setPastPatientsPage(1);
                   }}
                   placeholder="Patient name, number, or encounter..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">
                   From Date
                 </label>
                 <input
@@ -3213,12 +3215,12 @@ const Dashboard: React.FC = () => {
                     setPastPatientsDateFrom(e.target.value);
                     setPastPatientsPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">
                   To Date
                 </label>
                 <input
@@ -3228,7 +3230,7 @@ const Dashboard: React.FC = () => {
                     setPastPatientsDateTo(e.target.value);
                     setPastPatientsPage(1);
                   }}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                 />
               </div>
 
@@ -3241,7 +3243,7 @@ const Dashboard: React.FC = () => {
                       setPastPatientsDateTo('');
                       setPastPatientsPage(1);
                     }}
-                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="min-h-ds-touch px-4 py-2 text-sm text-ds-text-secondary hover:text-ds-text border border-ds-border-control rounded-lg hover:bg-ds-subtle"
                   >
                     Clear Filters
                   </button>
@@ -3252,19 +3254,19 @@ const Dashboard: React.FC = () => {
             {/* Loading State */}
             {loadingPastPatients && (
               <div className="text-center py-12">
-                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-                <p className="mt-4 text-gray-600">Loading past patients...</p>
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-ds-accent" />
+                <p className="mt-4 text-ds-text-secondary">Loading past patients...</p>
               </div>
             )}
 
             {/* Past Patients Table */}
             {!loadingPastPatients && pastPatients.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-ds-border">
+                  <thead className="bg-ds-subtle">
                     <tr>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle"
                         onClick={() => handlePastPatientsSort('patient_name')}
                       >
                         <div className="flex items-center gap-1">
@@ -3277,7 +3279,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle"
                         onClick={() => handlePastPatientsSort('gender')}
                       >
                         <div className="flex items-center gap-1">
@@ -3289,11 +3291,11 @@ const Dashboard: React.FC = () => {
                           )}
                         </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                         Encounter #
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle"
                         onClick={() => handlePastPatientsSort('encounter_date')}
                       >
                         <div className="flex items-center gap-1">
@@ -3306,7 +3308,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle"
                         onClick={() => handlePastPatientsSort('clinic')}
                       >
                         <div className="flex items-center gap-1">
@@ -3319,7 +3321,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       </th>
                       <th
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider cursor-pointer hover:bg-ds-subtle"
                         onClick={() => handlePastPatientsSort('provider_name')}
                       >
                         <div className="flex items-center gap-1">
@@ -3331,41 +3333,41 @@ const Dashboard: React.FC = () => {
                           )}
                         </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">
                         Action
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-ds-surface divide-y divide-ds-border">
                     {pastPatients.map((encounter) => (
-                      <tr key={encounter.id} className="hover:bg-gray-50">
+                      <tr key={encounter.id} className="hover:bg-ds-subtle">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
+                          <div className="text-sm font-medium text-ds-text">
                             {encounter.patient_name}
                           </div>
-                          <div className="text-sm text-gray-500">
+                          <div className="text-sm text-ds-text-muted">
                             {encounter.patient_number}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text">
                           {encounter.gender || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text">
                           {encounter.encounter_number}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text">
                           {encounter.encounter_date ? format(new Date(encounter.encounter_date), 'MM/dd/yyyy') : 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text">
                           {encounter.clinic || 'N/A'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-ds-text">
                           {encounter.provider_name || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
                             onClick={() => navigate(`/patients/${encounter.id}`)}
-                            className="text-primary-600 hover:text-primary-900 font-medium"
+                            className="text-ds-accent-text hover:text-ds-accent-text font-medium"
                           >
                             View Details
                           </button>
@@ -3380,11 +3382,11 @@ const Dashboard: React.FC = () => {
             {/* Empty State */}
             {!loadingPastPatients && pastPatients.length === 0 && (
               <div className="text-center py-12">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="mx-auto h-12 w-12 text-ds-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="mt-2 text-lg font-medium text-gray-900">No past patients found</p>
-                <p className="mt-1 text-sm text-gray-500">
+                <p className="mt-2 text-lg font-medium text-ds-text">No past patients found</p>
+                <p className="mt-1 text-sm text-ds-text-muted">
                   {pastPatientsSearchTerm || pastPatientsDateFrom || pastPatientsDateTo
                     ? 'Try adjusting your search or filters'
                     : 'Completed encounters will appear here'}
@@ -3394,22 +3396,22 @@ const Dashboard: React.FC = () => {
 
             {/* Pagination Controls */}
             {!loadingPastPatients && pastPatients.length > 0 && pastPatientsTotalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
-                <div className="text-sm text-gray-700">
+              <div className="mt-6 flex items-center justify-between border-t border-ds-border pt-4">
+                <div className="text-sm text-ds-text-secondary">
                   Page {pastPatientsPage} of {pastPatientsTotalPages}
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setPastPatientsPage(pastPatientsPage - 1)}
                     disabled={pastPatientsPage === 1}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg text-sm font-medium text-ds-text-secondary bg-ds-surface hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Previous
                   </button>
                   <button
                     onClick={() => setPastPatientsPage(pastPatientsPage + 1)}
                     disabled={pastPatientsPage === pastPatientsTotalPages}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg text-sm font-medium text-ds-text-secondary bg-ds-surface hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next
                   </button>
@@ -3421,16 +3423,16 @@ const Dashboard: React.FC = () => {
 
         {/* System Updates Tab */}
         {activeTab === 'updates' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
             <div className="flex items-center gap-3 mb-6">
-              <div className="bg-primary-100 p-2 rounded-lg">
-                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-ds-accent-soft p-2 rounded-lg">
+                <svg className="w-6 h-6 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">System Updates & Roadmap</h2>
-                <p className="text-sm text-gray-500">Track all system changes, features, and planned updates</p>
+                <h2 className="text-xl font-semibold text-ds-text">System Updates & Roadmap</h2>
+                <p className="text-sm text-ds-text-muted">Track all system changes, features, and planned updates</p>
               </div>
             </div>
             <SystemUpdates />
@@ -3440,88 +3442,88 @@ const Dashboard: React.FC = () => {
         {/* Audit Logs Tab */}
         {activeTab === 'reports' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Staff Activity Report</h2>
-                  <p className="text-sm text-gray-500">What each employee did in the app — by day, week, or month.</p>
+                  <h2 className="text-xl font-bold text-ds-text">Staff Activity Report</h2>
+                  <p className="text-sm text-ds-text-muted">What each employee did in the app — by day, week, or month.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex bg-gray-100 rounded-lg p-0.5">
+                  <div className="flex bg-ds-subtle rounded-lg p-0.5">
                     {(['day', 'week', 'month'] as const).map((p) => (
                       <button key={p} onClick={() => setReportPeriod(p)}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md capitalize ${reportPeriod === p ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                        className={`min-h-ds-touch px-3 py-1.5 text-sm font-medium rounded-md capitalize ${reportPeriod === p ? 'bg-ds-surface text-ds-text shadow-ds-card' : 'text-ds-text-muted hover:text-ds-text'}`}>
                         {p}
                       </button>
                     ))}
                   </div>
                   <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                    className="px-3 py-1.5 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring focus:outline-none" />
                 </div>
               </div>
               {reportData && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-ds-text-muted">
                   {new Date(reportData.start).toLocaleDateString()} – {new Date(new Date(reportData.end).getTime() - 1).toLocaleDateString()} · {reportData.employees?.length || 0} active staff
                 </p>
               )}
             </div>
 
             {/* AI summary */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <h3 className="font-semibold text-ds-text flex items-center gap-2">
+                  <svg className="w-5 h-5 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   AI Summary
                 </h3>
                 <button onClick={() => fetchStaffReport(true)} disabled={reportAiLoading || !reportData?.ai_available}
-                  className="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                  className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50">
                   {reportAiLoading ? 'Generating…' : 'Generate AI summary'}
                 </button>
               </div>
               {reportData?.ai_summary ? (
-                <div className="text-sm text-gray-700 whitespace-pre-wrap">{reportData.ai_summary}</div>
+                <div className="text-sm text-ds-text-secondary whitespace-pre-wrap">{reportData.ai_summary}</div>
               ) : reportData && !reportData.ai_available ? (
-                <p className="text-sm text-gray-400">AI summaries need OpenAI configured (set OPENAI_API_KEY). The activity breakdown below is always available.</p>
+                <p className="text-sm text-ds-text-muted">AI summaries need OpenAI configured (set OPENAI_API_KEY). The activity breakdown below is always available.</p>
               ) : (
-                <p className="text-sm text-gray-400">Click “Generate AI summary” for a narrative of the period’s activity.</p>
+                <p className="text-sm text-ds-text-muted">Click “Generate AI summary” for a narrative of the period’s activity.</p>
               )}
             </div>
 
             {/* Per-employee breakdown */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
               {reportLoading ? (
-                <div className="py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto" /></div>
+                <div className="py-12 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ds-accent mx-auto" /></div>
               ) : !reportData?.employees?.length ? (
-                <div className="py-12 text-center text-gray-500">No recorded activity for this period.</div>
+                <div className="py-12 text-center text-ds-text-muted">No recorded activity for this period.</div>
               ) : (
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-ds-border">
+                  <thead className="bg-ds-subtle">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Logins</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Top activity</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last active</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Employee</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Logins</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Top activity</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Last active</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-ds-surface divide-y divide-ds-border">
                     {reportData.employees.map((e: any) => (
-                      <tr key={e.user_id} className="hover:bg-gray-50">
+                      <tr key={e.user_id} className="hover:bg-ds-subtle">
                         <td className="px-6 py-3">
-                          <div className="font-medium text-gray-900">{e.name}</div>
-                          <div className="text-xs text-gray-500 capitalize">{e.role?.replace('_', ' ')}</div>
+                          <div className="font-medium text-ds-text">{e.name}</div>
+                          <div className="text-xs text-ds-text-muted capitalize">{e.role?.replace('_', ' ')}</div>
                         </td>
-                        <td className="px-6 py-3 text-center font-semibold text-gray-900">{e.total_actions}</td>
-                        <td className="px-6 py-3 text-center text-gray-600">{e.logins}</td>
+                        <td className="px-6 py-3 text-center font-semibold text-ds-text">{e.total_actions}</td>
+                        <td className="px-6 py-3 text-center text-ds-text-secondary">{e.logins}</td>
                         <td className="px-6 py-3">
                           <div className="flex flex-wrap gap-1">
                             {e.breakdown.slice(0, 5).map((b: any, i: number) => (
-                              <span key={i} className="text-xs bg-gray-100 text-gray-700 rounded px-2 py-0.5 capitalize">{b.count} {b.label}</span>
+                              <span key={i} className="text-xs bg-ds-subtle text-ds-text-secondary rounded px-2 py-0.5 capitalize">{b.count} {b.label}</span>
                             ))}
-                            {e.breakdown.length > 5 && <span className="text-xs text-gray-400">+{e.breakdown.length - 5} more</span>}
+                            {e.breakdown.length > 5 && <span className="text-xs text-ds-text-muted">+{e.breakdown.length - 5} more</span>}
                           </div>
                         </td>
-                        <td className="px-6 py-3 text-sm text-gray-500">{e.last_at ? format(new Date(e.last_at), 'MMM d, h:mm a') : '—'}</td>
+                        <td className="px-6 py-3 text-sm text-ds-text-muted">{e.last_at ? format(new Date(e.last_at), 'MMM d, h:mm a') : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3532,24 +3534,24 @@ const Dashboard: React.FC = () => {
         )}
 
         {activeTab === 'audit' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-subtle to-ds-subtle">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="bg-gray-200 p-2 rounded-lg">
-                    <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-ds-border p-2 rounded-lg">
+                    <svg className="w-5 h-5 text-ds-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-gray-900">Audit Logs</h2>
-                    <p className="text-sm text-gray-500">Track all clinical actions and system changes ({auditTotalCount} total)</p>
+                    <h2 className="text-lg font-bold text-ds-text">Audit Logs</h2>
+                    <p className="text-sm text-ds-text-muted">Track all clinical actions and system changes ({auditTotalCount} total)</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => exportAuditLogs('csv')}
-                    className="px-3 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                    className="min-h-ds-touch px-3 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors text-sm font-semibold flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -3558,7 +3560,7 @@ const Dashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={() => exportAuditLogs('json')}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                    className="min-h-ds-touch px-3 py-2 bg-ds-info text-white dark:text-ds-canvas rounded-lg hover:bg-ds-info/90 transition-colors text-sm font-semibold flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -3567,7 +3569,7 @@ const Dashboard: React.FC = () => {
                   </button>
                   <button
                     onClick={() => fetchAuditLogs(auditPage)}
-                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-semibold flex items-center gap-2"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-text-secondary text-ds-canvas rounded-lg hover:bg-ds-text transition-colors text-sm font-semibold flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3616,53 +3618,53 @@ const Dashboard: React.FC = () => {
 
             {auditLoading ? (
               <div className="p-12 text-center">
-                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-                <p className="text-gray-500 mt-4">Loading audit logs...</p>
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-ds-accent" />
+                <p className="text-ds-text-muted mt-4">Loading audit logs...</p>
               </div>
             ) : auditLogs.length === 0 ? (
               <div className="p-12 text-center">
-                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-16 h-16 text-ds-text-muted mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-gray-500 font-medium">No audit logs found</p>
-                <p className="text-sm text-gray-400 mt-1">Clinical actions will appear here when they occur</p>
+                <p className="text-ds-text-muted font-medium">No audit logs found</p>
+                <p className="text-sm text-ds-text-muted mt-1">Clinical actions will appear here when they occur</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-ds-subtle border-b border-ds-border">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Timestamp</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Entity</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Details</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-ds-text-secondary uppercase tracking-wider">Timestamp</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-ds-text-secondary uppercase tracking-wider">User</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-ds-text-secondary uppercase tracking-wider">Action</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-ds-text-secondary uppercase tracking-wider">Entity</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-ds-text-secondary uppercase tracking-wider">Details</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-ds-border">
                     {auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      <tr key={log.id} className="hover:bg-ds-subtle transition-colors">
+                        <td className="px-4 py-3 text-sm text-ds-text-secondary whitespace-nowrap">
                           {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm:ss')}
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-gray-900">{log.user_name || 'System'}</div>
-                          <div className="text-xs text-gray-500 capitalize">{log.user_role || 'N/A'}</div>
+                          <div className="text-sm font-medium text-ds-text">{log.user_name || 'System'}</div>
+                          <div className="text-xs text-ds-text-muted capitalize">{log.user_role || 'N/A'}</div>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full uppercase ${
-                            log.action === 'create' ? 'bg-success-100 text-success-700' :
-                            log.action === 'update' ? 'bg-primary-100 text-primary-700' :
-                            log.action === 'delete' ? 'bg-danger-100 text-danger-700' :
-                            log.action === 'complete' ? 'bg-secondary-100 text-secondary-700' :
-                            'bg-gray-100 text-gray-700'
+                            log.action === 'create' ? 'bg-ds-success-soft text-ds-success-text' :
+                            log.action === 'update' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                            log.action === 'delete' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                            log.action === 'complete' ? 'bg-ds-accent-soft text-ds-brand-plum' :
+                            'bg-ds-subtle text-ds-text-secondary'
                           }`}>
                             {log.action}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="text-sm text-gray-900 capitalize">{log.entity_type?.replace('_', ' ')}</div>
-                          <div className="text-xs text-gray-500">ID: {log.entity_id}</div>
+                          <div className="text-sm text-ds-text capitalize">{log.entity_type?.replace('_', ' ')}</div>
+                          <div className="text-xs text-ds-text-muted">ID: {log.entity_id}</div>
                         </td>
                         <td className="px-4 py-3">
                           {(log.new_values || log.old_values) ? (
@@ -3673,15 +3675,15 @@ const Dashboard: React.FC = () => {
                               {(() => {
                                 const preview = auditChangePreview(log.action, log.old_values, log.new_values);
                                 return preview ? (
-                                  <span className="block text-xs text-gray-600">{preview}</span>
+                                  <span className="block text-xs text-ds-text-secondary">{preview}</span>
                                 ) : null;
                               })()}
-                              <span className="text-xs text-primary-600 group-hover:text-primary-800 font-medium">
+                              <span className="text-xs text-ds-accent-text group-hover:text-ds-accent-text font-medium">
                                 View Details
                               </span>
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-400">—</span>
+                            <span className="text-xs text-ds-text-muted">—</span>
                           )}
                         </td>
                       </tr>
@@ -3690,39 +3692,39 @@ const Dashboard: React.FC = () => {
                 </table>
                 {/* Pagination */}
                 {auditTotalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
+                  <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle flex items-center justify-between">
+                    <div className="text-sm text-ds-text-secondary">
                       Showing {((auditPage - 1) * auditItemsPerPage) + 1} - {Math.min(auditPage * auditItemsPerPage, auditTotalCount)} of {auditTotalCount} logs
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => fetchAuditLogs(1)}
                         disabled={auditPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         First
                       </button>
                       <button
                         onClick={() => fetchAuditLogs(auditPage - 1)}
                         disabled={auditPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Previous
                       </button>
-                      <span className="px-3 py-1.5 text-sm font-medium text-gray-900">
+                      <span className="px-3 py-1.5 text-sm font-medium text-ds-text">
                         Page {auditPage} of {auditTotalPages}
                       </span>
                       <button
                         onClick={() => fetchAuditLogs(auditPage + 1)}
                         disabled={auditPage === auditTotalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Next
                       </button>
                       <button
                         onClick={() => fetchAuditLogs(auditTotalPages)}
                         disabled={auditPage === auditTotalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Last
                       </button>
@@ -3737,20 +3739,20 @@ const Dashboard: React.FC = () => {
         {/* Audit Log Detail Modal */}
         {selectedAuditLog && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedAuditLog(null)}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-accent-soft to-ds-accent-soft rounded-t-xl">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900">Activity Details</h3>
-                    <p className="text-sm text-gray-600">
+                    <h3 className="text-lg font-bold text-ds-text">Activity Details</h3>
+                    <p className="text-sm text-ds-text-secondary">
                       {selectedAuditLog.user_name || 'System'} ({selectedAuditLog.user_role}) &mdash; {format(new Date(selectedAuditLog.created_at), 'MMM dd, yyyy h:mm a')}
                     </p>
                   </div>
                   <span className={`px-3 py-1 text-xs font-semibold rounded-full uppercase ${
-                    selectedAuditLog.action === 'create' ? 'bg-success-100 text-success-700' :
-                    selectedAuditLog.action === 'update' ? 'bg-primary-100 text-primary-700' :
-                    selectedAuditLog.action === 'delete' ? 'bg-danger-100 text-danger-700' :
-                    'bg-gray-100 text-gray-700'
+                    selectedAuditLog.action === 'create' ? 'bg-ds-success-soft text-ds-success-text' :
+                    selectedAuditLog.action === 'update' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                    selectedAuditLog.action === 'delete' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                    'bg-ds-subtle text-ds-text-secondary'
                   }`}>
                     {selectedAuditLog.action}
                   </span>
@@ -3758,17 +3760,17 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="p-6">
                 {/* Plain-English summary of what happened */}
-                <p className="mb-4 text-sm text-gray-800 leading-relaxed">
+                <p className="mb-4 text-sm text-ds-text leading-relaxed">
                   {summarizeAudit(selectedAuditLog)}
-                  <span className="text-gray-500">
+                  <span className="text-ds-text-muted">
                     {' '}on {format(new Date(selectedAuditLog.created_at), 'MMM dd, yyyy')} at {format(new Date(selectedAuditLog.created_at), 'h:mm:ss a')}.
                   </span>
                 </p>
 
-                <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium text-gray-500">Record: </span>
-                  <span className="text-sm font-semibold text-gray-900 capitalize">{selectedAuditLog.entity_type?.replace(/_/g, ' ')}</span>
-                  <span className="text-sm text-gray-500"> (ID: {selectedAuditLog.entity_id ?? '—'})</span>
+                <div className="mb-4 p-3 bg-ds-subtle rounded-lg">
+                  <span className="text-sm font-medium text-ds-text-muted">Record: </span>
+                  <span className="text-sm font-semibold text-ds-text capitalize">{selectedAuditLog.entity_type?.replace(/_/g, ' ')}</span>
+                  <span className="text-sm text-ds-text-muted"> (ID: {selectedAuditLog.entity_id ?? '—'})</span>
                 </div>
 
                 {(() => {
@@ -3779,26 +3781,26 @@ const Dashboard: React.FC = () => {
                   );
                   if (!changeSet) {
                     return (
-                      <p className="text-sm text-gray-500 italic">No additional details were recorded for this action.</p>
+                      <p className="text-sm text-ds-text-muted italic">No additional details were recorded for this action.</p>
                     );
                   }
                   const isDiff = changeSet.kind === 'diff';
                   return (
                     <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-3">{changeSet.heading}</h4>
+                      <h4 className="text-sm font-semibold text-ds-text-secondary mb-3">{changeSet.heading}</h4>
                       {changeSet.rows.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">No field-level changes were captured.</p>
+                        <p className="text-sm text-ds-text-muted italic">No field-level changes were captured.</p>
                       ) : isDiff ? (
                         <div className="space-y-2">
                           {changeSet.rows.map((row) => (
-                            <div key={row.field} className="py-2 border-b border-gray-100 last:border-0">
-                              <div className="text-xs font-semibold text-gray-500 mb-1">{row.label}</div>
+                            <div key={row.field} className="py-2 border-b border-ds-border last:border-0">
+                              <div className="text-xs font-semibold text-ds-text-muted mb-1">{row.label}</div>
                               <div className="flex items-center gap-2 flex-wrap text-sm">
-                                <span className="px-2 py-0.5 rounded bg-danger-50 text-danger-700 line-through break-all">
+                                <span className="px-2 py-0.5 rounded bg-ds-critical-soft text-ds-critical-text line-through break-all">
                                   {row.before ?? 'Not set'}
                                 </span>
-                                <span className="text-gray-400">&rarr;</span>
-                                <span className="px-2 py-0.5 rounded bg-success-50 text-success-700 break-all">
+                                <span className="text-ds-text-muted">&rarr;</span>
+                                <span className="px-2 py-0.5 rounded bg-ds-success-soft text-ds-success-text break-all">
                                   {row.after ?? 'Not set'}
                                 </span>
                               </div>
@@ -3808,10 +3810,10 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <div className="space-y-2">
                           {changeSet.rows.map((row) => (
-                            <div key={row.field} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-                              <span className="text-sm font-medium text-gray-500 min-w-[140px]">{row.label}</span>
-                              <span className="text-sm text-gray-900 break-all">
-                                {row.after ?? <span className="text-gray-400 italic">Not set</span>}
+                            <div key={row.field} className="flex items-start gap-3 py-2 border-b border-ds-border last:border-0">
+                              <span className="text-sm font-medium text-ds-text-muted min-w-[140px]">{row.label}</span>
+                              <span className="text-sm text-ds-text break-all">
+                                {row.after ?? <span className="text-ds-text-muted italic">Not set</span>}
                               </span>
                             </div>
                           ))}
@@ -3823,16 +3825,16 @@ const Dashboard: React.FC = () => {
 
                 {/* Forensic context: where the action came from */}
                 {(selectedAuditLog.ip_address || selectedAuditLog.user_agent) && (
-                  <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-400 space-y-1">
+                  <div className="mt-5 pt-4 border-t border-ds-border text-xs text-ds-text-muted space-y-1">
                     {selectedAuditLog.ip_address && <div>IP address: {selectedAuditLog.ip_address}</div>}
                     {selectedAuditLog.user_agent && <div className="break-all">Device: {selectedAuditLog.user_agent}</div>}
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end">
+              <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end">
                 <button
                   onClick={() => setSelectedAuditLog(null)}
-                  className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent font-semibold rounded-lg hover:bg-ds-accent-hover transition-colors"
                 >
                   Close
                 </button>
@@ -3843,15 +3845,15 @@ const Dashboard: React.FC = () => {
 
         {/* Service Charges Tab */}
         {activeTab === 'charges' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+            <div className="px-6 py-4 border-b border-ds-border flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Service Charges</h2>
-                <p className="text-sm text-gray-500">Manage pricing for all clinic services ({charges.length} services)</p>
+                <h2 className="text-xl font-bold text-ds-text">Service Charges</h2>
+                <p className="text-sm text-ds-text-muted">Manage pricing for all clinic services ({charges.length} services)</p>
               </div>
               <button
                 onClick={() => setShowAddCharge(true)}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3861,13 +3863,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Filters */}
-            <div className="px-6 py-3 bg-gray-50 border-b flex flex-col md:flex-row gap-3">
+            <div className="px-6 py-3 bg-ds-subtle border-b flex flex-col md:flex-row gap-3">
               <input
                 type="text"
                 placeholder="Search by name or code..."
                 value={chargeSearch}
                 onChange={(e) => { setChargeSearch(e.target.value); setChargesPage(1); }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
+                className="flex-1 px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent text-sm"
               />
               <AppSelect
                 value={chargeCategoryFilter}
@@ -3895,49 +3897,49 @@ const Dashboard: React.FC = () => {
 
             {chargesLoading ? (
               <div className="p-12 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ds-accent mx-auto"></div>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
+                  <thead className="bg-ds-subtle border-b">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Service Code</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Service Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-ds-text-muted uppercase">Service Code</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-ds-text-muted uppercase">Service Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-ds-text-muted uppercase">Category</th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-ds-text-muted uppercase">
                         {selectedPayerFilter === 'cash' ? 'Cash Price (GH₵)' : 'Payer Price (GH₵)'}
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-ds-text-muted uppercase">Description</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-ds-text-muted uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-ds-border">
                     {paginatedCharges.map((charge) => (
-                      <tr key={charge.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-3 text-sm font-mono text-gray-600">{charge.service_code}</td>
-                        <td className="px-6 py-3 text-sm font-medium text-gray-900">{charge.service_name}</td>
+                      <tr key={charge.id} className="hover:bg-ds-subtle">
+                        <td className="px-6 py-3 text-sm font-mono text-ds-text-secondary">{charge.service_code}</td>
+                        <td className="px-6 py-3 text-sm font-medium text-ds-text">{charge.service_name}</td>
                         <td className="px-6 py-3">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-700 capitalize">
+                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-ds-accent-soft text-ds-accent-text capitalize">
                             {charge.category}
                           </span>
                         </td>
                         <td className="px-6 py-3 text-sm font-semibold text-right">
                           {selectedPayerFilter !== 'cash' && charge.payer_excluded ? (
-                            <span className="text-danger-600 font-medium">EXCLUDED</span>
+                            <span className="text-ds-critical-text font-medium">EXCLUDED</span>
                           ) : selectedPayerFilter !== 'cash' && charge.payer_price != null ? (
-                            <span className="text-primary-700">{parseFloat(charge.payer_price).toFixed(2)}</span>
+                            <span className="text-ds-accent-text">{parseFloat(charge.payer_price).toFixed(2)}</span>
                           ) : selectedPayerFilter !== 'cash' ? (
-                            <span className="text-gray-400" title="No override - uses cash rate">{parseFloat(charge.price).toFixed(2)} *</span>
+                            <span className="text-ds-text-muted" title="No override - uses cash rate">{parseFloat(charge.price).toFixed(2)} *</span>
                           ) : (
-                            <span className="text-gray-900">{parseFloat(charge.price).toFixed(2)}</span>
+                            <span className="text-ds-text">{parseFloat(charge.price).toFixed(2)}</span>
                           )}
                         </td>
-                        <td className="px-6 py-3 text-sm text-gray-500 max-w-xs truncate">{charge.description || '—'}</td>
+                        <td className="px-6 py-3 text-sm text-ds-text-muted max-w-xs truncate">{charge.description || '—'}</td>
                         <td className="px-6 py-3 text-center">
                           <button
                             onClick={() => setEditingCharge(charge)}
-                            className="text-primary-600 hover:text-primary-800 text-sm font-medium"
+                            className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                           >
                             Edit
                           </button>
@@ -3946,7 +3948,7 @@ const Dashboard: React.FC = () => {
                     ))}
                     {filteredCharges.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                        <td colSpan={6} className="px-6 py-12 text-center text-ds-text-muted">
                           {chargeSearch || chargeCategoryFilter !== 'all' ? 'No services match your search' : 'No services configured yet'}
                         </td>
                       </tr>
@@ -3955,39 +3957,39 @@ const Dashboard: React.FC = () => {
                 </table>
                 {/* Pagination */}
                 {chargesTotalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                    <div className="text-sm text-gray-600">
+                  <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle flex items-center justify-between">
+                    <div className="text-sm text-ds-text-secondary">
                       Showing {((chargesPage - 1) * chargesPerPage) + 1}–{Math.min(chargesPage * chargesPerPage, filteredCharges.length)} of {filteredCharges.length} services
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setChargesPage(1)}
                         disabled={chargesPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         First
                       </button>
                       <button
                         onClick={() => setChargesPage(p => p - 1)}
                         disabled={chargesPage === 1}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Previous
                       </button>
-                      <span className="px-3 py-1.5 text-sm font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg">
+                      <span className="px-3 py-1.5 text-sm font-semibold text-ds-accent-text bg-ds-accent-soft border border-ds-accent/30 rounded-lg">
                         {chargesPage} / {chargesTotalPages}
                       </span>
                       <button
                         onClick={() => setChargesPage(p => p + 1)}
                         disabled={chargesPage === chargesTotalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Next
                       </button>
                       <button
                         onClick={() => setChargesPage(chargesTotalPages)}
                         disabled={chargesPage === chargesTotalPages}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="min-h-ds-touch px-3 py-1.5 text-sm font-medium text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Last
                       </button>
@@ -4002,29 +4004,29 @@ const Dashboard: React.FC = () => {
         {/* Add/Edit Charge Modal */}
         {(showAddCharge || editingCharge) && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowAddCharge(false); setEditingCharge(null); setEditPayerPrices([]); }}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-bold text-gray-900">{editingCharge ? 'Edit Service Charge' : 'Add New Service Charge'}</h3>
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="px-6 py-4 border-b border-ds-border">
+                <h3 className="text-lg font-bold text-ds-text">{editingCharge ? 'Edit Service Charge' : 'Add New Service Charge'}</h3>
               </div>
               <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Service Name *</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Service Name *</label>
                     <input
                       type="text"
                       value={editingCharge?.service_name ?? newCharge.service_name}
                       onChange={(e) => editingCharge ? setEditingCharge({ ...editingCharge, service_name: e.target.value }) : setNewCharge({ ...newCharge, service_name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       placeholder="e.g., Full Blood Count"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Service Code *</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Service Code *</label>
                     <input
                       type="text"
                       value={editingCharge?.service_code ?? newCharge.service_code}
                       onChange={(e) => editingCharge ? setEditingCharge({ ...editingCharge, service_code: e.target.value }) : setNewCharge({ ...newCharge, service_code: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       placeholder="e.g., LAB-FBC"
                     />
                   </div>
@@ -4047,25 +4049,25 @@ const Dashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cash / Self-Pay Price (GH₵) *</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Cash / Self-Pay Price (GH₵) *</label>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
                       value={editingCharge?.price ?? newCharge.price}
                       onChange={(e) => editingCharge ? setEditingCharge({ ...editingCharge, price: e.target.value }) : setNewCharge({ ...newCharge, price: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                       placeholder="0.00"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Description</label>
                   <input
                     type="text"
                     value={editingCharge?.description ?? newCharge.description}
                     onChange={(e) => editingCharge ? setEditingCharge({ ...editingCharge, description: e.target.value }) : setNewCharge({ ...newCharge, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="Optional description"
                   />
                 </div>
@@ -4074,19 +4076,19 @@ const Dashboard: React.FC = () => {
                 {editingCharge && (
                   <div className="border-t pt-4 mt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold text-gray-900">Payer-Specific Prices</h4>
+                      <h4 className="text-sm font-semibold text-ds-text">Payer-Specific Prices</h4>
                       {editPayerPrices.length === 0 && (
                         <button
                           type="button"
                           onClick={() => loadPayerPricesForEdit(editingCharge.id)}
-                          className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                          className="text-xs text-ds-accent-text hover:text-ds-accent-text font-medium"
                         >
                           Load Payer Prices
                         </button>
                       )}
                     </div>
                     {(editingCharge.category === 'lab') && (
-                      <p className="text-xs text-warning-600 bg-warning-50 px-3 py-2 rounded-lg mb-3">
+                      <p className="text-xs text-ds-warning-text bg-ds-warning-soft px-3 py-2 rounded-lg mb-3">
                         Lab tests use MDS Lancet rates uniformly for all payers. Payer overrides do not apply.
                       </p>
                     )}
@@ -4094,7 +4096,7 @@ const Dashboard: React.FC = () => {
                       <div className="space-y-2 max-h-64 overflow-y-auto">
                         {editPayerPrices.map((pp, idx) => (
                           <div key={idx} className="flex items-center gap-3 text-sm">
-                            <span className="w-44 truncate text-gray-700 font-medium" title={pp.name}>
+                            <span className="w-44 truncate text-ds-text-secondary font-medium" title={pp.name}>
                               {pp.payer_type === 'insurance' ? '' : ''} {pp.name}
                             </span>
                             <input
@@ -4108,10 +4110,10 @@ const Dashboard: React.FC = () => {
                                 updated[idx] = { ...pp, price: e.target.value };
                                 setEditPayerPrices(updated);
                               }}
-                              className="w-28 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 disabled:bg-gray-100 disabled:text-gray-400"
+                              className="w-28 px-2 py-1.5 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring disabled:bg-ds-subtle disabled:text-ds-text-muted"
                               placeholder="Cash rate"
                             />
-                            <label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+                            <label className="flex items-center gap-1.5 text-xs text-ds-text-secondary whitespace-nowrap">
                               <input
                                 type="checkbox"
                                 checked={pp.is_excluded}
@@ -4120,7 +4122,7 @@ const Dashboard: React.FC = () => {
                                   updated[idx] = { ...pp, is_excluded: e.target.checked, price: e.target.checked ? '' : pp.price };
                                   setEditPayerPrices(updated);
                                 }}
-                                className="rounded border-gray-300 text-danger-600 focus:ring-danger-500"
+                                className="rounded border-ds-border-control text-ds-critical-text focus:ring-ds-critical"
                               />
                               Excluded
                             </label>
@@ -4131,10 +4133,10 @@ const Dashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+              <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex gap-3 justify-end">
                 <button
                   onClick={() => { setShowAddCharge(false); setEditingCharge(null); setEditPayerPrices([]); }}
-                  className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
+                  className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-medium hover:bg-ds-border rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -4150,7 +4152,7 @@ const Dashboard: React.FC = () => {
                     }
                     setEditPayerPrices([]);
                   }}
-                  className="px-6 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors"
+                  className="min-h-ds-touch px-6 py-2 bg-ds-accent text-ds-on-accent font-medium rounded-lg hover:bg-ds-accent-hover transition-colors"
                 >
                   {editingCharge ? 'Save Changes' : 'Add Service'}
                 </button>
@@ -4163,20 +4165,20 @@ const Dashboard: React.FC = () => {
         {activeTab === 'docs' && (
           <div>
             <div className="flex items-center gap-3 mb-6">
-              <div className="bg-primary-100 p-3 rounded-lg">
-                <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-ds-accent-soft p-3 rounded-lg">
+                <svg className="w-6 h-6 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">System Documentation</h2>
-                <p className="text-sm text-gray-500">User guides and feature documentation for MedSys EMR</p>
+                <h2 className="text-xl font-semibold text-ds-text">System Documentation</h2>
+                <p className="text-sm text-ds-text-muted">User guides and feature documentation for MedSys EMR</p>
               </div>
             </div>
             <LabDocs />
 
             {/* QuickBooks Integration Documentation */}
-            <div className="mt-8 pt-8 border-t border-gray-200">
+            <div className="mt-8 pt-8 border-t border-ds-border">
               <QBDocs />
             </div>
           </div>
@@ -4196,38 +4198,38 @@ const Dashboard: React.FC = () => {
           read/copy the temporary password(s) and hand them to staff. */}
       {resetPwResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-gray-900">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md">
+            <div className="px-6 py-4 border-b border-ds-border flex justify-between items-center">
+              <h3 className="text-lg font-bold text-ds-text">
                 {resetPwResult.length > 1 ? 'Passwords Reset' : 'Password Reset'}
               </h3>
               <button
                 onClick={() => setResetPwResult(null)}
-                className="text-gray-400 hover:text-gray-700 text-2xl leading-none"
+                className="text-ds-text-muted hover:text-ds-text text-2xl leading-none"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
             <div className="p-6 space-y-3">
-              <div className="bg-success-50 border border-success-200 rounded-lg p-4">
-                <p className="text-sm font-semibold text-success-800 mb-1">
+              <div className="bg-ds-success-soft border border-ds-success/30 rounded-lg p-4">
+                <p className="text-sm font-semibold text-ds-success-text mb-1">
                   {resetPwResult.length > 1
                     ? `${resetPwResult.length} passwords reset.`
                     : `Password reset for ${resetPwResult[0].name}.`}
                 </p>
-                <p className="text-xs text-gray-600 mb-3">
+                <p className="text-xs text-ds-text-secondary mb-3">
                   Copy and give these credentials to the staff member. They will be required
                   to change the password on next login. This is the only time it is shown.
                 </p>
-                <div className="font-mono text-sm bg-white border border-gray-200 rounded p-3 space-y-2 max-h-64 overflow-y-auto">
+                <div className="font-mono text-sm bg-ds-surface border border-ds-border rounded p-3 space-y-2 max-h-64 overflow-y-auto">
                   {resetPwResult.map((c, i) => (
-                    <div key={i} className={i > 0 ? 'pt-2 border-t border-gray-100' : ''}>
+                    <div key={i} className={i > 0 ? 'pt-2 border-t border-ds-border' : ''}>
                       {resetPwResult.length > 1 && (
-                        <div className="text-xs text-gray-500">{c.name}</div>
+                        <div className="text-xs text-ds-text-muted">{c.name}</div>
                       )}
-                      <div><span className="text-gray-500">Username:</span> {c.username}</div>
-                      <div><span className="text-gray-500">Password:</span> {c.temporary_password}</div>
+                      <div><span className="text-ds-text-muted">Username:</span> {c.username}</div>
+                      <div><span className="text-ds-text-muted">Password:</span> {c.temporary_password}</div>
                     </div>
                   ))}
                 </div>
@@ -4243,13 +4245,13 @@ const Dashboard: React.FC = () => {
                       () => showToast('Could not copy — please copy manually', 'warning')
                     );
                   }}
-                  className="px-4 py-2 text-primary-700 bg-white border border-primary-300 rounded-lg hover:bg-primary-50"
+                  className="min-h-ds-touch px-4 py-2 text-ds-accent-text bg-ds-surface border border-ds-accent/30 rounded-lg hover:bg-ds-accent-soft"
                 >
                   Copy
                 </button>
                 <button
                   onClick={() => setResetPwResult(null)}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
                 >
                   Done
                 </button>

@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState } from 'react';
 
 const QBDocs: React.FC = () => {
@@ -19,9 +20,9 @@ const QBDocs: React.FC = () => {
     <div className="flex gap-6">
       {/* Sidebar Navigation */}
       <div className="w-64 flex-shrink-0">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 sticky top-4">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className={dsClass("bg-white rounded-xl shadow-lg border border-gray-200 p-4 sticky top-4")}>
+          <h3 className={dsClass("text-lg font-bold text-gray-900 mb-4 flex items-center gap-2")}>
+            <svg className={dsClass("w-5 h-5 text-primary-600")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
             QuickBooks Guide
@@ -31,11 +32,11 @@ const QBDocs: React.FC = () => {
               <button
                 key={section.id}
                 onClick={() => setActiveSection(section.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                className={dsClass(`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                   activeSection === section.id
                     ? 'bg-primary-100 text-primary-700'
                     : 'text-gray-600 hover:bg-gray-100'
-                }`}
+                }`)}
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={section.icon} />
@@ -49,7 +50,7 @@ const QBDocs: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 min-w-0">
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8">
+        <div className={dsClass("bg-white rounded-xl shadow-lg border border-gray-200 p-8")}>
           {activeSection === 'overview' && <OverviewSection />}
           {activeSection === 'flow' && <FlowSection />}
           {activeSection === 'cashsales' && <CashSalesSection />}
@@ -67,17 +68,17 @@ const QBDocs: React.FC = () => {
 
 const OverviewSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">QuickBooks Integration Overview</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>QuickBooks Integration Overview</h2>
 
     <div className="prose max-w-none">
-      <p className="text-gray-600 mb-6">
+      <p className={dsClass("text-gray-600 mb-6")}>
         MedSys integrates directly with QuickBooks Desktop. Patient invoices and payments are
         automatically synced to QuickBooks when patients check out - <strong>no more Excel exports/imports needed</strong>.
       </p>
 
-      <div className="bg-success-50 border border-success-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-success-900 mb-2">Key Benefits</h4>
-        <ul className="text-success-800 text-sm space-y-1">
+      <div className={dsClass("bg-success-50 border border-success-200 rounded-lg p-4 mb-6")}>
+        <h4 className={dsClass("font-semibold text-success-900 mb-2")}>Key Benefits</h4>
+        <ul className={dsClass("text-success-800 text-sm space-y-1")}>
           <li>No more manual Excel exports/imports</li>
           <li>Data flows directly to QuickBooks</li>
           <li>Real-time sync of invoices and payments</li>
@@ -86,7 +87,7 @@ const OverviewSection: React.FC = () => (
         </ul>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What Gets Synced</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What Gets Synced</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <FeatureCard
@@ -111,13 +112,13 @@ const OverviewSection: React.FC = () => (
         />
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Access Points</h3>
-      <ul className="space-y-2 text-gray-600">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Access Points</h3>
+      <ul className={dsClass("space-y-2 text-gray-600")}>
         <li className="flex items-start gap-2">
-          <span className="font-semibold text-gray-900">QB Data:</span> View synced data, record payments, monitor sync status
+          <span className={dsClass("font-semibold text-gray-900")}>QB Data:</span> View synced data, record payments, monitor sync status
         </li>
         <li className="flex items-start gap-2">
-          <span className="font-semibold text-gray-900">QB Settings:</span> Configure connection, manage Web Connector, view logs
+          <span className={dsClass("font-semibold text-gray-900")}>QB Settings:</span> Configure connection, manage Web Connector, view logs
         </li>
       </ul>
     </div>
@@ -126,10 +127,10 @@ const OverviewSection: React.FC = () => (
 
 const FlowSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">How It Works</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>How It Works</h2>
 
     <div className="prose max-w-none">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">The Automatic Sync Flow</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>The Automatic Sync Flow</h3>
 
       <div className="space-y-4 mb-8">
         <WorkflowStep
@@ -164,47 +165,47 @@ const FlowSection: React.FC = () => (
         />
       </div>
 
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-primary-900 mb-2">Sync Priority</h4>
-        <p className="text-primary-800 text-sm mb-2">Items are synced in this order to ensure dependencies:</p>
-        <ol className="text-primary-800 text-sm space-y-1 list-decimal list-inside">
+      <div className={dsClass("bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6")}>
+        <h4 className={dsClass("font-semibold text-primary-900 mb-2")}>Sync Priority</h4>
+        <p className={dsClass("text-primary-800 text-sm mb-2")}>Items are synced in this order to ensure dependencies:</p>
+        <ol className={dsClass("text-primary-800 text-sm space-y-1 list-decimal list-inside")}>
           <li><strong>Patients/Customers</strong> (Priority 10) - Must sync first</li>
           <li><strong>Invoices</strong> (Priority 5) - Needs customer to exist</li>
           <li><strong>Payments</strong> (Priority 5) - Needs invoice to exist</li>
         </ol>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What's Automatic vs Manual</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What's Automatic vs Manual</h3>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border border-gray-200 rounded-lg">
-          <thead className="bg-gray-50">
+        <table className={dsClass("w-full text-sm border border-gray-200 rounded-lg")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">Action</th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">Previously</th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">Now</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>Action</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>Previously</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>Now</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className={dsClass("divide-y divide-gray-200")}>
             <tr>
               <td className="px-4 py-2">New patient to QB</td>
-              <td className="px-4 py-2 text-gray-500">Manual sync</td>
-              <td className="px-4 py-2 text-success-600 font-medium">Automatic at checkout</td>
+              <td className={dsClass("px-4 py-2 text-gray-500")}>Manual sync</td>
+              <td className={dsClass("px-4 py-2 text-success-600 font-medium")}>Automatic at checkout</td>
             </tr>
             <tr>
               <td className="px-4 py-2">Invoice to QB</td>
-              <td className="px-4 py-2 text-gray-500">Manual sync / Excel</td>
-              <td className="px-4 py-2 text-success-600 font-medium">Automatic at checkout</td>
+              <td className={dsClass("px-4 py-2 text-gray-500")}>Manual sync / Excel</td>
+              <td className={dsClass("px-4 py-2 text-success-600 font-medium")}>Automatic at checkout</td>
             </tr>
             <tr>
               <td className="px-4 py-2">Payment to QB</td>
-              <td className="px-4 py-2 text-gray-500">Manual entry in QB</td>
-              <td className="px-4 py-2 text-success-600 font-medium">Automatic when marked paid</td>
+              <td className={dsClass("px-4 py-2 text-gray-500")}>Manual entry in QB</td>
+              <td className={dsClass("px-4 py-2 text-success-600 font-medium")}>Automatic when marked paid</td>
             </tr>
             <tr>
               <td className="px-4 py-2">Pending invoice payments</td>
-              <td className="px-4 py-2 text-gray-500">Manual entry</td>
-              <td className="px-4 py-2 text-primary-600 font-medium">Record in QB Data tab</td>
+              <td className={dsClass("px-4 py-2 text-gray-500")}>Manual entry</td>
+              <td className={dsClass("px-4 py-2 text-primary-600 font-medium")}>Record in QB Data tab</td>
             </tr>
           </tbody>
         </table>
@@ -215,33 +216,33 @@ const FlowSection: React.FC = () => (
 
 const CashSalesSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Cash Sales Mode</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>Cash Sales Mode</h2>
 
     <div className="prose max-w-none">
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-primary-900 mb-2">What is Cash Sales Mode?</h4>
-        <p className="text-primary-800 text-sm">
+      <div className={dsClass("bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6")}>
+        <h4 className={dsClass("font-semibold text-primary-900 mb-2")}>What is Cash Sales Mode?</h4>
+        <p className={dsClass("text-primary-800 text-sm")}>
           Cash Sales Mode allows all patient invoices to be assigned to a single "Cash Sales" customer
           in QuickBooks, instead of creating individual customers for each patient. This keeps your
           QuickBooks customer list clean and consolidated.
         </p>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Why Use Cash Sales Mode?</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Why Use Cash Sales Mode?</h3>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-success-50 rounded-lg p-4 border border-success-200">
-          <h4 className="font-semibold text-success-800 mb-2">Benefits</h4>
-          <ul className="text-sm text-success-700 space-y-1">
+        <div className={dsClass("bg-success-50 rounded-lg p-4 border border-success-200")}>
+          <h4 className={dsClass("font-semibold text-success-800 mb-2")}>Benefits</h4>
+          <ul className={dsClass("text-sm text-success-700 space-y-1")}>
             <li>Keeps QB customer list clean (no hundreds of patients)</li>
             <li>All revenue tracked under one customer</li>
             <li>Simpler reporting in QuickBooks</li>
             <li>Still have full patient details in MedSys</li>
           </ul>
         </div>
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <h4 className="font-semibold text-gray-800 mb-2">Best For</h4>
-          <ul className="text-sm text-gray-600 space-y-1">
+        <div className={dsClass("bg-gray-50 rounded-lg p-4 border border-gray-200")}>
+          <h4 className={dsClass("font-semibold text-gray-800 mb-2")}>Best For</h4>
+          <ul className={dsClass("text-sm text-gray-600 space-y-1")}>
             <li>Clinics with walk-in patients</li>
             <li>Cash-based practices</li>
             <li>Simplified accounting workflows</li>
@@ -250,7 +251,7 @@ const CashSalesSection: React.FC = () => (
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">How It Works</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>How It Works</h3>
 
       <div className="space-y-4 mb-6">
         <WorkflowStep
@@ -279,13 +280,13 @@ const CashSalesSection: React.FC = () => (
         />
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Setting Up Cash Sales Mode</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Setting Up Cash Sales Mode</h3>
 
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+      <div className={dsClass("bg-gray-50 rounded-lg p-4 mb-6")}>
+        <ol className={dsClass("list-decimal pl-5 text-gray-700 space-y-3")}>
           <li>
             <strong>In QuickBooks Desktop:</strong> Create a new customer called "Cash Sales"
-            <p className="text-sm text-gray-500 mt-1">Customers → New Customer → Name: "Cash Sales"</p>
+            <p className={dsClass("text-sm text-gray-500 mt-1")}>Customers → New Customer → Name: "Cash Sales"</p>
           </li>
           <li>
             <strong>In MedSys:</strong> Go to <strong>QuickBooks Settings</strong> (sidebar)
@@ -308,24 +309,24 @@ const CashSalesSection: React.FC = () => (
         </ol>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What Changes</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What Changes</h3>
 
       <div className="overflow-x-auto mb-6">
-        <table className="w-full text-sm border border-gray-200 rounded-lg">
-          <thead className="bg-gray-50">
+        <table className={dsClass("w-full text-sm border border-gray-200 rounded-lg")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">Without Cash Sales Mode</th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">With Cash Sales Mode</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>Without Cash Sales Mode</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>With Cash Sales Mode</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className={dsClass("divide-y divide-gray-200")}>
             <tr>
               <td className="px-4 py-2">Each patient synced as QB customer</td>
-              <td className="px-4 py-2 text-success-600">All invoices go to "Cash Sales" customer</td>
+              <td className={dsClass("px-4 py-2 text-success-600")}>All invoices go to "Cash Sales" customer</td>
             </tr>
             <tr>
               <td className="px-4 py-2">QB customer list grows with each patient</td>
-              <td className="px-4 py-2 text-success-600">QB customer list stays clean</td>
+              <td className={dsClass("px-4 py-2 text-success-600")}>QB customer list stays clean</td>
             </tr>
             <tr>
               <td className="px-4 py-2">Can track A/R per patient in QB</td>
@@ -339,19 +340,19 @@ const CashSalesSection: React.FC = () => (
         </table>
       </div>
 
-      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-warning-900 mb-2">Important Note</h4>
-        <p className="text-warning-800 text-sm">
+      <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-4 mb-6")}>
+        <h4 className={dsClass("font-semibold text-warning-900 mb-2")}>Important Note</h4>
+        <p className={dsClass("text-warning-800 text-sm")}>
           Cash Sales Mode is <strong>enabled by default</strong>. If you need individual patient tracking
           in QuickBooks, you can disable it in QuickBooks Settings.
         </p>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Troubleshooting</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Troubleshooting</h3>
 
-      <div className="border border-gray-200 rounded-lg p-4">
-        <h4 className="font-semibold text-danger-600 mb-2">"Cash Sales customer not found"</h4>
-        <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+      <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+        <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>"Cash Sales customer not found"</h4>
+        <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
           <li>Make sure you created the "Cash Sales" customer in QuickBooks Desktop</li>
           <li>Click "Import Customers" in QuickBooks Settings to pull the customer</li>
           <li>Check that the customer name in MedSys matches exactly</li>
@@ -364,20 +365,20 @@ const CashSalesSection: React.FC = () => (
 
 const ReceptionistSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">For Receptionists</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>For Receptionists</h2>
 
     <div className="prose max-w-none">
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6">
-        <h4 className="font-semibold text-primary-900 mb-2">Good News!</h4>
-        <p className="text-primary-800 text-sm">
+      <div className={dsClass("bg-primary-50 border border-primary-200 rounded-lg p-4 mb-6")}>
+        <h4 className={dsClass("font-semibold text-primary-900 mb-2")}>Good News!</h4>
+        <p className={dsClass("text-primary-800 text-sm")}>
           Your workflow stays exactly the same. The QuickBooks sync happens automatically in the background.
         </p>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Checkout Process</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Your Checkout Process</h3>
 
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+      <div className={dsClass("bg-gray-50 rounded-lg p-4 mb-6")}>
+        <ol className={dsClass("list-decimal pl-5 text-gray-700 space-y-3")}>
           <li>View patients in <strong>"Ready for Checkout"</strong> queue</li>
           <li>Click <strong>"Print Invoice"</strong> to view/print the invoice</li>
           <li>Collect payment from patient</li>
@@ -386,37 +387,37 @@ const ReceptionistSection: React.FC = () => (
         </ol>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What Happens Behind the Scenes</h3>
-      <ul className="list-disc pl-5 text-gray-600 mb-6 space-y-2">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What Happens Behind the Scenes</h3>
+      <ul className={dsClass("list-disc pl-5 text-gray-600 mb-6 space-y-2")}>
         <li>When you print the invoice → Patient & invoice are queued for QuickBooks</li>
         <li>When you click "Paid" → Payment is recorded and queued for QuickBooks</li>
         <li><strong>You don't need to do anything extra for QuickBooks!</strong></li>
       </ul>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Options at Checkout</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Payment Options at Checkout</h3>
 
       <div className="overflow-x-auto mb-6">
-        <table className="w-full text-sm border border-gray-200 rounded-lg">
-          <thead className="bg-gray-50">
+        <table className={dsClass("w-full text-sm border border-gray-200 rounded-lg")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">Option</th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">When to Use</th>
-              <th className="px-4 py-2 text-left font-semibold text-gray-900">What Happens</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>Option</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>When to Use</th>
+              <th className={dsClass("px-4 py-2 text-left font-semibold text-gray-900")}>What Happens</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className={dsClass("divide-y divide-gray-200")}>
             <tr>
-              <td className="px-4 py-2 font-medium text-success-600">Paid</td>
+              <td className={dsClass("px-4 py-2 font-medium text-success-600")}>Paid</td>
               <td className="px-4 py-2">Patient pays in full</td>
               <td className="px-4 py-2">Invoice marked paid, syncs to QB</td>
             </tr>
             <tr>
-              <td className="px-4 py-2 font-medium text-warning-600">Defer Payment</td>
+              <td className={dsClass("px-4 py-2 font-medium text-warning-600")}>Defer Payment</td>
               <td className="px-4 py-2">Patient will pay later</td>
               <td className="px-4 py-2">Moves to "Pending Payments" list</td>
             </tr>
             <tr>
-              <td className="px-4 py-2 font-medium text-primary-600">Submit to Payer</td>
+              <td className={dsClass("px-4 py-2 font-medium text-primary-600")}>Submit to Payer</td>
               <td className="px-4 py-2">Corporate/Insurance patient</td>
               <td className="px-4 py-2">Submitted for billing, syncs to QB</td>
             </tr>
@@ -424,9 +425,9 @@ const ReceptionistSection: React.FC = () => (
         </table>
       </div>
 
-      <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
-        <h4 className="font-semibold text-warning-900 mb-2">Payment Methods</h4>
-        <p className="text-warning-800 text-sm">
+      <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-4")}>
+        <h4 className={dsClass("font-semibold text-warning-900 mb-2")}>Payment Methods</h4>
+        <p className={dsClass("text-warning-800 text-sm")}>
           Available payment methods: Cash, Card, Mobile Money (MTN, Vodafone, AirtelTigo),
           Bank Transfer, Cheque, Insurance
         </p>
@@ -437,58 +438,58 @@ const ReceptionistSection: React.FC = () => (
 
 const AccountantSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">For Accountants</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>For Accountants</h2>
 
     <div className="prose max-w-none">
-      <p className="text-gray-600 mb-6">
+      <p className={dsClass("text-gray-600 mb-6")}>
         As the accountant, you have access to the <strong>QB Data</strong> section where you can
         monitor sync status, view synced data, and record payments for pending invoices.
       </p>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Accessing QB Data</h3>
-      <p className="text-gray-600 mb-4">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Accessing QB Data</h3>
+      <p className={dsClass("text-gray-600 mb-4")}>
         Click <strong>"QB Data"</strong> in the left sidebar to access the QuickBooks data management section.
       </p>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Key Tasks</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Your Key Tasks</h3>
 
       <div className="space-y-4 mb-6">
-        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500">
-          <h4 className="font-semibold text-gray-900 mb-1">1. Monitor Dashboard</h4>
-          <p className="text-sm text-gray-600">Check connection status, pending queue items, and recent sync activity.</p>
+        <div className={dsClass("bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500")}>
+          <h4 className={dsClass("font-semibold text-gray-900 mb-1")}>1. Monitor Dashboard</h4>
+          <p className={dsClass("text-sm text-gray-600")}>Check connection status, pending queue items, and recent sync activity.</p>
         </div>
-        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500">
-          <h4 className="font-semibold text-gray-900 mb-1">2. Review Sync Status</h4>
-          <p className="text-sm text-gray-600">Check which customers, invoices, and payments have synced successfully.</p>
+        <div className={dsClass("bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500")}>
+          <h4 className={dsClass("font-semibold text-gray-900 mb-1")}>2. Review Sync Status</h4>
+          <p className={dsClass("text-sm text-gray-600")}>Check which customers, invoices, and payments have synced successfully.</p>
         </div>
-        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500">
-          <h4 className="font-semibold text-gray-900 mb-1">3. Record Pending Payments</h4>
-          <p className="text-sm text-gray-600">For deferred payments or bank transfers received later, record them in the Invoices tab.</p>
+        <div className={dsClass("bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500")}>
+          <h4 className={dsClass("font-semibold text-gray-900 mb-1")}>3. Record Pending Payments</h4>
+          <p className={dsClass("text-sm text-gray-600")}>For deferred payments or bank transfers received later, record them in the Invoices tab.</p>
         </div>
-        <div className="bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500">
-          <h4 className="font-semibold text-gray-900 mb-1">4. Handle Sync Errors</h4>
-          <p className="text-sm text-gray-600">Re-sync items that failed and investigate any errors.</p>
+        <div className={dsClass("bg-gray-50 rounded-lg p-4 border-l-4 border-primary-500")}>
+          <h4 className={dsClass("font-semibold text-gray-900 mb-1")}>4. Handle Sync Errors</h4>
+          <p className={dsClass("text-sm text-gray-600")}>Re-sync items that failed and investigate any errors.</p>
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What's Automatic Now</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What's Automatic Now</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-success-50 rounded-lg p-3 text-center">
-          <div className="text-success-600 font-bold text-lg">Patients</div>
-          <div className="text-success-800 text-sm">Auto-sync at checkout</div>
+        <div className={dsClass("bg-success-50 rounded-lg p-3 text-center")}>
+          <div className={dsClass("text-success-600 font-bold text-lg")}>Patients</div>
+          <div className={dsClass("text-success-800 text-sm")}>Auto-sync at checkout</div>
         </div>
-        <div className="bg-success-50 rounded-lg p-3 text-center">
-          <div className="text-success-600 font-bold text-lg">Invoices</div>
-          <div className="text-success-800 text-sm">Auto-sync at checkout</div>
+        <div className={dsClass("bg-success-50 rounded-lg p-3 text-center")}>
+          <div className={dsClass("text-success-600 font-bold text-lg")}>Invoices</div>
+          <div className={dsClass("text-success-800 text-sm")}>Auto-sync at checkout</div>
         </div>
-        <div className="bg-success-50 rounded-lg p-3 text-center">
-          <div className="text-success-600 font-bold text-lg">Payments</div>
-          <div className="text-success-800 text-sm">Auto-sync when marked paid</div>
+        <div className={dsClass("bg-success-50 rounded-lg p-3 text-center")}>
+          <div className={dsClass("text-success-600 font-bold text-lg")}>Payments</div>
+          <div className={dsClass("text-success-800 text-sm")}>Auto-sync when marked paid</div>
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">What You Still Do</h3>
-      <ul className="list-disc pl-5 text-gray-600 space-y-2">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>What You Still Do</h3>
+      <ul className={dsClass("list-disc pl-5 text-gray-600 space-y-2")}>
         <li><strong>Monitor sync status</strong> - Check Dashboard for errors</li>
         <li><strong>Sync older items</strong> - Click "Sync" on items that weren't auto-synced</li>
         <li><strong>Record late payments</strong> - For bank transfers, deferred payments received later</li>
@@ -501,21 +502,21 @@ const AccountantSection: React.FC = () => (
 
 const QBDataSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">QB Data Section</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>QB Data Section</h2>
 
     <div className="prose max-w-none">
-      <p className="text-gray-600 mb-6">
+      <p className={dsClass("text-gray-600 mb-6")}>
         The QB Data section provides a complete view of all data synced with QuickBooks.
       </p>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Tabs</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Available Tabs</h3>
 
       <div className="space-y-4 mb-6">
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">Dashboard</span>
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-gray-900 flex items-center gap-2")}>
+            <span className={dsClass("bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs")}>Dashboard</span>
           </h4>
-          <ul className="text-sm text-gray-600 mt-2 space-y-1">
+          <ul className={dsClass("text-sm text-gray-600 mt-2 space-y-1")}>
             <li>Connection status with QuickBooks</li>
             <li>Sync statistics (customers, invoices, payments synced)</li>
             <li>Pending queue items count</li>
@@ -523,11 +524,11 @@ const QBDataSection: React.FC = () => (
           </ul>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">Customers</span>
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-gray-900 flex items-center gap-2")}>
+            <span className={dsClass("bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs")}>Customers</span>
           </h4>
-          <ul className="text-sm text-gray-600 mt-2 space-y-1">
+          <ul className={dsClass("text-sm text-gray-600 mt-2 space-y-1")}>
             <li>All patients with QB sync status</li>
             <li>Filter by: All, Synced, Not Synced, Pending</li>
             <li>Click row to expand and see details</li>
@@ -536,11 +537,11 @@ const QBDataSection: React.FC = () => (
           </ul>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">Invoices</span>
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-gray-900 flex items-center gap-2")}>
+            <span className={dsClass("bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs")}>Invoices</span>
           </h4>
-          <ul className="text-sm text-gray-600 mt-2 space-y-1">
+          <ul className={dsClass("text-sm text-gray-600 mt-2 space-y-1")}>
             <li>All invoices with QB sync status</li>
             <li>Filter by: All, Unpaid, Overdue, Synced, Not Synced</li>
             <li>Click row to expand and see line items</li>
@@ -549,11 +550,11 @@ const QBDataSection: React.FC = () => (
           </ul>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">Payments</span>
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-gray-900 flex items-center gap-2")}>
+            <span className={dsClass("bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs")}>Payments</span>
           </h4>
-          <ul className="text-sm text-gray-600 mt-2 space-y-1">
+          <ul className={dsClass("text-sm text-gray-600 mt-2 space-y-1")}>
             <li>All recorded payments with QB sync status</li>
             <li>Filter by: Payment method, Date range, Sync status</li>
             <li>View payment details and linked invoice</li>
@@ -561,11 +562,11 @@ const QBDataSection: React.FC = () => (
           </ul>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <span className="bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs">Services</span>
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-gray-900 flex items-center gap-2")}>
+            <span className={dsClass("bg-primary-100 text-primary-700 px-2 py-0.5 rounded text-xs")}>Services</span>
           </h4>
-          <ul className="text-sm text-gray-600 mt-2 space-y-1">
+          <ul className={dsClass("text-sm text-gray-600 mt-2 space-y-1")}>
             <li>Charge master items with QB sync status</li>
             <li>Filter by: Synced, Not Synced</li>
             <li>Click "Sync" to push service as QB Item</li>
@@ -578,16 +579,16 @@ const QBDataSection: React.FC = () => (
 
 const PaymentsSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Recording Payments</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>Recording Payments</h2>
 
     <div className="prose max-w-none">
-      <p className="text-gray-600 mb-6">
+      <p className={dsClass("text-gray-600 mb-6")}>
         There are two ways payments are recorded in MedSys:
       </p>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">1. At Checkout (Receptionist)</h3>
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <ol className="list-decimal pl-5 text-gray-700 space-y-2">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>1. At Checkout (Receptionist)</h3>
+      <div className={dsClass("bg-gray-50 rounded-lg p-4 mb-6")}>
+        <ol className={dsClass("list-decimal pl-5 text-gray-700 space-y-2")}>
           <li>Patient completes encounter</li>
           <li>Receptionist views invoice</li>
           <li>Patient pays at front desk</li>
@@ -596,9 +597,9 @@ const PaymentsSection: React.FC = () => (
         </ol>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">2. For Pending Invoices (Accountant)</h3>
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <ol className="list-decimal pl-5 text-gray-700 space-y-2">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>2. For Pending Invoices (Accountant)</h3>
+      <div className={dsClass("bg-gray-50 rounded-lg p-4 mb-6")}>
+        <ol className={dsClass("list-decimal pl-5 text-gray-700 space-y-2")}>
           <li>Go to <strong>QB Data → Invoices</strong></li>
           <li>Find the unpaid invoice (filter by "Unpaid")</li>
           <li>Click the <strong>"Pay"</strong> button</li>
@@ -615,19 +616,19 @@ const PaymentsSection: React.FC = () => (
         </ol>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Payment Methods</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
-        <div className="bg-success-50 rounded p-2 text-center text-sm text-success-700">Cash</div>
-        <div className="bg-primary-50 rounded p-2 text-center text-sm text-primary-700">Card</div>
-        <div className="bg-warning-50 rounded p-2 text-center text-sm text-warning-700">Mobile Money</div>
-        <div className="bg-secondary-50 rounded p-2 text-center text-sm text-secondary-700">Bank Transfer</div>
-        <div className="bg-gray-100 rounded p-2 text-center text-sm text-gray-700">Cheque</div>
-        <div className="bg-accent-50 rounded p-2 text-center text-sm text-accent-700">Insurance</div>
+        <div className={dsClass("bg-success-50 rounded p-2 text-center text-sm text-success-700")}>Cash</div>
+        <div className={dsClass("bg-primary-50 rounded p-2 text-center text-sm text-primary-700")}>Card</div>
+        <div className={dsClass("bg-warning-50 rounded p-2 text-center text-sm text-warning-700")}>Mobile Money</div>
+        <div className={dsClass("bg-secondary-50 rounded p-2 text-center text-sm text-secondary-700")}>Bank Transfer</div>
+        <div className={dsClass("bg-gray-100 rounded p-2 text-center text-sm text-gray-700")}>Cheque</div>
+        <div className={dsClass("bg-accent-50 rounded p-2 text-center text-sm text-accent-700")}>Insurance</div>
       </div>
 
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
-        <h4 className="font-semibold text-primary-900 mb-2">Partial Payments</h4>
-        <p className="text-primary-800 text-sm">
+      <div className={dsClass("bg-primary-50 border border-primary-200 rounded-lg p-4")}>
+        <h4 className={dsClass("font-semibold text-primary-900 mb-2")}>Partial Payments</h4>
+        <p className={dsClass("text-primary-800 text-sm")}>
           You can record partial payments. The invoice status will change to "Partial" and
           the remaining balance will be shown. When fully paid, status changes to "Paid".
         </p>
@@ -638,59 +639,59 @@ const PaymentsSection: React.FC = () => (
 
 const StatusSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Sync Status Indicators</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>Sync Status Indicators</h2>
 
     <div className="prose max-w-none">
-      <p className="text-gray-600 mb-6">
+      <p className={dsClass("text-gray-600 mb-6")}>
         Throughout the QB Data section, you'll see status badges indicating the sync state of each item.
       </p>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Badges</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Status Badges</h3>
 
       <div className="space-y-3 mb-6">
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-          <span className="px-3 py-1 bg-success-100 text-success-700 rounded-full text-sm font-medium">Synced</span>
-          <span className="text-gray-600">Item exists in QuickBooks and is up to date</span>
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
+          <span className={dsClass("px-3 py-1 bg-success-100 text-success-700 rounded-full text-sm font-medium")}>Synced</span>
+          <span className={dsClass("text-gray-600")}>Item exists in QuickBooks and is up to date</span>
         </div>
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-          <span className="px-3 py-1 bg-warning-100 text-warning-700 rounded-full text-sm font-medium">Pending</span>
-          <span className="text-gray-600">Item is in the queue, waiting for Web Connector to sync</span>
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
+          <span className={dsClass("px-3 py-1 bg-warning-100 text-warning-700 rounded-full text-sm font-medium")}>Pending</span>
+          <span className={dsClass("text-gray-600")}>Item is in the queue, waiting for Web Connector to sync</span>
         </div>
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-          <span className="px-3 py-1 bg-danger-100 text-danger-700 rounded-full text-sm font-medium">Error</span>
-          <span className="text-gray-600">Sync failed - needs investigation and re-sync</span>
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
+          <span className={dsClass("px-3 py-1 bg-danger-100 text-danger-700 rounded-full text-sm font-medium")}>Error</span>
+          <span className={dsClass("text-gray-600")}>Sync failed - needs investigation and re-sync</span>
         </div>
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-          <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium">Not Synced</span>
-          <span className="text-gray-600">Item has not been queued for sync yet</span>
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
+          <span className={dsClass("px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm font-medium")}>Not Synced</span>
+          <span className={dsClass("text-gray-600")}>Item has not been queued for sync yet</span>
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Dashboard Connection Status</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Dashboard Connection Status</h3>
 
       <div className="space-y-3 mb-6">
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-success-500 rounded-full"></span>
-            <span className="font-medium text-gray-900">Connected</span>
+            <span className={dsClass("w-3 h-3 bg-success-500 rounded-full")}></span>
+            <span className={dsClass("font-medium text-gray-900")}>Connected</span>
           </span>
-          <span className="text-gray-600">Web Connector is active and syncing</span>
+          <span className={dsClass("text-gray-600")}>Web Connector is active and syncing</span>
         </div>
-        <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+        <div className={dsClass("flex items-center gap-4 p-3 bg-gray-50 rounded-lg")}>
           <span className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-danger-500 rounded-full"></span>
-            <span className="font-medium text-gray-900">Disconnected</span>
+            <span className={dsClass("w-3 h-3 bg-danger-500 rounded-full")}></span>
+            <span className={dsClass("font-medium text-gray-900")}>Disconnected</span>
           </span>
-          <span className="text-gray-600">Web Connector is not running or has connection issues</span>
+          <span className={dsClass("text-gray-600")}>Web Connector is not running or has connection issues</span>
         </div>
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Sync Queue</h3>
-      <p className="text-gray-600 mb-4">
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Sync Queue</h3>
+      <p className={dsClass("text-gray-600 mb-4")}>
         The Dashboard shows the number of pending queue items. These are items waiting for
         the Web Connector to process.
       </p>
-      <ul className="list-disc pl-5 text-gray-600 space-y-2">
+      <ul className={dsClass("list-disc pl-5 text-gray-600 space-y-2")}>
         <li>Items are processed in priority order (patients first, then invoices, then payments)</li>
         <li>Web Connector polls every few minutes</li>
         <li>Failed items remain in queue for retry</li>
@@ -701,15 +702,15 @@ const StatusSection: React.FC = () => (
 
 const TroubleshootingSection: React.FC = () => (
   <div>
-    <h2 className="text-2xl font-bold text-gray-900 mb-6">Troubleshooting</h2>
+    <h2 className={dsClass("text-2xl font-bold text-gray-900 mb-6")}>Troubleshooting</h2>
 
     <div className="prose max-w-none">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Common Issues</h3>
+      <h3 className={dsClass("text-lg font-semibold text-gray-900 mb-4")}>Common Issues</h3>
 
       <div className="space-y-4 mb-6">
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-danger-600 mb-2">Invoice Not Syncing</h4>
-          <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>Invoice Not Syncing</h4>
+          <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
             <li>Check if the patient/customer is synced first (QB needs customer before invoice)</li>
             <li>Go to QB Data → Customers, find the patient, click "Sync"</li>
             <li>Then go to Invoices and click "Sync" on the invoice</li>
@@ -717,9 +718,9 @@ const TroubleshootingSection: React.FC = () => (
           </ol>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-danger-600 mb-2">Payment Not in QuickBooks</h4>
-          <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>Payment Not in QuickBooks</h4>
+          <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
             <li>Verify payment was recorded in MedSys (QB Data → Payments)</li>
             <li>Check if Web Connector is running on the Windows PC</li>
             <li>Check QB Data Dashboard for connection status</li>
@@ -727,9 +728,9 @@ const TroubleshootingSection: React.FC = () => (
           </ol>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-danger-600 mb-2">Web Connector Not Working</h4>
-          <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>Web Connector Not Working</h4>
+          <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
             <li>Ensure QuickBooks Desktop is open on the Windows PC</li>
             <li>Restart the Web Connector application</li>
             <li>Check that credentials match (QB Settings → Web Connector section)</li>
@@ -737,9 +738,9 @@ const TroubleshootingSection: React.FC = () => (
           </ol>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-danger-600 mb-2">Dashboard Shows "Disconnected"</h4>
-          <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>Dashboard Shows "Disconnected"</h4>
+          <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
             <li>Check internet connection on the Windows PC</li>
             <li>Ensure Web Connector is running</li>
             <li>Try manually running Web Connector sync</li>
@@ -747,9 +748,9 @@ const TroubleshootingSection: React.FC = () => (
           </ol>
         </div>
 
-        <div className="border border-gray-200 rounded-lg p-4">
-          <h4 className="font-semibold text-danger-600 mb-2">Sync Errors</h4>
-          <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+        <div className={dsClass("border border-gray-200 rounded-lg p-4")}>
+          <h4 className={dsClass("font-semibold text-danger-600 mb-2")}>Sync Errors</h4>
+          <ol className={dsClass("text-sm text-gray-600 space-y-1 list-decimal list-inside")}>
             <li>Check the error message in the sync queue</li>
             <li>Common issues: duplicate customer name, missing required fields</li>
             <li>Fix the issue in MedSys if possible</li>
@@ -758,9 +759,9 @@ const TroubleshootingSection: React.FC = () => (
         </div>
       </div>
 
-      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
-        <h4 className="font-semibold text-primary-900 mb-2">Need More Help?</h4>
-        <p className="text-primary-800 text-sm">
+      <div className={dsClass("bg-primary-50 border border-primary-200 rounded-lg p-4")}>
+        <h4 className={dsClass("font-semibold text-primary-900 mb-2")}>Need More Help?</h4>
+        <p className={dsClass("text-primary-800 text-sm")}>
           For technical issues with the QuickBooks integration, contact IT support.
           Have ready: the item that failed to sync, any error messages, and the time the issue occurred.
         </p>
@@ -771,16 +772,16 @@ const TroubleshootingSection: React.FC = () => (
 
 // Helper Components
 const FeatureCard: React.FC<{ title: string; description: string; icon: string }> = ({ title, description, icon }) => (
-  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+  <div className={dsClass("bg-gray-50 rounded-lg p-4 border border-gray-200")}>
     <div className="flex items-start gap-3">
-      <div className="bg-primary-100 p-2 rounded-lg flex-shrink-0">
-        <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className={dsClass("bg-primary-100 p-2 rounded-lg flex-shrink-0")}>
+        <svg className={dsClass("w-5 h-5 text-primary-600")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
         </svg>
       </div>
       <div>
-        <h4 className="font-semibold text-gray-900">{title}</h4>
-        <p className="text-sm text-gray-600 mt-1">{description}</p>
+        <h4 className={dsClass("font-semibold text-gray-900")}>{title}</h4>
+        <p className={dsClass("text-sm text-gray-600 mt-1")}>{description}</p>
       </div>
     </div>
   </div>
@@ -789,23 +790,23 @@ const FeatureCard: React.FC<{ title: string; description: string; icon: string }
 const WorkflowStep: React.FC<{ number: number; title: string; description: string; role: string }> = ({ number, title, description, role }) => (
   <div className="flex gap-4">
     <div className="flex-shrink-0">
-      <div className="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm">
+      <div className={dsClass("w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm")}>
         {number}
       </div>
     </div>
-    <div className="flex-1 pb-4 border-b border-gray-200">
+    <div className={dsClass("flex-1 pb-4 border-b border-gray-200")}>
       <div className="flex items-center gap-2 mb-1">
-        <h4 className="font-semibold text-gray-900">{title}</h4>
-        <span className={`text-xs px-2 py-0.5 rounded-full ${
+        <h4 className={dsClass("font-semibold text-gray-900")}>{title}</h4>
+        <span className={dsClass(`text-xs px-2 py-0.5 rounded-full ${
           role === 'Doctor' ? 'bg-secondary-100 text-secondary-700' :
           role === 'Receptionist' ? 'bg-success-100 text-success-700' :
           role === 'Accountant' ? 'bg-primary-100 text-primary-700' :
           'bg-gray-100 text-gray-700'
-        }`}>
+        }`)}>
           {role}
         </span>
       </div>
-      <p className="text-sm text-gray-600">{description}</p>
+      <p className={dsClass("text-sm text-gray-600")}>{description}</p>
     </div>
   </div>
 );
