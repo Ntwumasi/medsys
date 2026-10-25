@@ -11,7 +11,7 @@ import { getApiError } from '../utils/apiError';
  * marked "No reminder texts" on their record never get any of them.
  */
 
-type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt';
+type Kind = 'appointment' | 'follow_up' | 'refill' | 'lab_ready' | 'pharmacy_ready' | 'payment_receipt' | 'visit_summary';
 
 const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
   {
@@ -49,6 +49,12 @@ const KINDS: { kind: Kind; label: string; when: string; example: string }[] = [
     label: 'Payment receipts',
     when: 'When reception records a payment at checkout',
     example: 'Medics Clinic: payment of GHS 250.00 received for invoice INV-001234. Balance due: GHS 0.00. Thank you.',
+  },
+  {
+    kind: 'visit_summary',
+    label: 'Visit summary & invoice',
+    when: 'At checkout (or the next morning for visits closed without a checkout) — a 7-day portal link to that visit',
+    example: 'Hello Ama, thank you for visiting Medics Clinic. Your visit summary and invoice: https://…/portal/verify?token=… (valid 7 days).',
   },
 ];
 
@@ -166,8 +172,8 @@ const PatientAutoTexts: React.FC = () => {
     try {
       const res = await apiClient.post('/patient-texts/run-daily');
       const r = res.data.result || {};
-      const sent = ['appointment', 'follow_up', 'refill'].reduce((n, k) => n + (r[k]?.sent || 0), 0);
-      const failed = ['appointment', 'follow_up', 'refill'].reduce((n, k) => n + (r[k]?.failed || 0), 0);
+      const sent = ['appointment', 'follow_up', 'refill', 'visit_summary'].reduce((n, k) => n + (r[k]?.sent || 0), 0);
+      const failed = ['appointment', 'follow_up', 'refill', 'visit_summary'].reduce((n, k) => n + (r[k]?.failed || 0), 0);
       showToast(`Reminders sent: ${sent}${failed ? `, failed: ${failed}` : ''}`, failed ? 'warning' : 'success');
       load();
     } catch (e) {

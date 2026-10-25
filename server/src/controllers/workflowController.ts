@@ -9,6 +9,7 @@ import { resolveLabCatalogItem } from './ordersController';
 import { resolveEncounterInvoiceId } from '../services/invoiceResolver';
 import { nextInvoiceNumber } from '../services/sequences';
 import { shouldBlockForDiagnosis, diagnosisRequiredResponse } from '../utils/diagnosisGuard';
+import { textVisitSummary } from '../services/patientAutoTextService';
 
 // Clinic string → department queue, for the four walk-in desks that bill per
 // service. Single source of truth: the duplicate-check-in guard and the routing
@@ -1418,6 +1419,8 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
     const authReq = req as any;
     const doctor_id = authReq.user?.id;
     const { encounter_id, follow_up_required, follow_up_timeframe, follow_up_reason, review_required, review_date, review_reason } = req.body;
+    // Optional "Notes for the patient" (portal visit summary). Left untouched when not sent.
+    const patientNote = typeof req.body.patient_note === 'string' ? req.body.patient_note.trim().slice(0, 2000) : undefined;
 
     // Get encounter details to find nurse_id and patient_id
     const encounterResult = await pool.query(
@@ -1457,9 +1460,11 @@ export const doctorCompleteEncounter = async (req: Request, res: Response): Prom
            follow_up_required = COALESCE($2, false),
            follow_up_timeframe = $3,
            follow_up_reason = $4,
+           patient_note = CASE WHEN $5::boolean THEN $6 ELSE patient_note END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [encounter_id, follow_up_required || false, follow_up_timeframe || null, follow_up_reason || null]
+      [encounter_id, follow_up_required || false, follow_up_timeframe || null, follow_up_reason || null,
+       patientNote !== undefined, patientNote || null]
     );
 
     // Create alert for nurse that patient is ready for follow-up
@@ -2231,6 +2236,9 @@ export const checkoutPatient = async (req: Request, res: Response): Promise<void
 
     // Notify all receptionists that patient has been checked out
     await notificationService.notifyPatientCheckedOut(patient_name || '', patient_number || '');
+
+    // After-visit text with a link to the visit summary + invoice (if switched on). Never throws.
+    await textVisitSummary(encounter_id);
 
     res.json({
       message: `Patient ${patient_name || ''} has been checked out successfully`,

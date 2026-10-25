@@ -230,7 +230,15 @@ import {
   getPortalMedications,
   getPortalAppointments,
   getPortalBills,
+  getPortalVisits,
 } from '../controllers/patientPortalRecordsController';
+import {
+  getMyMessages,
+  sendMyMessage,
+  listConversations,
+  getConversation,
+  replyToPatient,
+} from '../controllers/portalMessagesController';
 import {
   orderNurseProcedure,
   getNurseProcedures,
@@ -496,6 +504,13 @@ router.get('/patient-portal/imaging', authenticateToken, authorizeRoles('patient
 router.get('/patient-portal/medications', authenticateToken, authorizeRoles('patient'), getPortalMedications);
 router.get('/patient-portal/appointments', authenticateToken, authorizeRoles('patient'), getPortalAppointments);
 router.get('/patient-portal/bills', authenticateToken, authorizeRoles('patient'), getPortalBills);
+router.get('/patient-portal/visits', authenticateToken, authorizeRoles('patient'), getPortalVisits);
+// Patient ↔ front desk messages (patient side, then the staff inbox)
+router.get('/patient-portal/messages', authenticateToken, authorizeRoles('patient'), getMyMessages);
+router.post('/patient-portal/messages', authenticateToken, authorizeRoles('patient'), sendMyMessage);
+router.get('/portal-messages', authenticateToken, authorizeRoles('receptionist', 'admin'), listConversations);
+router.get('/portal-messages/:patient_id', authenticateToken, authorizeRoles('receptionist', 'admin'), getConversation);
+router.post('/portal-messages/:patient_id', authenticateToken, authorizeRoles('receptionist', 'admin'), replyToPatient);
 
 // Admin reports — also exposed to accountants for the financial dashboard.
 import { getDoctorRevenue, getDoctorRevenueLines, getStaffActivityReport } from '../controllers/adminReportsController';

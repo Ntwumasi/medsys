@@ -1,5 +1,5 @@
 import { branding } from '../../config/branding';
-import type { PortalBill, PortalLab, PortalMe } from '../../api/patientPortal';
+import type { PortalBill, PortalLab, PortalMe, PortalVisit } from '../../api/patientPortal';
 import { parseLabResult, labFlag, rangeText, FLAG_TEXT } from './labDisplay';
 
 // Patient-facing printouts (lab report, bill). New-window approach, as
@@ -106,3 +106,26 @@ export const printBill = (bill: PortalBill, me: PortalMe): boolean => {
     ${bill.payments.length ? `<h2>Payments</h2><table><tbody>${bill.payments.map((p) =>
       `<tr><td>${esc(fmt(p.date))}</td><td>${esc((p.method || '').replace(/_/g, ' '))}</td><td class="num">${esc(ghs(p.amount))}</td></tr>`).join('')}</tbody></table>` : ''}`);
 };
+
+const list = (items: string[]) => (items.length ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="meta">None</p>');
+
+export const medicineLine = (m: PortalVisit['medicines'][number]): string =>
+  [m.name, m.dosage, m.frequency, m.route, m.days ? `for ${m.days} days` : ''].filter(Boolean).join(' · ');
+
+export const followUpLine = (f: NonNullable<PortalVisit['follow_up']>): string => {
+  const when = f.date
+    ? new Date(f.date).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', ...(f.has_time ? { hour: 'numeric', minute: '2-digit' } : {}) })
+    : f.timeframe ? `in about ${f.timeframe}` : 'to be booked';
+  return `${f.date ? 'Booked for ' : 'Come back '}${when}${f.reason ? ` — ${f.reason}` : ''}`;
+};
+
+export const printVisitSummary = (visit: PortalVisit, me: PortalMe): boolean =>
+  openPrintWindow(`Visit summary — ${fmt(visit.visit_date)}`, `${letterhead()}${patientBlock(me)}
+    <h2>Visit summary — ${esc(fmt(visit.visit_date))}</h2>
+    <p class="meta">${[visit.clinic, visit.doctor_name && `Seen by ${visit.doctor_name}`, visit.encounter_number && `Visit ${visit.encounter_number}`].filter(Boolean).map((x) => esc(x)).join(' · ')}</p>
+    ${visit.reason ? `<h2>Reason for visit</h2><p class="note">${esc(visit.reason)}</p>` : ''}
+    <h2>Diagnosis</h2>${list(visit.diagnoses)}
+    <h2>Medicines prescribed</h2>${list(visit.medicines.map(medicineLine))}
+    <h2>Tests ordered</h2>${list(visit.tests)}
+    ${visit.follow_up ? `<h2>Follow-up</h2><p class="note">${esc(followUpLine(visit.follow_up))}</p>` : ''}
+    ${visit.patient_note ? `<h2>Notes from your doctor</h2><p class="note">${esc(visit.patient_note)}</p>` : ''}`);

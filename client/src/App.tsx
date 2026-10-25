@@ -22,6 +22,7 @@ const AccountantDashboard = lazy(() => import('./pages/AccountantDashboard'));
 const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
 const MarketingDashboard = lazy(() => import('./pages/MarketingDashboard'));
 const SmsCampaignsPage = lazy(() => import('./pages/SmsCampaignsPage'));
+const PatientMessagesPage = lazy(() => import('./pages/PatientMessagesPage'));
 const PatientList = lazy(() => import('./pages/PatientList'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
@@ -190,6 +191,7 @@ const AppContent: React.FC = () => {
         <Route path="/qb/*" element={<ProtectedRoute><QuickBooksData /></ProtectedRoute>} />
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
         <Route path="/sms-campaigns" element={<ProtectedRoute><ErrorBoundary><SmsCampaignsPage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/patient-messages" element={<ProtectedRoute><ErrorBoundary><PatientMessagesPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><ErrorBoundary><ProfilePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/profile/:userId" element={<ProtectedRoute><ErrorBoundary><StaffProfilePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/feed" element={<ProtectedRoute><ErrorBoundary><FeedPage /></ErrorBoundary></ProtectedRoute>} />

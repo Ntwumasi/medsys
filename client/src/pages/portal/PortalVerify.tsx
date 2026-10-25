@@ -35,7 +35,9 @@ const PortalVerify: React.FC = () => {
     try {
       const res = await patientPortalAPI.verify(token, dob);
       loginWithSession(res.user as unknown as User, res.token);
-      navigate('/dashboard');
+      // A texted link opens what it was sent for (a visit, or the clinic's reply).
+      const visit = res.target?.match(/^visit:(\d+)$/)?.[1];
+      navigate(visit ? `/dashboard?view=visits&visit=${visit}` : res.target === 'messages' ? '/dashboard?view=messages' : '/dashboard');
     } catch (err) {
       const apiErr = err as ApiError;
       setError(apiErr?.response?.data?.error || 'Could not verify. Please request a new link.');

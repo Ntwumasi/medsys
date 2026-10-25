@@ -16,6 +16,7 @@
 import pool from '../database/db';
 import auditService from './auditService';
 import notificationService from './notificationService';
+import { textVisitSummary } from './patientAutoTextService';
 
 /**
  * Attempt auto-checkout for the encounter linked to this invoice.
@@ -162,6 +163,9 @@ export async function autoCheckoutIfFullyPaid(
     console.log(
       `Auto-checkout: encounter ${invoice.encounter_id} discharged after invoice ${invoiceId} paid in full`
     );
+
+    // After-visit text (if switched on). Never throws.
+    await textVisitSummary(invoice.encounter_id);
 
     return { didCheckout: true };
   } catch (error) {

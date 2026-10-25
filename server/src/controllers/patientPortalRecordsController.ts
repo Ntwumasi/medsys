@@ -187,7 +187,7 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
   const primaryPayerType: string = primary.rows[0]?.payer_type || 'self_pay';
 
   const invoices = await pool.query(
-    `SELECT i.id, i.invoice_number, i.invoice_date, i.status,
+    `SELECT i.id, i.invoice_number, i.invoice_date, i.status, i.encounter_id,
             i.total_amount, COALESCE(i.amount_paid, 0) AS amount_paid,
             pps.payer_type AS invoice_payer_type,
             COALESCE(cc.name, ip.name) AS payer_name
@@ -239,6 +239,7 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
       id: inv.id,
       invoice_number: inv.invoice_number,
       invoice_date: inv.invoice_date,
+      encounter_id: inv.encounter_id ?? null,
       covered,
       payer_name: covered ? inv.payer_name || null : null,
       total,
@@ -260,3 +261,75 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
 
   res.json({ bills, total_due: money(totalDue) });
 }, 'bills');
+
+/**
+ * GET /patient-portal/visits — every finished visit with a patient-friendly
+ * summary: reason, diagnosis, medicines prescribed, tests ordered, follow-up
+ * and the doctor's "Notes for the patient". The doctor's assessment and plan
+ * are written for staff and are never sent. A visit shows once it is
+ * completed (doctor signed off) or checked out. Test RESULTS are not repeated
+ * here — they follow the release rule on the Results page.
+ */
+export const getPortalVisits = withPatient(async (patientId, _req, res) => {
+  const enc = await pool.query(
+    `SELECT e.id, e.encounter_number,
+            COALESCE(e.checked_in_at, e.encounter_date, e.created_at) AS visit_date,
+            e.clinic, e.encounter_type, e.chief_complaint, e.patient_note,
+            e.follow_up_required, e.follow_up_timeframe, e.follow_up_reason,
+            fa.appointment_date AS follow_up_date,
+            (fa.appointment_date IS NOT NULL AND fa.appointment_date::time <> '00:00') AS follow_up_has_time,
+            NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), '') AS doctor_name,
+            COALESCE(e.invoice_id, (SELECT i.id FROM invoices i WHERE i.encounter_id = e.id AND i.status <> 'cancelled' ORDER BY i.id DESC LIMIT 1)) AS invoice_id
+       FROM encounters e
+       LEFT JOIN users u ON u.id = e.provider_id
+       LEFT JOIN appointments fa ON fa.id = e.follow_up_appointment_id AND fa.status IN ('scheduled', 'confirmed')
+      WHERE e.patient_id = $1 AND e.status IN ('completed', 'discharged')
+      ORDER BY visit_date DESC
+      LIMIT 100`,
+    [patientId]
+  );
+  const ids = enc.rows.map((e) => e.id);
+  const [dx, meds, labs, imaging] = ids.length
+    ? await Promise.all([
+        pool.query(
+          `SELECT encounter_id, diagnosis_description FROM diagnoses
+            WHERE encounter_id = ANY($1) AND diagnosis_description IS NOT NULL ORDER BY id`, [ids]),
+        pool.query(
+          `SELECT encounter_id, medication_name, dosage, frequency, route, days_supply
+             FROM pharmacy_orders
+            WHERE encounter_id = ANY($1) AND status <> 'cancelled' AND parent_order_id IS NULL ORDER BY id`, [ids]),
+        pool.query(
+          `SELECT encounter_id, test_name FROM lab_orders
+            WHERE encounter_id = ANY($1) AND status <> 'cancelled' ORDER BY id`, [ids]),
+        pool.query(
+          `SELECT encounter_id, imaging_type, body_part FROM imaging_orders
+            WHERE encounter_id = ANY($1) AND status <> 'cancelled' ORDER BY id`, [ids]),
+      ])
+    : [{ rows: [] as any[] }, { rows: [] as any[] }, { rows: [] as any[] }, { rows: [] as any[] }];
+
+  const forVisit = <T extends { encounter_id: number }>(rows: T[], id: number) => rows.filter((r) => r.encounter_id === id);
+  res.json({
+    visits: enc.rows.map((e) => ({
+      id: e.id,
+      encounter_number: e.encounter_number,
+      visit_date: e.visit_date,
+      clinic: e.clinic,
+      visit_type: e.encounter_type,
+      doctor_name: e.doctor_name,
+      reason: e.chief_complaint,
+      diagnoses: [...new Set(forVisit(dx.rows, e.id).map((d) => d.diagnosis_description as string))],
+      medicines: forVisit(meds.rows, e.id).map((m) => ({
+        name: m.medication_name, dosage: m.dosage, frequency: m.frequency, route: m.route, days: m.days_supply,
+      })),
+      tests: [
+        ...forVisit(labs.rows, e.id).map((l) => l.test_name as string),
+        ...forVisit(imaging.rows, e.id).map((i) => [i.imaging_type, i.body_part].filter(Boolean).join(' — ')),
+      ],
+      follow_up: e.follow_up_required
+        ? { timeframe: e.follow_up_timeframe, reason: e.follow_up_reason, date: e.follow_up_date, has_time: e.follow_up_has_time }
+        : null,
+      patient_note: e.patient_note || null,
+      invoice_id: e.invoice_id,
+    })),
+  });
+}, 'visits');

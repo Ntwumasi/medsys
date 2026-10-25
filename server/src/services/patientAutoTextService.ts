@@ -17,6 +17,7 @@
 import pool from '../database/db';
 import { sendSMS, validatePhoneNumber } from './smsService';
 import { sendEmail, textToHtml, validateEmail } from './emailService';
+import { createPortalToken, portalLinkFor } from '../controllers/patientPortalController';
 
 export type PatientTextKind =
   | 'appointment'
@@ -24,10 +25,11 @@ export type PatientTextKind =
   | 'refill'
   | 'lab_ready'
   | 'pharmacy_ready'
-  | 'payment_receipt';
+  | 'payment_receipt'
+  | 'visit_summary';
 
 export const PATIENT_TEXT_KINDS: PatientTextKind[] = [
-  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt',
+  'appointment', 'follow_up', 'refill', 'lab_ready', 'pharmacy_ready', 'payment_receipt', 'visit_summary',
 ];
 
 const enabledKey = (kind: PatientTextKind) => `patient_sms_${kind}_enabled`;
@@ -132,7 +134,8 @@ export const sendPatientText = async (args: SendArgs): Promise<TextOutcome> => {
          WHERE patient_sms_log.status = 'failed'
             OR (patient_sms_log.status = 'pending' AND patient_sms_log.created_at < NOW() - INTERVAL '10 minutes')
        RETURNING id`,
-      [args.patientId, args.kind, args.refKey, channel, destination, useSms ? text : mail!.body]
+      // The log never keeps a usable portal link.
+      [args.patientId, args.kind, args.refKey, channel, destination, (useSms ? text : mail!.body).replace(/token=[^\s)]+/g, 'token=…')]
     );
     if (claim.rows.length === 0) return 'skipped';
     const logId = claim.rows[0].id;
@@ -235,6 +238,58 @@ const sendPaymentReceipt = async (paymentId: number): Promise<void> => {
   });
 };
 
+/**
+ * After a visit: a 7-day portal link straight to that visit's summary and
+ * invoice (the patient confirms their date of birth first). Sent at checkout;
+ * visits that finish without a checkout are picked up by the daily run.
+ */
+const sendVisitSummary = async (encounterId: number, patientId: number, s: TextSettings): Promise<TextOutcome> => {
+  if (!s.enabled.visit_summary) return 'skipped';
+  // Already sent for this visit? Don't mint a fresh link just to be skipped.
+  const done = await pool.query(
+    `SELECT 1 FROM patient_sms_log WHERE kind = 'visit_summary' AND ref_key = $1 AND status IN ('sent', 'pending')`,
+    [String(encounterId)]
+  );
+  if (done.rows.length) return 'skipped';
+  const token = await createPortalToken(patientId, { purpose: 'notify', target: `visit:${encounterId}`, deliveryMethod: 'auto' });
+  const link = portalLinkFor(token);
+  return sendPatientText({
+    kind: 'visit_summary',
+    refKey: String(encounterId),
+    patientId,
+    settings: s,
+    message: (n, st) =>
+      `Hello ${n}, thank you for visiting ${st.clinicName}. Your visit summary and invoice: ${link} (valid 7 days).`,
+    email: (n, st) => ({
+      subject: `Your visit summary from ${st.clinicName}`,
+      body: [
+        `Hello ${n},`,
+        '',
+        `Thank you for visiting ${st.clinicName}. Your visit summary and invoice are ready:`,
+        '',
+        link,
+        '',
+        "The link is valid for 7 days and you'll be asked to confirm your date of birth.",
+        '',
+        st.clinicName,
+      ].join('\n'),
+    }),
+  });
+};
+
+/** Patient checked out. Never throws. */
+export const textVisitSummary = async (encounterId: number | null | undefined): Promise<void> => {
+  if (!encounterId) return;
+  try {
+    const e = await pool.query(`SELECT patient_id FROM encounters WHERE id = $1`, [encounterId]);
+    if (!e.rows[0]?.patient_id) return;
+    const s = await getTextSettings();
+    await capWait(sendVisitSummary(encounterId, e.rows[0].patient_id, s));
+  } catch (err) {
+    console.error(`[patient-text] visit summary ${encounterId} failed:`, err);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Daily reminders
 // ---------------------------------------------------------------------------
@@ -243,13 +298,14 @@ export interface DailyRunResult {
   appointment: Record<TextOutcome, number>;
   follow_up: Record<TextOutcome, number>;
   refill: Record<TextOutcome, number>;
+  visit_summary: Record<TextOutcome, number>;
 }
 
 const tally = () => ({ sent: 0, failed: 0, skipped: 0 });
 
 export const runDailyPatientTexts = async (): Promise<DailyRunResult> => {
   const s = await getTextSettings();
-  const result: DailyRunResult = { appointment: tally(), follow_up: tally(), refill: tally() };
+  const result: DailyRunResult = { appointment: tally(), follow_up: tally(), refill: tally(), visit_summary: tally() };
 
   // Follow-ups first, so the appointment reminder can skip a visit that was
   // just reminded about today.
@@ -358,6 +414,25 @@ export const runDailyPatientTexts = async (): Promise<DailyRunResult> => {
           `Hello ${n}, one of your medications from ${st.clinicName} is due for a refill around ${r.date_label}. Visit our pharmacy${st.clinicPhone ? ` or call ${st.clinicPhone}` : ''}.`,
       });
       result.refill[outcome]++;
+    }
+  }
+
+  if (s.enabled.visit_summary) {
+    // Visits that finished in the last day without a checkout text. Only the
+    // last day: switching the text on must not message every past patient.
+    const done = await pool.query(
+      `SELECT e.id, e.patient_id
+         FROM encounters e
+        WHERE e.status IN ('completed', 'discharged')
+          AND e.patient_id IS NOT NULL
+          AND COALESCE(e.discharged_at, e.completed_at) > NOW() - INTERVAL '1 day'
+          AND NOT EXISTS (
+            SELECT 1 FROM patient_sms_log l
+             WHERE l.kind = 'visit_summary' AND l.ref_key = e.id::text AND l.status IN ('sent', 'pending')
+          )`
+    );
+    for (const e of done.rows) {
+      result.visit_summary[await sendVisitSummary(e.id, e.patient_id, s)]++;
     }
   }
 

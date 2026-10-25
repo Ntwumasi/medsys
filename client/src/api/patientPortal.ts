@@ -11,6 +11,8 @@ export interface PortalVerifyResponse {
     is_super_admin?: boolean;
   };
   token: string;
+  /** Where the link should land, e.g. 'visit:123' or 'messages' (from a texted link). */
+  target?: string | null;
 }
 
 export interface PortalMe {
@@ -20,6 +22,8 @@ export interface PortalMe {
   first_name: string;
   last_name: string;
   username: string;
+  /** Clinic replies the patient hasn't opened yet. */
+  unread_messages?: number;
   renewed_token?: string;
 }
 
@@ -88,6 +92,7 @@ export interface PortalBill {
   id: number;
   invoice_number: string;
   invoice_date: string;
+  encounter_id: number | null;
   covered: boolean;
   payer_name: string | null;
   total: number;
@@ -97,6 +102,33 @@ export interface PortalBill {
   balance_due: number;
   items: { description: string; quantity: number; amount: number; paid_by: 'you' | 'cover' }[];
   payments: { date: string; amount: number; method: string | null }[];
+}
+
+/** A finished visit and its patient-friendly summary. */
+export interface PortalVisit {
+  id: number;
+  encounter_number: string | null;
+  visit_date: string;
+  clinic: string | null;
+  visit_type: string | null;
+  doctor_name: string | null;
+  reason: string | null;
+  diagnoses: string[];
+  medicines: { name: string; dosage: string | null; frequency: string | null; route: string | null; days: number | null }[];
+  tests: string[];
+  follow_up: { timeframe: string | null; reason: string | null; date: string | null; has_time: boolean } | null;
+  patient_note: string | null;
+  invoice_id: number | null;
+}
+
+export interface PortalMessage {
+  id: number;
+  sender: 'patient' | 'staff';
+  body: string;
+  created_at: string;
+  staff_name: string | null;
+  /** For the patient's own messages: has the clinic opened it. */
+  read: boolean;
 }
 
 export const patientPortalAPI = {
@@ -134,4 +166,9 @@ export const patientPortalAPI = {
     (await apiClient.get('/patient-portal/appointments')).data.appointments,
   bills: async (): Promise<{ bills: PortalBill[]; total_due: number }> =>
     (await apiClient.get('/patient-portal/bills')).data,
+  visits: async (): Promise<PortalVisit[]> => (await apiClient.get('/patient-portal/visits')).data.visits,
+  // Opening the conversation marks the clinic's replies as read.
+  messages: async (): Promise<PortalMessage[]> => (await apiClient.get('/patient-portal/messages')).data.messages,
+  sendMessage: async (body: string): Promise<PortalMessage> =>
+    (await apiClient.post('/patient-portal/messages', { body })).data.message,
 };
