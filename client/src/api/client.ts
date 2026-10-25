@@ -107,11 +107,16 @@ apiClient.interceptors.response.use(
       // or after several consecutive 401s from data endpoints (not a transient blip)
       if (isAuthEndpoint || consecutive401s >= AUTH_REDIRECT_THRESHOLD) {
         consecutive401s = 0;
+        // Patients sign in through the portal, not the staff login page.
+        let signInPath = '/login';
+        try {
+          if (JSON.parse(localStorage.getItem('user') || '{}')?.role === 'patient') signInPath = '/portal';
+        } catch { /* keep /login */ }
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Only redirect if not already on the login page (prevents reload loop)
-        if (!window.location.pathname.includes('/login')) {
-          window.location.href = '/login';
+        // Only redirect if not already on a sign-in page (prevents reload loop)
+        if (!window.location.pathname.includes('/login') && !window.location.pathname.startsWith('/portal')) {
+          window.location.href = signInPath;
         }
       }
     }

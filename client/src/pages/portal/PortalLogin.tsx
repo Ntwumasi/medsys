@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { patientPortalAPI } from '../../api/patientPortal';
 import { branding } from '../../config/branding';
 
 const PortalLogin: React.FC = () => {
+  const { user } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
@@ -28,6 +30,9 @@ const PortalLogin: React.FC = () => {
     }
   };
 
+  // Already signed in on this phone (90-day session): straight to their records.
+  if (user?.role === 'patient') return <Navigate to="/dashboard" replace />;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-white px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
@@ -38,7 +43,7 @@ const PortalLogin: React.FC = () => {
 
         {sent ? (
           <div className="text-center space-y-4">
-            <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-2xl">
+            <div className="mx-auto w-12 h-12 rounded-full bg-success-100 flex items-center justify-center text-success-600 text-2xl">
               ✓
             </div>
             <p className="text-gray-700">

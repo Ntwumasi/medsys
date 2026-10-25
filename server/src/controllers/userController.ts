@@ -3,6 +3,15 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import pool from '../database/db';
 import { emitActivity } from '../services/socialService';
+import { revokeAllUserTokens } from '../services/tokenService';
+import { forgetAccountStatus } from '../middleware/auth';
+
+// Roles a receptionist may create or reset. Anything that passes an admin
+// check (admin, office_manager) or a super admin is off limits to them.
+const RECEPTIONIST_MANAGEABLE_ROLES = [
+  'doctor', 'nurse', 'receptionist', 'lab', 'pharmacy', 'pharmacist', 'pharmacy_tech',
+  'imaging', 'accountant', 'marketing',
+];
 
 // Generate a one-time temporary password for new accounts / password
 // resets. Returned to the requesting admin/receptionist in the response
@@ -148,12 +157,12 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Privilege gate: receptionist can create staff, but never an admin.
+    // Privilege gate: receptionist can create front-line staff only — never an
+    // admin or an office manager (which passes every admin check).
     // Admins (or super admins acting as admin) can create any role.
     if (requesterRole === 'receptionist' && !requesterIsSuperAdmin) {
-      const disallowedForReceptionist = ['admin'];
-      if (disallowedForReceptionist.includes(role)) {
-        res.status(403).json({ error: 'Receptionists cannot create admin accounts.' });
+      if (!RECEPTIONIST_MANAGEABLE_ROLES.includes(role)) {
+        res.status(403).json({ error: 'Receptionists cannot create admin or office manager accounts.' });
         return;
       }
     }
@@ -251,12 +260,19 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
   try {
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id, username FROM users WHERE id = $1',
+      'SELECT id, username, is_super_admin FROM users WHERE id = $1',
       [id]
     );
 
     if (existingUser.rows.length === 0) {
       res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // Only a super admin may change a super admin's account (email, role,
+    // active flag) — otherwise an admin could take one over or lock it out.
+    if (existingUser.rows[0].is_super_admin === true && (req as any).user?.is_super_admin !== true) {
+      res.status(403).json({ error: "Only a super admin can change a super admin's account." });
       return;
     }
 
@@ -361,7 +377,7 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
   try {
     // Check if user exists — pull role too so we can apply the receptionist guard
     const existingUser = await pool.query(
-      'SELECT id, username, first_name, last_name, role FROM users WHERE id = $1',
+      'SELECT id, username, first_name, last_name, role, is_super_admin FROM users WHERE id = $1',
       [id]
     );
 
@@ -372,10 +388,17 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
 
     // Receptionist can reset staff passwords but never an admin's. Mirrors
     // the receptionist-can't-create-admin guard in createUser.
+    // The reset hands back the temp password, so resetting an account = being
+    // able to log in as it. Receptionists: front-line staff only. Only a super
+    // admin may reset a super admin.
+    const target = existingUser.rows[0];
+    if (target.is_super_admin === true && !requesterIsSuperAdmin) {
+      res.status(403).json({ error: "Only a super admin can reset a super admin's password." });
+      return;
+    }
     if (requesterRole === 'receptionist' && !requesterIsSuperAdmin) {
-      const targetRole = existingUser.rows[0].role;
-      if (targetRole === 'admin') {
-        res.status(403).json({ error: "Receptionists cannot reset an admin's password." });
+      if (!RECEPTIONIST_MANAGEABLE_ROLES.includes(target.role)) {
+        res.status(403).json({ error: "Receptionists cannot reset an admin's or office manager's password." });
         return;
       }
     }
@@ -396,6 +419,11 @@ export const resetUserPassword = async (req: Request, res: Response): Promise<vo
        WHERE id = $2`,
       [password_hash, id]
     );
+
+    // End the account's existing sessions — whoever had them must now sign in
+    // with the temporary password.
+    await revokeAllUserTokens(Number(id), 'admin_revoke');
+    forgetAccountStatus(Number(id));
 
     const user = existingUser.rows[0];
 
@@ -426,7 +454,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
   try {
     // Check if user exists
     const existingUser = await pool.query(
-      'SELECT id, username, first_name, last_name FROM users WHERE id = $1',
+      'SELECT id, username, first_name, last_name, is_super_admin FROM users WHERE id = $1',
       [id]
     );
 
@@ -435,11 +463,17 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    if (existingUser.rows[0].is_super_admin === true && (req as any).user?.is_super_admin !== true) {
+      res.status(403).json({ error: 'Only a super admin can deactivate a super admin.' });
+      return;
+    }
+
     // Soft delete by setting is_active to false
     await pool.query(
       'UPDATE users SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [id]
     );
+    forgetAccountStatus(Number(id));
 
     res.json({
       message: 'User deactivated successfully',

@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { GuideProvider } from './context/GuideContext';
@@ -60,7 +60,8 @@ function LoadingFallback() {
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -70,7 +71,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     );
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  // Patients only have the portal (rendered at /dashboard) — never staff pages.
+  if (user?.role === 'patient' && location.pathname !== '/dashboard') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 };
 
 // Role-based Dashboard Router

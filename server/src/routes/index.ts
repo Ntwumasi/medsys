@@ -225,6 +225,13 @@ import {
   setReminderOptOut,
 } from '../controllers/patientTextController';
 import {
+  getPortalLabs,
+  getPortalImaging,
+  getPortalMedications,
+  getPortalAppointments,
+  getPortalBills,
+} from '../controllers/patientPortalRecordsController';
+import {
   orderNurseProcedure,
   getNurseProcedures,
   startNurseProcedure,
@@ -482,6 +489,13 @@ router.post('/patient-portal/request-link', portalRequestLink);
 router.post('/patient-portal/verify', portalVerify);
 router.post('/patient-portal/staff-send', authenticateToken, authorizeRoles('receptionist', 'admin'), portalStaffSendLink);
 router.get('/patient-portal/me', authenticateToken, portalGetMe);
+// Portal records — scoped to the token's own patient; results follow the
+// release rule (doctor reviewed, or 3 days after finalised).
+router.get('/patient-portal/labs', authenticateToken, authorizeRoles('patient'), getPortalLabs);
+router.get('/patient-portal/imaging', authenticateToken, authorizeRoles('patient'), getPortalImaging);
+router.get('/patient-portal/medications', authenticateToken, authorizeRoles('patient'), getPortalMedications);
+router.get('/patient-portal/appointments', authenticateToken, authorizeRoles('patient'), getPortalAppointments);
+router.get('/patient-portal/bills', authenticateToken, authorizeRoles('patient'), getPortalBills);
 
 // Admin reports — also exposed to accountants for the financial dashboard.
 import { getDoctorRevenue, getDoctorRevenueLines, getStaffActivityReport } from '../controllers/adminReportsController';
@@ -607,12 +621,14 @@ router.post('/encounters/diagnoses', authenticateToken, authorizeRoles('doctor',
 router.delete('/encounters/diagnoses/:id', authenticateToken, authorizeRoles('doctor', 'admin'), deleteDiagnosis);
 
 // Appointment routes (with input validation)
-router.post('/appointments', authenticateToken, validateBody(createAppointmentSchema), createAppointment);
+// Booking/changing appointments: front desk and clinicians only.
+const APPOINTMENT_WRITERS = ['receptionist', 'admin', 'doctor', 'nurse'];
+router.post('/appointments', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), validateBody(createAppointmentSchema), createAppointment);
 router.get('/appointments', authenticateToken, enforcePatientOwnership, getAppointments);
 router.get('/appointments/today', authenticateToken, authorizeRoles(...STAFF_ROLES), getTodayAppointments);
-router.put('/appointments/:id', authenticateToken, validateBody(createAppointmentSchema.partial()), updateAppointment);
-router.post('/appointments/:id/cancel', authenticateToken, cancelAppointment);
-router.post('/appointments/:id/no-show', authenticateToken, markNoShow);
+router.put('/appointments/:id', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), validateBody(createAppointmentSchema.partial()), updateAppointment);
+router.post('/appointments/:id/cancel', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), cancelAppointment);
+router.post('/appointments/:id/no-show', authenticateToken, authorizeRoles(...APPOINTMENT_WRITERS), markNoShow);
 
 // Medication routes
 router.post('/medications', authenticateToken, authorizeRoles('doctor', 'admin'), prescribeMedication);
@@ -672,17 +688,19 @@ router.get('/orders/lab', authenticateToken, enforcePatientOwnership, getLabOrde
 // Pending-verification queue MUST be registered before the :id routes below,
 // otherwise Express interprets "pending-verification" as an :id parameter.
 router.get('/orders/lab/pending-verification', authenticateToken, authorizeRoles('lab', 'admin'), getPendingVerificationQueue);
-router.put('/orders/lab/:id', authenticateToken, authorizeRoles(...STAFF_ROLES), updateLabOrder);
+// Lab staff update; doctors may only cancel (enforced in the controller).
+router.put('/orders/lab/:id', authenticateToken, authorizeRoles('lab', 'doctor', 'admin'), updateLabOrder);
 router.post('/orders/lab/:id/defer', authenticateToken, authorizeRoles('lab', 'admin'), deferLabOrder);
 router.post('/orders/lab/:id/verify', authenticateToken, authorizeRoles('lab', 'admin'), verifyLabResult);
 router.post('/orders/lab/:id/reject', authenticateToken, authorizeRoles('lab', 'admin'), rejectLabResult);
 router.post('/orders/lab/:id/delete-result', authenticateToken, authorizeRoles('lab', 'admin'), deleteLabResult);
-router.get('/orders/lab/:id/audit', authenticateToken, getLabResultAudit);
+router.get('/orders/lab/:id/audit', authenticateToken, authorizeRoles('lab', 'doctor', 'nurse', 'admin'), getLabResultAudit);
 
 // Orders routes - Imaging (nurses can create for verbal orders)
 router.post('/orders/imaging', authenticateToken, authorizeRoles('doctor', 'nurse', 'imaging'), createImagingOrder);
 router.get('/orders/imaging', authenticateToken, enforcePatientOwnership, getImagingOrders);
-router.put('/orders/imaging/:id', authenticateToken, authorizeRoles(...STAFF_ROLES), updateImagingOrder);
+// Imaging staff update; doctors may only cancel (enforced in the controller).
+router.put('/orders/imaging/:id', authenticateToken, authorizeRoles('imaging', 'doctor', 'admin'), updateImagingOrder);
 
 // Imaging integration routes — frontend
 router.get('/imaging/studies/by-order/:order_id', authenticateToken, authorizeRoles(...STAFF_ROLES), getStudiesByOrder);

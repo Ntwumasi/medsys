@@ -824,7 +824,7 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
 
     // Get target user
     const targetResult = await pool.query(
-      `SELECT id, email, role, first_name, last_name, is_active
+      `SELECT id, email, role, first_name, last_name, is_active, is_super_admin
        FROM users WHERE id = $1`,
       [targetUserId]
     );
@@ -842,8 +842,14 @@ export const impersonateUser = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Prevent admin from impersonating another admin
-    if (targetUser.role === 'admin') {
+    // Never impersonate an administrator. A plain admin also may not step into
+    // an office manager (admin-equivalent) or a super admin of any role; super
+    // admins may (e.g. "Login As" a doctor who is also a super admin — the
+    // impersonation token carries only the doctor role).
+    if (
+      targetUser.role === 'admin' ||
+      (!isSuperAdmin && (targetUser.role === 'office_manager' || targetUser.is_super_admin === true))
+    ) {
       res.status(403).json({ error: 'Cannot impersonate another administrator' });
       return;
     }

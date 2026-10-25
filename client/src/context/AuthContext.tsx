@@ -250,6 +250,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = () => {
+    const wasPatient = user?.role === 'patient';
     // Clear all auth state from localStorage
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -262,7 +263,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // SSE connections, polling intervals, and stale closures.
     // A soft navigate() leaves orphaned connections that interfere
     // with the next login session.
-    window.location.href = '/login';
+    window.location.href = wasPatient ? '/portal' : '/login';
   };
 
   const impersonateUser = async (userId: number) => {

@@ -23,6 +23,64 @@ export const STAFF_ROLES = [
   'pharmacy', 'pharmacist', 'pharmacy_tech', 'imaging', 'accountant', 'marketing',
 ] as const;
 
+/**
+ * The ONLY routes a patient-portal token may call. Everything else is staff
+ * territory and answers 403 for a patient, whatever the route's own gates say —
+ * so a route that forgets authorizeRoles can't leak other patients' records.
+ * Keep in sync with what client/src/pages/PatientPortal.tsx actually calls.
+ * (The staff /orders/lab etc. are deliberately NOT here: they don't apply the
+ * results-release rule, so a patient must go through /patient-portal/*.)
+ */
+const PATIENT_ALLOWED_ROUTES: { method: string; path: RegExp }[] = [
+  // Portal records: own patient only, results held until released.
+  { method: 'GET', path: /^\/patient-portal\/(me|labs|imaging|medications|appointments|bills)$/ },
+  { method: 'GET', path: /^\/auth\/me$/ },
+  { method: 'POST', path: /^\/auth\/logout(-all)?$/ },
+  // Notifications are always scoped to the caller's own rows.
+  { method: '*', path: /^\/notifications(\/.*)?$/ },
+];
+
+const isPatientAllowedRoute = (req: Request): boolean => {
+  const path = (req.originalUrl || req.url || '').split('?')[0].replace(/^\/api(?=\/)/, '').replace(/\/+$/, '');
+  return PATIENT_ALLOWED_ROUTES.some(
+    (r) => (r.method === '*' || r.method === req.method) && r.path.test(path)
+  );
+};
+
+/**
+ * Account status, looked up per request (cached briefly per instance) so that
+ * deactivating a user or "log out everywhere" takes effect within seconds
+ * instead of when the JWT expires (24h staff, 90 days portal).
+ */
+interface AccountStatus { isActive: boolean; revokedAtSec: number | null; isSuperAdmin: boolean; at: number }
+const ACCOUNT_STATUS_TTL_MS = 30_000;
+const accountStatusCache = new Map<number, AccountStatus>();
+
+const getAccountStatus = async (userId: number): Promise<AccountStatus | null> => {
+  const cached = accountStatusCache.get(userId);
+  if (cached && Date.now() - cached.at < ACCOUNT_STATUS_TTL_MS) return cached;
+  const r = await pool.query(
+    `SELECT is_active, is_super_admin,
+            FLOOR(EXTRACT(EPOCH FROM tokens_revoked_at))::bigint AS revoked_at_sec
+       FROM users WHERE id = $1`,
+    [userId]
+  );
+  if (r.rows.length === 0) return null;
+  const status: AccountStatus = {
+    isActive: r.rows[0].is_active !== false,
+    revokedAtSec: r.rows[0].revoked_at_sec != null ? Number(r.rows[0].revoked_at_sec) : null,
+    isSuperAdmin: r.rows[0].is_super_admin === true,
+    at: Date.now(),
+  };
+  accountStatusCache.set(userId, status);
+  return status;
+};
+
+/** Drop a user's cached status so a deactivation / revoke applies immediately on this instance. */
+export const forgetAccountStatus = (userId: number): void => {
+  accountStatusCache.delete(userId);
+};
+
 const getJwtSecret = (): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -60,6 +118,31 @@ export const authenticateToken = async (
     const revoked = await isTokenRevoked(token);
     if (revoked) {
       res.status(401).json({ error: 'Token has been revoked' });
+      return;
+    }
+
+    // Deactivated accounts and "log out everywhere" end existing sessions.
+    // Fail-OPEN on a DB error, like the blacklist check above: a Neon hiccup
+    // must not log everyone out.
+    try {
+      const status = await getAccountStatus(decoded.id);
+      if (!status || !status.isActive) {
+        res.status(401).json({ error: 'Account is inactive' });
+        return;
+      }
+      if (status.revokedAtSec !== null && decoded.iat !== undefined && decoded.iat < status.revokedAtSec) {
+        res.status(401).json({ error: 'Session has been signed out' });
+        return;
+      }
+      // A super-admin flag removed in the DB stops applying straight away.
+      if (decoded.is_super_admin && !status.isSuperAdmin) decoded.is_super_admin = false;
+    } catch (statusError) {
+      console.error('Account status check failed (allowing request):', statusError);
+    }
+
+    // Patient-portal tokens may only reach the portal's own routes.
+    if (decoded.role === 'patient' && !decoded.is_super_admin && !isPatientAllowedRoute(req)) {
+      res.status(403).json({ error: 'Insufficient permissions' });
       return;
     }
 
@@ -122,7 +205,14 @@ export const enforcePatientOwnership = async (
     }
 
     // Query-param endpoints: force scoping to the caller's own record.
-    req.query.patient_id = ownPatientId;
+    // Express 5 re-parses req.query from the URL on every read, so assigning
+    // req.query.patient_id is silently lost — replace the property instead.
+    Object.defineProperty(req, 'query', {
+      value: { ...req.query, patient_id: ownPatientId },
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
     next();
   } catch (error) {
     console.error('enforcePatientOwnership error:', error);
