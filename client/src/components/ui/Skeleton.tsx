@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 
 interface SkeletonProps {
@@ -36,7 +37,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
 
   return (
     <div
-      className={`${baseStyles} ${variantStyles[variant]} ${animationStyles[animation]} ${className}`}
+      className={dsClass(`${baseStyles} ${variantStyles[variant]} ${animationStyles[animation]} ${className}`)}
       style={style}
     />
   );
@@ -44,7 +45,7 @@ const Skeleton: React.FC<SkeletonProps> = ({
 
 // Convenience components
 export const SkeletonText: React.FC<{ lines?: number; className?: string }> = ({ lines = 3, className = '' }) => (
-  <div className={`space-y-2 ${className}`}>
+  <div className={dsClass(`space-y-2 ${className}`)}>
     {Array.from({ length: lines }).map((_, i) => (
       <Skeleton
         key={i}
@@ -57,7 +58,7 @@ export const SkeletonText: React.FC<{ lines?: number; className?: string }> = ({
 );
 
 export const SkeletonCard: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-6 ${className}`}>
+  <div className={dsClass(`bg-white rounded-xl border border-gray-200 p-6 ${className}`)}>
     <div className="flex items-center space-x-4 mb-4">
       <Skeleton variant="circular" width={48} height={48} />
       <div className="flex-1">
@@ -70,7 +71,7 @@ export const SkeletonCard: React.FC<{ className?: string }> = ({ className = '' 
 );
 
 export const SkeletonStatCard: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-6 ${className}`}>
+  <div className={dsClass(`bg-white rounded-xl border border-gray-200 p-6 ${className}`)}>
     <Skeleton variant="text" width="50%" height="0.75rem" className="mb-3" />
     <Skeleton variant="text" width="40%" height="2rem" className="mb-2" />
     <Skeleton variant="text" width="70%" height="0.75rem" />
@@ -79,7 +80,7 @@ export const SkeletonStatCard: React.FC<{ className?: string }> = ({ className =
 
 // Patient List Row Skeleton
 export const SkeletonPatientRow: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-4 ${className}`}>
+  <div className={dsClass(`bg-white rounded-xl border border-gray-200 p-4 ${className}`)}>
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-4">
         <Skeleton variant="circular" width={48} height={48} />
@@ -134,15 +135,15 @@ export const SkeletonTable: React.FC<{ rows?: number; cols?: number }> = ({
   rows = 5,
   cols = 4
 }) => (
-  <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+  <div className={dsClass("bg-white rounded-xl border border-gray-200 overflow-hidden")}>
     {/* Header */}
-    <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex gap-4">
+    <div className={dsClass("bg-gray-50 border-b border-gray-200 px-4 py-3 flex gap-4")}>
       {[...Array(cols)].map((_, i) => (
         <Skeleton key={i} variant="text" width={`${100/cols}%`} height="0.875rem" />
       ))}
     </div>
     {/* Rows */}
-    <div className="divide-y divide-gray-100">
+    <div className={dsClass("divide-y divide-gray-100")}>
       {[...Array(rows)].map((_, rowIndex) => (
         <div key={rowIndex} className="px-4 py-4 flex gap-4">
           {[...Array(cols)].map((_, colIndex) => (

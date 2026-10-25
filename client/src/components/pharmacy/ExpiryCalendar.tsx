@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState, useEffect } from 'react';
 import {
   format,
@@ -66,18 +67,18 @@ const ExpiryCalendar: React.FC = () => {
     <div className="flex items-center justify-between mb-4">
       <button
         onClick={() => setCurrentDate(subMonths(currentDate, 1))}
-        className="p-2 hover:bg-gray-100 rounded-lg"
+        className={dsClass("p-2 hover:bg-gray-100 rounded-lg")}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
       </button>
-      <h2 className="text-xl font-semibold text-gray-800">
+      <h2 className={dsClass("text-xl font-semibold text-gray-800")}>
         {format(currentDate, 'MMMM yyyy')}
       </h2>
       <button
         onClick={() => setCurrentDate(addMonths(currentDate, 1))}
-        className="p-2 hover:bg-gray-100 rounded-lg"
+        className={dsClass("p-2 hover:bg-gray-100 rounded-lg")}
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -91,7 +92,7 @@ const ExpiryCalendar: React.FC = () => {
     return (
       <div className="grid grid-cols-7 mb-2">
         {days.map((day) => (
-          <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+          <div key={day} className={dsClass("text-center text-sm font-medium text-gray-500 py-2")}>
             {day}
           </div>
         ))}
@@ -126,29 +127,29 @@ const ExpiryCalendar: React.FC = () => {
           <div
             key={day.toString()}
             onClick={() => batches.length > 0 && setSelectedDate(isSelected ? null : dateKey)}
-            className={`
+            className={dsClass(`
               min-h-[80px] p-1 border border-gray-200 cursor-pointer transition-colors
               ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'bg-white'}
               ${isToday ? 'ring-2 ring-primary-500' : ''}
               ${isSelected ? 'bg-primary-50' : ''}
               ${batches.length > 0 ? 'hover:bg-gray-50' : ''}
-            `}
+            `)}
           >
             <div className="text-right text-sm mb-1">{format(day, 'd')}</div>
             {batches.length > 0 && (
               <div className="space-y-0.5">
                 {expiredCount > 0 && (
-                  <div className="text-xs bg-danger-100 text-danger-700 rounded px-1 truncate">
+                  <div className={dsClass("text-xs bg-danger-100 text-danger-700 rounded px-1 truncate")}>
                     {expiredCount} expired
                   </div>
                 )}
                 {criticalCount > 0 && (
-                  <div className="text-xs bg-orange-100 text-orange-700 rounded px-1 truncate">
+                  <div className={dsClass("text-xs bg-orange-100 text-orange-700 rounded px-1 truncate")}>
                     {criticalCount} critical
                   </div>
                 )}
                 {warningCount > 0 && (
-                  <div className="text-xs bg-warning-100 text-warning-700 rounded px-1 truncate">
+                  <div className={dsClass("text-xs bg-warning-100 text-warning-700 rounded px-1 truncate")}>
                     {warningCount} warning
                   </div>
                 )}
@@ -170,17 +171,17 @@ const ExpiryCalendar: React.FC = () => {
 
   const renderSummary = () => (
     <div className="grid grid-cols-3 gap-4 mb-4">
-      <div className="bg-danger-50 border border-danger-200 rounded-lg p-3 text-center">
-        <div className="text-2xl font-bold text-danger-600">{data?.summary?.expired_count || 0}</div>
-        <div className="text-sm text-danger-700">Expired</div>
+      <div className={dsClass("bg-danger-50 border border-danger-200 rounded-lg p-3 text-center")}>
+        <div className={dsClass("text-2xl font-bold text-danger-600")}>{data?.summary?.expired_count || 0}</div>
+        <div className={dsClass("text-sm text-danger-700")}>Expired</div>
       </div>
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
-        <div className="text-2xl font-bold text-orange-600">{data?.summary?.critical_count || 0}</div>
-        <div className="text-sm text-orange-700">Critical (&lt;30 days)</div>
+      <div className={dsClass("bg-orange-50 border border-orange-200 rounded-lg p-3 text-center")}>
+        <div className={dsClass("text-2xl font-bold text-orange-600")}>{data?.summary?.critical_count || 0}</div>
+        <div className={dsClass("text-sm text-orange-700")}>Critical (&lt;30 days)</div>
       </div>
-      <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-center">
-        <div className="text-2xl font-bold text-warning-600">{data?.summary?.warning_count || 0}</div>
-        <div className="text-sm text-warning-700">Warning (&lt;90 days)</div>
+      <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-3 text-center")}>
+        <div className={dsClass("text-2xl font-bold text-warning-600")}>{data?.summary?.warning_count || 0}</div>
+        <div className={dsClass("text-sm text-warning-700")}>Warning (&lt;90 days)</div>
       </div>
     </div>
   );
@@ -190,36 +191,36 @@ const ExpiryCalendar: React.FC = () => {
 
     const batches = data.byDate[selectedDate];
     return (
-      <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">
+      <div className={dsClass("mt-4 bg-white border border-gray-200 rounded-lg p-4")}>
+        <h3 className={dsClass("text-lg font-semibold text-gray-800 mb-3")}>
           Batches Expiring on {format(new Date(selectedDate), 'MMMM d, yyyy')}
         </h3>
         <div className="space-y-2">
           {batches.map((batch) => (
             <div
               key={batch.id}
-              className={`flex items-center justify-between p-3 rounded-lg ${
+              className={dsClass(`flex items-center justify-between p-3 rounded-lg ${
                 batch.status === 'expired'
                   ? 'bg-danger-50 border border-danger-200'
                   : batch.status === 'critical'
                   ? 'bg-orange-50 border border-orange-200'
                   : 'bg-warning-50 border border-warning-200'
-              }`}
+              }`)}
             >
               <div>
-                <div className="font-medium text-gray-900">{batch.medication_name}</div>
-                <div className="text-sm text-gray-500">Batch: {batch.batch_number}</div>
+                <div className={dsClass("font-medium text-gray-900")}>{batch.medication_name}</div>
+                <div className={dsClass("text-sm text-gray-500")}>Batch: {batch.batch_number}</div>
               </div>
               <div className="text-right">
                 <div className="font-semibold">{batch.quantity} units</div>
                 <span
-                  className={`text-xs px-2 py-0.5 rounded-full ${
+                  className={dsClass(`text-xs px-2 py-0.5 rounded-full ${
                     batch.status === 'expired'
                       ? 'bg-danger-200 text-danger-800'
                       : batch.status === 'critical'
                       ? 'bg-orange-200 text-orange-800'
                       : 'bg-warning-200 text-warning-800'
-                  }`}
+                  }`)}
                 >
                   {batch.status}
                 </span>
@@ -234,13 +235,13 @@ const ExpiryCalendar: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className={dsClass("animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600")}></div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
+    <div className={dsClass("bg-white rounded-lg shadow-sm p-4")}>
       {renderSummary()}
       {renderHeader()}
       {renderDays()}

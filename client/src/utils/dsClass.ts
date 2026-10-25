@@ -12,9 +12,16 @@
  *
  * Every value below is a complete literal class list on purpose: Tailwind only
  * generates classes it can find written out in the source.
+ *
+ * Rule-based entries for every other legacy colour class in the app are
+ * generated into dsClassMap.generated.ts (scripts/generate-ds-class-map.mjs);
+ * the hand-written entries below win where both exist.
  */
 
+import { GENERATED_DS_CLASS_MAP } from './dsClassMap.generated';
+
 const MAP: Record<string, string> = {
+  ...GENERATED_DS_CLASS_MAP,
   // surfaces
   'bg-white': 'bg-ds-surface',
   'bg-surface': 'bg-ds-surface',
@@ -99,10 +106,10 @@ const MAP: Record<string, string> = {
   'text-danger-600': 'text-ds-critical-text',
   'text-danger-700': 'text-ds-critical-text',
   'bg-danger-600': 'bg-ds-critical',
-  'hover:bg-danger-700': 'hover:bg-ds-critical',
+  'hover:bg-danger-700': 'hover:bg-ds-critical/90',
   'focus:ring-danger-500': 'focus:ring-ds-critical',
   'bg-warning-600': 'bg-ds-warning',
-  'hover:bg-warning-700': 'hover:bg-ds-warning',
+  'hover:bg-warning-700': 'hover:bg-ds-warning/90',
   'focus:ring-warning-500': 'focus:ring-ds-warning',
   // ambient background blobs
   // (tinted down: the token colours are much stronger than the old pastel -200s)
@@ -214,6 +221,10 @@ const TEXT_ON_FILL: [RegExp, string][] = [
   [/(^| )bg-ds-accent( |$)/, 'text-ds-on-accent'],
   [/(^| )bg-ds-warning( |$)/, 'text-white dark:text-ds-canvas'],
   [/(^| )bg-ds-success( |$)/, 'text-white dark:text-ds-canvas'],
+  [/(^| )bg-ds-info( |$)/, 'text-white dark:text-ds-canvas'],
+  [/(^| )bg-ds-brand-plum( |$)/, 'text-white dark:text-ds-canvas'],
+  // dark neutral fills (tooltips, badges) turn light in dark mode
+  [/(^| )bg-ds-text( |$)/, 'text-ds-canvas'],
 ];
 
 /** Translate legacy colour classes to design-system tokens. */

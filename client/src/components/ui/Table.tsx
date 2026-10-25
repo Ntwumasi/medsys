@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 
 interface Column<T> {
@@ -38,26 +39,26 @@ function Table<T>({
 
   if (isLoading) {
     return (
-      <div className={`overflow-hidden rounded-xl border border-gray-200 ${className}`}>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className={dsClass(`overflow-hidden rounded-xl border border-gray-200 ${className}`)}>
+        <table className={dsClass("min-w-full divide-y divide-gray-200")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`}
+                  className={dsClass(`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`)}
                 >
                   {col.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className={dsClass("bg-white divide-y divide-gray-100")}>
             {Array.from({ length: loadingRows }).map((_, i) => (
               <tr key={i}>
                 {columns.map((col) => (
-                  <td key={col.key} className={cellPadding}>
-                    <div className="h-4 bg-gray-200 rounded animate-pulse" style={{ width: `${60 + Math.random() * 40}%` }} />
+                  <td key={col.key} className={dsClass(cellPadding)}>
+                    <div className={dsClass("h-4 bg-gray-200 rounded animate-pulse")} style={{ width: `${60 + Math.random() * 40}%` }} />
                   </td>
                 ))}
               </tr>
@@ -70,14 +71,14 @@ function Table<T>({
 
   if (data.length === 0) {
     return (
-      <div className={`overflow-hidden rounded-xl border border-gray-200 ${className}`}>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className={dsClass(`overflow-hidden rounded-xl border border-gray-200 ${className}`)}>
+        <table className={dsClass("min-w-full divide-y divide-gray-200")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`}
+                  className={dsClass(`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`)}
                 >
                   {col.header}
                 </th>
@@ -85,42 +86,42 @@ function Table<T>({
             </tr>
           </thead>
         </table>
-        <div className="bg-white px-6 py-12 text-center">
+        <div className={dsClass("bg-white px-6 py-12 text-center")}>
           {emptyIcon && <div className="flex justify-center mb-4">{emptyIcon}</div>}
-          <p className="text-gray-500">{emptyMessage}</p>
+          <p className={dsClass("text-gray-500")}>{emptyMessage}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`overflow-hidden rounded-xl border border-gray-200 ${className}`}>
+    <div className={dsClass(`overflow-hidden rounded-xl border border-gray-200 ${className}`)}>
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+        <table className={dsClass("min-w-full divide-y divide-gray-200")}>
+          <thead className={dsClass("bg-gray-50")}>
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`}
+                  className={dsClass(`${headerPadding} text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.headerClassName || ''}`)}
                 >
                   {col.header}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-100">
+          <tbody className={dsClass("bg-white divide-y divide-gray-100")}>
             {data.map((item, index) => (
               <tr
                 key={keyExtractor(item, index)}
                 onClick={() => onRowClick?.(item)}
-                className={`${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors duration-150 animate-fade-in-up stagger-item`}
+                className={dsClass(`${onRowClick ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors duration-150 animate-fade-in-up stagger-item`)}
                 style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
               >
                 {columns.map((col) => (
                   <td
                     key={col.key}
-                    className={`${cellPadding} text-sm text-gray-900 ${col.className || ''}`}
+                    className={dsClass(`${cellPadding} text-sm text-gray-900 ${col.className || ''}`)}
                   >
                     {col.render
                       ? col.render(item, index)

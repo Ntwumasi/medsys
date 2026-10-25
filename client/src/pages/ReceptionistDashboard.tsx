@@ -4369,7 +4369,7 @@ const ReceptionistDashboard: React.FC = () => {
                       }
                     }}
                     disabled={submittingSpecialInvoice || specialInvoiceItems.every(i => !i.description.trim() || i.unit_price <= 0)}
-                    className="px-6 py-2.5 bg-ds-warning text-white dark:text-ds-canvas rounded-lg hover:bg-ds-warning/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="min-h-ds-touch px-6 py-2.5 bg-ds-warning text-white dark:text-ds-canvas rounded-lg hover:bg-ds-warning/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {submittingSpecialInvoice ? (
                       <>

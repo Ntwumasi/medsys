@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 
 // Period-over-period delta shown next to a sparkline. Splits the input
@@ -44,7 +45,7 @@ const Delta: React.FC<DeltaProps> = ({ series, direction = 'up-is-good', mode = 
   const rounded = Math.round(pct);
   if (rounded === 0) {
     return (
-      <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold text-text-secondary ${className}`}>
+      <span className={dsClass(`inline-flex items-center gap-0.5 text-[10px] font-semibold text-text-secondary ${className}`)}>
         — flat
       </span>
     );
@@ -56,7 +57,7 @@ const Delta: React.FC<DeltaProps> = ({ series, direction = 'up-is-good', mode = 
   const arrow = up ? '▲' : '▼';
 
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${tone} ${className}`}>
+    <span className={dsClass(`inline-flex items-center gap-0.5 text-[10px] font-semibold tabular-nums ${tone} ${className}`)}>
       <span>{arrow}</span>
       <span>{up ? '+' : ''}{rounded}%</span>
     </span>

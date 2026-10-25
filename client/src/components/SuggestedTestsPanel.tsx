@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useCallback, useEffect, useState } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -164,25 +165,25 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
     return (
       <div
         key={key}
-        className="flex items-start justify-between gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2"
+        className={dsClass("flex items-start justify-between gap-3 bg-white rounded-lg border border-gray-200 px-3 py-2")}
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900">{test.test_name}</span>
-            <span className="text-[11px] text-gray-400 tabular-nums">{test.test_code}</span>
+            <span className={dsClass("text-sm font-semibold text-gray-900")}>{test.test_name}</span>
+            <span className={dsClass("text-[11px] text-gray-400 tabular-nums")}>{test.test_code}</span>
             {test.priority !== 'routine' && (
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${priorityChip(test.priority)}`}>
+              <span className={dsClass(`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${priorityChip(test.priority)}`)}>
                 {test.priority}
               </span>
             )}
             {test.base_price != null && test.base_price > 0 && (
-              <span className="text-[11px] text-gray-500 tabular-nums">GHS {test.base_price.toFixed(2)}</span>
+              <span className={dsClass("text-[11px] text-gray-500 tabular-nums")}>GHS {test.base_price.toFixed(2)}</span>
             )}
           </div>
-          {test.rationale && <p className="text-xs text-gray-600 mt-0.5">{test.rationale}</p>}
+          {test.rationale && <p className={dsClass("text-xs text-gray-600 mt-0.5")}>{test.rationale}</p>}
           <div className="flex items-center gap-2 mt-1">
-            {test.interval && <span className="text-[11px] text-gray-400">{test.interval}</span>}
-            {done && <span className="text-[11px] text-warning-600">{done}</span>}
+            {test.interval && <span className={dsClass("text-[11px] text-gray-400")}>{test.interval}</span>}
+            {done && <span className={dsClass("text-[11px] text-warning-600")}>{done}</span>}
           </div>
         </div>
         {mode === 'doctor' && (
@@ -190,11 +191,11 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
             type="button"
             onClick={() => handleAdd(test)}
             disabled={ordered}
-            className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${
+            className={dsClass(`flex-shrink-0 px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap ${
               ordered
                 ? 'bg-gray-100 text-gray-400 cursor-default'
                 : 'bg-primary-600 text-white hover:bg-primary-700'
-            }`}
+            }`)}
           >
             {ordered ? 'Ordered' : 'Add'}
           </button>
@@ -204,10 +205,10 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div className={dsClass("bg-white rounded-xl shadow-sm border border-gray-200 p-6")}>
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={dsClass("w-4 h-4 text-indigo-400")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -215,9 +216,9 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
               d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
             />
           </svg>
-          <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Suggested Tests</h2>
+          <h2 className={dsClass("text-[11px] font-semibold text-text-secondary uppercase tracking-wider")}>Suggested Tests</h2>
           {total > 0 && (
-            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full tabular-nums">
+            <span className={dsClass("px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-full tabular-nums")}>
               {total}
             </span>
           )}
@@ -227,7 +228,7 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
             type="button"
             onClick={load}
             disabled={loading}
-            className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
+            className={dsClass("text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50")}
             title="Regenerate suggestions"
           >
             Refresh
@@ -236,7 +237,7 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
             <button
               type="button"
               onClick={() => setCollapsed((c) => !c)}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className={dsClass("text-xs text-gray-400 hover:text-gray-600")}
             >
               {collapsed ? 'Show' : 'Hide'}
             </button>
@@ -244,38 +245,38 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
         </div>
       </div>
 
-      {loading && <p className="text-sm text-gray-400 animate-pulse">Reviewing history and demographics…</p>}
+      {loading && <p className={dsClass("text-sm text-gray-400 animate-pulse")}>Reviewing history and demographics…</p>}
 
       {!loading && error && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-500">{error}</p>
-          <button type="button" onClick={load} className="text-xs font-semibold text-primary-600 hover:text-primary-700">
+          <p className={dsClass("text-sm text-gray-500")}>{error}</p>
+          <button type="button" onClick={load} className={dsClass("text-xs font-semibold text-primary-600 hover:text-primary-700")}>
             Try again
           </button>
         </div>
       )}
 
       {!loading && !error && data && total === 0 && (
-        <p className="text-sm text-gray-400">Nothing outstanding for this patient right now.</p>
+        <p className={dsClass("text-sm text-gray-400")}>Nothing outstanding for this patient right now.</p>
       )}
 
       {!loading && !error && data && total > 0 && !collapsed && (
         <div className="space-y-4">
-          {data.clinical_note && <p className="text-xs text-gray-600 italic">{data.clinical_note}</p>}
+          {data.clinical_note && <p className={dsClass("text-xs text-gray-600 italic")}>{data.clinical_note}</p>}
 
           {data.visit_tests.length > 0 && (
             <div>
-              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">This Visit</h3>
+              <h3 className={dsClass("text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2")}>This Visit</h3>
               <div className="space-y-2">{data.visit_tests.map((t, i) => renderTest(t, `v-${i}`))}</div>
             </div>
           )}
 
           {data.screening_tests.length > 0 && (
             <div>
-              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              <h3 className={dsClass("text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2")}>
                 Health Maintenance
                 {data.patient.age !== null && (
-                  <span className="ml-1 normal-case font-normal text-gray-400">
+                  <span className={dsClass("ml-1 normal-case font-normal text-gray-400")}>
                     · based on age {data.patient.age}
                     {data.patient.gender ? `, ${data.patient.gender}` : ''} and history
                   </span>
@@ -287,22 +288,22 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
 
           {data.imaging_tests.length > 0 && (
             <div>
-              <h3 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Imaging</h3>
+              <h3 className={dsClass("text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2")}>Imaging</h3>
               <div className="space-y-2">
                 {data.imaging_tests.map((img, i) => (
-                  <div key={`i-${i}`} className="bg-white rounded-lg border border-gray-200 px-3 py-2">
+                  <div key={`i-${i}`} className={dsClass("bg-white rounded-lg border border-gray-200 px-3 py-2")}>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className={dsClass("text-sm font-semibold text-gray-900")}>
                         {img.study_type}
                         {img.body_part ? ` — ${img.body_part}` : ''}
                       </span>
                       {img.priority && img.priority !== 'routine' && (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${priorityChip(img.priority)}`}>
+                        <span className={dsClass(`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${priorityChip(img.priority)}`)}>
                           {img.priority}
                         </span>
                       )}
                     </div>
-                    {img.rationale && <p className="text-xs text-gray-600 mt-0.5">{img.rationale}</p>}
+                    {img.rationale && <p className={dsClass("text-xs text-gray-600 mt-0.5")}>{img.rationale}</p>}
                   </div>
                 ))}
               </div>
@@ -310,7 +311,7 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
           )}
 
           <div className="flex items-center justify-between gap-3 pt-1">
-            <p className="text-[11px] text-gray-400">
+            <p className={dsClass("text-[11px] text-gray-400")}>
               AI suggestions for clinician review — not a diagnosis. Confirm before ordering.
             </p>
             {mode === 'nurse' && encounterId && (
@@ -318,7 +319,7 @@ const SuggestedTestsPanel: React.FC<SuggestedTestsPanelProps> = ({
                 type="button"
                 onClick={handleFlag}
                 disabled={flagging}
-                className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
+                className={dsClass("flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50")}
               >
                 {flagging ? 'Sending…' : 'Flag to doctor'}
               </button>

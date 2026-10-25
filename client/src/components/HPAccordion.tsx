@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -623,42 +624,42 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     const indentClass = level === 0 ? '' : 'ml-4';
 
     return (
-      <div key={section.id} className={indentClass}>
+      <div key={section.id} className={dsClass(indentClass)}>
         <div
           onClick={() => handleSectionClick(section.id)}
-          className={`
+          className={dsClass(`
             group flex items-center gap-3 py-2.5 px-4 cursor-pointer transition-colors
             ${isExpanded ? 'bg-primary-50 border-l-2 border-primary-500' : 'border-l-2 border-transparent hover:bg-gray-50'}
-          `}
+          `)}
         >
           {/* Completion Indicator */}
           <div className="flex-shrink-0">
             {section.completed ? (
-              <svg className="w-4 h-4 text-success-500" fill="currentColor" viewBox="0 0 20 20">
+              <svg className={dsClass("w-4 h-4 text-success-500")} fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
             ) : (
-              <div className={`w-4 h-4 rounded-full border-2 ${isExpanded ? 'border-primary-400' : 'border-gray-300'}`} />
+              <div className={dsClass(`w-4 h-4 rounded-full border-2 ${isExpanded ? 'border-primary-400' : 'border-gray-300'}`)} />
             )}
           </div>
 
           {/* Section Title */}
-          <span className={`flex-1 text-sm transition-colors ${
+          <span className={dsClass(`flex-1 text-sm transition-colors ${
             isExpanded ? 'font-semibold text-primary-800' :
             section.completed ? 'text-gray-600' : 'text-gray-700 group-hover:text-gray-900'
-          }`}>
+          }`)}>
             {section.title}
           </span>
 
           {/* Chevron */}
-          <svg className={`w-4 h-4 flex-shrink-0 transition-colors ${isExpanded ? 'text-primary-500' : 'text-gray-300 group-hover:text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={dsClass(`w-4 h-4 flex-shrink-0 transition-colors ${isExpanded ? 'text-primary-500' : 'text-gray-300 group-hover:text-gray-400'}`)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isExpanded ? 'M19 9l-7 7-7-7' : 'M9 5l7 7-7 7'} />
           </svg>
         </div>
 
         {/* Subsections - only show when parent is expanded */}
         {hasSubsections && isExpanded && (
-          <div className="ml-6 border-l-2 border-gray-200 hover:border-gray-300 transition-colors">
+          <div className={dsClass("ml-6 border-l-2 border-gray-200 hover:border-gray-300 transition-colors")}>
             {section.subsections!.map(subsection => renderSection(subsection, level + 1))}
           </div>
         )}
@@ -672,28 +673,28 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
     <div className="flex flex-col gap-6 px-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left Side - Accordion Sections */}
-      <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 max-h-[800px] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 z-10">
+      <div className={dsClass("lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 max-h-[800px] overflow-hidden flex flex-col")}>
+        <div className={dsClass("sticky top-0 bg-white border-b border-gray-100 px-4 py-3 z-10")}>
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">SOAP Note</h2>
-            <span className="text-xs text-gray-400 tabular-nums">
+            <h2 className={dsClass("text-[11px] font-semibold text-text-secondary uppercase tracking-wider")}>SOAP Note</h2>
+            <span className={dsClass("text-xs text-gray-400 tabular-nums")}>
               {effectiveSections.filter(s => s.completed).length}/{effectiveSections.length}
             </span>
           </div>
           {/* Progress bar */}
-          <div className="w-full h-1 bg-gray-100 rounded-full mb-2">
+          <div className={dsClass("w-full h-1 bg-gray-100 rounded-full mb-2")}>
             <div
-              className="h-1 bg-primary-500 rounded-full transition-all duration-300"
+              className={dsClass("h-1 bg-primary-500 rounded-full transition-all duration-300")}
               style={{ width: `${(effectiveSections.filter(s => s.completed).length / effectiveSections.length) * 100}%` }}
             />
           </div>
           <button
             onClick={() => setShowSmartDictation(true)}
-            className="w-full px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs font-medium text-gray-600"
+            className={dsClass("w-full px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs font-medium text-gray-600")}
             title="Smart Dictation (AI-powered)"
             disabled={isSigned}
           >
-            <svg className="w-3.5 h-3.5 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={dsClass("w-3.5 h-3.5 text-primary-500")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
             Smart Dictate
@@ -705,23 +706,23 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       </div>
 
       {/* Right Side - Content Editor */}
-      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+      <div className={dsClass("lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col")}>
         {expandedSection && currentSection ? (
           <div className="flex flex-col h-full">
             {/* Header */}
-            <div className="border-b border-gray-100 px-6 py-4">
+            <div className={dsClass("border-b border-gray-100 px-6 py-4")}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-gray-900">{currentSection.title}</h3>
+                  <h3 className={dsClass("text-lg font-semibold text-gray-900")}>{currentSection.title}</h3>
                   {currentSection.completed ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700">
+                    <span className={dsClass("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700")}>
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                       Complete
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                    <span className={dsClass("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500")}>
                       Incomplete
                     </span>
                   )}
@@ -731,7 +732,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     setExpandedSection(null);
                     setEditingContent('');
                   }}
-                  className="text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors"
+                  className={dsClass("text-gray-400 hover:text-gray-600 rounded-lg p-1.5 hover:bg-gray-100 transition-colors")}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -744,66 +745,66 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             <div className="flex-1 p-6 overflow-y-auto">
               {/* Special display for Vital Signs section */}
               {expandedSection === 'vital_signs' && vitalSigns && Object.keys(vitalSigns).length > 0 && (
-                <div className="mb-6 bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-xl p-5">
-                  <h4 className="text-md font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={dsClass("mb-6 bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-xl p-5")}>
+                  <h4 className={dsClass("text-md font-bold text-gray-900 mb-4 flex items-center gap-2")}>
+                    <svg className={dsClass("w-5 h-5 text-primary-600")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Recorded Vital Signs
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {vitalSigns.temperature && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Temperature</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Temperature</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.temperature}°{vitalSigns.temperature_unit || 'F'}
                         </div>
                       </div>
                     )}
                     {vitalSigns.heart_rate && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Heart Rate</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Heart Rate</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.heart_rate} <span className="text-sm font-normal">bpm</span>
                         </div>
                       </div>
                     )}
                     {(vitalSigns.blood_pressure_systolic || vitalSigns.blood_pressure_diastolic) && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Blood Pressure</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Blood Pressure</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.blood_pressure_systolic || '--'}/{vitalSigns.blood_pressure_diastolic || '--'}
                         </div>
                       </div>
                     )}
                     {vitalSigns.respiratory_rate && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Resp. Rate</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Resp. Rate</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.respiratory_rate} <span className="text-sm font-normal">/min</span>
                         </div>
                       </div>
                     )}
                     {vitalSigns.oxygen_saturation && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">SpO2</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>SpO2</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.oxygen_saturation}%
                         </div>
                       </div>
                     )}
                     {vitalSigns.weight && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Weight</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Weight</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.weight} <span className="text-sm font-normal">{vitalSigns.weight_unit || 'kg'}</span>
                         </div>
                       </div>
                     )}
                     {vitalSigns.height && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Height</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Height</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.height} <span className="text-sm font-normal">{vitalSigns.height_unit || 'cm'}</span>
                         </div>
                       </div>
@@ -813,9 +814,9 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                       const h = vitalSigns.height;
                       if (!w || !h) {
                         return (
-                          <div className="bg-white rounded-lg p-3 shadow-sm">
-                            <div className="text-xs text-gray-500 uppercase font-medium">BMI</div>
-                            <div className="text-sm text-gray-400 mt-1">Enter weight & height</div>
+                          <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                            <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>BMI</div>
+                            <div className={dsClass("text-sm text-gray-400 mt-1")}>Enter weight & height</div>
                           </div>
                         );
                       }
@@ -826,17 +827,17 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                       const category = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
                       const color = bmi < 18.5 ? 'text-warning-600' : bmi < 25 ? 'text-success-600' : bmi < 30 ? 'text-warning-600' : 'text-danger-600';
                       return (
-                        <div className="bg-white rounded-lg p-3 shadow-sm">
-                          <div className="text-xs text-gray-500 uppercase font-medium">BMI</div>
-                          <div className={`text-lg font-bold ${color}`}>{bmi.toFixed(1)}</div>
-                          <div className={`text-xs ${color}`}>{category}</div>
+                        <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                          <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>BMI</div>
+                          <div className={dsClass(`text-lg font-bold ${color}`)}>{bmi.toFixed(1)}</div>
+                          <div className={dsClass(`text-xs ${color}`)}>{category}</div>
                         </div>
                       );
                     })()}
                     {vitalSigns.pain_level !== undefined && vitalSigns.pain_level !== null && (
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <div className="text-xs text-gray-500 uppercase font-medium">Pain Level</div>
-                        <div className="text-lg font-bold text-gray-900">
+                      <div className={dsClass("bg-white rounded-lg p-3 shadow-sm")}>
+                        <div className={dsClass("text-xs text-gray-500 uppercase font-medium")}>Pain Level</div>
+                        <div className={dsClass("text-lg font-bold text-gray-900")}>
                           {vitalSigns.pain_level}/10
                         </div>
                       </div>
@@ -846,8 +847,8 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               )}
 
               {expandedSection === 'vital_signs' && (!vitalSigns || Object.keys(vitalSigns).length === 0) && (
-                <div className="mb-6 bg-warning-50 border border-warning-200 rounded-xl p-4 text-warning-800 flex items-center gap-3">
-                  <svg className="w-5 h-5 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className={dsClass("mb-6 bg-warning-50 border border-warning-200 rounded-xl p-4 text-warning-800 flex items-center gap-3")}>
+                  <svg className={dsClass("w-5 h-5 text-warning-500")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <span className="font-medium">No vital signs recorded yet. Please record vital signs in the Vital Signs tab.</span>
@@ -856,22 +857,22 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
 
               {/* Auto-populated Lab Results — pulled from completed lab_orders */}
               {expandedSection === 'lab_results' && completedLabs.length > 0 && (
-                <div className="mb-4 bg-success-50 border border-success-200 rounded-xl p-4">
+                <div className={dsClass("mb-4 bg-success-50 border border-success-200 rounded-xl p-4")}>
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-5 h-5 text-success-600" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className={dsClass("w-5 h-5 text-success-600")} fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <h4 className="font-bold text-success-900">
+                    <h4 className={dsClass("font-bold text-success-900")}>
                       Completed Lab Results ({completedLabs.length})
                     </h4>
                   </div>
                   <ul className="space-y-2">
                     {completedLabs.map(lab => (
-                      <li key={lab.id} className="bg-white rounded p-3 border border-success-100">
+                      <li key={lab.id} className={dsClass("bg-white rounded p-3 border border-success-100")}>
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <span className="font-semibold text-gray-900">{lab.test_name}</span>
+                          <span className={dsClass("font-semibold text-gray-900")}>{lab.test_name}</span>
                           {lab.results_available_at && (
-                            <span className="text-xs text-gray-500">
+                            <span className={dsClass("text-xs text-gray-500")}>
                               {new Date(lab.results_available_at).toLocaleDateString()}
                             </span>
                           )}
@@ -880,17 +881,17 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                           <LabResultsInline result={lab.results} />
                         )}
                         {lab.result_document_id && (
-                          <div className="text-xs text-blue-700 mt-1">
+                          <div className={dsClass("text-xs text-blue-700 mt-1")}>
                             📎 Attached file: {lab.result_document_name || 'lab report'}
                           </div>
                         )}
                         {!lab.results?.trim() && !lab.result_document_id && (
-                          <div className="text-xs text-warning-700">⚠ Result not yet entered by lab tech.</div>
+                          <div className={dsClass("text-xs text-warning-700")}>⚠ Result not yet entered by lab tech.</div>
                         )}
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-success-700 mt-2">
+                  <p className={dsClass("text-xs text-success-700 mt-2")}>
                     Lab results above are pulled automatically. Add your interpretation in the notes below.
                   </p>
                 </div>
@@ -898,30 +899,30 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
 
               {/* Auto-populated Imaging Results */}
               {expandedSection === 'imaging_results' && completedImaging.length > 0 && (
-                <div className="mb-4 bg-success-50 border border-success-200 rounded-xl p-4">
+                <div className={dsClass("mb-4 bg-success-50 border border-success-200 rounded-xl p-4")}>
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-5 h-5 text-success-600" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className={dsClass("w-5 h-5 text-success-600")} fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
-                    <h4 className="font-bold text-success-900">
+                    <h4 className={dsClass("font-bold text-success-900")}>
                       Completed Imaging ({completedImaging.length})
                     </h4>
                   </div>
                   <ul className="space-y-2">
                     {completedImaging.map(img => (
-                      <li key={img.id} className="bg-white rounded p-3 border border-success-100">
+                      <li key={img.id} className={dsClass("bg-white rounded p-3 border border-success-100")}>
                         <div className="flex items-start justify-between gap-2 mb-1">
-                          <span className="font-semibold text-gray-900">
+                          <span className={dsClass("font-semibold text-gray-900")}>
                             {img.imaging_type}{img.body_part ? ` — ${img.body_part}` : ''}
                           </span>
                           {img.completed_date && (
-                            <span className="text-xs text-gray-500">
+                            <span className={dsClass("text-xs text-gray-500")}>
                               {new Date(img.completed_date).toLocaleDateString()}
                             </span>
                           )}
                         </div>
                         {img.findings && (
-                          <pre className="text-sm text-gray-900 whitespace-pre-wrap font-sans">{img.findings}</pre>
+                          <pre className={dsClass("text-sm text-gray-900 whitespace-pre-wrap font-sans")}>{img.findings}</pre>
                         )}
                       </li>
                     ))}
@@ -942,18 +943,18 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                   smartMode={true}
                   showVoiceDictation={true}
                   label={expandedSection === 'vital_signs' ? 'Additional Notes' : 'Notes / Content'}
-                  className={expandedSection === 'vital_signs' ? 'h-40' : 'h-80'}
+                  className={dsClass(expandedSection === 'vital_signs' ? 'h-40' : 'h-80')}
                 />
               </div>
             </div>
 
             {/* Auto-save Status Footer */}
-            <div className="border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div className={dsClass("border-t border-gray-200 bg-gray-50 px-6 py-4")}>
               <div className="flex items-center justify-between">
                 {/* Auto-save Status */}
                 <div className="flex items-center gap-2">
                   {autoSaveStatus === 'saving' && (
-                    <span className="flex items-center gap-2 text-sm text-primary-600">
+                    <span className={dsClass("flex items-center gap-2 text-sm text-primary-600")}>
                       <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -962,7 +963,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     </span>
                   )}
                   {autoSaveStatus === 'saved' && (
-                    <span className="flex items-center gap-2 text-sm text-success-600">
+                    <span className={dsClass("flex items-center gap-2 text-sm text-success-600")}>
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
@@ -970,7 +971,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     </span>
                   )}
                   {autoSaveStatus === 'error' && (
-                    <span className="flex items-center gap-2 text-sm text-danger-600">
+                    <span className={dsClass("flex items-center gap-2 text-sm text-danger-600")}>
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                       </svg>
@@ -978,7 +979,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     </span>
                   )}
                   {autoSaveStatus === 'idle' && (
-                    <span className="text-sm text-gray-400 flex items-center gap-1">
+                    <span className={dsClass("text-sm text-gray-400 flex items-center gap-1")}>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
@@ -991,18 +992,18 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full min-h-[600px] text-gray-400 p-8">
+          <div className={dsClass("flex flex-col items-center justify-center h-full min-h-[600px] text-gray-400 p-8")}>
             <div className="relative mb-6">
-              <div className="absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-20"></div>
-              <svg className="w-24 h-24 text-gray-300 relative" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className={dsClass("absolute inset-0 bg-primary-200 rounded-full blur-2xl opacity-20")}></div>
+              <svg className={dsClass("w-24 h-24 text-gray-300 relative")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
             </div>
-            <p className="text-xl font-semibold text-gray-600 mb-2">Select a section to begin</p>
-            <p className="text-sm text-gray-400 text-center max-w-md">
+            <p className={dsClass("text-xl font-semibold text-gray-600 mb-2")}>Select a section to begin</p>
+            <p className={dsClass("text-sm text-gray-400 text-center max-w-md")}>
               Click on any section from the accordion menu on the left to add or edit content for the patient's SOAP record
             </p>
-            <div className="mt-8 flex items-center gap-2 text-xs text-gray-400">
+            <div className={dsClass("mt-8 flex items-center gap-2 text-xs text-gray-400")}>
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
@@ -1022,9 +1023,9 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
       </div>
 
       {/* Bottom Action Bar */}
-      <div className="mt-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+      <div className={dsClass("mt-6 bg-white rounded-xl shadow-lg border border-gray-200 p-4")}>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className={dsClass("flex items-center gap-2 text-sm text-gray-500")}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -1034,7 +1035,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             {/* Preview Button */}
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm flex items-center gap-2"
+              className={dsClass("px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm flex items-center gap-2")}
               title="Preview SOAP Note"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1046,7 +1047,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             {/* Print Button */}
             <button
               onClick={handlePrint}
-              className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm flex items-center gap-2"
+              className={dsClass("px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all text-sm flex items-center gap-2")}
               title="Print / Save as PDF"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1069,11 +1070,11 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
               <button
                 onClick={onSign}
                 disabled={isSigned}
-                className={`px-5 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 ${
+                className={dsClass(`px-5 py-2 rounded-lg font-medium transition-all text-sm flex items-center gap-2 ${
                   isSigned
                     ? 'bg-success-100 text-success-700 cursor-not-allowed'
                     : 'bg-success-600 text-white hover:bg-success-700 shadow-md hover:shadow-lg'
-                }`}
+                }`)}
                 title={isSigned ? `Signed by ${signedBy || 'Doctor'} at ${signedAt || ''}` : 'Sign & Lock Note'}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1088,15 +1089,15 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
         {/* Addenda — append-only notes added after the visit (e.g. when lab
             results come back). Each addendum is timestamped and attributed. */}
         {(addenda.length > 0 || userRole === 'doctor') && (
-          <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className={dsClass("mt-4 border-t border-gray-200 pt-4")}>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
-                Addenda {addenda.length > 0 && <span className="text-gray-400 font-normal normal-case">({addenda.length})</span>}
+              <h4 className={dsClass("text-sm font-bold text-gray-800 uppercase tracking-wide")}>
+                Addenda {addenda.length > 0 && <span className={dsClass("text-gray-400 font-normal normal-case")}>({addenda.length})</span>}
               </h4>
               {userRole === 'doctor' && !addingAddendum && (
                 <button
                   onClick={() => { setAddingAddendum(true); setAddendumDraft(''); }}
-                  className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 inline-flex items-center gap-1.5"
+                  className={dsClass("px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 inline-flex items-center gap-1.5")}
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1107,7 +1108,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             </div>
 
             {addenda.length === 0 && !addingAddendum && (
-              <p className="text-xs text-gray-400 italic">
+              <p className={dsClass("text-xs text-gray-400 italic")}>
                 No addenda. Use addenda to add notes after the original visit — e.g. when lab/imaging results come back.
               </p>
             )}
@@ -1115,30 +1116,30 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
             {addenda.length > 0 && (
               <ol className="space-y-3 mb-3">
                 {addenda.map((a, idx) => (
-                  <li key={a.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between text-xs text-blue-700 mb-1.5 font-medium">
+                  <li key={a.id} className={dsClass("bg-blue-50 border border-blue-200 rounded-lg p-3")}>
+                    <div className={dsClass("flex items-center justify-between text-xs text-blue-700 mb-1.5 font-medium")}>
                       <span>
                         Addendum #{idx + 1} — {a.created_by_role === 'doctor' ? 'Dr. ' : ''}{a.created_by_name}
                       </span>
                       <span>{new Date(a.created_at).toLocaleString()}</span>
                     </div>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{a.content}</p>
+                    <p className={dsClass("text-sm text-gray-900 whitespace-pre-wrap")}>{a.content}</p>
                   </li>
                 ))}
               </ol>
             )}
 
             {addingAddendum && (
-              <div className="bg-white border border-primary-300 rounded-lg p-3">
+              <div className={dsClass("bg-white border border-primary-300 rounded-lg p-3")}>
                 <textarea
                   rows={4}
                   autoFocus
                   value={addendumDraft}
                   onChange={(e) => setAddendumDraft(e.target.value)}
                   placeholder="e.g. Lab results received — FBS within normal limits. No change to plan."
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className={dsClass("w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500")}
                 />
-                <p className="text-xs text-gray-400 mt-1">
+                <p className={dsClass("text-xs text-gray-400 mt-1")}>
                   Addenda are append-only — once saved they cannot be edited or deleted. The original SOAP stays intact.
                 </p>
                 <div className="flex items-center justify-end gap-2 mt-2">
@@ -1146,7 +1147,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     type="button"
                     onClick={() => { setAddingAddendum(false); setAddendumDraft(''); }}
                     disabled={savingAddendum}
-                    className="px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60"
+                    className={dsClass("px-3 py-1.5 text-xs font-medium text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-60")}
                   >
                     Cancel
                   </button>
@@ -1154,7 +1155,7 @@ const HPAccordion: React.FC<HPAccordionProps> = ({ encounterId, patientId, userR
                     type="button"
                     onClick={handleSaveAddendum}
                     disabled={savingAddendum || !addendumDraft.trim()}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60"
+                    className={dsClass("px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-60")}
                   >
                     {savingAddendum ? 'Saving…' : 'Save Addendum'}
                   </button>

@@ -9,6 +9,8 @@ import LabResultsInline from '../components/LabResultsInline';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
+import PatientStickyBar from '../components/PatientStickyBar';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { SmartTextArea } from '../components/SmartTextArea';
 import { parseMedicationName, calculateQuantity, FREQUENCY_OPTIONS } from '../utils/medicationParser';
 import { AutocompleteInput } from '../components/AutocompleteInput';
@@ -136,6 +138,8 @@ interface DoctorAlert {
 }
 
 const DoctorDashboard: React.FC = () => {
+  useDesignSystemPage();
+  const patientHeaderRef = useRef<HTMLHeadingElement>(null);
   const { user } = useAuth();
   // Unacknowledged critical lab values on this doctor's orders.
   const [criticalAlerts, setCriticalAlerts] = useState<Array<{
@@ -1367,13 +1371,13 @@ const DoctorDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ds-accent"></div>
       </div>
     );
   }
 
   return (
-    <AppLayout>
+    <AppLayout designSystem>
       <DashboardHeader
         title="Doctor Dashboard"
         stats={(
@@ -1386,26 +1390,26 @@ const DoctorDashboard: React.FC = () => {
       />
 
       {criticalAlerts.length > 0 && (
-        <section role="alert" className="mb-4 rounded-xl border-2 border-danger-300 bg-danger-50 p-4">
-          <h2 className="!text-base font-bold text-danger-800 mb-2">
+        <section role="alert" className="mb-4 rounded-ds-card border-2 border-ds-critical-border bg-ds-critical-soft p-4">
+          <h2 className="!text-base font-bold text-ds-critical-text mb-2">
             {criticalAlerts.length} critical lab result{criticalAlerts.length > 1 ? 's' : ''} — act now
           </h2>
           <ul className="space-y-2">
             {criticalAlerts.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-lg border border-danger-200 px-3 py-2">
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 bg-ds-surface rounded-lg border border-ds-critical-border px-3 py-2">
                 <div className="min-w-0">
-                  <p className="font-semibold text-gray-900">
-                    {a.patient_name} <span className="font-normal text-gray-500">· {a.patient_number}{a.room_number ? ` · Room ${a.room_number}` : ''}</span>
+                  <p className="font-semibold text-ds-text">
+                    {a.patient_name} <span className="font-normal text-ds-text-muted">· {a.patient_number}{a.room_number ? ` · Room ${a.room_number}` : ''}</span>
                   </p>
-                  <p className="text-sm text-danger-700">
+                  <p className="text-sm text-ds-critical-text">
                     <span className="font-bold">{a.result_value}</span> ({a.test_name}, {a.alert_type === 'critical_low' ? 'critically low' : 'critically high'})
-                    <span className="text-gray-500"> · {new Date(a.created_at).toLocaleString()}</span>
+                    <span className="text-ds-text-muted"> · {new Date(a.created_at).toLocaleString()}</span>
                   </p>
                 </div>
                 <button
                   onClick={() => acknowledgeCriticalAlert(a.id)}
                   disabled={acknowledgingAlertId === a.id}
-                  className="px-3 py-1.5 text-sm font-semibold text-white bg-danger-600 rounded-lg hover:bg-danger-700 disabled:opacity-50"
+                  className="min-h-ds-touch px-3 py-1.5 text-sm font-semibold text-white bg-ds-critical rounded-lg hover:bg-ds-critical/90 disabled:opacity-50"
                 >
                   {acknowledgingAlertId === a.id ? 'Saving…' : 'Acknowledge'}
                 </button>
@@ -1492,17 +1496,17 @@ const DoctorDashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
           {/* Active Patients */}
           <div className="flex">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
-              <div className="px-4 py-3 border-b border-gray-100">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden max-h-72 w-full flex flex-col">
+              <div className="px-4 py-3 border-b border-ds-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Active Patients</h2>
+                    <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Active Patients</h2>
                   </div>
                   {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length > 0 && (
-                    <span className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-bold rounded-full tabular-nums">
+                    <span className="px-2 py-0.5 bg-ds-accent-soft text-ds-accent-text text-xs font-bold rounded-full tabular-nums">
                       {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length}
                     </span>
                   )}
@@ -1510,7 +1514,7 @@ const DoctorDashboard: React.FC = () => {
               </div>
               <div className="max-h-56 overflow-y-auto">
                 {roomEncounters.length > 0 ? (
-                  <div className="divide-y divide-gray-100">
+                  <div className="divide-y divide-ds-border">
                     {roomEncounters
                       .filter(e => e.status !== 'cancelled')
                       .sort((a, b) => {
@@ -1523,34 +1527,34 @@ const DoctorDashboard: React.FC = () => {
                         const isWaiting = enc.status === 'ready_for_doctor';
                         const isInRoom = !!enc.room_number && !isWithDoctor && !isWaiting && !isCompleted;
                         const statusLabel = isWithDoctor ? 'With you' : isWaiting ? 'Waiting' : isInRoom ? 'In room' : isCompleted ? 'Done' : enc.status === 'checked_in' ? 'Checked in' : (enc.status?.replace(/_/g, ' ') || '');
-                        const dotColor = isWithDoctor ? 'bg-primary-500' : isWaiting ? 'bg-warning-400 animate-pulse' : isInRoom ? 'bg-success-400' : isCompleted ? 'bg-gray-300' : 'bg-gray-300';
+                        const dotColor = isWithDoctor ? 'bg-ds-accent' : isWaiting ? 'bg-ds-warning animate-pulse' : isInRoom ? 'bg-ds-success' : isCompleted ? 'bg-ds-border-control' : 'bg-ds-border-control';
                         return (
                           <button
                             key={enc.id}
                             onClick={() => { handleSelectEncounter(enc); document.getElementById('selected-encounter-panel')?.scrollIntoView({ behavior: 'smooth' }); }}
-                            className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors"
+                            className="min-h-ds-touch w-full text-left px-4 py-2.5 hover:bg-ds-subtle transition-colors"
                           >
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
-                              <span className="text-sm font-semibold text-gray-900 truncate">{enc.patient_name}</span>
+                              <span className="text-sm font-semibold text-ds-text truncate">{enc.patient_name}</span>
                               {enc.room_number && (
-                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 text-gray-600 flex-shrink-0">
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-ds-subtle text-ds-text-secondary flex-shrink-0">
                                   Rm {enc.room_number}
                                 </span>
                               )}
                               <span className={`ml-auto text-[10px] font-medium flex-shrink-0 ${
-                                isWithDoctor ? 'text-primary-600' : isWaiting ? 'text-warning-600' : isInRoom ? 'text-success-600' : 'text-gray-400'
+                                isWithDoctor ? 'text-ds-accent-text' : isWaiting ? 'text-ds-warning-text' : isInRoom ? 'text-ds-success-text' : 'text-ds-text-muted'
                               }`}>{statusLabel}</span>
                             </div>
                             {enc.chief_complaint && (
-                              <p className="text-xs text-gray-400 mt-0.5 ml-4 truncate">{enc.chief_complaint}</p>
+                              <p className="text-xs text-ds-text-muted mt-0.5 ml-4 truncate">{enc.chief_complaint}</p>
                             )}
                           </button>
                         );
                       })}
                   </div>
                 ) : (
-                  <div className="p-6 text-center text-gray-400">
+                  <div className="p-6 text-center text-ds-text-muted">
                     <p className="text-sm">No patients assigned today</p>
                   </div>
                 )}
@@ -1559,22 +1563,22 @@ const DoctorDashboard: React.FC = () => {
           </div>
           {/* New Results — completed lab/imaging results ready for doctor review */}
           <div className="flex">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
-              <div className="px-4 py-3 border-b border-gray-100">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden max-h-72 w-full flex flex-col">
+              <div className="px-4 py-3 border-b border-ds-border">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
+                    <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">
                       New Results
                     </h2>
-                    <span className="text-[9px] text-gray-400 normal-case tracking-normal">Lab &amp; imaging results to review</span>
+                    <span className="text-[9px] text-ds-text-muted normal-case tracking-normal">Lab &amp; imaging results to review</span>
                   </div>
                   <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${
                     (labAlerts.length + imagingAlerts.length) > 0
-                      ? 'bg-warning-50 text-warning-700'
-                      : 'bg-gray-100 text-gray-500'
+                      ? 'bg-ds-warning-soft text-ds-warning-text'
+                      : 'bg-ds-subtle text-ds-text-muted'
                   }`}>
                     {labAlerts.length + imagingAlerts.length}
                   </span>
@@ -1582,23 +1586,23 @@ const DoctorDashboard: React.FC = () => {
               </div>
 
               {/* Alert Tabs */}
-              <div className="flex border-b border-gray-200">
+              <div className="flex border-b border-ds-border">
                 <button
                   onClick={() => setAlertsTab('lab')}
-                  className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
+                  className={`min-h-ds-touch flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
                     alertsTab === 'lab'
-                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                      : 'text-ds-text-muted hover:text-ds-text'
                   }`}
                 >
                   Lab ({labAlerts.length})
                 </button>
                 <button
                   onClick={() => setAlertsTab('imaging')}
-                  className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
+                  className={`min-h-ds-touch flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
                     alertsTab === 'imaging'
-                      ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                      : 'text-gray-500 hover:text-gray-700'
+                      ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                      : 'text-ds-text-muted hover:text-ds-text'
                   }`}
                 >
                   Imaging ({imagingAlerts.length})
@@ -1608,18 +1612,18 @@ const DoctorDashboard: React.FC = () => {
               {/* Alert Content */}
               <div className="max-h-[250px] overflow-y-auto">
                 {alertsTab === 'lab' && olderUnreviewedLabs > 0 && (
-                  <p className="px-3 py-2 text-xs text-warning-800 bg-warning-50 border-b border-warning-100">
+                  <p className="px-3 py-2 text-xs text-ds-warning-text bg-ds-warning-soft border-b border-ds-warning-border">
                     {olderUnreviewedLabs} older result{olderUnreviewedLabs > 1 ? 's' : ''} (over 30 days) still not reviewed — open the patient's chart to review.
                   </p>
                 )}
                 {alertsTab === 'lab' && (
                   <>
                     {labAlerts.length === 0 ? (
-                      <div className="p-4 text-center text-gray-400 text-sm">
+                      <div className="p-4 text-center text-ds-text-muted text-sm">
                         No new lab results
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-ds-border">
                         {labAlerts.map((alert) => (
                           <div
                             key={alert.id}
@@ -1641,22 +1645,22 @@ const DoctorDashboard: React.FC = () => {
                               room_number: alert.room_number,
                             })}
                             className={`px-4 py-3 transition-colors cursor-pointer ${
-                              alert.id === highlightAlertId ? 'bg-warning-100 ring-2 ring-warning-400' : 'hover:bg-warning-50'
+                              alert.id === highlightAlertId ? 'bg-ds-warning-soft ring-2 ring-ds-warning' : 'hover:bg-ds-warning-soft'
                             }`}
                             title="Open lab result"
                           >
                             <div className="flex justify-between items-start">
                               <div>
-                                <div className="font-semibold text-gray-900 text-sm">{alert.test_name}</div>
-                                <div className="text-xs text-gray-500">{alert.patient_name}</div>
+                                <div className="font-semibold text-ds-text text-sm">{alert.test_name}</div>
+                                <div className="text-xs text-ds-text-muted">{alert.patient_name}</div>
                                 {alert.room_number && (
-                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
+                                  <span className="text-xs text-ds-accent-text">Room {alert.room_number}</span>
                                 )}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                                alert.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                                'bg-success-100 text-success-700'
+                                alert.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                alert.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                'bg-ds-success-soft text-ds-success-text'
                               }`}>
                                 {alert.status}
                               </span>
@@ -1671,34 +1675,34 @@ const DoctorDashboard: React.FC = () => {
                 {alertsTab === 'imaging' && (
                   <>
                     {imagingAlerts.length === 0 ? (
-                      <div className="p-4 text-center text-gray-400 text-sm">
+                      <div className="p-4 text-center text-ds-text-muted text-sm">
                         No new imaging results
                       </div>
                     ) : (
-                      <div className="divide-y divide-gray-100">
+                      <div className="divide-y divide-ds-border">
                         {imagingAlerts.map((alert) => (
                           <div
                             key={alert.id}
                             ref={alert.id === highlightAlertId ? highlightRef : undefined}
                             className={`px-4 py-3 transition-colors ${
-                              alert.id === highlightAlertId ? 'bg-warning-100 ring-2 ring-warning-400' : 'hover:bg-warning-50'
+                              alert.id === highlightAlertId ? 'bg-ds-warning-soft ring-2 ring-ds-warning' : 'hover:bg-ds-warning-soft'
                             }`}
                           >
                             <div className="flex justify-between items-start">
                               <div>
-                                <div className="font-semibold text-gray-900 text-sm">
+                                <div className="font-semibold text-ds-text text-sm">
                                   {alert.imaging_type}
                                   {alert.body_part ? ` — ${alert.body_part}` : ''}
                                 </div>
-                                <div className="text-xs text-gray-500">{alert.patient_name}</div>
+                                <div className="text-xs text-ds-text-muted">{alert.patient_name}</div>
                                 {alert.room_number && (
-                                  <span className="text-xs text-primary-600">Room {alert.room_number}</span>
+                                  <span className="text-xs text-ds-accent-text">Room {alert.room_number}</span>
                                 )}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                alert.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                                alert.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                                'bg-success-100 text-success-700'
+                                alert.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                alert.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                'bg-ds-success-soft text-ds-success-text'
                               }`}>
                                 {alert.status}
                               </span>
@@ -1717,60 +1721,60 @@ const DoctorDashboard: React.FC = () => {
           {/* To Sign — unsigned SOAP notes + verbal orders needing co-signature */}
           <div className="flex">
             {(unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length > 0) ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
-                <div className="px-4 py-3 border-b border-gray-100">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden max-h-72 w-full flex flex-col">
+                <div className="px-4 py-3 border-b border-ds-border">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-warning-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-ds-warning-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
-                      <span className="text-[9px] text-gray-400 normal-case tracking-normal">SOAP notes &amp; verbal orders</span>
+                      <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">To Sign</h2>
+                      <span className="text-[9px] text-ds-text-muted normal-case tracking-normal">SOAP notes &amp; verbal orders</span>
                     </div>
-                    <span className="px-2 py-0.5 bg-warning-50 text-warning-700 text-xs font-bold rounded-full tabular-nums">
+                    <span className="px-2 py-0.5 bg-ds-warning-soft text-ds-warning-text text-xs font-bold rounded-full tabular-nums">
                       {unsignedNotes.length + pendingLabs.length + pendingImaging.length + pendingRx.length}
                     </span>
                   </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-200">
+                <div className="flex border-b border-ds-border">
                   <button
                     onClick={() => setDelinquentTab('unsigned')}
-                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                    className={`min-h-ds-touch flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
                       delinquentTab === 'unsigned'
-                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                        : 'text-ds-text-muted hover:text-ds-text'
                     }`}
                   >
                     SOAP ({unsignedNotes.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('labs')}
-                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                    className={`min-h-ds-touch flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
                       delinquentTab === 'labs'
-                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                        : 'text-ds-text-muted hover:text-ds-text'
                     }`}
                   >
                     Lab Orders ({pendingLabs.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('imaging')}
-                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                    className={`min-h-ds-touch flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
                       delinquentTab === 'imaging'
-                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                        : 'text-ds-text-muted hover:text-ds-text'
                     }`}
                   >
                     Imaging Orders ({pendingImaging.length})
                   </button>
                   <button
                     onClick={() => setDelinquentTab('rx')}
-                    className={`flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
+                    className={`min-h-ds-touch flex-1 px-2 py-2 text-xs font-semibold transition-colors ${
                       delinquentTab === 'rx'
-                        ? 'text-warning-600 border-b-2 border-warning-600 bg-warning-50'
-                        : 'text-gray-500 hover:text-gray-700'
+                        ? 'text-ds-warning-text border-b-2 border-ds-warning bg-ds-warning-soft'
+                        : 'text-ds-text-muted hover:text-ds-text'
                     }`}
                   >
                     Rx Orders ({pendingRx.length})
@@ -1782,21 +1786,21 @@ const DoctorDashboard: React.FC = () => {
                   {delinquentTab === 'unsigned' && (
                     <>
                       {unsignedNotes.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No unsigned notes</div>
+                        <div className="p-4 text-center text-ds-text-muted text-sm">No unsigned notes</div>
                       ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-ds-border">
                           {unsignedNotes.map((note) => (
-                            <div key={note.id} className="px-4 py-3 hover:bg-warning-50 transition-colors flex items-center justify-between gap-2">
+                            <div key={note.id} className="px-4 py-3 hover:bg-ds-warning-soft transition-colors flex items-center justify-between gap-2">
                               <div className="min-w-0 flex-1">
-                                <div className="text-sm font-semibold text-gray-900 truncate">{note.patient_name}</div>
-                                <div className="text-xs text-gray-500 truncate">
+                                <div className="text-sm font-semibold text-ds-text truncate">{note.patient_name}</div>
+                                <div className="text-xs text-ds-text-muted truncate">
                                   {note.encounter_number} &middot; {new Date(note.encounter_date).toLocaleDateString()}
                                   {note.chief_complaint ? ` — ${note.chief_complaint}` : ''}
                                 </div>
                               </div>
                               <button
                                 onClick={() => handleReviewUnsignedNote(note)}
-                                className="px-3 py-1.5 bg-warning-600 text-white text-xs font-bold rounded-lg hover:bg-warning-700 transition-colors flex-shrink-0"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-warning text-white dark:text-ds-canvas text-xs font-bold rounded-lg hover:bg-ds-warning/90 transition-colors flex-shrink-0"
                               >
                                 Review &amp; Sign
                               </button>
@@ -1810,20 +1814,20 @@ const DoctorDashboard: React.FC = () => {
                   {delinquentTab === 'labs' && (
                     <>
                       {pendingLabs.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No pending lab orders</div>
+                        <div className="p-4 text-center text-ds-text-muted text-sm">No pending lab orders</div>
                       ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-ds-border">
                           {pendingLabs.map((lab) => (
-                            <div key={lab.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div key={lab.id} className="px-4 py-3 hover:bg-ds-subtle transition-colors">
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <div className="font-semibold text-gray-900 text-sm">{lab.test_name}</div>
-                                  <div className="text-xs text-gray-500">{lab.patient_name}</div>
+                                  <div className="font-semibold text-ds-text text-sm">{lab.test_name}</div>
+                                  <div className="text-xs text-ds-text-muted">{lab.patient_name}</div>
                                 </div>
                                 <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  lab.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                                  lab.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                                  'bg-gray-100 text-gray-600'
+                                  lab.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                  lab.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                  'bg-ds-subtle text-ds-text-secondary'
                                 }`}>
                                   {lab.status}
                                 </span>
@@ -1838,22 +1842,22 @@ const DoctorDashboard: React.FC = () => {
                   {delinquentTab === 'imaging' && (
                     <>
                       {pendingImaging.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No pending imaging orders</div>
+                        <div className="p-4 text-center text-ds-text-muted text-sm">No pending imaging orders</div>
                       ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-ds-border">
                           {pendingImaging.map((img) => (
-                            <div key={img.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div key={img.id} className="px-4 py-3 hover:bg-ds-subtle transition-colors">
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <div className="font-semibold text-gray-900 text-sm">
+                                  <div className="font-semibold text-ds-text text-sm">
                                     {img.imaging_type}{img.body_part ? ` — ${img.body_part}` : ''}
                                   </div>
-                                  <div className="text-xs text-gray-500">{img.patient_name}</div>
+                                  <div className="text-xs text-ds-text-muted">{img.patient_name}</div>
                                 </div>
                                 <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  img.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                                  img.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                                  'bg-gray-100 text-gray-600'
+                                  img.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                  img.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                  'bg-ds-subtle text-ds-text-secondary'
                                 }`}>
                                   {img.status}
                                 </span>
@@ -1868,19 +1872,19 @@ const DoctorDashboard: React.FC = () => {
                   {delinquentTab === 'rx' && (
                     <>
                       {pendingRx.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No pending prescriptions</div>
+                        <div className="p-4 text-center text-ds-text-muted text-sm">No pending prescriptions</div>
                       ) : (
-                        <div className="divide-y divide-gray-100">
+                        <div className="divide-y divide-ds-border">
                           {pendingRx.map((rx) => (
-                            <div key={rx.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <div key={rx.id} className="px-4 py-3 hover:bg-ds-subtle transition-colors">
                               <div className="flex justify-between items-start">
                                 <div>
-                                  <div className="font-semibold text-gray-900 text-sm">{rx.medication_name}</div>
-                                  <div className="text-xs text-gray-500">{rx.patient_name}</div>
+                                  <div className="font-semibold text-ds-text text-sm">{rx.medication_name}</div>
+                                  <div className="text-xs text-ds-text-muted">{rx.patient_name}</div>
                                 </div>
                                 <span className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                  rx.status === 'ordered' ? 'bg-gray-100 text-gray-600' :
-                                  'bg-primary-100 text-primary-700'
+                                  rx.status === 'ordered' ? 'bg-ds-subtle text-ds-text-secondary' :
+                                  'bg-ds-accent-soft text-ds-accent-text'
                                 }`}>
                                   {rx.status}
                                 </span>
@@ -1894,16 +1898,16 @@ const DoctorDashboard: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden max-h-72 w-full flex flex-col">
-                <div className="px-4 py-3 border-b border-gray-100">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden max-h-72 w-full flex flex-col">
+                <div className="px-4 py-3 border-b border-ds-border">
                   <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">To Sign</h2>
+                    <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">To Sign</h2>
                   </div>
                 </div>
-                <div className="p-4 text-center text-sm text-gray-400">All notes signed, no pending orders</div>
+                <div className="p-4 text-center text-sm text-ds-text-muted">All notes signed, no pending orders</div>
               </div>
             )}
           </div>
@@ -1911,8 +1915,8 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Claims Review Section */}
             {pendingClaims.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-4">
-                <div className="bg-gradient-to-r from-warning-600 to-warning-700 px-4 py-3">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden mt-4">
+                <div className="bg-gradient-to-r from-ds-warning to-ds-warning px-4 py-3 dark:from-ds-warning-soft dark:to-ds-warning-soft">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1920,23 +1924,23 @@ const DoctorDashboard: React.FC = () => {
                       </svg>
                       <h2 className="text-sm font-semibold text-white">Claims Pending Review</h2>
                     </div>
-                    <span className="px-2.5 py-1 bg-white text-warning-700 text-xs font-bold rounded-full">
+                    <span className="px-2.5 py-1 bg-ds-surface text-ds-warning-text text-xs font-bold rounded-full">
                       {pendingClaims.length}
                     </span>
                   </div>
                 </div>
-                <div className="max-h-[200px] overflow-y-auto divide-y divide-gray-100">
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-ds-border">
                   {pendingClaims.map((claim) => (
-                    <div key={claim.id} className="px-4 py-3 hover:bg-warning-50 transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
+                    <div key={claim.id} className="px-4 py-3 hover:bg-ds-warning-soft transition-colors cursor-pointer" onClick={() => handleReviewClaim(claim)}>
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-semibold text-gray-900 text-sm">{claim.claim_number}</div>
-                          <div className="text-xs text-gray-600">{claim.patient_name}</div>
-                          <div className="text-xs text-gray-500">{claim.insurance_provider_name}</div>
+                          <div className="font-semibold text-ds-text text-sm">{claim.claim_number}</div>
+                          <div className="text-xs text-ds-text-secondary">{claim.patient_name}</div>
+                          <div className="text-xs text-ds-text-muted">{claim.insurance_provider_name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-gray-900 text-sm">GHS {parseFloat(claim.total_charged || 0).toFixed(2)}</div>
-                          <button className="text-xs text-warning-600 font-medium hover:underline">Review</button>
+                          <div className="font-bold text-ds-text text-sm">GHS {parseFloat(claim.total_charged || 0).toFixed(2)}</div>
+                          <button className="text-xs text-ds-warning-text font-medium hover:underline">Review</button>
                         </div>
                       </div>
                     </div>
@@ -1947,15 +1951,15 @@ const DoctorDashboard: React.FC = () => {
 
             {/* Signature status shown inline when a patient is selected and SOAP is signed */}
             {selectedEncounter && soapSigned && (
-              <div className="mt-4 flex items-center gap-3 p-3 bg-success-50 rounded-xl border border-success-200">
-                <svg className="w-5 h-5 text-success-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="mt-4 flex items-center gap-3 p-3 bg-ds-success-soft rounded-ds-card border border-ds-success/30">
+                <svg className="w-5 h-5 text-ds-success-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-success-800">
+                  <div className="text-sm font-semibold text-ds-success-text">
                     SOAP signed — {selectedEncounter.patient_name}
                   </div>
-                  <div className="text-xs text-success-600">
+                  <div className="text-xs text-ds-success-text">
                     {soapSignedBy ? `By ${soapSignedBy}` : 'Signed'}
                     {soapSignedAt ? ` · ${soapSignedAt}` : ''}
                   </div>
@@ -1970,16 +1974,16 @@ const DoctorDashboard: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-gray-900">Active Patients Today</h2>
-                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-primary-100 text-primary-700">
+                <h2 className="text-sm font-bold text-ds-text">Active Patients Today</h2>
+                <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-ds-accent-soft text-ds-accent-text">
                   {roomEncounters.filter(e => e.status !== 'cancelled' && e.status !== 'discharged' && e.status !== 'completed').length} in care
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-[10px] text-gray-400">
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary-500"></span> With you</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-warning-400"></span> Waiting</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-success-400"></span> In room</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-300"></span> Done</span>
+              <div className="flex items-center gap-3 text-[10px] text-ds-text-muted">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ds-accent"></span> With you</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ds-warning"></span> Waiting</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ds-success"></span> In room</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-ds-border-control"></span> Done</span>
               </div>
             </div>
             <div className="flex items-end gap-1 overflow-x-auto pb-0 -mb-px">
@@ -1998,40 +2002,40 @@ const DoctorDashboard: React.FC = () => {
                 const isWaiting = enc.status === 'ready_for_doctor';
                 // Vibrant color scheme based on status
                 const tabColor = isSelected
-                  ? 'bg-white text-gray-900 border-gray-300 shadow-md relative z-10 ring-1 ring-primary-200'
+                  ? 'bg-ds-surface text-ds-text border-ds-border-control shadow-ds-card relative z-10 ring-1 ring-ds-focus-ring/30'
                   : isCompleted
-                  ? 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                  ? 'bg-ds-subtle text-ds-text-muted border-ds-border hover:bg-ds-subtle'
                   : isWithDoctor
-                  ? 'bg-primary-50 text-primary-800 border-primary-300 hover:bg-primary-100'
+                  ? 'bg-ds-accent-soft text-ds-accent-text border-ds-accent/30 hover:bg-ds-accent-soft'
                   : isWaiting
-                  ? 'bg-warning-50 text-warning-800 border-warning-300 hover:bg-warning-100'
+                  ? 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-border hover:bg-ds-warning-soft'
                   : hasRoom
-                  ? 'bg-success-50 text-success-800 border-success-300 hover:bg-success-100'
-                  : 'bg-gray-50 text-gray-500 border-gray-200 border-dashed hover:bg-gray-100';
+                  ? 'bg-ds-success-soft text-ds-success-text border-ds-success/50 hover:bg-ds-success-soft'
+                  : 'bg-ds-subtle text-ds-text-muted border-ds-border border-dashed hover:bg-ds-subtle';
                 return (
                 <button
                   key={enc.id}
                   onClick={() => handleSelectEncounter(enc)}
-                  className={`px-4 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
+                  className={`min-h-ds-touch px-4 py-2.5 text-sm font-semibold rounded-t-lg border border-b-0 transition-all whitespace-nowrap flex items-center gap-2 ${tabColor}`}
                 >
                   <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                    isWithDoctor ? 'bg-primary-500' :
-                    isWaiting ? 'bg-warning-400 animate-pulse' :
-                    isCompleted ? 'bg-gray-300' :
-                    hasRoom ? 'bg-success-400' :
-                    'bg-gray-300'
+                    isWithDoctor ? 'bg-ds-accent' :
+                    isWaiting ? 'bg-ds-warning animate-pulse' :
+                    isCompleted ? 'bg-ds-border-control' :
+                    hasRoom ? 'bg-ds-success' :
+                    'bg-ds-border-control'
                   }`} />
                   <span>{enc.patient_name}</span>
                   {hasRoom && (
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      isSelected ? 'bg-primary-100 text-primary-600' :
-                      isWithDoctor ? 'bg-primary-100 text-primary-600' :
-                      isWaiting ? 'bg-warning-100 text-warning-600' :
-                      'bg-success-100 text-success-600'
+                      isSelected ? 'bg-ds-accent-soft text-ds-accent-text' :
+                      isWithDoctor ? 'bg-ds-accent-soft text-ds-accent-text' :
+                      isWaiting ? 'bg-ds-warning-soft text-ds-warning-text' :
+                      'bg-ds-success-soft text-ds-success-text'
                     }`}>Rm {enc.room_number}</span>
                   )}
-                  {!hasRoom && !isCompleted && <span className="text-[10px] text-gray-400 italic">No room</span>}
-                  {isCompleted && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">Done</span>}
+                  {!hasRoom && !isCompleted && <span className="text-[10px] text-ds-text-muted italic">No room</span>}
+                  {isCompleted && <span className="text-[10px] px-1.5 py-0.5 rounded bg-ds-subtle text-ds-text-muted">Done</span>}
                 </button>
                 );
               })}
@@ -2041,34 +2045,45 @@ const DoctorDashboard: React.FC = () => {
 
         {/* Patient Content */}
         {selectedEncounter ? (
-          <div className="bg-white rounded-b-xl rounded-tr-xl shadow-sm border border-gray-200 p-6 space-y-4">
+          <div className="bg-ds-surface rounded-b-ds-card rounded-tr-xl shadow-ds-card border border-ds-border p-6 space-y-4">
+                <PatientStickyBar
+                  watch={patientHeaderRef}
+                  name={selectedEncounter.patient_name}
+                  age={selectedEncounter.date_of_birth ? calculateAge(selectedEncounter.date_of_birth) : undefined}
+                  sex={selectedEncounter.gender}
+                  patientNumber={selectedEncounter.patient_number}
+                  encounterNumber={selectedEncounter.encounter_number}
+                  allergies={selectedEncounter.allergies_list?.length
+                    ? selectedEncounter.allergies_list.map((a) => a.allergen).join(', ')
+                    : selectedEncounter.patient_allergies || null}
+                />
                 {/* Patient Info */}
-                <div className="pb-4 border-b border-gray-100">
+                <div className="pb-4 border-b border-ds-border">
                   <div className="flex justify-between items-start mb-4 gap-4 flex-wrap">
                     <div>
-                      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                      <h2 ref={patientHeaderRef} className="text-3xl font-bold text-ds-text mb-2">
                         {selectedEncounter.patient_name}
                         {selectedEncounter.date_of_birth && (
-                          <span className="text-lg font-normal text-gray-400 ml-2">
+                          <span className="text-lg font-normal text-ds-text-muted ml-2">
                             {calculateAge(selectedEncounter.date_of_birth)}
                             {selectedEncounter.gender && <span className="ml-1">· {selectedEncounter.gender}</span>}
                           </span>
                         )}
                       </h2>
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
-                        <span className="text-gray-500">
-                          <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Patient #</span>
-                          <span className="font-mono text-gray-700">{selectedEncounter.patient_number}</span>
+                        <span className="text-ds-text-muted">
+                          <span className="font-semibold text-ds-text-muted uppercase tracking-wider mr-1">Patient #</span>
+                          <span className="font-mono text-ds-text-secondary">{selectedEncounter.patient_number}</span>
                         </span>
-                        <span className="text-gray-300">·</span>
-                        <span className="text-gray-500">
-                          <span className="font-semibold text-gray-400 uppercase tracking-wider mr-1">Encounter</span>
-                          <span className="font-mono text-gray-700">{selectedEncounter.encounter_number}</span>
+                        <span className="text-ds-text-muted">·</span>
+                        <span className="text-ds-text-muted">
+                          <span className="font-semibold text-ds-text-muted uppercase tracking-wider mr-1">Encounter</span>
+                          <span className="font-mono text-ds-text-secondary">{selectedEncounter.encounter_number}</span>
                         </span>
                         {(selectedEncounter.room_name || selectedEncounter.room_number) && (
                           <>
-                            <span className="text-gray-300">·</span>
-                            <span className="inline-flex items-center px-2 py-0.5 bg-success-50 text-success-700 text-xs font-semibold rounded">
+                            <span className="text-ds-text-muted">·</span>
+                            <span className="inline-flex items-center px-2 py-0.5 bg-ds-success-soft text-ds-success-text text-xs font-semibold rounded">
                               {selectedEncounter.room_name || `Room ${selectedEncounter.room_number}`}
                             </span>
                           </>
@@ -2078,7 +2093,7 @@ const DoctorDashboard: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Link
                         to="/messages"
-                        className="px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-sm bg-ds-surface text-ds-text-secondary border border-ds-border rounded-lg hover:bg-ds-subtle transition-colors font-medium flex items-center gap-1.5"
                         title="Messages"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2088,7 +2103,7 @@ const DoctorDashboard: React.FC = () => {
                       </Link>
                       <Link
                         to={`/patients/${selectedEncounter.patient_id}`}
-                        className="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-1.5"
+                        className="px-3 py-1.5 text-sm bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center gap-1.5"
                       >
                         View Full Chart
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2097,16 +2112,16 @@ const DoctorDashboard: React.FC = () => {
                       </Link>
                     </div>
                   </div>
-                  <div className="pt-4 mt-4 border-t border-gray-100">
-                    <div className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Today's Visit</div>
-                    <div className="text-gray-900 text-base">{selectedEncounter.chief_complaint || <span className="text-gray-400 italic">Not yet documented</span>}</div>
+                  <div className="pt-4 mt-4 border-t border-ds-border">
+                    <div className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider mb-1.5">Today's Visit</div>
+                    <div className="text-ds-text text-base">{selectedEncounter.chief_complaint || <span className="text-ds-text-muted italic">Not yet documented</span>}</div>
                   </div>
 
                   {/* Allergies */}
                   {(selectedEncounter.allergies_list?.length || selectedEncounter.patient_allergies) && (
-                    <div className="pt-4 mt-4 border-t border-gray-200">
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <svg className="w-4 h-4 text-danger-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="pt-4 mt-4 border-t border-ds-border">
+                      <div className="flex items-center gap-2 text-sm text-ds-text-secondary mb-2">
+                        <svg className="w-4 h-4 text-ds-critical-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                         </svg>
                         Allergies
@@ -2117,9 +2132,9 @@ const DoctorDashboard: React.FC = () => {
                             <span
                               key={i}
                               className={`px-2 py-1 rounded-lg text-sm font-medium ${
-                                a.severity === 'severe' ? 'bg-danger-100 text-danger-700 border border-danger-300' :
-                                a.severity === 'moderate' ? 'bg-warning-100 text-warning-700 border border-warning-300' :
-                                'bg-orange-50 text-orange-700 border border-orange-200'
+                                a.severity === 'severe' ? 'bg-ds-critical-soft text-ds-critical-text border border-ds-critical-border' :
+                                a.severity === 'moderate' ? 'bg-ds-warning-soft text-ds-warning-text border border-ds-warning-border' :
+                                'bg-ds-warning-soft text-ds-warning-text border border-ds-warning-border'
                               }`}
                             >
                               {a.allergen}{a.reaction ? ` - ${a.reaction}` : ''}
@@ -2127,7 +2142,7 @@ const DoctorDashboard: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <div className="bg-danger-50 border border-danger-200 rounded-lg p-2 text-sm text-danger-700 font-medium">
+                        <div className="bg-ds-critical-soft border border-ds-critical-border rounded-lg p-2 text-sm text-ds-critical-text font-medium">
                           {selectedEncounter.patient_allergies}
                         </div>
                       )}
@@ -2136,9 +2151,9 @@ const DoctorDashboard: React.FC = () => {
 
                   {/* Vital Signs Summary */}
                   {selectedEncounter.vital_signs && (
-                    <div className="pt-4 mt-4 border-t border-gray-200">
+                    <div className="pt-4 mt-4 border-t border-ds-border">
                       <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-ds-text-secondary">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                           </svg>
@@ -2146,7 +2161,7 @@ const DoctorDashboard: React.FC = () => {
                         </div>
                         <button
                           onClick={() => setShowVitalsHistory(true)}
-                          className="px-3 py-1.5 bg-primary-600 text-white text-xs font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-1"
+                          className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent text-xs font-semibold rounded-lg hover:bg-ds-accent-hover transition-colors flex items-center gap-1"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2155,50 +2170,50 @@ const DoctorDashboard: React.FC = () => {
                         </button>
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xs text-gray-500 mb-1">BP</div>
-                          <div className="font-bold text-gray-900">
+                        <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                          <div className="text-xs text-ds-text-muted mb-1">BP</div>
+                          <div className="font-bold text-ds-text">
                             {selectedEncounter.vital_signs.blood_pressure_systolic}/{selectedEncounter.vital_signs.blood_pressure_diastolic}
                           </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xs text-gray-500 mb-1">HR</div>
-                          <div className="font-bold text-gray-900">
+                        <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                          <div className="text-xs text-ds-text-muted mb-1">HR</div>
+                          <div className="font-bold text-ds-text">
                             {selectedEncounter.vital_signs.heart_rate} <span className="text-xs font-normal">bpm</span>
                           </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xs text-gray-500 mb-1">Temp</div>
-                          <div className="font-bold text-gray-900">
+                        <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                          <div className="text-xs text-ds-text-muted mb-1">Temp</div>
+                          <div className="font-bold text-ds-text">
                             {selectedEncounter.vital_signs.temperature}°{selectedEncounter.vital_signs.temperature_unit || 'F'}
                           </div>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-3 text-center">
-                          <div className="text-xs text-gray-500 mb-1">SpO2</div>
-                          <div className="font-bold text-gray-900">
+                        <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                          <div className="text-xs text-ds-text-muted mb-1">SpO2</div>
+                          <div className="font-bold text-ds-text">
                             {selectedEncounter.vital_signs.oxygen_saturation}%
                           </div>
                         </div>
                         {selectedEncounter.vital_signs.respiratory_rate && (
-                          <div className="bg-gray-50 rounded-lg p-3 text-center">
-                            <div className="text-xs text-gray-500 mb-1">RR</div>
-                            <div className="font-bold text-gray-900">
+                          <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                            <div className="text-xs text-ds-text-muted mb-1">RR</div>
+                            <div className="font-bold text-ds-text">
                               {selectedEncounter.vital_signs.respiratory_rate} <span className="text-xs font-normal">/min</span>
                             </div>
                           </div>
                         )}
                         {selectedEncounter.vital_signs.weight && (
-                          <div className="bg-gray-50 rounded-lg p-3 text-center">
-                            <div className="text-xs text-gray-500 mb-1">Weight</div>
-                            <div className="font-bold text-gray-900">
+                          <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                            <div className="text-xs text-ds-text-muted mb-1">Weight</div>
+                            <div className="font-bold text-ds-text">
                               {selectedEncounter.vital_signs.weight} <span className="text-xs font-normal">{selectedEncounter.vital_signs.weight_unit || 'lbs'}</span>
                             </div>
                           </div>
                         )}
                         {selectedEncounter.vital_signs.height && (
-                          <div className="bg-gray-50 rounded-lg p-3 text-center">
-                            <div className="text-xs text-gray-500 mb-1">Height</div>
-                            <div className="font-bold text-gray-900">
+                          <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                            <div className="text-xs text-ds-text-muted mb-1">Height</div>
+                            <div className="font-bold text-ds-text">
                               {selectedEncounter.vital_signs.height} <span className="text-xs font-normal">{selectedEncounter.vital_signs.height_unit || 'in'}</span>
                             </div>
                           </div>
@@ -2209,9 +2224,9 @@ const DoctorDashboard: React.FC = () => {
                           const h = vs.height;
                           if (!w || !h) {
                             return (
-                              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                                <div className="text-xs text-gray-500 mb-1">BMI</div>
-                                <div className="text-sm text-gray-400">No weight/height</div>
+                              <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                                <div className="text-xs text-ds-text-muted mb-1">BMI</div>
+                                <div className="text-sm text-ds-text-muted">No weight/height</div>
                               </div>
                             );
                           }
@@ -2220,10 +2235,10 @@ const DoctorDashboard: React.FC = () => {
                           if (!heightM || !weightKg) return null;
                           const bmi = weightKg / (heightM * heightM);
                           const category = bmi < 18.5 ? 'Underweight' : bmi < 25 ? 'Normal' : bmi < 30 ? 'Overweight' : 'Obese';
-                          const color = bmi < 18.5 ? 'text-warning-600' : bmi < 25 ? 'text-success-600' : bmi < 30 ? 'text-warning-600' : 'text-danger-600';
+                          const color = bmi < 18.5 ? 'text-ds-warning-text' : bmi < 25 ? 'text-ds-success-text' : bmi < 30 ? 'text-ds-warning-text' : 'text-ds-critical-text';
                           return (
-                            <div className="bg-gray-50 rounded-lg p-3 text-center">
-                              <div className="text-xs text-gray-500 mb-1">BMI</div>
+                            <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                              <div className="text-xs text-ds-text-muted mb-1">BMI</div>
                               <div className={`font-bold ${color}`}>
                                 {bmi.toFixed(1)}
                               </div>
@@ -2268,24 +2283,24 @@ const DoctorDashboard: React.FC = () => {
                 {/* Diagnoses */}
                 <div
                   id="diagnoses-section"
-                  className={`bg-white rounded-xl shadow-sm border p-6 ${diagnosisRequired ? 'border-rose-400 ring-2 ring-rose-200' : 'border-gray-200'}`}
+                  className={`bg-ds-surface rounded-ds-card shadow-ds-card border p-6 ${diagnosisRequired ? 'border-ds-critical ring-2 ring-ds-critical/30' : 'border-ds-border'}`}
                 >
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                       </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Diagnoses</h2>
+                      <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Diagnoses</h2>
                       {encounterDiagnoses.length > 0 && (
-                        <span className="px-2 py-0.5 bg-rose-50 text-rose-700 text-xs font-bold rounded-full tabular-nums">{encounterDiagnoses.length}</span>
+                        <span className="px-2 py-0.5 bg-ds-accent-soft text-ds-accent-text text-xs font-bold rounded-full tabular-nums">{encounterDiagnoses.length}</span>
                       )}
                     </div>
                   </div>
 
                   {diagnosisRequired && encounterDiagnoses.length === 0 && (
-                    <div className="mb-4 p-3 bg-rose-50 border border-rose-300 rounded-lg">
-                      <p className="text-sm font-semibold text-rose-800">A diagnosis is required to close this visit</p>
-                      <p className="text-sm text-rose-700 mt-1">
+                    <div className="mb-4 p-3 bg-ds-critical-soft border border-ds-critical-border rounded-lg">
+                      <p className="text-sm font-semibold text-ds-critical-text">A diagnosis is required to close this visit</p>
+                      <p className="text-sm text-ds-critical-text mt-1">
                         Every visit needs a recorded diagnosis before it can be closed or the patient sent back to the
                         nurse. Add one below, then complete the visit. Including the ICD-10 code speeds up insurer
                         payment.
@@ -2297,12 +2312,12 @@ const DoctorDashboard: React.FC = () => {
                   {encounterDiagnoses.length > 0 && (
                     <div className="space-y-2 mb-4">
                       {encounterDiagnoses.map((dx) => (
-                        <div key={dx.id} className="flex items-center gap-2 p-2 bg-rose-50 rounded-lg border border-rose-200">
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${dx.type === 'primary' ? 'bg-rose-600 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                        <div key={dx.id} className="flex items-center gap-2 p-2 bg-ds-subtle rounded-lg border border-ds-border">
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${dx.type === 'primary' ? 'bg-ds-accent text-ds-on-accent' : 'bg-ds-border text-ds-text-secondary'}`}>
                             {dx.type}
                           </span>
-                          <span className="font-medium text-gray-900 flex-1">{dx.diagnosis_description}</span>
-                          {dx.diagnosis_code && <span className="text-gray-400 text-xs">({dx.diagnosis_code})</span>}
+                          <span className="font-medium text-ds-text flex-1">{dx.diagnosis_description}</span>
+                          {dx.diagnosis_code && <span className="text-ds-text-muted text-xs">({dx.diagnosis_code})</span>}
                           <button
                             onClick={async () => {
                               if (!(await confirmDialog({ title: 'Delete diagnosis?', message: `Remove "${dx.diagnosis_description}"?`, variant: 'warning', confirmLabel: 'Delete', cancelLabel: 'Keep' }))) return;
@@ -2312,7 +2327,7 @@ const DoctorDashboard: React.FC = () => {
                                 if (selectedEncounter) loadEncounterDiagnoses(selectedEncounter.id);
                               } catch { showToast('Failed to delete diagnosis', 'error'); }
                             }}
-                            className="p-1 text-gray-400 hover:text-danger-600 rounded transition-colors"
+                            className="p-1 text-ds-text-muted hover:text-ds-critical-text rounded transition-colors"
                             title="Delete diagnosis"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2331,7 +2346,7 @@ const DoctorDashboard: React.FC = () => {
                         value={currentDiagnosis.diagnosis_description}
                         onChange={(value) => setCurrentDiagnosis(prev => ({...prev, diagnosis_description: value}))}
                         sectionId="diagnoses"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
+                        className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring bg-ds-surface"
                         placeholder="Diagnosis (e.g., Malaria, Hypertension)"
                       />
                     </div>
@@ -2340,7 +2355,7 @@ const DoctorDashboard: React.FC = () => {
                         type="text"
                         value={currentDiagnosis.diagnosis_code}
                         onChange={(e) => setCurrentDiagnosis(prev => ({...prev, diagnosis_code: e.target.value}))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-rose-500 bg-white"
+                        className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring bg-ds-surface"
                         placeholder="ICD code (optional)"
                       />
                     </div>
@@ -2357,7 +2372,7 @@ const DoctorDashboard: React.FC = () => {
                     <div className="sm:col-span-2">
                       <button
                         onClick={handleAddDiagnosis}
-                        className="w-full px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-semibold flex items-center justify-center gap-1"
+                        className="min-h-ds-touch w-full px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-semibold flex items-center justify-center gap-1"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2372,21 +2387,21 @@ const DoctorDashboard: React.FC = () => {
                 <div
                   className={
                     clinicalNotesFullscreen
-                      ? 'fixed inset-0 z-50 bg-white p-6 overflow-y-auto'
-                      : 'bg-white rounded-xl shadow-sm border border-gray-200 p-6'
+                      ? 'fixed inset-0 z-50 bg-ds-surface p-6 overflow-y-auto'
+                      : 'bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6'
                   }
                 >
                   <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Clinical Notes</h2>
+                      <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Clinical Notes</h2>
                     </div>
                     <button
                       type="button"
                       onClick={() => setClinicalNotesFullscreen((v) => !v)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="min-h-ds-touch inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ds-text-secondary bg-ds-subtle hover:bg-ds-border rounded-lg transition-colors"
                       title={clinicalNotesFullscreen ? 'Exit full screen (Esc)' : 'Open full screen for focus charting'}
                     >
                       {clinicalNotesFullscreen ? (
@@ -2408,14 +2423,14 @@ const DoctorDashboard: React.FC = () => {
                   </div>
 
                   {/* Modern Tabs */}
-                  <div className="border-b border-gray-200 mb-6">
+                  <div className="border-b border-ds-border mb-6">
                     <nav className="flex gap-2 overflow-x-auto" aria-label="Clinical Notes Tabs">
                       <button
                         onClick={() => setClinicalNotesTab('soap')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
                           clinicalNotesTab === 'soap'
-                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-brand-plum text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -2429,8 +2444,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('doctor')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'doctor'
-                            ? 'border-primary-600 text-primary-600 bg-primary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-accent text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -2444,8 +2459,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('nurse')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'nurse'
-                            ? 'border-primary-600 text-primary-600 bg-primary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-accent text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -2454,7 +2469,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Nurse Notes
                           {(notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length) > 0 && (
-                            <span className={`text-white text-xs px-2 py-0.5 rounded-full ${notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 ? 'bg-secondary-600' : 'bg-primary-600'}`}>
+                            <span className={`text-ds-on-accent text-xs px-2 py-0.5 rounded-full ${notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 ? 'bg-ds-accent' : 'bg-ds-accent'}`}>
                               {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length + notes.filter(n => n.note_type === 'nurse_to_doctor').length}
                             </span>
                           )}
@@ -2464,8 +2479,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('instructions')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'instructions'
-                            ? 'border-primary-600 text-primary-600 bg-primary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-accent text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -2479,8 +2494,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setClinicalNotesTab('procedural')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           clinicalNotesTab === 'procedural'
-                            ? 'border-primary-600 text-primary-600 bg-primary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-accent text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -2512,28 +2527,28 @@ const DoctorDashboard: React.FC = () => {
                             return null;
                           }
                           return (
-                            <div className="mx-6 bg-primary-50 border border-primary-200 rounded-lg p-4">
+                            <div className="mx-6 bg-ds-accent-soft border border-ds-accent/30 rounded-lg p-4">
                               <div className="flex items-center gap-2 mb-3">
-                                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                 </svg>
-                                <h4 className="text-sm font-bold text-primary-800">
+                                <h4 className="text-sm font-bold text-ds-accent-text">
                                   Results for this visit
                                 </h4>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {completedLabs.length > 0 && (
                                   <div>
-                                    <div className="text-xs font-semibold text-primary-700 uppercase mb-1.5">
+                                    <div className="text-xs font-semibold text-ds-accent-text uppercase mb-1.5">
                                       Lab ({completedLabs.length})
                                     </div>
                                     <ul className="space-y-2">
                                       {completedLabs.map((o) => (
                                         <li
                                           key={o.id}
-                                          className="bg-white rounded border border-primary-100 px-2.5 py-2"
+                                          className="bg-ds-surface rounded border border-ds-accent/30 px-2.5 py-2"
                                         >
-                                          <div className="text-xs font-semibold text-gray-900 mb-1">
+                                          <div className="text-xs font-semibold text-ds-text mb-1">
                                             {o.test_name}
                                           </div>
                                           <LabResultsInline result={o.results} orderId={o.id} compact />
@@ -2544,20 +2559,20 @@ const DoctorDashboard: React.FC = () => {
                                 )}
                                 {completedImaging.length > 0 && (
                                   <div>
-                                    <div className="text-xs font-semibold text-primary-700 uppercase mb-1.5">
+                                    <div className="text-xs font-semibold text-ds-accent-text uppercase mb-1.5">
                                       Imaging ({completedImaging.length})
                                     </div>
                                     <ul className="space-y-2">
                                       {completedImaging.map((o) => (
                                         <li
                                           key={o.id}
-                                          className="bg-white rounded border border-primary-100 px-2.5 py-2"
+                                          className="bg-ds-surface rounded border border-ds-accent/30 px-2.5 py-2"
                                         >
-                                          <div className="text-xs font-semibold text-gray-900">
+                                          <div className="text-xs font-semibold text-ds-text">
                                             {o.imaging_type}
                                             {o.body_part ? ` — ${o.body_part}` : ''}
                                           </div>
-                                          <div className="text-xs text-gray-700 whitespace-pre-wrap mt-0.5">
+                                          <div className="text-xs text-ds-text-secondary whitespace-pre-wrap mt-0.5">
                                             {o.results || o.findings}
                                           </div>
                                         </li>
@@ -2566,7 +2581,7 @@ const DoctorDashboard: React.FC = () => {
                                   </div>
                                 )}
                               </div>
-                              <p className="text-[11px] text-primary-600 mt-2">
+                              <p className="text-[11px] text-ds-accent-text mt-2">
                                 These results live in the Orders tab — copy anything
                                 relevant into the Objective section of your SOAP note.
                               </p>
@@ -2599,7 +2614,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Doctor's Notes Tab */}
                     {clinicalNotesTab === 'doctor' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-primary-50 to-secondary-50 p-6 rounded-xl border-2 border-primary-200">
+                        <form onSubmit={handleAddDoctorNote} className="bg-gradient-to-r from-ds-accent-soft to-ds-subtle p-6 rounded-ds-card border-2 border-ds-accent/30">
                           <SmartTextArea
                             value={noteContent}
                             onChange={setNoteContent}
@@ -2610,7 +2625,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add New Doctor's Note"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-semibold shadow-ds-card flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -2620,34 +2635,34 @@ const DoctorDashboard: React.FC = () => {
 
                         {notes.filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general').length > 0 ? (
                           <div>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Notes</h3>
+                            <h3 className="font-bold text-ds-text mb-4 text-lg">Notes</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.created_by_role === 'doctor' && n.note_type === 'doctor_general')
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className={`p-4 rounded-xl border-2 ${
+                                    className={`p-4 rounded-ds-card border-2 ${
                                       note.is_signed
-                                        ? 'bg-success-50 border-success-300'
-                                        : 'bg-white border-gray-200 hover:border-primary-300'
-                                    } transition-all shadow-sm hover:shadow-md`}
+                                        ? 'bg-ds-success-soft border-ds-success/50'
+                                        : 'bg-ds-surface border-ds-border hover:border-ds-accent/30'
+                                    } transition-all shadow-ds-card hover:shadow-ds-overlay`}
                                   >
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-gray-600 font-medium">
+                                      <div className="text-xs text-ds-text-secondary font-medium">
                                         {new Date(note.created_at).toLocaleDateString()} - {note.created_by_name} - {note.is_signed ? 'Signed' : 'Unsigned'}
                                       </div>
                                       <div className="flex gap-2">
                                         {!note.is_signed && (
                                           <button
                                             onClick={() => handleSignNote(note.id)}
-                                            className="text-xs bg-success-600 text-white px-3 py-1 rounded-full hover:bg-success-700 font-semibold transition-colors"
+                                            className="min-h-ds-touch text-xs bg-ds-success text-white dark:text-ds-canvas px-3 py-1 rounded-full hover:bg-ds-success/90 font-semibold transition-colors"
                                           >
                                             Sign Note
                                           </button>
                                         )}
                                         {note.is_signed && (
-                                          <span className="text-xs bg-success-600 text-white px-3 py-1 rounded-full font-semibold flex items-center gap-1">
+                                          <span className="text-xs bg-ds-success text-white dark:text-ds-canvas px-3 py-1 rounded-full font-semibold flex items-center gap-1">
                                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                             </svg>
@@ -2656,13 +2671,13 @@ const DoctorDashboard: React.FC = () => {
                                         )}
                                       </div>
                                     </div>
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                    <div className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</div>
                                   </div>
                                 ))}
                             </div>
                           </div>
                         ) : (
-                          <div className="text-center py-12 text-gray-400">
+                          <div className="text-center py-12 text-ds-text-muted">
                             <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
@@ -2678,8 +2693,8 @@ const DoctorDashboard: React.FC = () => {
                       <div className="space-y-6">
                         {/* Nurse Messages to Doctor - highlighted section */}
                         {notes.filter(n => n.note_type === 'nurse_to_doctor').length > 0 && (
-                          <div className="bg-gradient-to-r from-secondary-50 to-secondary-50 p-4 rounded-xl border-2 border-secondary-300">
-                            <h3 className="font-bold text-secondary-800 mb-3 flex items-center gap-2">
+                          <div className="bg-gradient-to-r from-ds-subtle to-ds-subtle p-4 rounded-ds-card border-2 border-ds-border">
+                            <h3 className="font-bold text-ds-brand-plum mb-3 flex items-center gap-2">
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                               </svg>
@@ -2691,20 +2706,20 @@ const DoctorDashboard: React.FC = () => {
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-white border-2 border-secondary-200 shadow-sm"
+                                    className="p-4 rounded-ds-card bg-ds-surface border-2 border-ds-border shadow-ds-card"
                                   >
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-secondary-700 font-semibold">
+                                      <div className="text-xs text-ds-brand-plum font-semibold">
                                         {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="text-xs bg-secondary-600 text-white px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                                      <span className="text-xs bg-ds-accent text-ds-on-accent px-2 py-1 rounded-full font-medium flex items-center gap-1">
                                         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                                         </svg>
                                         MESSAGE
                                       </span>
                                     </div>
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                    <div className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</div>
                                   </div>
                                 ))}
                             </div>
@@ -2714,30 +2729,30 @@ const DoctorDashboard: React.FC = () => {
                         {/* Nurse Clinical Notes */}
                         {notes.filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general').length > 0 ? (
                           <>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Nurse Clinical Notes</h3>
+                            <h3 className="font-bold text-ds-text mb-4 text-lg">Nurse Clinical Notes</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.created_by_role === 'nurse' && n.note_type === 'nurse_general')
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-primary-50 border-2 border-primary-200 shadow-sm hover:shadow-md transition-all"
+                                    className="p-4 rounded-ds-card bg-ds-accent-soft border-2 border-ds-accent/30 shadow-ds-card hover:shadow-ds-overlay transition-all"
                                   >
                                     <div className="flex justify-between items-start mb-2">
-                                      <div className="text-xs text-primary-700 font-semibold">
+                                      <div className="text-xs text-ds-accent-text font-semibold">
                                         {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                       </div>
-                                      <span className="text-xs bg-primary-600 text-white px-2 py-1 rounded-full font-medium">
+                                      <span className="text-xs bg-ds-accent text-ds-on-accent px-2 py-1 rounded-full font-medium">
                                         NURSE NOTE
                                       </span>
                                     </div>
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                    <div className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</div>
                                   </div>
                                 ))}
                             </div>
                           </>
                         ) : notes.filter(n => n.note_type === 'nurse_to_doctor').length === 0 ? (
-                          <div className="text-center py-12 text-gray-400">
+                          <div className="text-center py-12 text-ds-text-muted">
                             <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                             </svg>
@@ -2751,7 +2766,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Nurse Instructions Tab */}
                     {clinicalNotesTab === 'instructions' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-secondary-50 to-primary-50 p-6 rounded-xl border-2 border-secondary-200">
+                        <form onSubmit={handleAddNurseNote} className="bg-gradient-to-r from-ds-subtle to-ds-accent-soft p-6 rounded-ds-card border-2 border-ds-border">
                           <SmartTextArea
                             value={nurseNoteContent}
                             onChange={setNurseNoteContent}
@@ -2762,7 +2777,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add Instructions for Nurse"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-brand-plum/90 transition-colors font-semibold shadow-ds-card flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -2772,19 +2787,19 @@ const DoctorDashboard: React.FC = () => {
 
                         {notes.filter(n => n.note_type === 'doctor_to_nurse').length > 0 && (
                           <div>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Sent Instructions</h3>
+                            <h3 className="font-bold text-ds-text mb-4 text-lg">Sent Instructions</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.note_type === 'doctor_to_nurse')
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-secondary-50 border-2 border-secondary-200 shadow-sm"
+                                    className="p-4 rounded-ds-card bg-ds-accent-soft border-2 border-ds-border shadow-ds-card"
                                   >
-                                    <div className="text-xs text-secondary-700 font-medium mb-2">
+                                    <div className="text-xs text-ds-brand-plum font-medium mb-2">
                                       Sent {new Date(note.created_at).toLocaleString()}
                                     </div>
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                    <div className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</div>
                                   </div>
                                 ))}
                             </div>
@@ -2796,7 +2811,7 @@ const DoctorDashboard: React.FC = () => {
                     {/* Procedural Notes Tab */}
                     {clinicalNotesTab === 'procedural' && (
                       <div className="space-y-6">
-                        <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-gray-50 to-gray-50 p-6 rounded-xl border-2 border-gray-300">
+                        <form onSubmit={handleAddProceduralNote} className="bg-gradient-to-r from-ds-subtle to-ds-subtle p-6 rounded-ds-card border-2 border-ds-border-control">
                           <SmartTextArea
                             value={proceduralNoteContent}
                             onChange={setProceduralNoteContent}
@@ -2807,7 +2822,7 @@ const DoctorDashboard: React.FC = () => {
                             label="Add Procedural Note"
                             required
                           />
-                          <button type="submit" className="mt-4 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold shadow-md flex items-center gap-2">
+                          <button type="submit" className="mt-4 px-6 py-3 bg-ds-text-secondary text-ds-canvas rounded-lg hover:bg-ds-text transition-colors font-semibold shadow-ds-card flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
@@ -2817,25 +2832,25 @@ const DoctorDashboard: React.FC = () => {
 
                         {notes.filter(n => n.note_type === 'doctor_procedural').length > 0 ? (
                           <div>
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Procedural Notes</h3>
+                            <h3 className="font-bold text-ds-text mb-4 text-lg">Procedural Notes</h3>
                             <div className="space-y-3">
                               {notes
                                 .filter(n => n.note_type === 'doctor_procedural')
                                 .map((note) => (
                                   <div
                                     key={note.id}
-                                    className="p-4 rounded-xl bg-gray-50 border-2 border-gray-200 shadow-sm hover:shadow-md transition-all"
+                                    className="p-4 rounded-ds-card bg-ds-subtle border-2 border-ds-border shadow-ds-card hover:shadow-ds-overlay transition-all"
                                   >
-                                    <div className="text-xs text-gray-700 font-medium mb-2">
+                                    <div className="text-xs text-ds-text-secondary font-medium mb-2">
                                       {note.created_by_name} - {new Date(note.created_at).toLocaleString()}
                                     </div>
-                                    <div className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</div>
+                                    <div className="text-sm text-ds-text whitespace-pre-wrap">{note.content}</div>
                                   </div>
                                 ))}
                             </div>
                           </div>
                         ) : (
-                          <div className="text-center py-12 text-gray-400">
+                          <div className="text-center py-12 text-ds-text-muted">
                             <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                             </svg>
@@ -2849,23 +2864,23 @@ const DoctorDashboard: React.FC = () => {
                   </div>
                 </div>
               {/* Orders & Actions — integrated into patient tab */}
-              <div className="border-t border-gray-100 pt-6 mt-4">
+              <div className="border-t border-ds-border pt-6 mt-4">
                   <div className="flex justify-between items-center mb-5">
-                    <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <h3 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider flex items-center gap-2">
+                      <svg className="w-4 h-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                       </svg>
                       Orders & Actions
                     </h3>
                     {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
-                      <span className="px-3 py-1 bg-primary-50 text-primary-700 text-xs font-bold rounded-full">
+                      <span className="px-3 py-1 bg-ds-accent-soft text-ds-accent-text text-xs font-bold rounded-full">
                         {pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length} Pending
                       </span>
                     )}
                   </div>
 
                   {/* Order Type Tabs */}
-                  <div className="flex border-b border-gray-200 mb-4 gap-1">
+                  <div className="flex border-b border-ds-border mb-4 gap-1">
                     {([
                       { id: 'lab' as const, label: 'Lab Tests', count: pendingLabOrders.length },
                       { id: 'imaging' as const, label: 'Imaging', count: pendingImagingOrders.length },
@@ -2875,15 +2890,15 @@ const DoctorDashboard: React.FC = () => {
                       <button
                         key={tab.id}
                         onClick={() => setOrdersTab(tab.id)}
-                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                        className={`min-h-ds-touch px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
                           ordersTab === tab.id
-                            ? 'border-primary-600 text-primary-600'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-ds-accent text-ds-accent-text'
+                            : 'border-transparent text-ds-text-muted hover:text-ds-text'
                         }`}
                       >
                         {tab.label}
                         {tab.count > 0 && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-primary-100 text-primary-700">{tab.count}</span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-ds-accent-soft text-ds-accent-text">{tab.count}</span>
                         )}
                       </button>
                     ))}
@@ -2894,7 +2909,7 @@ const DoctorDashboard: React.FC = () => {
                     <div className="max-w-md space-y-3">
                       <button
                         onClick={handleCompleteEncounter}
-                        className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
+                        className="min-h-ds-touch w-full px-3 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center justify-center gap-2 text-sm"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2903,29 +2918,29 @@ const DoctorDashboard: React.FC = () => {
                       </button>
                       <button
                         onClick={handleCancelEncounter}
-                        className="w-full px-3 py-2 text-danger-600 border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors font-medium flex items-center justify-center gap-2 text-sm"
+                        className="min-h-ds-touch w-full px-3 py-2 text-ds-critical-text border border-ds-critical-border rounded-lg hover:bg-ds-critical-soft transition-colors font-medium flex items-center justify-center gap-2 text-sm"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                         Cancel Encounter
                       </button>
-                      <p className="text-xs text-gray-400 text-center">No-show or patient left before being seen</p>
+                      <p className="text-xs text-ds-text-muted text-center">No-show or patient left before being seen</p>
                     </div>
                   )}
 
                   {/* Lab Orders Tab */}
                   {ordersTab === 'lab' && (
                     <>
-                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
-                        <span className="w-6 h-6 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+                      <h3 className="text-[11px] font-semibold text-ds-text-muted mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-6 h-6 rounded-lg bg-ds-accent-soft text-ds-accent-text flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                           </svg>
                         </span>
                         Lab Tests
                         {pendingLabOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full text-xs font-bold">
+                          <span className="ml-auto px-2 py-0.5 bg-ds-accent-soft text-ds-accent-text rounded-full text-xs font-bold">
                             {pendingLabOrders.length}
                           </span>
                         )}
@@ -2941,7 +2956,7 @@ const DoctorDashboard: React.FC = () => {
                           value={currentLabOrder.test_name}
                           onChange={(value) => setCurrentLabOrder({...currentLabOrder, test_name: value})}
                           sectionId="lab_tests"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm"
                           placeholder="Test name"
                         />
                         <div className="grid grid-cols-2 gap-2">
@@ -2961,21 +2976,21 @@ const DoctorDashboard: React.FC = () => {
                             value={currentLabOrder.customFrequency || ''}
                             onChange={(e) => setCurrentLabOrder({...currentLabOrder, customFrequency: e.target.value})}
                             placeholder="e.g., Every 3 days, Twice weekly, Before meals"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-primary-500"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg bg-ds-surface text-sm focus:ring-2 focus:ring-ds-focus-ring"
                           />
                         )}
                         {currentLabOrder.frequency !== 'once' && currentLabOrder.frequency !== 'custom' && (
                           <div className="flex items-center gap-2">
-                            <label className="text-xs text-gray-500 whitespace-nowrap">Occurrences:</label>
+                            <label className="text-xs text-ds-text-muted whitespace-nowrap">Occurrences:</label>
                             <input
                               type="number"
                               min={2}
                               max={30}
                               value={currentLabOrder.occurrences}
                               onChange={(e) => setCurrentLabOrder({...currentLabOrder, occurrences: parseInt(e.target.value) || 2})}
-                              className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                              className="w-20 px-2 py-1.5 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring"
                             />
-                            <span className="text-xs text-gray-400">
+                            <span className="text-xs text-ds-text-muted">
                               {currentLabOrder.frequency === 'daily' ? 'days' :
                                currentLabOrder.frequency === 'weekly' ? 'weeks' : 'times'}
                             </span>
@@ -2986,11 +3001,11 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentLabOrder({...currentLabOrder, notes: e.target.value})}
                           placeholder="Notes for lab (optional) — e.g. fasting sample, specific tube, special handling"
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm resize-none"
                         />
                         <button
                           onClick={handleAddLabOrder}
-                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
+                          className="min-h-ds-touch w-full px-3 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3002,14 +3017,14 @@ const DoctorDashboard: React.FC = () => {
                         {pendingLabOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingLabOrders.map((order, index) => (
-                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                              <div key={index} className="bg-ds-subtle p-3 rounded-lg border border-ds-border flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 text-sm truncate">{order.test_name}</div>
-                                  <div className="text-[10px] font-bold uppercase tracking-wide text-primary-600 mt-0.5">{order.priority}</div>
+                                  <div className="font-medium text-ds-text text-sm truncate">{order.test_name}</div>
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-ds-accent-text mt-0.5">{order.priority}</div>
                                 </div>
                                 <button
                                   onClick={() => handleEditLabOrder(index)}
-                                  className="text-gray-400 hover:text-primary-600 ml-2 transition-colors"
+                                  className="text-ds-text-muted hover:text-ds-accent-text ml-2 transition-colors"
                                   title="Edit"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3018,7 +3033,7 @@ const DoctorDashboard: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleRemoveLabOrder(index)}
-                                  className="text-gray-400 hover:text-danger-600 ml-1 transition-colors"
+                                  className="text-ds-text-muted hover:text-ds-critical-text ml-1 transition-colors"
                                   title="Remove"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3036,15 +3051,15 @@ const DoctorDashboard: React.FC = () => {
                   {/* Imaging Orders Tab */}
                   {ordersTab === 'imaging' && (
                     <>
-                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
-                        <span className="w-6 h-6 rounded-lg bg-secondary-50 text-secondary-600 flex items-center justify-center">
+                      <h3 className="text-[11px] font-semibold text-ds-text-muted mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-6 h-6 rounded-lg bg-ds-accent-soft text-ds-accent-text flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                           </svg>
                         </span>
                         Imaging
                         {pendingImagingOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-secondary-100 text-secondary-700 rounded-full text-xs font-bold">
+                          <span className="ml-auto px-2 py-0.5 bg-ds-accent-soft text-ds-brand-plum rounded-full text-xs font-bold">
                             {pendingImagingOrders.length}
                           </span>
                         )}
@@ -3055,14 +3070,14 @@ const DoctorDashboard: React.FC = () => {
                           value={currentImagingOrder.imaging_type}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, imaging_type: value})}
                           sectionId="imaging_types"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm"
                           placeholder="Imaging type"
                         />
                         <AutocompleteInput
                           value={currentImagingOrder.body_part}
                           onChange={(value) => setCurrentImagingOrder({...currentImagingOrder, body_part: value})}
                           sectionId="imaging_body_parts"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm"
                           placeholder="Body part (optional)"
                         />
                         <PrioritySelect
@@ -3074,11 +3089,11 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentImagingOrder({...currentImagingOrder, notes: e.target.value})}
                           placeholder="Notes for imaging (optional) — e.g. with contrast, prior surgery, motion-restricted patient"
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 focus:border-transparent bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent bg-ds-surface text-sm resize-none"
                         />
                         <button
                           onClick={handleAddImagingOrder}
-                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
+                          className="min-h-ds-touch w-full px-3 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center justify-center gap-2 text-sm mt-auto"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3090,15 +3105,15 @@ const DoctorDashboard: React.FC = () => {
                         {pendingImagingOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingImagingOrders.map((order, index) => (
-                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                              <div key={index} className="bg-ds-subtle p-3 rounded-lg border border-ds-border flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 text-sm truncate">{order.imaging_type}</div>
-                                  {order.body_part && <div className="text-xs text-gray-600 mt-0.5">{order.body_part}</div>}
-                                  <div className="text-[10px] font-bold uppercase tracking-wide text-secondary-600 mt-0.5">{order.priority}</div>
+                                  <div className="font-medium text-ds-text text-sm truncate">{order.imaging_type}</div>
+                                  {order.body_part && <div className="text-xs text-ds-text-secondary mt-0.5">{order.body_part}</div>}
+                                  <div className="text-[10px] font-bold uppercase tracking-wide text-ds-accent-text mt-0.5">{order.priority}</div>
                                 </div>
                                 <button
                                   onClick={() => handleEditImagingOrder(index)}
-                                  className="text-gray-400 hover:text-secondary-600 ml-2 transition-colors"
+                                  className="text-ds-text-muted hover:text-ds-brand-plum ml-2 transition-colors"
                                   title="Edit"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3107,7 +3122,7 @@ const DoctorDashboard: React.FC = () => {
                                 </button>
                                 <button
                                   onClick={() => handleRemoveImagingOrder(index)}
-                                  className="text-gray-400 hover:text-danger-600 ml-1 transition-colors"
+                                  className="text-ds-text-muted hover:text-ds-critical-text ml-1 transition-colors"
                                   title="Remove"
                                 >
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3125,15 +3140,15 @@ const DoctorDashboard: React.FC = () => {
                   {/* Pharmacy Orders Tab */}
                   {ordersTab === 'pharmacy' && (
                     <>
-                      <h3 className="text-[11px] font-semibold text-text-secondary mb-3 flex items-center gap-2 uppercase tracking-wider">
-                        <span className="w-6 h-6 rounded-lg bg-success-50 text-success-600 flex items-center justify-center">
+                      <h3 className="text-[11px] font-semibold text-ds-text-muted mb-3 flex items-center gap-2 uppercase tracking-wider">
+                        <span className="w-6 h-6 rounded-lg bg-ds-success-soft text-ds-success-text flex items-center justify-center">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                           </svg>
                         </span>
                         Pharmacy
                         {pendingPharmacyOrders.length > 0 && (
-                          <span className="ml-auto px-2 py-0.5 bg-success-100 text-success-700 rounded-full text-xs font-bold">
+                          <span className="ml-auto px-2 py-0.5 bg-ds-success-soft text-ds-success-text rounded-full text-xs font-bold">
                             {pendingPharmacyOrders.length}
                           </span>
                         )}
@@ -3146,31 +3161,31 @@ const DoctorDashboard: React.FC = () => {
                             type="text"
                             value={currentPharmacyOrder.medication_name}
                             onChange={(e) => searchMedications(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Search medication from inventory..."
                             autoComplete="off"
                           />
                           {showMedSuggestions && medSearchResults.length > 0 && (
-                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            <div className="absolute z-50 w-full mt-1 bg-ds-surface border border-ds-border rounded-lg shadow-ds-card max-h-60 overflow-y-auto">
                               {medSearchResults.map((med) => (
                                 <button
                                   key={med.id}
                                   type="button"
                                   onClick={() => selectMedication(med)}
-                                  className="w-full px-3 py-2 text-left hover:bg-success-50 border-b border-gray-100 last:border-0"
+                                  className="min-h-ds-touch w-full px-3 py-2 text-left hover:bg-ds-success-soft border-b border-ds-border last:border-0"
                                 >
                                   <div className="flex justify-between items-center">
                                     <div>
-                                      <span className="font-medium text-gray-900">{med.medication_name}</span>
+                                      <span className="font-medium text-ds-text">{med.medication_name}</span>
                                       {med.generic_name && med.generic_name !== med.medication_name && (
-                                        <span className="text-xs text-gray-500 ml-2">({med.generic_name})</span>
+                                        <span className="text-xs text-ds-text-muted ml-2">({med.generic_name})</span>
                                       )}
                                     </div>
                                     <div className="flex items-center gap-3 text-xs">
-                                      <span className={`font-semibold ${med.quantity_on_hand > 0 ? 'text-success-600' : 'text-danger-600'}`}>
+                                      <span className={`font-semibold ${med.quantity_on_hand > 0 ? 'text-ds-success-text' : 'text-ds-critical-text'}`}>
                                         {med.quantity_on_hand > 0 ? `${med.quantity_on_hand} in stock` : 'Out of stock'}
                                       </span>
-                                      <span className="text-gray-500">GHS {Number(med.selling_price).toFixed(2)}</span>
+                                      <span className="text-ds-text-muted">GHS {Number(med.selling_price).toFixed(2)}</span>
                                     </div>
                                   </div>
                                 </button>
@@ -3179,10 +3194,10 @@ const DoctorDashboard: React.FC = () => {
                           )}
                           {currentPharmacyOrder.inventory_id && (
                             <div className="flex items-center gap-3 mt-1 text-xs">
-                              <span className="text-success-600 font-medium">
+                              <span className="text-ds-success-text font-medium">
                                 In stock: {currentPharmacyOrder.quantity_on_hand}
                               </span>
-                              <span className="text-gray-500">
+                              <span className="text-ds-text-muted">
                                 Unit price: GHS {Number(currentPharmacyOrder.selling_price || 0).toFixed(2)}
                               </span>
                             </div>
@@ -3192,7 +3207,7 @@ const DoctorDashboard: React.FC = () => {
                               Make clear the free-text is accepted and pharmacy will
                               match/substitute. */}
                           {medSearchNoMatch && !currentPharmacyOrder.inventory_id && (
-                            <p className="mt-1 text-xs text-warning-700">
+                            <p className="mt-1 text-xs text-ds-warning-text">
                               Not found in inventory — you can still prescribe this; pharmacy will match or substitute it.
                             </p>
                           )}
@@ -3202,7 +3217,7 @@ const DoctorDashboard: React.FC = () => {
                             type="text"
                             value={currentPharmacyOrder.dosage}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, dosage: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Dosage"
                           />
                           <AppSelect
@@ -3216,14 +3231,14 @@ const DoctorDashboard: React.FC = () => {
                             min="1"
                             value={currentPharmacyOrder.days_supply}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, days_supply: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Days Supply"
                           />
                           <input
                             type="text"
                             value={currentPharmacyOrder.quantity}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, quantity: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Qty (auto-calculated)"
                             title="Auto-calculated from frequency × days. You can override."
                           />
@@ -3231,7 +3246,7 @@ const DoctorDashboard: React.FC = () => {
                             value={currentPharmacyOrder.route}
                             onChange={(value) => setCurrentPharmacyOrder({...currentPharmacyOrder, route: value})}
                             sectionId="pharmacy_routes"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Route"
                           />
                           <input
@@ -3239,7 +3254,7 @@ const DoctorDashboard: React.FC = () => {
                             min="0"
                             value={currentPharmacyOrder.refills}
                             onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, refills: e.target.value})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm"
+                            className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm"
                             placeholder="Refill"
                           />
                         </div>
@@ -3251,7 +3266,7 @@ const DoctorDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: false})}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              className={`min-h-ds-touch px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${!currentPharmacyOrder.is_long_term ? 'bg-ds-accent text-ds-on-accent border-ds-accent' : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'}`}
                               aria-pressed={!currentPharmacyOrder.is_long_term}
                             >
                               One-time
@@ -3259,13 +3274,13 @@ const DoctorDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setCurrentPharmacyOrder({...currentPharmacyOrder, is_long_term: true})}
-                              className={`px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${currentPharmacyOrder.is_long_term ? 'bg-primary-600 text-white border-primary-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                              className={`min-h-ds-touch px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${currentPharmacyOrder.is_long_term ? 'bg-ds-accent text-ds-on-accent border-ds-accent' : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'}`}
                               aria-pressed={currentPharmacyOrder.is_long_term}
                             >
                               Long-term (refillable)
                             </button>
                           </div>
-                          <p className="mt-1 text-xs text-gray-500">
+                          <p className="mt-1 text-xs text-ds-text-muted">
                             {currentPharmacyOrder.is_long_term
                               ? 'Chronic medication — will appear on the pharmacy refills calendar for reminders.'
                               : 'Single course — no automatic refill reminder.'}
@@ -3285,12 +3300,12 @@ const DoctorDashboard: React.FC = () => {
                           onChange={(e) => setCurrentPharmacyOrder({...currentPharmacyOrder, notes: e.target.value})}
                           placeholder="Notes for pharmacy (optional) — e.g. take with food, may cause drowsiness, check renal function"
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-success-500 focus:border-transparent bg-white text-sm resize-none"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-success focus:border-transparent bg-ds-surface text-sm resize-none"
                         />
                         <button
                           onClick={handleAddPharmacyOrder}
                           disabled={checkingInteractions}
-                          className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-auto"
+                          className="min-h-ds-touch w-full px-3 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-auto"
                         >
                           {checkingInteractions ? (
                             <>
@@ -3314,34 +3329,34 @@ const DoctorDashboard: React.FC = () => {
                         {pendingPharmacyOrders.length > 0 && (
                           <div className="mt-4 space-y-2">
                             {pendingPharmacyOrders.map((order, index) => (
-                              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-start">
+                              <div key={index} className="bg-ds-subtle p-3 rounded-lg border border-ds-border flex justify-between items-start">
                                 <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-gray-900 text-sm truncate">{order.medication_name}</div>
-                                  <div className="text-xs text-gray-600 mt-0.5">
+                                  <div className="font-medium text-ds-text text-sm truncate">{order.medication_name}</div>
+                                  <div className="text-xs text-ds-text-secondary mt-0.5">
                                     {order.dosage} {order.frequency && `• ${order.frequency}`}
                                   </div>
-                                  {order.route && <div className="text-xs text-gray-600">{order.route} • Qty: {order.quantity}</div>}
-                                  <div className="text-xs text-gray-600">
-                                    {parseInt(order.refills) > 0 && <span className="text-primary-600">{order.refills} refill(s)</span>}
+                                  {order.route && <div className="text-xs text-ds-text-secondary">{order.route} • Qty: {order.quantity}</div>}
+                                  <div className="text-xs text-ds-text-secondary">
+                                    {parseInt(order.refills) > 0 && <span className="text-ds-accent-text">{order.refills} refill(s)</span>}
                                     {order.days_supply && <span className="ml-2">• {order.days_supply} days supply</span>}
                                   </div>
                                   <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    <span className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${order.is_long_term ? 'bg-ds-accent-soft text-ds-accent-text' : 'bg-ds-subtle text-ds-text-secondary'}`}>
                                       {order.is_long_term ? 'Long-term' : 'One-time'}
                                     </span>
-                                    <span className="text-[10px] font-bold uppercase tracking-wide text-success-600">{order.priority}</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wide text-ds-success-text">{order.priority}</span>
                                     {order.selling_price && (
-                                      <span className="text-xs text-gray-500">GHS {Number(order.selling_price).toFixed(2)}/unit</span>
+                                      <span className="text-xs text-ds-text-muted">GHS {Number(order.selling_price).toFixed(2)}/unit</span>
                                     )}
                                     {!order.inventory_id && (
-                                      <span className="text-xs text-warning-600 font-medium">Not linked to inventory</span>
+                                      <span className="text-xs text-ds-warning-text font-medium">Not linked to inventory</span>
                                     )}
                                   </div>
                                 </div>
                                 <div className="flex flex-col gap-1 ml-2">
                                   <button
                                     onClick={() => handleEditPharmacyOrder(index)}
-                                    className="text-gray-400 hover:text-success-600 transition-colors"
+                                    className="text-ds-text-muted hover:text-ds-success-text transition-colors"
                                     title="Edit"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3350,7 +3365,7 @@ const DoctorDashboard: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={() => handleRemovePharmacyOrder(index)}
-                                    className="text-gray-400 hover:text-danger-600 transition-colors"
+                                    className="text-ds-text-muted hover:text-ds-critical-text transition-colors"
                                     title="Remove"
                                   >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -3368,11 +3383,11 @@ const DoctorDashboard: React.FC = () => {
 
                   {/* Submit All Orders Button */}
                   {(pendingLabOrders.length + pendingImagingOrders.length + pendingPharmacyOrders.length) > 0 && (
-                    <div className="mt-6 pt-6 border-t border-gray-200">
+                    <div className="mt-6 pt-6 border-t border-ds-border">
                       <button
                         onClick={handleSubmitAllOrders}
                         disabled={submittingOrders}
-                        className="w-full px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full px-6 py-3 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-semibold text-base flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -3384,17 +3399,17 @@ const DoctorDashboard: React.FC = () => {
                 </div>
 
                 {/* Lab & Imaging Results Section */}
-                <div className="border-t border-gray-100 pt-6 mt-4">
+                <div className="border-t border-ds-border pt-6 mt-4">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <h3 className="text-lg font-bold text-ds-text flex items-center gap-2">
+                      <svg className="w-5 h-5 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       Lab, Imaging & Pharmacy
                     </h3>
                     <button
                       onClick={() => selectedEncounter && loadEncounterOrders(selectedEncounter.id)}
-                      className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-1"
+                      className="min-h-ds-touch px-3 py-1.5 text-sm bg-ds-subtle hover:bg-ds-border rounded-lg transition-colors flex items-center gap-1"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3404,14 +3419,14 @@ const DoctorDashboard: React.FC = () => {
                   </div>
 
                   {/* Tabs */}
-                  <div className="border-b border-gray-200 mb-6">
+                  <div className="border-b border-ds-border mb-6">
                     <nav className="flex gap-2" aria-label="Results Tabs">
                       <button
                         onClick={() => setResultsTab('lab')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           resultsTab === 'lab'
-                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-brand-plum text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -3420,7 +3435,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Lab Results
                           {encounterLabOrders.length > 0 && (
-                            <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-ds-accent text-ds-on-accent text-xs px-2 py-0.5 rounded-full">
                               {encounterLabOrders.length}
                             </span>
                           )}
@@ -3430,8 +3445,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setResultsTab('imaging')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           resultsTab === 'imaging'
-                            ? 'border-secondary-600 text-secondary-600 bg-secondary-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-brand-plum text-ds-accent-text bg-ds-accent-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -3440,7 +3455,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Imaging Results
                           {encounterImagingOrders.length > 0 && (
-                            <span className="bg-secondary-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-ds-accent text-ds-on-accent text-xs px-2 py-0.5 rounded-full">
                               {encounterImagingOrders.length}
                             </span>
                           )}
@@ -3450,8 +3465,8 @@ const DoctorDashboard: React.FC = () => {
                         onClick={() => setResultsTab('pharmacy')}
                         className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
                           resultsTab === 'pharmacy'
-                            ? 'border-success-600 text-success-600 bg-success-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                            ? 'border-ds-success text-ds-success-text bg-ds-success-soft'
+                            : 'border-transparent text-ds-text-secondary hover:text-ds-text hover:border-ds-border-control'
                         }`}
                       >
                         <div className="flex items-center gap-2">
@@ -3460,7 +3475,7 @@ const DoctorDashboard: React.FC = () => {
                           </svg>
                           Pharmacy
                           {encounterPharmacyOrders.length > 0 && (
-                            <span className="bg-success-600 text-white text-xs px-2 py-0.5 rounded-full">
+                            <span className="bg-ds-success text-white dark:text-ds-canvas text-xs px-2 py-0.5 rounded-full">
                               {encounterPharmacyOrders.length}
                             </span>
                           )}
@@ -3473,7 +3488,7 @@ const DoctorDashboard: React.FC = () => {
                   {resultsTab === 'lab' && (
                     <div>
                       {encounterLabOrders.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
+                        <div className="text-center py-12 text-ds-text-muted">
                           <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                           </svg>
@@ -3485,46 +3500,46 @@ const DoctorDashboard: React.FC = () => {
                           {encounterLabOrders.map((order) => (
                             <div
                               key={order.id}
-                              className={`p-4 rounded-xl border-2 ${
+                              className={`p-4 rounded-ds-card border-2 ${
                                 order.status === 'completed'
-                                  ? 'border-success-200 bg-success-50'
+                                  ? 'border-ds-success/30 bg-ds-success-soft'
                                   : order.status === 'in_progress'
-                                  ? 'border-warning-200 bg-warning-50'
-                                  : 'border-gray-200 bg-gray-50'
+                                  ? 'border-ds-warning-border bg-ds-warning-soft'
+                                  : 'border-ds-border bg-ds-subtle'
                               }`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-3">
-                                    <h4 className="font-bold text-gray-900 text-lg">{order.test_name}</h4>
+                                    <h4 className="font-bold text-ds-text text-lg">{order.test_name}</h4>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       order.status === 'completed'
-                                        ? 'bg-success-200 text-success-800'
+                                        ? 'bg-ds-success-soft text-ds-success-text'
                                         : order.status === 'in_progress'
-                                        ? 'bg-warning-200 text-warning-800'
-                                        : 'bg-gray-200 text-gray-800'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-border text-ds-text'
                                     }`}>
                                       {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       order.priority === 'stat'
-                                        ? 'bg-danger-100 text-danger-700'
+                                        ? 'bg-ds-critical-soft text-ds-critical-text'
                                         : order.priority === 'urgent'
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-primary-100 text-primary-700'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-accent-soft text-ds-accent-text'
                                     }`}>
                                       {order.priority.toUpperCase()}
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-500 mt-1">
+                                  <div className="text-sm text-ds-text-muted mt-1">
                                     Ordered: {new Date(order.ordered_at).toLocaleString()}
                                   </div>
                                   {order.status === 'completed' && order.results && (
-                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
-                                      <div className="text-sm font-semibold text-success-800 mb-2">Results</div>
+                                    <div className="mt-3 p-3 bg-ds-surface rounded-lg border border-ds-success/50">
+                                      <div className="text-sm font-semibold text-ds-success-text mb-2">Results</div>
                                       <LabResultsInline result={order.results} orderId={order.id} />
                                       {order.completed_at && (
-                                        <div className="text-xs text-gray-500 mt-2">
+                                        <div className="text-xs text-ds-text-muted mt-2">
                                           Resulted: {new Date(order.completed_at).toLocaleString()}
                                         </div>
                                       )}
@@ -3534,7 +3549,7 @@ const DoctorDashboard: React.FC = () => {
                                 {(order.status === 'ordered' || order.status === 'pending' || order.status === 'in_progress') && (
                                   <button
                                     onClick={() => handleCancelLabOrder(order.id)}
-                                    className="ml-3 px-4 py-2 text-sm font-semibold text-danger-600 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100 transition-colors flex items-center gap-1.5 flex-shrink-0"
+                                    className="min-h-ds-touch ml-3 px-4 py-2 text-sm font-semibold text-ds-critical-text bg-ds-critical-soft border border-ds-critical-border rounded-lg hover:bg-ds-critical-soft transition-colors flex items-center gap-1.5 flex-shrink-0"
                                   >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -3554,7 +3569,7 @@ const DoctorDashboard: React.FC = () => {
                   {resultsTab === 'imaging' && (
                     <div>
                       {encounterImagingOrders.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
+                        <div className="text-center py-12 text-ds-text-muted">
                           <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                           </svg>
@@ -3566,49 +3581,49 @@ const DoctorDashboard: React.FC = () => {
                           {encounterImagingOrders.map((order) => (
                             <div
                               key={order.id}
-                              className={`p-4 rounded-xl border-2 ${
+                              className={`p-4 rounded-ds-card border-2 ${
                                 order.status === 'completed'
-                                  ? 'border-success-200 bg-success-50'
+                                  ? 'border-ds-success/30 bg-ds-success-soft'
                                   : order.status === 'in_progress'
-                                  ? 'border-warning-200 bg-warning-50'
-                                  : 'border-gray-200 bg-gray-50'
+                                  ? 'border-ds-warning-border bg-ds-warning-soft'
+                                  : 'border-ds-border bg-ds-subtle'
                               }`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-3">
-                                    <h4 className="font-bold text-gray-900 text-lg">{order.imaging_type}</h4>
+                                    <h4 className="font-bold text-ds-text text-lg">{order.imaging_type}</h4>
                                     {order.body_part && (
-                                      <span className="text-gray-600">- {order.body_part}</span>
+                                      <span className="text-ds-text-secondary">- {order.body_part}</span>
                                     )}
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       order.status === 'completed'
-                                        ? 'bg-success-200 text-success-800'
+                                        ? 'bg-ds-success-soft text-ds-success-text'
                                         : order.status === 'in_progress'
-                                        ? 'bg-warning-200 text-warning-800'
-                                        : 'bg-gray-200 text-gray-800'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-border text-ds-text'
                                     }`}>
                                       {order.status === 'completed' ? 'RESULTED' : order.status === 'in_progress' ? 'IN PROGRESS' : 'PENDING'}
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       order.priority === 'stat'
-                                        ? 'bg-danger-100 text-danger-700'
+                                        ? 'bg-ds-critical-soft text-ds-critical-text'
                                         : order.priority === 'urgent'
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-primary-100 text-primary-700'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-accent-soft text-ds-accent-text'
                                     }`}>
                                       {order.priority.toUpperCase()}
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-500 mt-1">
+                                  <div className="text-sm text-ds-text-muted mt-1">
                                     Ordered: {new Date(order.ordered_at).toLocaleString()}
                                   </div>
                                   {order.status === 'completed' && order.results && (
-                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
-                                      <div className="text-sm font-semibold text-success-800 mb-1">Results/Findings:</div>
-                                      <div className="text-gray-900 whitespace-pre-wrap">{order.results}</div>
+                                    <div className="mt-3 p-3 bg-ds-surface rounded-lg border border-ds-success/50">
+                                      <div className="text-sm font-semibold text-ds-success-text mb-1">Results/Findings:</div>
+                                      <div className="text-ds-text whitespace-pre-wrap">{order.results}</div>
                                       {order.completed_at && (
-                                        <div className="text-xs text-gray-500 mt-2">
+                                        <div className="text-xs text-ds-text-muted mt-2">
                                           Resulted: {new Date(order.completed_at).toLocaleString()}
                                         </div>
                                       )}
@@ -3618,7 +3633,7 @@ const DoctorDashboard: React.FC = () => {
                                 {(order.status === 'ordered' || order.status === 'pending') && (
                                   <button
                                     onClick={() => handleCancelImagingOrder(order.id)}
-                                    className="ml-2 px-3 py-1.5 text-xs font-semibold text-danger-600 bg-white border border-danger-200 rounded-lg hover:bg-danger-50 transition-colors"
+                                    className="min-h-ds-touch ml-2 px-3 py-1.5 text-xs font-semibold text-ds-critical-text bg-ds-surface border border-ds-critical-border rounded-lg hover:bg-ds-critical-soft transition-colors"
                                   >
                                     Cancel
                                   </button>
@@ -3632,7 +3647,7 @@ const DoctorDashboard: React.FC = () => {
                                         showToast(err?.response?.data?.detail || err?.message || 'Failed to open viewer', 'error');
                                       }
                                     }}
-                                    className="ml-2 px-3 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors"
+                                    className="min-h-ds-touch ml-2 px-3 py-1.5 text-xs font-semibold text-ds-on-accent bg-ds-accent hover:bg-ds-accent-hover rounded-lg transition-colors"
                                   >
                                     View Images
                                   </button>
@@ -3649,7 +3664,7 @@ const DoctorDashboard: React.FC = () => {
                   {resultsTab === 'pharmacy' && (
                     <div>
                       {encounterPharmacyOrders.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400">
+                        <div className="text-center py-12 text-ds-text-muted">
                           <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                           </svg>
@@ -3661,28 +3676,28 @@ const DoctorDashboard: React.FC = () => {
                           {encounterPharmacyOrders.map((order) => (
                             <div
                               key={order.id}
-                              className={`p-4 rounded-xl border-2 ${
+                              className={`p-4 rounded-ds-card border-2 ${
                                 order.status === 'dispensed'
-                                  ? 'border-success-200 bg-success-50'
+                                  ? 'border-ds-success/30 bg-ds-success-soft'
                                   : order.status === 'ready'
-                                  ? 'border-primary-200 bg-primary-50'
+                                  ? 'border-ds-accent/30 bg-ds-accent-soft'
                                   : order.status === 'processing'
-                                  ? 'border-warning-200 bg-warning-50'
-                                  : 'border-gray-200 bg-gray-50'
+                                  ? 'border-ds-warning-border bg-ds-warning-soft'
+                                  : 'border-ds-border bg-ds-subtle'
                               }`}
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-3 flex-wrap">
-                                    <h4 className="font-bold text-gray-900 text-lg">{order.medication_name}</h4>
+                                    <h4 className="font-bold text-ds-text text-lg">{order.medication_name}</h4>
                                     <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                                       order.status === 'dispensed'
-                                        ? 'bg-success-200 text-success-800'
+                                        ? 'bg-ds-success-soft text-ds-success-text'
                                         : order.status === 'ready'
-                                        ? 'bg-primary-200 text-primary-800'
+                                        ? 'bg-ds-accent/30 text-ds-accent-text'
                                         : order.status === 'processing'
-                                        ? 'bg-warning-200 text-warning-800'
-                                        : 'bg-gray-200 text-gray-800'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-border text-ds-text'
                                     }`}>
                                       {order.status === 'dispensed' ? 'DISPENSED' :
                                        order.status === 'ready' ? 'READY FOR PICKUP' :
@@ -3690,34 +3705,34 @@ const DoctorDashboard: React.FC = () => {
                                     </span>
                                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                       order.priority === 'stat'
-                                        ? 'bg-danger-100 text-danger-700'
+                                        ? 'bg-ds-critical-soft text-ds-critical-text'
                                         : order.priority === 'urgent'
-                                        ? 'bg-orange-100 text-orange-700'
-                                        : 'bg-primary-100 text-primary-700'
+                                        ? 'bg-ds-warning-soft text-ds-warning-text'
+                                        : 'bg-ds-accent-soft text-ds-accent-text'
                                     }`}>
                                       {order.priority.toUpperCase()}
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-600 mt-2">
+                                  <div className="text-sm text-ds-text-secondary mt-2">
                                     <span className="font-medium">Dosage:</span> {order.dosage} |
                                     <span className="font-medium ml-2">Frequency:</span> {order.frequency} |
                                     <span className="font-medium ml-2">Route:</span> {order.route}
                                   </div>
-                                  <div className="text-sm text-gray-600 mt-1">
+                                  <div className="text-sm text-ds-text-secondary mt-1">
                                     <span className="font-medium">Quantity:</span> {order.quantity}
                                     {order.refills > 0 && (
-                                      <span className="ml-3 text-primary-600">
+                                      <span className="ml-3 text-ds-accent-text">
                                         <span className="font-medium">Refills:</span> {order.refills}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-sm text-gray-500 mt-2">
+                                  <div className="text-sm text-ds-text-muted mt-2">
                                     Ordered: {new Date(order.ordered_date).toLocaleString()}
                                   </div>
                                   {order.status === 'dispensed' && order.dispensed_date && (
-                                    <div className="mt-3 p-3 bg-white rounded-lg border border-success-300">
-                                      <div className="text-sm font-semibold text-success-800 mb-1">Dispensed</div>
-                                      <div className="text-sm text-gray-600">
+                                    <div className="mt-3 p-3 bg-ds-surface rounded-lg border border-ds-success/50">
+                                      <div className="text-sm font-semibold text-ds-success-text mb-1">Dispensed</div>
+                                      <div className="text-sm text-ds-text-secondary">
                                         {new Date(order.dispensed_date).toLocaleString()}
                                         {order.dispensed_by_name && (
                                           <span className="ml-2">by {order.dispensed_by_name}</span>
@@ -3734,7 +3749,7 @@ const DoctorDashboard: React.FC = () => {
                                   {(order.status === 'ordered' || order.status === 'in_progress' || order.status === 'ready') && (
                                     <button
                                       onClick={() => handleCancelPharmacyOrder(order.id)}
-                                      className="mt-3 px-4 py-2 text-danger-600 bg-danger-50 border border-danger-200 text-sm rounded-lg hover:bg-danger-100 transition-colors flex items-center gap-2"
+                                      className="min-h-ds-touch mt-3 px-4 py-2 text-ds-critical-text bg-ds-critical-soft border border-ds-critical-border text-sm rounded-lg hover:bg-ds-critical-soft transition-colors flex items-center gap-2"
                                     >
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3757,7 +3772,7 @@ const DoctorDashboard: React.FC = () => {
                                           showToast(error.response?.data?.error || 'Failed to create refill', 'error');
                                         }
                                       }}
-                                      className="mt-3 px-4 py-2 bg-primary-600 text-white text-sm rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+                                      className="min-h-ds-touch mt-3 px-4 py-2 bg-ds-accent text-ds-on-accent text-sm rounded-lg hover:bg-ds-accent-hover transition-colors flex items-center gap-2"
                                     >
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -3776,13 +3791,13 @@ const DoctorDashboard: React.FC = () => {
                 </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 mt-4">
-            <div className="text-center text-gray-400">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-12 mt-4">
+            <div className="text-center text-ds-text-muted">
               <svg className="w-20 h-20 mx-auto mb-4 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
-              <p className="text-xl font-semibold text-gray-500 mb-1">Select a patient to begin</p>
-              <p className="text-sm text-gray-400">Choose from the active patients above or wait for a nurse alert</p>
+              <p className="text-xl font-semibold text-ds-text-muted mb-1">Select a patient to begin</p>
+              <p className="text-sm text-ds-text-muted">Choose from the active patients above or wait for a nurse alert</p>
             </div>
           </div>
         )}
@@ -3825,17 +3840,17 @@ const DoctorDashboard: React.FC = () => {
       {/* Drug Interaction Warning Modal */}
       {showInteractionModal && drugInteractions.length > 0 && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-danger-50 to-warning-50 rounded-t-xl">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-lg mx-4">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-critical-soft to-ds-warning-soft rounded-t-xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-danger-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-danger-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 rounded-full bg-ds-critical-soft flex items-center justify-center">
+                  <svg className="w-6 h-6 text-ds-critical-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-danger-800">Drug Interaction Warning</h3>
-                  <p className="text-sm text-danger-600">Potential interaction detected for {currentPharmacyOrder.medication_name}</p>
+                  <h3 className="text-lg font-bold text-ds-critical-text">Drug Interaction Warning</h3>
+                  <p className="text-sm text-ds-critical-text">Potential interaction detected for {currentPharmacyOrder.medication_name}</p>
                 </div>
               </div>
             </div>
@@ -3846,29 +3861,29 @@ const DoctorDashboard: React.FC = () => {
                     key={index}
                     className={`p-4 rounded-lg border-l-4 ${
                       interaction.severity === 'severe' || interaction.severity === 'contraindicated'
-                        ? 'bg-danger-50 border-danger-500'
+                        ? 'bg-ds-critical-soft border-ds-critical'
                         : interaction.severity === 'moderate'
-                          ? 'bg-warning-50 border-warning-500'
-                          : 'bg-gray-50 border-gray-400'
+                          ? 'bg-ds-warning-soft border-ds-warning'
+                          : 'bg-ds-subtle border-ds-border-control'
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${
                         interaction.severity === 'severe' || interaction.severity === 'contraindicated'
-                          ? 'bg-danger-600 text-white'
+                          ? 'bg-ds-critical text-white'
                           : interaction.severity === 'moderate'
-                            ? 'bg-warning-600 text-white'
-                            : 'bg-gray-500 text-white'
+                            ? 'bg-ds-warning text-white dark:text-ds-canvas'
+                            : 'bg-ds-text-secondary text-ds-canvas'
                       }`}>
                         {interaction.severity}
                       </span>
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-sm font-semibold text-ds-text">
                         {interaction.drug1} + {interaction.drug2}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-700 mb-2">{interaction.description}</p>
+                    <p className="text-sm text-ds-text-secondary mb-2">{interaction.description}</p>
                     {interaction.recommendation && (
-                      <p className="text-sm text-gray-600 bg-white p-2 rounded">
+                      <p className="text-sm text-ds-text-secondary bg-ds-surface p-2 rounded">
                         <span className="font-semibold">Recommendation:</span> {interaction.recommendation}
                       </p>
                     )}
@@ -3876,19 +3891,19 @@ const DoctorDashboard: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex gap-3 justify-end">
               <button
                 onClick={() => {
                   setShowInteractionModal(false);
                   setDrugInteractions([]);
                 }}
-                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmMedicationWithInteraction}
-                className="px-4 py-2 bg-warning-600 text-white font-semibold rounded-lg hover:bg-warning-700 transition-colors"
+                className="min-h-ds-touch px-4 py-2 bg-ds-warning text-white dark:text-ds-canvas font-semibold rounded-lg hover:bg-ds-warning/90 transition-colors"
               >
                 Add Anyway (Document Warning)
               </button>
@@ -3900,14 +3915,14 @@ const DoctorDashboard: React.FC = () => {
       {/* Claim Review Modal */}
       {showClaimReviewModal && selectedReviewClaim && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-warning-50 to-warning-100">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-warning-soft to-ds-warning-soft">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Review Claim {selectedReviewClaim.claim_number}</h3>
-                  <p className="text-sm text-gray-600">Insurance claim requires physician review</p>
+                  <h3 className="text-lg font-bold text-ds-text">Review Claim {selectedReviewClaim.claim_number}</h3>
+                  <p className="text-sm text-ds-text-secondary">Insurance claim requires physician review</p>
                 </div>
-                <button onClick={() => setShowClaimReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowClaimReviewModal(false)} className="text-ds-text-muted hover:text-ds-text-secondary">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -3917,41 +3932,41 @@ const DoctorDashboard: React.FC = () => {
             <div className="p-6 space-y-4">
               {/* Patient Info */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">Patient</p>
-                  <p className="font-semibold text-gray-900">{selectedReviewClaim.patient_name}</p>
-                  <p className="text-sm text-gray-600">{selectedReviewClaim.patient_number}</p>
+                <div className="bg-ds-subtle rounded-lg p-3">
+                  <p className="text-xs text-ds-text-muted">Patient</p>
+                  <p className="font-semibold text-ds-text">{selectedReviewClaim.patient_name}</p>
+                  <p className="text-sm text-ds-text-secondary">{selectedReviewClaim.patient_number}</p>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500">Insurance</p>
-                  <p className="font-semibold text-gray-900">{selectedReviewClaim.insurance_provider_name}</p>
-                  <p className="text-sm text-gray-600">Member: {selectedReviewClaim.member_id || 'N/A'}</p>
+                <div className="bg-ds-subtle rounded-lg p-3">
+                  <p className="text-xs text-ds-text-muted">Insurance</p>
+                  <p className="font-semibold text-ds-text">{selectedReviewClaim.insurance_provider_name}</p>
+                  <p className="text-sm text-ds-text-secondary">Member: {selectedReviewClaim.member_id || 'N/A'}</p>
                 </div>
               </div>
 
               {/* Diagnosis */}
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                <p className="text-xs text-blue-600 font-medium">Primary Diagnosis</p>
-                <p className="font-semibold text-gray-900">
+              <div className="bg-ds-info-soft rounded-lg p-3 border border-ds-info/30">
+                <p className="text-xs text-ds-info-text font-medium">Primary Diagnosis</p>
+                <p className="font-semibold text-ds-text">
                   {selectedReviewClaim.primary_diagnosis_code} - {selectedReviewClaim.primary_diagnosis_desc || 'No description'}
                 </p>
               </div>
 
               {/* Claim Amount */}
-              <div className="bg-success-50 rounded-lg p-3 border border-success-200">
-                <p className="text-xs text-success-600 font-medium">Claim Amount</p>
-                <p className="text-2xl font-bold text-success-700">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
+              <div className="bg-ds-success-soft rounded-lg p-3 border border-ds-success/30">
+                <p className="text-xs text-ds-success-text font-medium">Claim Amount</p>
+                <p className="text-2xl font-bold text-ds-success-text">GHS {parseFloat(selectedReviewClaim.total_charged || 0).toFixed(2)}</p>
               </div>
 
               {/* Validation Issues */}
               {selectedReviewClaim.validation_issues && selectedReviewClaim.validation_issues.length > 0 && (
-                <div className="bg-danger-50 rounded-lg p-3 border border-danger-200">
-                  <p className="text-xs text-danger-600 font-medium mb-2">Validation Issues</p>
+                <div className="bg-ds-critical-soft rounded-lg p-3 border border-ds-critical-border">
+                  <p className="text-xs text-ds-critical-text font-medium mb-2">Validation Issues</p>
                   {selectedReviewClaim.validation_issues.map((issue: any, idx: number) => (
-                    <p key={idx} className="text-sm text-danger-700">{issue.issue}</p>
+                    <p key={idx} className="text-sm text-ds-critical-text">{issue.issue}</p>
                   ))}
                   {selectedReviewClaim.validation_override_reason && (
-                    <p className="text-sm text-gray-700 mt-2 p-2 bg-white rounded">
+                    <p className="text-sm text-ds-text-secondary mt-2 p-2 bg-ds-surface rounded">
                       <span className="font-medium">Override reason:</span> {selectedReviewClaim.validation_override_reason}
                     </p>
                   )}
@@ -3960,32 +3975,32 @@ const DoctorDashboard: React.FC = () => {
 
               {/* Review Notes */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Review Notes</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">Review Notes</label>
                 <textarea
                   value={claimReviewNotes}
                   onChange={(e) => setClaimReviewNotes(e.target.value)}
                   placeholder="Enter your review notes (required for rejection)..."
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-warning focus:border-ds-warning"
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex gap-3 justify-end">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle flex gap-3 justify-end">
               <button
                 onClick={() => setShowClaimReviewModal(false)}
-                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRejectClaim}
-                className="px-4 py-2 bg-danger-600 text-white font-semibold rounded-lg hover:bg-danger-700 transition-colors"
+                className="min-h-ds-touch px-4 py-2 bg-ds-critical text-white font-semibold rounded-lg hover:bg-ds-critical/90 transition-colors"
               >
                 Reject Claim
               </button>
               <button
                 onClick={handleApproveClaim}
-                className="px-4 py-2 bg-success-600 text-white font-semibold rounded-lg hover:bg-success-700 transition-colors"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas font-semibold rounded-lg hover:bg-ds-success/90 transition-colors"
               >
                 Approve Claim
               </button>
@@ -3997,17 +4012,17 @@ const DoctorDashboard: React.FC = () => {
       {/* Complete Encounter / Follow-Up Modal */}
       {showFollowUpModal && selectedEncounter && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md mx-4">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-accent-soft to-ds-accent-soft rounded-t-xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-10 h-10 rounded-full bg-ds-accent-soft flex items-center justify-center">
+                  <svg className="w-6 h-6 text-ds-accent-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Complete Encounter</h3>
-                  <p className="text-sm text-gray-600">{selectedEncounter.patient_name}</p>
+                  <h3 className="text-lg font-bold text-ds-text">Complete Encounter</h3>
+                  <p className="text-sm text-ds-text-secondary">{selectedEncounter.patient_name}</p>
                 </div>
               </div>
             </div>
@@ -4015,33 +4030,33 @@ const DoctorDashboard: React.FC = () => {
               {/* Say it up front rather than letting them fill in the follow-up
                   details and then be rejected on submit. */}
               {encounterDiagnoses.length === 0 && (
-                <div className="p-3 bg-rose-50 border border-rose-300 rounded-lg">
-                  <p className="text-sm font-semibold text-rose-800">A diagnosis is required</p>
-                  <p className="text-sm text-rose-700 mt-1">
+                <div className="p-3 bg-ds-critical-soft border border-ds-critical-border rounded-lg">
+                  <p className="text-sm font-semibold text-ds-critical-text">A diagnosis is required</p>
+                  <p className="text-sm text-ds-critical-text mt-1">
                     This visit can't be closed until a diagnosis is recorded. Close this box, add one under
                     Diagnoses, then complete the encounter.
                   </p>
                 </div>
               )}
-              <p className="text-gray-600">
+              <p className="text-ds-text-secondary">
                 The patient will be sent back to the nurse for follow-up care.
               </p>
 
-              <p className="text-xs text-gray-500">A standard follow-up call will be scheduled automatically on the next Monday or Thursday. Use the options below for additional scheduling.</p>
+              <p className="text-xs text-ds-text-muted">A standard follow-up call will be scheduled automatically on the next Monday or Thursday. Use the options below for additional scheduling.</p>
 
               {/* Follow-up visit checkbox */}
-              <label className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
+              <label className="flex items-center gap-3 p-3 bg-ds-subtle rounded-lg cursor-pointer hover:bg-ds-subtle transition-colors">
                 <input
                   type="checkbox"
                   checked={followUpRequired}
                   onChange={(e) => setFollowUpRequired(e.target.checked)}
-                  className="w-5 h-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                  className="w-5 h-5 text-ds-accent-text border-ds-border-control rounded focus:ring-ds-focus-ring"
                 />
-                <span className="font-medium text-gray-700">Schedule follow-up visit</span>
+                <span className="font-medium text-ds-text-secondary">Schedule follow-up visit</span>
               </label>
 
               {followUpRequired && (
-                <div className="space-y-4 pl-2 border-l-4 border-primary-200 ml-2">
+                <div className="space-y-4 pl-2 border-l-4 border-ds-accent/30 ml-2">
                   <div>
                     <AppSelect
                       label="Timeframe"
@@ -4060,13 +4075,13 @@ const DoctorDashboard: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reason</label>
                     <input
                       type="text"
                       value={followUpReason}
                       onChange={(e) => setFollowUpReason(e.target.value)}
                       placeholder="e.g., Review lab results, Check wound healing"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                     />
                   </div>
                 </div>
@@ -4074,8 +4089,8 @@ const DoctorDashboard: React.FC = () => {
 
               {/* Shown on the patient's portal visit summary */}
               <div>
-                <label htmlFor="patient-note" className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes for the patient <span className="font-normal text-gray-500">(optional)</span>
+                <label htmlFor="patient-note" className="block text-sm font-medium text-ds-text-secondary mb-1">
+                  Notes for the patient <span className="font-normal text-ds-text-muted">(optional)</span>
                 </label>
                 <textarea
                   id="patient-note"
@@ -4084,56 +4099,56 @@ const DoctorDashboard: React.FC = () => {
                   maxLength={2000}
                   rows={3}
                   placeholder="e.g., Drink plenty of water, rest for 2 days, come back if the fever lasts more than 3 days."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-ds-text-muted mt-1">
                   The patient sees this in their portal visit summary, with the diagnosis, medicines, tests and follow-up (including its reason). Your assessment and plan stay private.
                 </p>
               </div>
 
               {/* Review call checkbox */}
-              <label className="flex items-center gap-3 p-3 bg-warning-50 rounded-lg cursor-pointer hover:bg-warning-100 transition-colors border border-warning-200">
+              <label className="flex items-center gap-3 p-3 bg-ds-warning-soft rounded-lg cursor-pointer hover:bg-ds-warning-soft transition-colors border border-ds-warning-border">
                 <input
                   type="checkbox"
                   checked={reviewRequired}
                   onChange={(e) => setReviewRequired(e.target.checked)}
-                  className="w-5 h-5 text-warning-600 border-gray-300 rounded focus:ring-warning-500"
+                  className="w-5 h-5 text-ds-warning-text border-ds-border-control rounded focus:ring-ds-warning"
                 />
                 <div>
-                  <span className="font-medium text-warning-800">Schedule follow-up call</span>
-                  <p className="text-xs text-warning-600">Nurse will call the patient on the specified date instead of the standard auto-scheduled follow-up</p>
+                  <span className="font-medium text-ds-warning-text">Schedule follow-up call</span>
+                  <p className="text-xs text-ds-warning-text">Nurse will call the patient on the specified date instead of the standard auto-scheduled follow-up</p>
                 </div>
               </label>
 
               {reviewRequired && (
-                <div className="space-y-4 pl-2 border-l-4 border-warning-300 ml-2">
+                <div className="space-y-4 pl-2 border-l-4 border-ds-warning-border ml-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Call Date *</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Call Date *</label>
                     <input
                       type="date"
                       value={reviewDate}
                       onChange={(e) => setReviewDate(e.target.value)}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-warning focus:border-ds-warning"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for review *</label>
+                    <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reason for review *</label>
                     <input
                       type="text"
                       value={reviewReason}
                       onChange={(e) => setReviewReason(e.target.value)}
                       placeholder="e.g., Check blood pressure, Verify medication compliance"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-warning-500 focus:border-warning-500"
+                      className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-warning focus:border-ds-warning"
                     />
                   </div>
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex gap-3 justify-end">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex gap-3 justify-end">
               <button
                 onClick={() => setShowFollowUpModal(false)}
-                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors"
               >
                 Cancel
               </button>
@@ -4141,7 +4156,7 @@ const DoctorDashboard: React.FC = () => {
                 onClick={handleConfirmCompleteEncounter}
                 disabled={encounterDiagnoses.length === 0}
                 title={encounterDiagnoses.length === 0 ? 'Record a diagnosis before completing this visit' : undefined}
-                className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent font-semibold rounded-lg hover:bg-ds-accent-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-ds-accent/50"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
@@ -4162,13 +4177,13 @@ const DoctorDashboard: React.FC = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => setOpenedLabResult(null)}
-                className="px-4 py-2 text-gray-700 font-semibold hover:bg-gray-200 rounded-lg transition-colors"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-semibold hover:bg-ds-border rounded-lg transition-colors"
               >
                 Close
               </button>
               <button
                 onClick={() => handleReviewLabResult(openedLabResult.id)}
-                className="px-4 py-2 bg-success-600 text-white font-semibold rounded-lg hover:bg-success-700 transition-colors flex items-center gap-2"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas font-semibold rounded-lg hover:bg-ds-success/90 transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

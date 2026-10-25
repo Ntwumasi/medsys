@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useEffect, useRef, useState } from 'react';
 
 // Counts a number up from 0 (or from its previous value) to the target.
@@ -60,7 +61,7 @@ const NumberTicker: React.FC<NumberTickerProps> = ({
   }, [value, duration]);
 
   const text = format ? format(display) : Number.isFinite(display) ? String(display) : String(value);
-  return <span className={`tabular-nums ${className}`}>{text}</span>;
+  return <span className={dsClass(`tabular-nums ${className}`)}>{text}</span>;
 };
 
 export default NumberTicker;

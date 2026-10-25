@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useMemo, useState } from 'react';
 import apiClient from '../api/client';
 
@@ -124,7 +125,7 @@ const LabResultsInline: React.FC<LabResultsInlineProps> = ({ result, orderId, co
   if (structured) {
     const entries = Object.entries(structured.values).filter(([, v]) => v !== '');
     if (entries.length === 0) {
-      return <span className="text-xs text-gray-400 italic">No values</span>;
+      return <span className={dsClass("text-xs text-gray-400 italic")}>No values</span>;
     }
 
     const textSize = compact ? 'text-xs' : 'text-sm';
@@ -132,14 +133,14 @@ const LabResultsInline: React.FC<LabResultsInlineProps> = ({ result, orderId, co
 
     return (
       <div className="w-full overflow-x-auto">
-        <table className={`w-full ${textSize} table-auto`}>
+        <table className={dsClass(`w-full ${textSize} table-auto`)}>
           <thead>
-            <tr className="text-[10px] uppercase tracking-wide text-gray-500 border-b border-gray-200">
-              <th className={`text-left font-semibold ${padY} pr-2`}>Parameter</th>
-              <th className={`text-right font-semibold ${padY} px-2`}>Value</th>
-              <th className={`text-left font-semibold ${padY} px-2 hidden sm:table-cell`}>Unit</th>
-              <th className={`text-left font-semibold ${padY} px-2`}>Reference</th>
-              <th className={`text-left font-semibold ${padY} pl-2`}>Flag</th>
+            <tr className={dsClass("text-[10px] uppercase tracking-wide text-gray-500 border-b border-gray-200")}>
+              <th className={dsClass(`text-left font-semibold ${padY} pr-2`)}>Parameter</th>
+              <th className={dsClass(`text-right font-semibold ${padY} px-2`)}>Value</th>
+              <th className={dsClass(`text-left font-semibold ${padY} px-2 hidden sm:table-cell`)}>Unit</th>
+              <th className={dsClass(`text-left font-semibold ${padY} px-2`)}>Reference</th>
+              <th className={dsClass(`text-left font-semibold ${padY} pl-2`)}>Flag</th>
             </tr>
           </thead>
           <tbody>
@@ -168,14 +169,14 @@ const LabResultsInline: React.FC<LabResultsInlineProps> = ({ result, orderId, co
                     ? 'text-warning-700 font-semibold'
                     : 'text-gray-900';
               return (
-                <tr key={code} className="border-b border-gray-100 last:border-b-0">
-                  <td className={`${padY} pr-2 text-gray-700 align-top`}>{name}</td>
-                  <td className={`${padY} px-2 text-right font-mono tabular-nums whitespace-nowrap align-top ${valueCls}`}>{val}</td>
-                  <td className={`${padY} px-2 text-gray-500 text-[11px] whitespace-nowrap align-top hidden sm:table-cell`}>{unit || '—'}</td>
-                  <td className={`${padY} px-2 text-gray-500 text-[11px] whitespace-nowrap align-top`}>{ref || '—'}</td>
-                  <td className={`${padY} pl-2 align-top`}>
+                <tr key={code} className={dsClass("border-b border-gray-100 last:border-b-0")}>
+                  <td className={dsClass(`${padY} pr-2 text-gray-700 align-top`)}>{name}</td>
+                  <td className={dsClass(`${padY} px-2 text-right font-mono tabular-nums whitespace-nowrap align-top ${valueCls}`)}>{val}</td>
+                  <td className={dsClass(`${padY} px-2 text-gray-500 text-[11px] whitespace-nowrap align-top hidden sm:table-cell`)}>{unit || '—'}</td>
+                  <td className={dsClass(`${padY} px-2 text-gray-500 text-[11px] whitespace-nowrap align-top`)}>{ref || '—'}</td>
+                  <td className={dsClass(`${padY} pl-2 align-top`)}>
                     {flagLabel && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${flagCls}`}>{flagLabel}</span>
+                      <span className={dsClass(`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${flagCls}`)}>{flagLabel}</span>
                     )}
                   </td>
                 </tr>
@@ -184,9 +185,9 @@ const LabResultsInline: React.FC<LabResultsInlineProps> = ({ result, orderId, co
           </tbody>
         </table>
         {structured.notes && (
-          <div className={`mt-2 pt-2 border-t border-gray-100 ${textSize}`}>
-            <div className="text-[10px] uppercase tracking-wide font-semibold text-gray-500 mb-0.5">Notes</div>
-            <p className="text-gray-700 whitespace-pre-wrap">{structured.notes}</p>
+          <div className={dsClass(`mt-2 pt-2 border-t border-gray-100 ${textSize}`)}>
+            <div className={dsClass("text-[10px] uppercase tracking-wide font-semibold text-gray-500 mb-0.5")}>Notes</div>
+            <p className={dsClass("text-gray-700 whitespace-pre-wrap")}>{structured.notes}</p>
           </div>
         )}
       </div>
@@ -195,8 +196,8 @@ const LabResultsInline: React.FC<LabResultsInlineProps> = ({ result, orderId, co
 
   // Plain-text / legacy fallback
   return (
-    <div className={`text-gray-900 whitespace-pre-wrap ${compact ? 'text-xs' : 'text-sm'}`}>
-      {result || <span className="text-gray-400 italic">No result</span>}
+    <div className={dsClass(`text-gray-900 whitespace-pre-wrap ${compact ? 'text-xs' : 'text-sm'}`)}>
+      {result || <span className={dsClass("text-gray-400 italic")}>No result</span>}
     </div>
   );
 };

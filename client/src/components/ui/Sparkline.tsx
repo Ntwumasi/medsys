@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useMemo, useState } from 'react';
 
 // Inline trend chart — typically 60-80px wide, 20px tall — that sits
@@ -83,7 +84,7 @@ const Sparkline: React.FC<SparklineProps> = ({
   const hoverPoint = hoverIdx !== null && hoverIdx >= 0 && hoverIdx < points.length ? points[hoverIdx] : null;
 
   return (
-    <div className={`relative inline-block ${className}`}>
+    <div className={dsClass(`relative inline-block ${className}`)}>
       <svg
         width={width}
         height={height}
@@ -124,7 +125,7 @@ const Sparkline: React.FC<SparklineProps> = ({
       </svg>
       {hovered && (
         <div
-          className="absolute z-20 bottom-full mb-1 px-2 py-1 bg-gray-900 text-white text-[10px] font-medium rounded shadow-md whitespace-nowrap pointer-events-none"
+          className={dsClass("absolute z-20 bottom-full mb-1 px-2 py-1 bg-gray-900 text-white text-[10px] font-medium rounded shadow-md whitespace-nowrap pointer-events-none")}
           style={{ left: `${(hoverPoint!.x / width) * 100}%`, transform: 'translateX(-50%)' }}
         >
           <div className="font-bold tabular-nums">{hovered.value}</div>

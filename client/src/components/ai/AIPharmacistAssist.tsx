@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React, { useState } from 'react';
 import Modal from '../ui/Modal';
 import aiApi, { AIUnavailableError } from '../../api/ai';
@@ -31,8 +32,8 @@ const splitList = (s?: string): string[] =>
     .filter(Boolean);
 
 const Spinner: React.FC<{ label: string }> = ({ label }) => (
-  <div className="flex items-center gap-2 text-sm text-gray-500 py-6 justify-center">
-    <svg className="w-5 h-5 animate-spin text-primary-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <div className={dsClass("flex items-center gap-2 text-sm text-gray-500 py-6 justify-center")}>
+    <svg className={dsClass("w-5 h-5 animate-spin text-primary-600")} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
     </svg>
@@ -41,18 +42,18 @@ const Spinner: React.FC<{ label: string }> = ({ label }) => (
 );
 
 const Unavailable: React.FC = () => (
-  <div className="bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800">
+  <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-4 text-sm text-warning-800")}>
     AI assistance isn’t configured on this environment. Everything else still works — this
     panel just needs the AI service enabled.
   </div>
 );
 
 const ErrorBox: React.FC<{ message: string }> = ({ message }) => (
-  <div className="bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800">{message}</div>
+  <div className={dsClass("bg-danger-50 border border-danger-200 rounded-lg p-4 text-sm text-danger-800")}>{message}</div>
 );
 
 const AiDisclaimer: React.FC = () => (
-  <p className="mt-4 text-[11px] leading-tight text-gray-400">
+  <p className={dsClass("mt-4 text-[11px] leading-tight text-gray-400")}>
     AI-generated for clinical decision support. Verify against approved references before acting.
   </p>
 );
@@ -162,9 +163,9 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
   const TabButton: React.FC<{ id: Tab; label: string }> = ({ id, label }) => (
     <button
       onClick={() => setTab(id)}
-      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+      className={dsClass(`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
         tab === id ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-      }`}
+      }`)}
     >
       {label}
     </button>
@@ -172,22 +173,22 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
 
   const riskBadge = (appropriate: boolean, requiresReview: boolean) => {
     if (requiresReview || !appropriate)
-      return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-danger-100 text-danger-800">Needs review</span>;
-    return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-success-100 text-success-800">Appropriate</span>;
+      return <span className={dsClass("px-2 py-0.5 rounded-full text-xs font-semibold bg-danger-100 text-danger-800")}>Needs review</span>;
+    return <span className={dsClass("px-2 py-0.5 rounded-full text-xs font-semibold bg-success-100 text-success-800")}>Appropriate</span>;
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="AI Pharmacist Assist" size="lg">
       <div className="mb-3">
-        <p className="text-sm text-gray-500">
-          <span className="font-semibold text-gray-900">{medication}</span>
+        <p className={dsClass("text-sm text-gray-500")}>
+          <span className={dsClass("font-semibold text-gray-900")}>{medication}</span>
           {dosage ? ` · ${dosage}` : ''}
           {frequency ? ` · ${frequency}` : ''}
           {route ? ` · ${route}` : ''}
         </p>
       </div>
 
-      <div className="flex gap-1 mb-4 bg-gray-50 p-1 rounded-xl w-fit">
+      <div className={dsClass("flex gap-1 mb-4 bg-gray-50 p-1 rounded-xl w-fit")}>
         <TabButton id="dosage" label="Dosage check" />
         <TabButton id="substitutes" label="Substitutes" />
         <TabButton id="counseling" label="Counseling" />
@@ -197,13 +198,13 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
       {tab === 'dosage' && (
         <div>
           {!dosage || !frequency ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+            <div className={dsClass("bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600")}>
               This order is missing a dosage or frequency, so it can’t be dose-checked.
             </div>
           ) : (
             <>
               {!dosageState.data && !dosageState.loading && !dosageState.unavailable && !dosageState.error && (
-                <button onClick={runDosage} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+                <button onClick={runDosage} className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium")}>
                   Check dosage
                 </button>
               )}
@@ -214,26 +215,26 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     {riskBadge(dosageState.data.isAppropriate, dosageState.data.requiresReview)}
-                    <span className="text-xs text-gray-500">confidence: {dosageState.data.confidence}</span>
-                    {dosageState.data.cached && <span className="text-xs text-gray-400">(cached)</span>}
+                    <span className={dsClass("text-xs text-gray-500")}>confidence: {dosageState.data.confidence}</span>
+                    {dosageState.data.cached && <span className={dsClass("text-xs text-gray-400")}>(cached)</span>}
                   </div>
                   {dosageState.data.requiresReview && dosageState.data.reviewReason && (
-                    <div className="bg-danger-50 border border-danger-200 rounded-lg p-3 text-sm text-danger-800">
+                    <div className={dsClass("bg-danger-50 border border-danger-200 rounded-lg p-3 text-sm text-danger-800")}>
                       {dosageState.data.reviewReason}
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     {dosageState.data.normalRange && (
-                      <div className="bg-gray-50 rounded-lg p-3">
-                        <div className="text-xs text-gray-500 mb-1">Normal range</div>
-                        <div className="text-gray-900">
+                      <div className={dsClass("bg-gray-50 rounded-lg p-3")}>
+                        <div className={dsClass("text-xs text-gray-500 mb-1")}>Normal range</div>
+                        <div className={dsClass("text-gray-900")}>
                           {dosageState.data.normalRange.min}–{dosageState.data.normalRange.max} · {dosageState.data.normalRange.frequency}
                         </div>
                       </div>
                     )}
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="text-xs text-gray-500 mb-1">Daily dose</div>
-                      <div className="text-gray-900">
+                    <div className={dsClass("bg-gray-50 rounded-lg p-3")}>
+                      <div className={dsClass("text-xs text-gray-500 mb-1")}>Daily dose</div>
+                      <div className={dsClass("text-gray-900")}>
                         {dosageState.data.prescribedDailyDose || '—'}
                         {dosageState.data.maxDailyDose ? ` (max ${dosageState.data.maxDailyDose})` : ''}
                       </div>
@@ -241,16 +242,16 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                   </div>
                   {dosageState.data.concerns?.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 mb-1">Concerns</div>
-                      <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                      <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>Concerns</div>
+                      <ul className={dsClass("list-disc pl-5 text-sm text-gray-800 space-y-0.5")}>
                         {dosageState.data.concerns.map((c, i) => <li key={i}>{c}</li>)}
                       </ul>
                     </div>
                   )}
                   {dosageState.data.recommendations?.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 mb-1">Recommendations</div>
-                      <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                      <div className={dsClass("text-xs font-semibold text-gray-500 mb-1")}>Recommendations</div>
+                      <ul className={dsClass("list-disc pl-5 text-sm text-gray-800 space-y-0.5")}>
                         {dosageState.data.recommendations.map((c, i) => <li key={i}>{c}</li>)}
                       </ul>
                     </div>
@@ -271,9 +272,9 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
               value={subReason}
               onChange={(e) => setSubReason(e.target.value)}
               placeholder="Reason for substitution"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className={dsClass("flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm")}
             />
-            <button onClick={runSubstitutes} disabled={subState.loading} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50">
+            <button onClick={runSubstitutes} disabled={subState.loading} className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50")}>
               Find alternatives
             </button>
           </div>
@@ -283,33 +284,33 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
           {subState.data && (
             <div className="space-y-3">
               {subState.data.therapeuticClass && (
-                <p className="text-xs text-gray-500">Class: {subState.data.therapeuticClass}</p>
+                <p className={dsClass("text-xs text-gray-500")}>Class: {subState.data.therapeuticClass}</p>
               )}
               {subState.data.alternatives?.length ? (
                 subState.data.alternatives.map((alt, i) => (
-                  <div key={i} className={`border rounded-lg p-3 ${alt.recommended ? 'border-success-300 bg-success-50/40' : 'border-gray-200'}`}>
+                  <div key={i} className={dsClass(`border rounded-lg p-3 ${alt.recommended ? 'border-success-300 bg-success-50/40' : 'border-gray-200'}`)}>
                     <div className="flex items-center justify-between">
-                      <div className="font-semibold text-gray-900 text-sm">
+                      <div className={dsClass("font-semibold text-gray-900 text-sm")}>
                         {alt.genericName}
-                        {alt.brandName ? <span className="font-normal text-gray-500"> ({alt.brandName})</span> : ''}
+                        {alt.brandName ? <span className={dsClass("font-normal text-gray-500")}> ({alt.brandName})</span> : ''}
                       </div>
                       <div className="flex items-center gap-1">
-                        {alt.recommended && <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-100 text-success-800">Recommended</span>}
-                        {alt.approximateCost && <span className="px-2 py-0.5 rounded-full text-[11px] bg-gray-100 text-gray-600">cost: {alt.approximateCost}</span>}
+                        {alt.recommended && <span className={dsClass("px-2 py-0.5 rounded-full text-[11px] font-semibold bg-success-100 text-success-800")}>Recommended</span>}
+                        {alt.approximateCost && <span className={dsClass("px-2 py-0.5 rounded-full text-[11px] bg-gray-100 text-gray-600")}>cost: {alt.approximateCost}</span>}
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">{alt.equivalenceLevel}</div>
-                    {alt.rationale && <p className="text-sm text-gray-700 mt-1">{alt.rationale}</p>}
-                    {alt.keyDifferences && <p className="text-xs text-gray-500 mt-1">Differences: {alt.keyDifferences}</p>}
+                    <div className={dsClass("text-xs text-gray-500 mt-1")}>{alt.equivalenceLevel}</div>
+                    {alt.rationale && <p className={dsClass("text-sm text-gray-700 mt-1")}>{alt.rationale}</p>}
+                    {alt.keyDifferences && <p className={dsClass("text-xs text-gray-500 mt-1")}>Differences: {alt.keyDifferences}</p>}
                     {alt.contraindications?.length > 0 && (
-                      <p className="text-xs text-danger-700 mt-1">Caution: {alt.contraindications.join(', ')}</p>
+                      <p className={dsClass("text-xs text-danger-700 mt-1")}>Caution: {alt.contraindications.join(', ')}</p>
                     )}
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-gray-500">No alternatives suggested.</p>
+                <p className={dsClass("text-sm text-gray-500")}>No alternatives suggested.</p>
               )}
-              {subState.data.notes && <p className="text-xs text-gray-500">{subState.data.notes}</p>}
+              {subState.data.notes && <p className={dsClass("text-xs text-gray-500")}>{subState.data.notes}</p>}
               <AiDisclaimer />
             </div>
           )}
@@ -320,13 +321,13 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
       {tab === 'counseling' && (
         <div>
           {!dosage || !frequency || !route ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+            <div className={dsClass("bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600")}>
               Counseling needs the dosage, frequency, and route on the order.
             </div>
           ) : (
             <>
               {!counselState.data && !counselState.loading && !counselState.unavailable && !counselState.error && (
-                <button onClick={runCounseling} className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+                <button onClick={runCounseling} className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium")}>
                   Generate counseling
                 </button>
               )}
@@ -336,16 +337,16 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
               {counselState.data && (
                 <div className="space-y-3">
                   <div className="flex justify-end">
-                    <button onClick={() => printCounseling(counselState.data!)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                    <button onClick={() => printCounseling(counselState.data!)} className={dsClass("px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50")}>
                       Print for patient
                     </button>
                   </div>
                   {counselState.data.patientFriendlySummary && (
-                    <p className="text-sm text-gray-800 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                    <p className={dsClass("text-sm text-gray-800 bg-blue-50 border border-blue-100 rounded-lg p-3")}>
                       {counselState.data.patientFriendlySummary}
                     </p>
                   )}
-                  <div className="grid gap-2 text-sm text-gray-800">
+                  <div className={dsClass("grid gap-2 text-sm text-gray-800")}>
                     {counselState.data.howToTake && <p><span className="font-semibold">How to take:</span> {counselState.data.howToTake}</p>}
                     {counselState.data.timing && <p><span className="font-semibold">Timing:</span> {counselState.data.timing}</p>}
                     {counselState.data.withFood && <p><span className="font-semibold">Food:</span> {counselState.data.withFood}</p>}
@@ -354,8 +355,8 @@ const AIPharmacistAssist: React.FC<AIPharmacistAssistProps> = ({
                   </div>
                   {counselState.data.seriousSideEffects?.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-danger-700 mb-1">Seek medical attention if</div>
-                      <ul className="list-disc pl-5 text-sm text-danger-800 space-y-0.5">
+                      <div className={dsClass("text-xs font-semibold text-danger-700 mb-1")}>Seek medical attention if</div>
+                      <ul className={dsClass("list-disc pl-5 text-sm text-danger-800 space-y-0.5")}>
                         {counselState.data.seriousSideEffects.map((c, i) => <li key={i}>{c}</li>)}
                       </ul>
                     </div>

@@ -1,3 +1,4 @@
+import { dsClass } from '../../utils/dsClass';
 import React from 'react';
 import NumberTicker from './NumberTicker';
 import Sparkline, { type SparkPoint } from './Sparkline';
@@ -61,26 +62,26 @@ const StatCard: React.FC<StatCardProps> = ({
 
   return (
     <div
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 transition-all ${onClick ? `cursor-pointer hover:shadow-md hover:ring-1 ${styles.ring}` : ''} ${className}`}
+      className={dsClass(`bg-white rounded-xl border border-gray-200 shadow-sm p-5 transition-all ${onClick ? `cursor-pointer hover:shadow-md hover:ring-1 ${styles.ring}` : ''} ${className}`)}
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-text-secondary uppercase tracking-wider mb-2">{title}</p>
-          <p className={`text-3xl font-bold tabular-nums leading-tight ${styles.num}`}>
+          <p className={dsClass("text-xs font-medium text-text-secondary uppercase tracking-wider mb-2")}>{title}</p>
+          <p className={dsClass(`text-3xl font-bold tabular-nums leading-tight ${styles.num}`)}>
             {numericValue !== null ? <NumberTicker value={numericValue} /> : value}
           </p>
           {series && series.length > 1 && (
-            <div className={`flex items-center gap-2 mt-1.5 ${styles.num}`}>
+            <div className={dsClass(`flex items-center gap-2 mt-1.5 ${styles.num}`)}>
               <Sparkline data={series} />
               <Delta series={series.map((p) => p.value)} direction={trendDirection} mode={trendMode} />
             </div>
           )}
-          {subtitle && <p className="text-xs text-text-secondary mt-1">{subtitle}</p>}
+          {subtitle && <p className={dsClass("text-xs text-text-secondary mt-1")}>{subtitle}</p>}
           {trend && (
-            <div className={`flex items-center mt-2 text-xs ${trend.isPositive ? 'text-success-600' : 'text-danger-600'}`}>
+            <div className={dsClass(`flex items-center mt-2 text-xs ${trend.isPositive ? 'text-success-600' : 'text-danger-600'}`)}>
               <svg
-                className={`w-3.5 h-3.5 mr-1 ${trend.isPositive ? '' : 'rotate-180'}`}
+                className={dsClass(`w-3.5 h-3.5 mr-1 ${trend.isPositive ? '' : 'rotate-180'}`)}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -88,12 +89,12 @@ const StatCard: React.FC<StatCardProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
               </svg>
               <span className="font-semibold tabular-nums">{Math.abs(trend.value)}%</span>
-              <span className="ml-1 text-text-secondary">vs last period</span>
+              <span className={dsClass("ml-1 text-text-secondary")}>vs last period</span>
             </div>
           )}
         </div>
         {icon && (
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${styles.iconBg} ${styles.iconFg}`}>
+          <div className={dsClass(`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${styles.iconBg} ${styles.iconFg}`)}>
             {icon}
           </div>
         )}

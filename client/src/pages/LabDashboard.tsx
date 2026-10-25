@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import PatientQuickView from '../components/PatientQuickView';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import NumberTicker from '../components/ui/NumberTicker';
@@ -89,13 +90,13 @@ const isAwaitingPatient = (order: LabOrder): boolean => {
 const payerChip = (order: LabOrder): { label: string; className: string } => {
   switch (order.payer_type) {
     case 'insurance':
-      return { label: `Insurance${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-blue-100 text-blue-800 border-blue-300' };
+      return { label: `Insurance${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-ds-info-soft text-ds-info-text border-ds-info/30' };
     case 'corporate':
-      return { label: `Corporate${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-purple-100 text-purple-800 border-purple-300' };
+      return { label: `Corporate${order.payer_name ? ` · ${order.payer_name}` : ''}`, className: 'bg-ds-subtle text-ds-brand-plum border-ds-border' };
     case 'staff':
-      return { label: 'Staff', className: 'bg-teal-100 text-teal-800 border-teal-300' };
+      return { label: 'Staff', className: 'bg-ds-accent-soft text-ds-accent-text border-ds-accent/30' };
     default:
-      return { label: 'Cash', className: 'bg-gray-100 text-gray-800 border-gray-300' };
+      return { label: 'Cash', className: 'bg-ds-subtle text-ds-text border-ds-border-control' };
   }
 };
 
@@ -236,12 +237,12 @@ interface LeveyJenningsData {
 
 type LabAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'danger' | 'success';
 const LAB_ACCENT: Record<LabAccent, { num: string; ring: string }> = {
-  neutral:   { num: 'text-text-primary',  ring: 'ring-gray-200/60' },
-  primary:   { num: 'text-primary-700',   ring: 'ring-primary-200/60' },
-  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60' },
-  warning:   { num: 'text-warning-700',   ring: 'ring-warning-200/60' },
-  danger:    { num: 'text-danger-700',    ring: 'ring-danger-200/60' },
-  success:   { num: 'text-success-700',   ring: 'ring-success-200/60' },
+  neutral:   { num: 'text-ds-text',  ring: 'ring-ds-border/60' },
+  primary:   { num: 'text-ds-accent-text',   ring: 'ring-ds-focus-ring/30' },
+  secondary: { num: 'text-ds-brand-plum', ring: 'ring-ds-brand-plum/30' },
+  warning:   { num: 'text-ds-warning-text',   ring: 'ring-ds-warning/30' },
+  danger:    { num: 'text-ds-critical-text',    ring: 'ring-ds-critical/30' },
+  success:   { num: 'text-ds-success-text',   ring: 'ring-ds-success/30' },
 };
 
 interface LabStatProps {
@@ -260,9 +261,9 @@ const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick
   return (
     <button
       onClick={onClick}
-      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
+      className={`text-left bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card hover:shadow-ds-overlay transition-all p-3 hover:ring-1 ${a.ring} ${active ? 'ring-2 ring-offset-1 ' + a.ring : ''}`}
     >
-      <div className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">{label}</div>
+      <div className="text-[10px] font-semibold text-ds-text-muted uppercase tracking-wider">{label}</div>
       <div className={`text-2xl font-bold tabular-nums mt-1 ${a.num}`}>
         {typeof value === 'number' ? <NumberTicker value={value} /> : value}
       </div>
@@ -277,6 +278,7 @@ const LabStat: React.FC<LabStatProps> = ({ label, value, accent, active, onClick
 };
 
 const LabDashboard: React.FC = () => {
+  useDesignSystemPage();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
@@ -1377,22 +1379,22 @@ const LabDashboard: React.FC = () => {
       const entries = Object.entries(parsed).filter(([k]) => k !== '__notes');
       const notes = typeof parsed.__notes === 'string' ? parsed.__notes : null;
       if (entries.length === 0) {
-        return notes ? <div className="text-sm italic text-gray-600">{notes}</div> : null;
+        return notes ? <div className="text-sm italic text-ds-text-secondary">{notes}</div> : null;
       }
       return (
         <div>
-          <table className={`w-full text-sm ${opts?.compact ? '' : 'border border-gray-200 rounded'}`}>
+          <table className={`w-full text-sm ${opts?.compact ? '' : 'border border-ds-border rounded'}`}>
             <tbody>
               {entries.map(([k, v]) => (
-                <tr key={k} className="border-t border-gray-100">
-                  <td className="py-1 pr-3 text-gray-600 align-top w-1/2">{k}</td>
+                <tr key={k} className="border-t border-ds-border">
+                  <td className="py-1 pr-3 text-ds-text-secondary align-top w-1/2">{k}</td>
                   <td className="py-1 font-mono">{String(v)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           {notes && (
-            <div className="text-xs italic text-gray-600 mt-1">Remarks: {notes}</div>
+            <div className="text-xs italic text-ds-text-secondary mt-1">Remarks: {notes}</div>
           )}
         </div>
       );
@@ -1753,20 +1755,20 @@ const LabDashboard: React.FC = () => {
   // Helper display functions
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-warning-100 text-warning-800';
-      case 'in_progress': return 'bg-primary-100 text-primary-800';
-      case 'completed': return 'bg-success-100 text-success-800';
-      case 'cancelled': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'bg-ds-warning-soft text-ds-warning-text';
+      case 'in_progress': return 'bg-ds-accent-soft text-ds-accent-text';
+      case 'completed': return 'bg-ds-success-soft text-ds-success-text';
+      case 'cancelled': return 'bg-ds-subtle text-ds-text';
+      default: return 'bg-ds-subtle text-ds-text';
     }
   };
 
   const getPriorityBadgeClass = (priority: string) => {
     switch (priority) {
-      case 'stat': return 'bg-danger-100 text-danger-800 border-2 border-danger-500';
-      case 'urgent': return 'bg-warning-100 text-warning-800 border-2 border-warning-500';
-      case 'routine': return 'bg-gray-100 text-gray-800 border border-slate-400';
-      default: return 'bg-gray-100 text-gray-800 border border-slate-400';
+      case 'stat': return 'bg-ds-critical-soft text-ds-critical-text border-2 border-ds-critical';
+      case 'urgent': return 'bg-ds-warning-soft text-ds-warning-text border-2 border-ds-warning';
+      case 'routine': return 'bg-ds-subtle text-ds-text border border-ds-border-control';
+      default: return 'bg-ds-subtle text-ds-text border border-ds-border-control';
     }
   };
 
@@ -1882,7 +1884,7 @@ const LabDashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ds-accent"></div>
       </div>
     );
   }
@@ -1892,7 +1894,7 @@ const LabDashboard: React.FC = () => {
   const inProgressCount = labOrders.filter((o) => o.status === 'in_progress').length;
   const unackedCritical = criticalAlerts.filter((a) => !a.is_acknowledged).length;
   return (
-    <AppLayout>
+    <AppLayout designSystem>
       <DashboardHeader
         title="Lab Dashboard"
         stats={(
@@ -1981,25 +1983,25 @@ const LabDashboard: React.FC = () => {
 
         {/* Upcoming Scheduled Tests */}
         {scheduledAppointments.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border mb-4">
+            <div className="px-4 py-3 border-b border-ds-border flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 text-ds-brand-plum" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <h2 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">Upcoming Scheduled Tests</h2>
+                <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Upcoming Scheduled Tests</h2>
               </div>
-              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-secondary-50 text-secondary-700">{scheduledAppointments.length}</span>
+              <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-ds-accent-soft text-ds-brand-plum">{scheduledAppointments.length}</span>
             </div>
-            <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+            <div className="divide-y divide-ds-border max-h-40 overflow-y-auto">
               {scheduledAppointments.map((apt) => (
                 <div key={apt.id} className="px-4 py-2.5 flex items-center justify-between text-sm">
                   <div className="flex items-center gap-3">
-                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-secondary-100 text-secondary-700 border border-secondary-200">SCHEDULED</span>
-                    <span className="font-medium text-gray-900">{apt.patient_name}</span>
-                    <span className="text-gray-500">{apt.reason}</span>
+                    <span className="px-2 py-0.5 text-xs font-bold rounded-full bg-ds-accent-soft text-ds-brand-plum border border-ds-border">SCHEDULED</span>
+                    <span className="font-medium text-ds-text">{apt.patient_name}</span>
+                    <span className="text-ds-text-muted">{apt.reason}</span>
                   </div>
-                  <span className="text-xs text-gray-500 tabular-nums">
+                  <span className="text-xs text-ds-text-muted tabular-nums">
                     {new Date(apt.appointment_date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
                   </span>
                 </div>
@@ -2009,8 +2011,8 @@ const LabDashboard: React.FC = () => {
         )}
 
         {/* Main Tabs */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-6">
-          <div className="flex border-b border-gray-200 overflow-x-auto">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border mb-6">
+          <div className="flex border-b border-ds-border overflow-x-auto">
             {[
               { id: 'walkins', label: 'Walk-ins', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', count: walkIns.length },
               { id: 'orders', label: 'Orders', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', count: labOrders.filter(o => o.status !== 'completed').length },
@@ -2026,8 +2028,8 @@ const LabDashboard: React.FC = () => {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`flex-1 min-w-max px-6 py-4 text-center font-semibold transition-colors ${
                   activeTab === tab.id
-                    ? 'text-primary-600 border-b-2 border-primary-600 bg-primary-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                    ? 'text-ds-accent-text border-b-2 border-ds-accent bg-ds-accent-soft'
+                    : 'text-ds-text-muted hover:text-ds-text hover:bg-ds-subtle'
                 }`}
               >
                 <div className="flex items-center justify-center gap-2">
@@ -2037,7 +2039,7 @@ const LabDashboard: React.FC = () => {
                   {tab.label}
                   {tab.count !== undefined && (
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                      tab.alert && tab.count > 0 ? 'bg-danger-500 text-white' : 'bg-gray-200 text-gray-700'
+                      tab.alert && tab.count > 0 ? 'bg-ds-critical text-white' : 'bg-ds-border text-ds-text-secondary'
                     }`}>
                       {tab.count}
                     </span>
@@ -2050,13 +2052,13 @@ const LabDashboard: React.FC = () => {
 
         {/* Walk-ins Tab */}
         {activeTab === 'walkins' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+            <div className="p-4 border-b border-ds-border flex justify-between items-center">
               <h2 className="text-lg font-semibold">Walk-in Patients</h2>
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowNewWalkin(true)}
-                  className="px-3 py-1.5 text-sm bg-primary-600 text-white hover:bg-primary-700 rounded-lg flex items-center gap-1 font-medium"
+                  className="min-h-ds-touch px-3 py-1.5 text-sm bg-ds-accent text-ds-on-accent hover:bg-ds-accent-hover rounded-lg flex items-center gap-1 font-medium"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2065,7 +2067,7 @@ const LabDashboard: React.FC = () => {
                 </button>
                 <button
                   onClick={fetchWalkIns}
-                  className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+                  className="min-h-ds-touch px-3 py-1 text-sm bg-ds-subtle hover:bg-ds-border rounded-lg flex items-center gap-1"
                 >
                   Refresh
                 </button>
@@ -2073,10 +2075,10 @@ const LabDashboard: React.FC = () => {
             </div>
             {/* New Walk-in Search */}
             {showNewWalkin && (
-              <div className="p-4 bg-primary-50 border-b border-primary-200">
+              <div className="p-4 bg-ds-accent-soft border-b border-ds-accent/30">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-sm font-semibold text-primary-800">Check in a walk-in patient for lab</h3>
-                  <button onClick={() => { setShowNewWalkin(false); setWalkinSearch(''); setWalkinSearchResults([]); }} className="text-gray-400 hover:text-gray-600 ml-auto">
+                  <h3 className="text-sm font-semibold text-ds-accent-text">Check in a walk-in patient for lab</h3>
+                  <button onClick={() => { setShowNewWalkin(false); setWalkinSearch(''); setWalkinSearchResults([]); }} className="text-ds-text-muted hover:text-ds-text-secondary ml-auto">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -2085,51 +2087,51 @@ const LabDashboard: React.FC = () => {
                   value={walkinSearch}
                   onChange={(e) => searchWalkinPatients(e.target.value)}
                   placeholder="Search patient by name or number..."
-                  className="w-full px-3 py-2 border border-primary-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
+                  className="w-full px-3 py-2 border border-ds-accent/30 rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring bg-ds-surface"
                   autoFocus
                 />
                 {walkinSearchResults.length > 0 && (
-                  <div className="mt-2 bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                  <div className="mt-2 bg-ds-surface border border-ds-border rounded-lg divide-y divide-ds-border max-h-48 overflow-y-auto">
                     {walkinSearchResults.map((p: any) => (
                       <button
                         key={p.id}
                         onClick={() => handleNewWalkin(p)}
                         disabled={creatingWalkin}
-                        className="w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-primary-50 transition-colors disabled:opacity-50"
+                        className="min-h-ds-touch w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-ds-accent-soft transition-colors disabled:opacity-50"
                       >
                         <div>
-                          <span className="font-medium text-gray-900 text-sm">{p.first_name} {p.last_name}</span>
-                          <span className="text-xs text-gray-500 ml-2">{p.patient_number}</span>
+                          <span className="font-medium text-ds-text text-sm">{p.first_name} {p.last_name}</span>
+                          <span className="text-xs text-ds-text-muted ml-2">{p.patient_number}</span>
                         </div>
-                        <span className="text-xs text-primary-600 font-medium">Check in →</span>
+                        <span className="text-xs text-ds-accent-text font-medium">Check in →</span>
                       </button>
                     ))}
                   </div>
                 )}
                 {walkinSearch.length >= 2 && walkinSearchResults.length === 0 && !showQuickRegister && (
                   <div className="mt-2 text-center py-3">
-                    <p className="text-sm text-gray-500 mb-2">No patients found</p>
+                    <p className="text-sm text-ds-text-muted mb-2">No patients found</p>
                     <button
                       onClick={() => {
                         const parts = walkinSearch.trim().split(/\s+/);
                         setQuickRegForm({ first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '', phone: '', gender: '' });
                         setShowQuickRegister(true);
                       }}
-                      className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg text-sm font-medium hover:bg-ds-accent-hover"
                     >
                       + Register New Patient
                     </button>
                   </div>
                 )}
                 {showQuickRegister && (
-                  <div className="mt-3 bg-white border border-primary-200 rounded-lg p-4 space-y-3">
-                    <h4 className="text-sm font-semibold text-gray-900">Quick Registration</h4>
+                  <div className="mt-3 bg-ds-surface border border-ds-accent/30 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-ds-text">Quick Registration</h4>
                     <div className="grid grid-cols-2 gap-3">
-                      <input type="text" value={quickRegForm.first_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, first_name: e.target.value })} placeholder="First Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-                      <input type="text" value={quickRegForm.last_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, last_name: e.target.value })} placeholder="Last Name *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={quickRegForm.first_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, first_name: e.target.value })} placeholder="First Name *" className="px-3 py-2 border border-ds-border-control rounded-lg text-sm" />
+                      <input type="text" value={quickRegForm.last_name} onChange={(e) => setQuickRegForm({ ...quickRegForm, last_name: e.target.value })} placeholder="Last Name *" className="px-3 py-2 border border-ds-border-control rounded-lg text-sm" />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <input type="text" value={quickRegForm.phone} onChange={(e) => setQuickRegForm({ ...quickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                      <input type="text" value={quickRegForm.phone} onChange={(e) => setQuickRegForm({ ...quickRegForm, phone: e.target.value })} placeholder="Phone Number *" className="px-3 py-2 border border-ds-border-control rounded-lg text-sm" />
                       <AppSelect
                         value={quickRegForm.gender}
                         onChange={(val) => setQuickRegForm({ ...quickRegForm, gender: val })}
@@ -2141,8 +2143,8 @@ const LabDashboard: React.FC = () => {
                       />
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setShowQuickRegister(false)} className="px-3 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
-                      <button onClick={handleQuickRegister} disabled={creatingWalkin} className="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 disabled:opacity-50 flex-1">
+                      <button onClick={() => setShowQuickRegister(false)} className="min-h-ds-touch px-3 py-2 text-ds-text-secondary border border-ds-border-control rounded-lg text-sm hover:bg-ds-subtle">Cancel</button>
+                      <button onClick={handleQuickRegister} disabled={creatingWalkin} className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg text-sm font-medium hover:bg-ds-accent-hover disabled:opacity-50 flex-1">
                         {creatingWalkin ? 'Registering...' : 'Register & Check In'}
                       </button>
                     </div>
@@ -2151,42 +2153,42 @@ const LabDashboard: React.FC = () => {
               </div>
             )}
             {walkIns.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">
-                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="p-12 text-center text-ds-text-muted">
+                <svg className="w-16 h-16 mx-auto mb-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <p className="text-lg font-medium">No patients waiting for lab</p>
                 <p className="text-sm mt-1">Patients sent here by reception or by the nurse will appear here.</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Encounter</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Arrived</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Encounter</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Reason</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Arrived</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-ds-border">
                   {walkIns.map((walkin) => (
-                    <tr key={walkin.id} className="hover:bg-gray-50">
+                    <tr key={walkin.id} className="hover:bg-ds-subtle">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{walkin.patient_name}</div>
-                        <div className="text-sm text-gray-500">{walkin.patient_number}</div>
+                        <div className="font-medium text-ds-text">{walkin.patient_name}</div>
+                        <div className="text-sm text-ds-text-muted">{walkin.patient_number}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.encounter_number}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{walkin.notes || walkin.chief_complaint || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{walkin.encounter_number}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">{walkin.notes || walkin.chief_complaint || '-'}</td>
+                      <td className="px-6 py-4 text-sm text-ds-text-secondary">
                         {new Date(walkin.routed_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          walkin.status === 'pending' ? 'bg-warning-100 text-warning-800' :
-                          walkin.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
+                          walkin.status === 'pending' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                          walkin.status === 'in-progress' ? 'bg-ds-info-soft text-ds-info-text' :
+                          'bg-ds-subtle text-ds-text'
                         }`}>
                           {walkin.status}
                         </span>
@@ -2199,7 +2201,7 @@ const LabDashboard: React.FC = () => {
                               setWalkinTests([]);
                               setWalkinTestName('');
                             }}
-                            className="px-2 py-1 bg-primary-600 text-white rounded text-xs font-semibold hover:bg-primary-700"
+                            className="min-h-ds-touch px-2 py-1 bg-ds-accent text-ds-on-accent rounded text-xs font-semibold hover:bg-ds-accent-hover"
                           >
                             + Add Tests
                           </button>
@@ -2208,20 +2210,20 @@ const LabDashboard: React.FC = () => {
                               setSelectedPatientId(walkin.patient_id);
                               setShowPatientQuickView(true);
                             }}
-                            className="text-primary-600 hover:text-primary-800 font-medium"
+                            className="text-ds-accent-text hover:text-ds-accent-text font-medium"
                           >
                             View
                           </button>
                           <button
                             onClick={() => updateRoutingEntry(walkin.id, walkin.patient_name, 'completed')}
-                            className="text-success-600 hover:text-success-800 font-medium"
+                            className="text-ds-success-text hover:text-ds-success-text font-medium"
                             title="Mark this patient as done in the lab"
                           >
                             Done
                           </button>
                           <button
                             onClick={() => updateRoutingEntry(walkin.id, walkin.patient_name, 'cancelled')}
-                            className="text-danger-600 hover:text-danger-800 font-medium"
+                            className="text-ds-critical-text hover:text-ds-critical-text font-medium"
                             title="Remove from queue (routed by mistake)"
                           >
                             Remove
@@ -2240,15 +2242,15 @@ const LabDashboard: React.FC = () => {
         {activeTab === 'orders' && (
           <div>
             {/* Search and Filters */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <div className="md:col-span-2">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+                <div className="sm:col-span-2">
                   <input
                     type="text"
                     placeholder="Search by patient name, number, or test..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                   />
                 </div>
                 <div>
@@ -2268,7 +2270,7 @@ const LabDashboard: React.FC = () => {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="From Date"
                   />
                 </div>
@@ -2277,14 +2279,14 @@ const LabDashboard: React.FC = () => {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="To Date"
                   />
                 </div>
                 <div>
                   <button
                     onClick={fetchLabOrders}
-                    className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    className="min-h-ds-touch w-full px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
                   >
                     Apply Filters
                   </button>
@@ -2294,18 +2296,18 @@ const LabDashboard: React.FC = () => {
 
             {/* Batch Actions */}
             {selectedOrders.length > 0 && (
-              <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 mb-4 flex items-center justify-between">
-                <span className="font-medium text-primary-800">{selectedOrders.length} order(s) selected</span>
+              <div className="bg-ds-accent-soft border border-ds-accent/30 rounded-ds-card p-4 mb-4 flex items-center justify-between">
+                <span className="font-medium text-ds-accent-text">{selectedOrders.length} order(s) selected</span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => batchUpdateOrders('in_progress')}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
                   >
                     Start All
                   </button>
                   <button
                     onClick={() => setSelectedOrders([])}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border"
                   >
                     Clear Selection
                   </button>
@@ -2317,20 +2319,20 @@ const LabDashboard: React.FC = () => {
             <div className="flex gap-2 mb-4 flex-wrap">
               <button
                 onClick={() => { setOrdersSubTab('pending'); setStatusFilter(''); }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium transition-colors ${
                   ordersSubTab === 'pending' && !statusFilter
-                    ? 'bg-warning-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                    ? 'bg-ds-warning text-white dark:text-ds-canvas'
+                    : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                 }`}
               >
                 Pending & In Progress ({labOrders.filter(o => (o.status === 'pending' || o.status === 'in_progress') && !isAwaitingPatient(o)).length})
               </button>
               <button
                 onClick={() => { setOrdersSubTab('awaiting'); setStatusFilter(''); }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium transition-colors ${
                   ordersSubTab === 'awaiting' && !statusFilter
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                    ? 'bg-ds-info text-white dark:text-ds-canvas'
+                    : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                 }`}
                 title="Tests ordered earlier where the patient hasn't come in yet. Search by patient name or number."
               >
@@ -2338,10 +2340,10 @@ const LabDashboard: React.FC = () => {
               </button>
               <button
                 onClick={() => { setOrdersSubTab('completed'); setStatusFilter(''); }}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                className={`min-h-ds-touch px-4 py-2 rounded-lg font-medium transition-colors ${
                   ordersSubTab === 'completed' && !statusFilter
-                    ? 'bg-success-500 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
+                    ? 'bg-ds-success text-white dark:text-ds-canvas'
+                    : 'bg-ds-surface text-ds-text-secondary hover:bg-ds-subtle'
                 }`}
               >
                 Completed ({labOrders.filter(o => o.status === 'completed').length})
@@ -2349,7 +2351,7 @@ const LabDashboard: React.FC = () => {
               {statusFilter && (
                 <button
                   onClick={() => setStatusFilter('')}
-                  className="px-4 py-2 rounded-lg font-medium bg-gray-800 text-white flex items-center gap-2"
+                  className="min-h-ds-touch px-4 py-2 rounded-lg font-medium bg-ds-text text-ds-canvas flex items-center gap-2"
                 >
                   Filtered: {statusFilter === 'stat' ? 'STAT Orders' : statusFilter === 'pending' ? 'Pending Only' : 'In Progress Only'}
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2362,24 +2364,24 @@ const LabDashboard: React.FC = () => {
             {/* Orders List with Patient Details Panel */}
             <div className="flex gap-6">
               {/* Left: Orders List */}
-              <div className="flex-1 bg-white rounded-xl shadow-lg border border-gray-200">
-                <div className={`px-6 py-4 border-b border-gray-200 rounded-t-xl ${
-                  ordersSubTab === 'pending' ? 'bg-gradient-to-r from-warning-50 to-orange-50'
-                    : ordersSubTab === 'awaiting' ? 'bg-gradient-to-r from-blue-50 to-primary-50'
-                    : 'bg-gradient-to-r from-success-50 to-success-50'
+              <div className="flex-1 bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
+                <div className={`px-6 py-4 border-b border-ds-border rounded-t-xl ${
+                  ordersSubTab === 'pending' ? 'bg-gradient-to-r from-ds-warning-soft to-ds-warning-soft'
+                    : ordersSubTab === 'awaiting' ? 'bg-gradient-to-r from-ds-info-soft to-ds-accent-soft'
+                    : 'bg-gradient-to-r from-ds-success-soft to-ds-success-soft'
                 }`}>
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <h2 className="text-xl font-bold text-ds-text">
                     {ordersSubTab === 'pending' ? 'Pending & In Progress Tests' : ordersSubTab === 'awaiting' ? 'Awaiting Patient' : 'Completed Test Results'}
                   </h2>
                   {ordersSubTab === 'awaiting' && (
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-ds-text-secondary mt-1">
                       Ordered earlier but the patient hasn't come in yet. These are never cancelled — when the patient arrives, search their name above and click Start Processing.
                     </p>
                   )}
                 </div>
-                <div className="divide-y divide-gray-200">
+                <div className="divide-y divide-ds-border">
                 {groupedLabOrders.length === 0 ? (
-                  <div className="px-6 py-8 text-center text-gray-500">
+                  <div className="px-6 py-8 text-center text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -2387,11 +2389,11 @@ const LabDashboard: React.FC = () => {
                   </div>
                 ) : (
                   groupedLabOrders.map((group) => (
-                    <div key={`${group.patient_id}-${group.encounter_id}`} className="border-b border-gray-200 last:border-b-0">
+                    <div key={`${group.patient_id}-${group.encounter_id}`} className="border-b border-ds-border last:border-b-0">
                       {/* Patient Group Header */}
                       <div
-                        className={`px-6 py-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors ${
-                          group.highest_priority === 'stat' ? 'bg-danger-50 border-l-4 border-danger-500' : ''
+                        className={`px-6 py-3 bg-ds-subtle cursor-pointer hover:bg-ds-subtle transition-colors ${
+                          group.highest_priority === 'stat' ? 'bg-ds-critical-soft border-l-4 border-ds-critical' : ''
                         }`}
                         onClick={() => {
                           setSelectedOrderForDetails(group.orders[0]);
@@ -2400,10 +2402,10 @@ const LabDashboard: React.FC = () => {
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center gap-3 flex-wrap">
-                            <h3 className="text-lg font-semibold text-gray-900">{group.patient_name}</h3>
-                            <span className="text-sm text-gray-500">{group.patient_number}</span>
+                            <h3 className="text-lg font-semibold text-ds-text">{group.patient_name}</h3>
+                            <span className="text-sm text-ds-text-muted">{group.patient_number}</span>
                             {group.patient_allergies && (
-                              <span className="px-2 py-0.5 text-xs font-bold bg-danger-100 text-danger-700 rounded-full border border-danger-300">
+                              <span className="px-2 py-0.5 text-xs font-bold bg-ds-critical-soft text-ds-critical-text rounded-full border border-ds-critical-border">
                                 Allergies: {group.patient_allergies}
                               </span>
                             )}
@@ -2421,7 +2423,7 @@ const LabDashboard: React.FC = () => {
                                 </span>
                               );
                             })()}
-                            <span className="text-sm text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">
+                            <span className="text-sm text-ds-text-muted bg-ds-border px-2 py-0.5 rounded-full">
                               {group.orders.length} test{group.orders.length > 1 ? 's' : ''}
                             </span>
                             <button
@@ -2430,7 +2432,7 @@ const LabDashboard: React.FC = () => {
                                 setSelectedPatientId(group.patient_id);
                                 setShowPatientQuickView(true);
                               }}
-                              className="px-2 py-1 text-xs bg-primary-100 text-primary-700 rounded hover:bg-primary-200"
+                              className="min-h-ds-touch px-2 py-1 text-xs bg-ds-accent-soft text-ds-accent-text rounded hover:bg-ds-accent-soft"
                             >
                               View Patient
                             </button>
@@ -2442,7 +2444,7 @@ const LabDashboard: React.FC = () => {
                                   e.stopPropagation();
                                   group.orders.forEach(o => updateStatus(o.id, 'in_progress'));
                                 }}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                                className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover"
                               >
                                 Start All Processing
                               </button>
@@ -2460,12 +2462,12 @@ const LabDashboard: React.FC = () => {
                                     releasePatient(group.encounter_id, group.patient_name, pending, group.encounter_clinic);
                                   }}
                                   disabled={disabled}
-                                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-colors ${
+                                  className={`min-h-ds-touch px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-ds-card transition-colors ${
                                     done
-                                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                      ? 'bg-ds-border text-ds-text-muted cursor-not-allowed'
                                       : inFlight
-                                      ? 'bg-warning-300 text-white cursor-wait'
-                                      : 'bg-warning-600 hover:bg-warning-700 text-white'
+                                      ? 'bg-ds-warning text-white dark:text-ds-canvas cursor-wait'
+                                      : 'bg-ds-warning hover:bg-ds-warning/90 text-white dark:text-ds-canvas'
                                   }`}
                                   title={
                                     done
@@ -2488,7 +2490,7 @@ const LabDashboard: React.FC = () => {
                             })()}
                           </div>
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-ds-text-muted mt-1">
                           Ordered by: {group.ordering_provider_name} | Encounter: {group.encounter_number} | {new Date(group.ordered_at).toLocaleString()}
                         </div>
                       </div>
@@ -2498,10 +2500,10 @@ const LabDashboard: React.FC = () => {
                         <div
                           key={order.id}
                           ref={order.id === highlightOrderId ? highlightRef : undefined}
-                          className={`px-6 py-3 pl-10 hover:bg-gray-50 transition-colors cursor-pointer border-t border-gray-100 ${
+                          className={`px-6 py-3 pl-10 hover:bg-ds-subtle transition-colors cursor-pointer border-t border-ds-border ${
                             order.id === highlightOrderId
-                              ? 'ring-2 ring-primary-400 bg-primary-50'
-                              : selectedOrderForDetails?.id === order.id ? 'ring-2 ring-primary-500 bg-primary-50' : ''
+                              ? 'ring-2 ring-ds-focus-ring bg-ds-accent-soft'
+                              : selectedOrderForDetails?.id === order.id ? 'ring-2 ring-ds-focus-ring bg-ds-accent-soft' : ''
                           }`}
                           onClick={() => {
                             setSelectedOrderForDetails(order);
@@ -2523,23 +2525,23 @@ const LabDashboard: React.FC = () => {
                                     }
                                   }}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="w-4 h-4 rounded border-gray-300"
+                                  className="w-4 h-4 rounded border-ds-border-control"
                                 />
                               )}
                               <div className="flex items-center gap-2">
-                                <span className="text-md font-semibold text-primary-700">
+                                <span className="text-md font-semibold text-ds-accent-text">
                                   {order.test_name}
                                 </span>
-                                {order.test_code && <span className="text-sm text-gray-500">({order.test_code})</span>}
+                                {order.test_code && <span className="text-sm text-ds-text-muted">({order.test_code})</span>}
                               </div>
                               <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${getStatusBadgeClass(order.status)}`}>
                                 {order.status.replace('_', ' ').toUpperCase()}
                               </span>
                               {order.specimen_id && (
-                                <span className="text-xs text-gray-500">Specimen: {order.specimen_id}</span>
+                                <span className="text-xs text-ds-text-muted">Specimen: {order.specimen_id}</span>
                               )}
                               {ordersSubTab === 'awaiting' && (
-                                <span className="text-xs text-blue-700">
+                                <span className="text-xs text-ds-info-text">
                                   {order.scheduled_for && new Date(order.scheduled_for).getTime() > Date.now()
                                     ? `Returning ${new Date(order.scheduled_for).toLocaleDateString()}`
                                     : `Ordered ${Math.floor((Date.now() - new Date(order.ordered_at).getTime()) / 86400000)} days ago`}
@@ -2556,7 +2558,7 @@ const LabDashboard: React.FC = () => {
                                     setDeferDate(d.toISOString().slice(0, 10));
                                     setDeferringOrder(order);
                                   }}
-                                  className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-info-text bg-ds-info-soft border border-ds-info/30 rounded-lg hover:bg-ds-info-soft"
                                   title="Patient will come back another day for this test"
                                 >
                                   Do Later
@@ -2565,7 +2567,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'pending' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); updateStatus(order.id, 'in_progress'); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover"
                                 >
                                   Start Processing
                                 </button>
@@ -2573,7 +2575,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'in_progress' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); openResultModal(order); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-success-600 rounded-lg hover:bg-success-700"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-white dark:text-ds-canvas bg-ds-success rounded-lg hover:bg-ds-success/90"
                                 >
                                   Enter Results
                                 </button>
@@ -2581,7 +2583,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'completed' && order.result_document_id && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); viewLabResultFile(order.result_document_id as number); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 flex items-center gap-1"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-white dark:text-ds-canvas bg-ds-info rounded-lg hover:bg-ds-info/90 flex items-center gap-1"
                                   title={order.result_document_name || 'View uploaded file'}
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2593,7 +2595,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'completed' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); openResultModal(order); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-warning-700 bg-warning-100 rounded-lg hover:bg-warning-200 flex items-center gap-1"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-warning-text bg-ds-warning-soft rounded-lg hover:bg-ds-warning-soft flex items-center gap-1"
                                   title="Re-enter or re-upload the result"
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2605,7 +2607,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'completed' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); deleteLabResult(order); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-danger-700 bg-danger-50 border border-danger-200 rounded-lg hover:bg-danger-100 flex items-center gap-1"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-critical-text bg-ds-critical-soft border border-ds-critical-border rounded-lg hover:bg-ds-critical-soft flex items-center gap-1"
                                   title="Clear the result (e.g. attached to wrong patient) — requires a reason and is audit-logged"
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2617,7 +2619,7 @@ const LabDashboard: React.FC = () => {
                               {order.status === 'completed' && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); printLabReport(order); }}
-                                  className="px-3 py-1.5 text-xs font-medium text-success-700 bg-success-100 rounded-lg hover:bg-success-200 flex items-center gap-1"
+                                  className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-ds-success-text bg-ds-success-soft rounded-lg hover:bg-ds-success-soft flex items-center gap-1"
                                 >
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -2629,16 +2631,16 @@ const LabDashboard: React.FC = () => {
                           </div>
                           {/* Inline results for completed orders */}
                           {order.status === 'completed' && order.results && order.results.trim() && (
-                            <div className="mt-2 p-3 bg-success-50 rounded border border-success-200 ml-7">
-                              <div className="text-xs font-bold text-success-800 mb-1">Results:</div>
+                            <div className="mt-2 p-3 bg-ds-success-soft rounded border border-ds-success/30 ml-7">
+                              <div className="text-xs font-bold text-ds-success-text mb-1">Results:</div>
                               {renderResultPayload(order.results, { compact: true })}
                             </div>
                           )}
                           {/* Attached file indicator — lab tech can verify what they uploaded */}
                           {order.status === 'completed' && order.result_document_id && (
-                            <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200 ml-7 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 text-sm text-blue-900 min-w-0">
-                                <svg className="w-4 h-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="mt-2 p-2 bg-ds-info-soft rounded border border-ds-info/30 ml-7 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-sm text-ds-info-text min-w-0">
+                                <svg className="w-4 h-4 text-ds-info-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
                                 <span className="truncate">
@@ -2648,7 +2650,7 @@ const LabDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); viewLabResultFile(order.result_document_id as number); }}
-                                className="flex-shrink-0 px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 rounded hover:bg-blue-700"
+                                className="min-h-ds-touch flex-shrink-0 px-2.5 py-1 text-xs font-semibold text-white dark:text-ds-canvas bg-ds-info rounded hover:bg-ds-info/90"
                               >
                                 View
                               </button>
@@ -2663,7 +2665,7 @@ const LabDashboard: React.FC = () => {
             </div>
 
               {/* Right: Patient Details Panel */}
-              <div className="w-80 bg-white rounded-xl shadow-lg border border-gray-200 flex-shrink-0">
+              <div className="w-80 bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border flex-shrink-0">
                 <div className="px-6 py-4 border-b">
                   <h2 className="text-lg font-semibold">Patient Details</h2>
                 </div>
@@ -2671,16 +2673,16 @@ const LabDashboard: React.FC = () => {
                   <div className="p-6 space-y-6 max-h-[calc(100vh-300px)] overflow-y-auto">
                     {/* Patient Info */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      <h3 className="text-sm font-semibold text-ds-text-secondary uppercase tracking-wider mb-2">
                         Patient
                       </h3>
-                      <div className="bg-gray-50 rounded p-3 space-y-2">
-                        <div className="font-semibold text-gray-900">{selectedOrderForDetails.patient_name}</div>
-                        <div className="text-sm text-gray-600">{selectedOrderForDetails.patient_number}</div>
+                      <div className="bg-ds-subtle rounded p-3 space-y-2">
+                        <div className="font-semibold text-ds-text">{selectedOrderForDetails.patient_name}</div>
+                        <div className="text-sm text-ds-text-secondary">{selectedOrderForDetails.patient_number}</div>
                         {patientDOB && (
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-ds-text-secondary">
                             DOB: {new Date(patientDOB).toLocaleDateString()}{' '}
-                            <span className="text-gray-500">
+                            <span className="text-ds-text-muted">
                               ({Math.floor((Date.now() - new Date(patientDOB).getTime()) / (365.25 * 24 * 60 * 60 * 1000))} yrs)
                             </span>
                           </div>
@@ -2690,39 +2692,39 @@ const LabDashboard: React.FC = () => {
 
                     {/* Current Test */}
                     <div>
-                      <h3 className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-accent-text uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                         </svg>
                         Current Test
                       </h3>
-                      <div className="bg-primary-50 rounded p-3 border border-primary-200">
-                        <div className="font-semibold text-primary-900">{selectedOrderForDetails.test_name}</div>
+                      <div className="bg-ds-accent-soft rounded p-3 border border-ds-accent/30">
+                        <div className="font-semibold text-ds-accent-text">{selectedOrderForDetails.test_name}</div>
                         {selectedOrderForDetails.test_code && (
-                          <div className="text-sm text-primary-600 mt-1">Code: {selectedOrderForDetails.test_code}</div>
+                          <div className="text-sm text-ds-accent-text mt-1">Code: {selectedOrderForDetails.test_code}</div>
                         )}
                         <div className="flex items-center gap-2 mt-2">
                           <span className={`px-2 py-0.5 text-xs font-bold rounded ${
-                            selectedOrderForDetails.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                            selectedOrderForDetails.priority === 'urgent' ? 'bg-orange-100 text-orange-700' :
-                            'bg-gray-100 text-gray-700'
+                            selectedOrderForDetails.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                            selectedOrderForDetails.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                            'bg-ds-subtle text-ds-text-secondary'
                           }`}>
                             {selectedOrderForDetails.priority.toUpperCase()}
                           </span>
                           <span className={`px-2 py-0.5 text-xs font-semibold rounded ${
-                            selectedOrderForDetails.status === 'completed' ? 'bg-success-100 text-success-700' :
-                            selectedOrderForDetails.status === 'in_progress' ? 'bg-primary-100 text-primary-700' :
-                            'bg-warning-100 text-warning-700'
+                            selectedOrderForDetails.status === 'completed' ? 'bg-ds-success-soft text-ds-success-text' :
+                            selectedOrderForDetails.status === 'in_progress' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                            'bg-ds-warning-soft text-ds-warning-text'
                           }`}>
                             {selectedOrderForDetails.status.replace('_', ' ').toUpperCase()}
                           </span>
                           {selectedOrderForDetails.verification_status === 'pending' && (
-                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-warning-100 text-warning-700">
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-ds-warning-soft text-ds-warning-text">
                               PENDING REVIEW
                             </span>
                           )}
                           {selectedOrderForDetails.verification_status === 'rejected' && (
-                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-danger-100 text-danger-700">
+                            <span className="px-2 py-0.5 text-xs font-semibold rounded bg-ds-critical-soft text-ds-critical-text">
                               SENT BACK
                             </span>
                           )}
@@ -2731,7 +2733,7 @@ const LabDashboard: React.FC = () => {
                             doctor (and audit) see the peer review trail at a
                             glance without opening the audit log. */}
                         {(selectedOrderForDetails.entered_by_name || selectedOrderForDetails.verified_by_name) && (
-                          <div className="text-xs text-gray-500 mt-2 space-y-0.5">
+                          <div className="text-xs text-ds-text-muted mt-2 space-y-0.5">
                             {selectedOrderForDetails.entered_by_name && (
                               <div>Entered by {selectedOrderForDetails.entered_by_name}</div>
                             )}
@@ -2745,7 +2747,7 @@ const LabDashboard: React.FC = () => {
                             )}
                             {selectedOrderForDetails.verification_status === 'rejected' &&
                               selectedOrderForDetails.rejection_reason && (
-                                <div className="text-warning-700">
+                                <div className="text-ds-warning-text">
                                   Reason for send-back: {selectedOrderForDetails.rejection_reason}
                                 </div>
                               )}
@@ -2756,7 +2758,7 @@ const LabDashboard: React.FC = () => {
 
                     {/* Allergies */}
                     <div>
-                      <h3 className="text-sm font-semibold text-danger-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-critical-text uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                         </svg>
@@ -2765,28 +2767,28 @@ const LabDashboard: React.FC = () => {
                       {patientAllergies.length > 0 ? (
                         <div className="space-y-2">
                           {patientAllergies.map((allergy: any, idx: number) => (
-                            <div key={idx} className="p-2 bg-danger-50 border border-danger-200 rounded text-sm">
-                              <span className="font-medium text-danger-700">{allergy.allergen || allergy}</span>
+                            <div key={idx} className="p-2 bg-ds-critical-soft border border-ds-critical-border rounded text-sm">
+                              <span className="font-medium text-ds-critical-text">{allergy.allergen || allergy}</span>
                               {allergy.reaction && (
-                                <span className="text-danger-600 ml-2">- {allergy.reaction}</span>
+                                <span className="text-ds-critical-text ml-2">- {allergy.reaction}</span>
                               )}
                             </div>
                           ))}
                         </div>
                       ) : (
                         allergiesStatus === 'loading' ? (
-                          <p className="text-sm text-gray-500 italic">Checking allergies…</p>
+                          <p className="text-sm text-ds-text-muted italic">Checking allergies…</p>
                         ) : allergiesStatus === 'failed' ? (
-                          <p className="text-sm font-medium text-danger-700" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
+                          <p className="text-sm font-medium text-ds-critical-text" role="alert">Allergies couldn't be loaded — check the patient's chart before giving anything.</p>
                         ) : (
-                          <p className="text-sm text-gray-500 italic">No known allergies</p>
+                          <p className="text-sm text-ds-text-muted italic">No known allergies</p>
                         )
                       )}
                     </div>
 
                     {/* Diagnoses */}
                     <div>
-                      <h3 className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-brand-plum uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
@@ -2795,35 +2797,35 @@ const LabDashboard: React.FC = () => {
                       {patientDiagnoses.length > 0 ? (
                         <div className="space-y-2">
                           {patientDiagnoses.map((dx: any, idx: number) => (
-                            <div key={idx} className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">
-                              <span className="font-medium text-purple-700">{dx.diagnosis_description || dx.diagnosis_name || dx.name || String(dx)}</span>
+                            <div key={idx} className="p-2 bg-ds-subtle border border-ds-border rounded text-sm">
+                              <span className="font-medium text-ds-brand-plum">{dx.diagnosis_description || dx.diagnosis_name || dx.name || String(dx)}</span>
                               {(dx.diagnosis_code || dx.icd_code) && (
-                                <span className="text-purple-600 ml-2 text-xs">({dx.diagnosis_code || dx.icd_code})</span>
+                                <span className="text-ds-brand-plum ml-2 text-xs">({dx.diagnosis_code || dx.icd_code})</span>
                               )}
                             </div>
                           ))}
                         </div>
                       ) : encounterDetails?.chief_complaint ? (
                         <div className="space-y-2">
-                          <div className="p-2 bg-warning-50 border border-warning-200 rounded text-sm">
-                            <div className="text-xs font-semibold text-warning-600 uppercase mb-1">Presumptive / Chief Complaint</div>
-                            <span className="font-medium text-warning-800">{encounterDetails.chief_complaint}</span>
+                          <div className="p-2 bg-ds-warning-soft border border-ds-warning-border rounded text-sm">
+                            <div className="text-xs font-semibold text-ds-warning-text uppercase mb-1">Presumptive / Chief Complaint</div>
+                            <span className="font-medium text-ds-warning-text">{encounterDetails.chief_complaint}</span>
                           </div>
                           {encounterDetails?.assessment && (
-                            <div className="p-2 bg-purple-50 border border-purple-200 rounded text-sm">
-                              <div className="text-xs font-semibold text-purple-600 uppercase mb-1">Assessment</div>
-                              <span className="font-medium text-purple-700">{encounterDetails.assessment}</span>
+                            <div className="p-2 bg-ds-subtle border border-ds-border rounded text-sm">
+                              <div className="text-xs font-semibold text-ds-brand-plum uppercase mb-1">Assessment</div>
+                              <span className="font-medium text-ds-brand-plum">{encounterDetails.assessment}</span>
                             </div>
                           )}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No diagnoses recorded</p>
+                        <p className="text-sm text-ds-text-muted italic">No diagnoses recorded</p>
                       )}
                     </div>
 
                     {/* Recent Lab History */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <h3 className="text-sm font-semibold text-ds-text-secondary uppercase tracking-wider mb-2 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -2832,11 +2834,11 @@ const LabDashboard: React.FC = () => {
                       {patientLabHistory.length > 0 ? (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {patientLabHistory.slice(0, 5).map((lab: any, idx: number) => (
-                            <div key={idx} className="p-2 bg-gray-50 border border-gray-200 rounded text-sm">
-                              <div className="font-medium text-gray-700">{lab.test_name}</div>
-                              <div className="text-xs text-gray-500 mt-1">
+                            <div key={idx} className="p-2 bg-ds-subtle border border-ds-border rounded text-sm">
+                              <div className="font-medium text-ds-text-secondary">{lab.test_name}</div>
+                              <div className="text-xs text-ds-text-muted mt-1">
                                 {new Date(lab.ordered_at).toLocaleDateString()} -
-                                <span className={`ml-1 ${lab.status === 'completed' ? 'text-success-600' : 'text-warning-600'}`}>
+                                <span className={`ml-1 ${lab.status === 'completed' ? 'text-ds-success-text' : 'text-ds-warning-text'}`}>
                                   {lab.status}
                                 </span>
                               </div>
@@ -2844,7 +2846,7 @@ const LabDashboard: React.FC = () => {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-500 italic">No previous lab orders</p>
+                        <p className="text-sm text-ds-text-muted italic">No previous lab orders</p>
                       )}
                     </div>
 
@@ -2854,14 +2856,14 @@ const LabDashboard: React.FC = () => {
                         setSelectedPatientId(selectedOrderForDetails.patient_id);
                         setShowPatientQuickView(true);
                       }}
-                      className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                      className="min-h-ds-touch w-full px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors text-sm font-medium"
                     >
                       View Full Patient Profile
                     </button>
                   </div>
                 ) : (
-                  <div className="p-6 text-center text-gray-500">
-                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="p-6 text-center text-ds-text-muted">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                     </svg>
                     <p>Select an order to view patient details</p>
@@ -2874,31 +2876,31 @@ const LabDashboard: React.FC = () => {
 
         {/* Verification Tab — peer-review queue */}
         {activeTab === 'verification' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+            <div className="p-4 border-b border-ds-border flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-semibold">Results awaiting verification</h2>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-ds-text-muted mt-1">
                   These results have been entered by another lab tech and are waiting for a peer review before the doctor can see them.
                 </p>
               </div>
               <button
                 onClick={fetchPendingVerification}
-                className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1"
+                className="min-h-ds-touch px-3 py-1 text-sm bg-ds-subtle hover:bg-ds-border rounded-lg flex items-center gap-1"
               >
                 Refresh
               </button>
             </div>
             {pendingVerification.length === 0 ? (
-              <div className="p-12 text-center text-gray-500">
-                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="p-12 text-center text-ds-text-muted">
+                <svg className="w-16 h-16 mx-auto mb-4 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-lg font-medium">All caught up</p>
                 <p className="text-sm mt-1">No results are waiting on you. Nice.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-ds-border">
                 {pendingVerification.map((order) => {
                   const assignedToMe =
                     currentUser?.id != null && order.assigned_reviewer_id === currentUser.id;
@@ -2907,37 +2909,37 @@ const LabDashboard: React.FC = () => {
                       <div className="flex justify-between items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-gray-900">{order.test_name}</span>
+                            <span className="font-semibold text-ds-text">{order.test_name}</span>
                             {order.priority === 'stat' && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-danger-100 text-danger-700 font-bold uppercase">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-ds-critical-soft text-ds-critical-text font-bold uppercase">
                                 STAT
                               </span>
                             )}
                             {order.priority === 'urgent' && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-warning-100 text-warning-700 font-bold uppercase">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-ds-warning-soft text-ds-warning-text font-bold uppercase">
                                 Urgent
                               </span>
                             )}
                             {assignedToMe && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-primary-100 text-primary-700 font-semibold">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-ds-accent-soft text-ds-accent-text font-semibold">
                                 Assigned to you
                               </span>
                             )}
                             {(order.rejection_count || 0) > 0 && (
-                              <span className="px-2 py-0.5 text-xs rounded-full bg-warning-50 text-warning-700">
+                              <span className="px-2 py-0.5 text-xs rounded-full bg-ds-warning-soft text-ds-warning-text">
                                 Resubmitted ({order.rejection_count}×)
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
+                          <div className="text-sm text-ds-text-secondary mt-1">
                             {order.patient_name} · {order.patient_number}
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">
+                          <div className="text-xs text-ds-text-muted mt-1">
                             Entered by {order.entered_by_name || 'unknown'} · Assigned to{' '}
                             {order.assigned_reviewer_name || 'anyone'}
                           </div>
                           {order.results && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
+                            <div className="mt-2 p-2 bg-ds-subtle rounded text-sm">
                               {renderResultPayload(order.results, { compact: true })}
                             </div>
                           )}
@@ -2946,7 +2948,7 @@ const LabDashboard: React.FC = () => {
                               href={`/api/documents/${order.result_document_id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-block mt-2 text-sm text-primary-600 hover:underline"
+                              className="inline-block mt-2 text-sm text-ds-accent-text hover:underline"
                             >
                               View attached document ({order.result_document_name || 'file'})
                             </a>
@@ -2955,13 +2957,13 @@ const LabDashboard: React.FC = () => {
                         <div className="flex flex-col gap-2 shrink-0">
                           <button
                             onClick={() => setVerifyingOrder(order)}
-                            className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 text-sm font-medium"
+                            className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 text-sm font-medium"
                           >
                             Verify
                           </button>
                           <button
                             onClick={() => setRejectingOrder(order)}
-                            className="px-4 py-2 bg-white border border-danger-300 text-danger-700 rounded-lg hover:bg-danger-50 text-sm font-medium"
+                            className="min-h-ds-touch px-4 py-2 bg-ds-surface border border-ds-critical-border text-ds-critical-text rounded-lg hover:bg-ds-critical-soft text-sm font-medium"
                           >
                             Send back
                           </button>
@@ -2980,37 +2982,37 @@ const LabDashboard: React.FC = () => {
           <div>
             {/* Inventory Stats */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Total Items</div>
-                <div className="text-2xl font-bold text-gray-700 mt-1">{inventoryStats?.total_items || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Total Items</div>
+                <div className="text-2xl font-bold text-ds-text-secondary mt-1">{inventoryStats?.total_items || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 cursor-pointer hover:bg-warning-50" onClick={() => setInventoryStatusFilter('low_stock')}>
-                <div className="text-xs font-medium text-gray-500 uppercase">Low Stock</div>
-                <div className="text-2xl font-bold text-warning-600 mt-1">{inventoryStats?.low_stock_count || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 cursor-pointer hover:bg-ds-warning-soft" onClick={() => setInventoryStatusFilter('low_stock')}>
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Low Stock</div>
+                <div className="text-2xl font-bold text-ds-warning-text mt-1">{inventoryStats?.low_stock_count || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 cursor-pointer hover:bg-orange-50" onClick={() => setInventoryStatusFilter('expiring')}>
-                <div className="text-xs font-medium text-gray-500 uppercase">Expiring Soon</div>
-                <div className="text-2xl font-bold text-orange-600 mt-1">{inventoryStats?.expiring_soon_count || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 cursor-pointer hover:bg-ds-warning-soft" onClick={() => setInventoryStatusFilter('expiring')}>
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Expiring Soon</div>
+                <div className="text-2xl font-bold text-ds-warning-text mt-1">{inventoryStats?.expiring_soon_count || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Calibration Due</div>
-                <div className="text-2xl font-bold text-danger-600 mt-1">{inventoryStats?.calibration_due_count || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Calibration Due</div>
+                <div className="text-2xl font-bold text-ds-critical-text mt-1">{inventoryStats?.calibration_due_count || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Stock Value</div>
-                <div className="text-2xl font-bold text-success-600 mt-1">${typeof inventoryStats?.total_stock_value === 'number' ? inventoryStats.total_stock_value.toFixed(2) : parseFloat(inventoryStats?.total_stock_value || '0').toFixed(2)}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Stock Value</div>
+                <div className="text-2xl font-bold text-ds-success-text mt-1">${typeof inventoryStats?.total_stock_value === 'number' ? inventoryStats.total_stock_value.toFixed(2) : parseFloat(inventoryStats?.total_stock_value || '0').toFixed(2)}</div>
               </div>
             </div>
 
             {/* Inventory Filters */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <input
                   type="text"
                   placeholder="Search items..."
                   value={inventorySearch}
                   onChange={(e) => setInventorySearch(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                 />
                 <AppSelect
                   value={inventoryTypeFilter}
@@ -3037,7 +3039,7 @@ const LabDashboard: React.FC = () => {
                     setInventoryTypeFilter('');
                     setInventoryStatusFilter('');
                   }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="min-h-ds-touch px-4 py-2 text-ds-text-secondary hover:text-ds-text border border-ds-border-control rounded-lg hover:bg-ds-subtle"
                 >
                   Clear Filters
                 </button>
@@ -3046,7 +3048,7 @@ const LabDashboard: React.FC = () => {
                     resetInventoryForm();
                     setShowInventoryModal(true);
                   }}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
                 >
                   + Add Item
                 </button>
@@ -3054,50 +3056,50 @@ const LabDashboard: React.FC = () => {
             </div>
 
             {/* Inventory Table */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reorder</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lot #</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Item Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Stock</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Reorder</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Lot #</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Expiry</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-ds-surface divide-y divide-ds-border">
                   {inventory.map((item) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{item.item_name}</td>
+                    <tr key={item.id} className="hover:bg-ds-subtle">
+                      <td className="px-6 py-4 whitespace-nowrap font-medium text-ds-text">{item.item_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          item.item_type === 'reagent' ? 'bg-secondary-100 text-secondary-800' :
-                          item.item_type === 'supply' ? 'bg-primary-100 text-primary-800' :
-                          'bg-gray-100 text-gray-800'
+                          item.item_type === 'reagent' ? 'bg-ds-accent-soft text-ds-brand-plum' :
+                          item.item_type === 'supply' ? 'bg-ds-accent-soft text-ds-accent-text' :
+                          'bg-ds-subtle text-ds-text'
                         }`}>
                           {item.item_type}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.category}</td>
-                      <td className={`px-6 py-4 whitespace-nowrap font-bold ${item.is_low_stock ? 'text-danger-600' : 'text-gray-900'}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{item.category}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap font-bold ${item.is_low_stock ? 'text-ds-critical-text' : 'text-ds-text'}`}>
                         {item.quantity_on_hand} {item.unit}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.reorder_level}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.lot_number || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{item.reorder_level}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{item.lot_number || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">
                         {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex gap-1 flex-wrap">
-                          {item.is_low_stock && <span className="px-2 py-1 text-xs bg-danger-100 text-danger-800 rounded-full">Low</span>}
-                          {item.is_expiring_soon && <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">Expiring</span>}
-                          {item.is_calibration_due && <span className="px-2 py-1 text-xs bg-secondary-100 text-secondary-800 rounded-full">Cal Due</span>}
+                          {item.is_low_stock && <span className="px-2 py-1 text-xs bg-ds-critical-soft text-ds-critical-text rounded-full">Low</span>}
+                          {item.is_expiring_soon && <span className="px-2 py-1 text-xs bg-ds-warning-soft text-ds-warning-text rounded-full">Expiring</span>}
+                          {item.is_calibration_due && <span className="px-2 py-1 text-xs bg-ds-accent-soft text-ds-brand-plum rounded-full">Cal Due</span>}
                           {!item.is_low_stock && !item.is_expiring_soon && !item.is_calibration_due && (
-                            <span className="px-2 py-1 text-xs bg-success-100 text-success-800 rounded-full">OK</span>
+                            <span className="px-2 py-1 text-xs bg-ds-success-soft text-ds-success-text rounded-full">OK</span>
                           )}
                         </div>
                       </td>
@@ -3105,7 +3107,7 @@ const LabDashboard: React.FC = () => {
                         <div className="flex gap-2">
                           <button
                             onClick={() => openEditInventory(item)}
-                            className="text-primary-600 hover:text-primary-800"
+                            className="text-ds-accent-text hover:text-ds-accent-text"
                             title="Edit"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3117,7 +3119,7 @@ const LabDashboard: React.FC = () => {
                               setEditingItem(item);
                               setShowAdjustStockModal(true);
                             }}
-                            className="text-success-600 hover:text-success-800"
+                            className="text-ds-success-text hover:text-ds-success-text"
                             title="Adjust Stock"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3134,7 +3136,7 @@ const LabDashboard: React.FC = () => {
                                 });
                                 setShowCalibrationModal(true);
                               }}
-                              className="text-secondary-600 hover:text-secondary-800"
+                              className="text-ds-accent-text hover:text-ds-brand-plum"
                               title="Record Calibration"
                             >
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3150,7 +3152,7 @@ const LabDashboard: React.FC = () => {
                 </tbody>
               </table>
               {inventory.length === 0 && (
-                <div className="px-6 py-8 text-center text-gray-500">No inventory items found</div>
+                <div className="px-6 py-8 text-center text-ds-text-muted">No inventory items found</div>
               )}
             </div>
           </div>
@@ -3160,14 +3162,14 @@ const LabDashboard: React.FC = () => {
         {activeTab === 'catalog' && (
           <div>
             {/* Catalog Filters */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <input
                   type="text"
                   placeholder="Search tests..."
                   value={catalogSearch}
                   onChange={(e) => setCatalogSearch(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                 />
                 <AppSelect
                   value={catalogCategory}
@@ -3180,7 +3182,7 @@ const LabDashboard: React.FC = () => {
                     setCatalogSearch('');
                     setCatalogCategory('');
                   }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="min-h-ds-touch px-4 py-2 text-ds-text-secondary hover:text-ds-text border border-ds-border-control rounded-lg hover:bg-ds-subtle"
                 >
                   Clear Filters
                 </button>
@@ -3189,7 +3191,7 @@ const LabDashboard: React.FC = () => {
                     resetTestForm();
                     setShowTestModal(true);
                   }}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
                 >
                   + Add Test
                 </button>
@@ -3197,48 +3199,48 @@ const LabDashboard: React.FC = () => {
             </div>
 
             {/* Test Catalog Table */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
+              <table className="min-w-full divide-y divide-ds-border">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Test Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Specimen</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">TAT</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Normal Range</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Critical Range</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Code</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Test Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Category</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Specimen</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">TAT</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Normal Range</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Critical Range</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Price</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-ds-surface divide-y divide-ds-border">
                   {testCatalog.map((test) => (
-                    <tr key={test.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-primary-600">{test.test_code}</td>
-                      <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{test.test_name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.category}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.specimen_type}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{test.turnaround_time_hours}h</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                    <tr key={test.id} className="hover:bg-ds-subtle">
+                      <td className="px-6 py-4 whitespace-nowrap font-mono font-bold text-ds-accent-text">{test.test_code}</td>
+                      <td className="px-6 py-4 whitespace-nowrap font-medium text-ds-text">{test.test_name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{test.category}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{test.specimen_type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">{test.turnaround_time_hours}h</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">
                         {test.normal_range_low !== null && test.normal_range_high !== null
                           ? `${test.normal_range_low} - ${test.normal_range_high} ${test.unit || ''}`
                           : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {test.critical_low !== null || test.critical_high !== null ? (
-                          <span className="text-danger-600 font-medium">
+                          <span className="text-ds-critical-text font-medium">
                             {test.critical_low !== null && `<${test.critical_low}`}
                             {test.critical_low !== null && test.critical_high !== null && ' / '}
                             {test.critical_high !== null && `>${test.critical_high}`}
                           </span>
                         ) : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">GHS {(Number(test.base_price) || 0).toFixed(2)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-ds-text-secondary">GHS {(Number(test.base_price) || 0).toFixed(2)}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
                           onClick={() => openEditTest(test)}
-                          className="text-primary-600 hover:text-primary-800"
+                          className="text-ds-accent-text hover:text-ds-accent-text"
                         >
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -3250,7 +3252,7 @@ const LabDashboard: React.FC = () => {
                 </tbody>
               </table>
               {testCatalog.length === 0 && (
-                <div className="px-6 py-8 text-center text-gray-500">No tests found</div>
+                <div className="px-6 py-8 text-center text-ds-text-muted">No tests found</div>
               )}
             </div>
           </div>
@@ -3260,30 +3262,30 @@ const LabDashboard: React.FC = () => {
         {activeTab === 'analytics' && (
           <div>
             {/* Date Filter */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4 mb-6">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 mb-6">
               <div className="flex items-center gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">From Date</label>
                   <input
                     type="date"
                     value={analyticsStartDate}
                     onChange={(e) => setAnalyticsStartDate(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">To Date</label>
                   <input
                     type="date"
                     value={analyticsEndDate}
                     onChange={(e) => setAnalyticsEndDate(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div className="flex items-end">
                   <button
                     onClick={fetchAnalytics}
-                    className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    className="min-h-ds-touch px-6 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
                   >
                     Generate Report
                   </button>
@@ -3292,19 +3294,19 @@ const LabDashboard: React.FC = () => {
                 <div className="flex items-end gap-2">
                   <div className="relative group">
                     <button
-                      className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors flex items-center gap-2"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 transition-colors flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                       </svg>
                       Export CSV
                     </button>
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden group-hover:block z-10">
-                      <button onClick={() => exportAnalytics('summary')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Summary Report</button>
-                      <button onClick={() => exportAnalytics('tests')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">All Tests</button>
-                      <button onClick={() => exportAnalytics('tat')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">TAT Report</button>
-                      <button onClick={() => exportAnalytics('volume')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Volume Report</button>
-                      <button onClick={() => exportAnalytics('critical')} className="block w-full text-left px-4 py-2 hover:bg-gray-50">Critical Results</button>
+                    <div className="absolute right-0 mt-1 w-48 bg-ds-surface rounded-lg shadow-ds-card border border-ds-border hidden group-hover:block z-10">
+                      <button onClick={() => exportAnalytics('summary')} className="min-h-ds-touch block w-full text-left px-4 py-2 hover:bg-ds-subtle">Summary Report</button>
+                      <button onClick={() => exportAnalytics('tests')} className="min-h-ds-touch block w-full text-left px-4 py-2 hover:bg-ds-subtle">All Tests</button>
+                      <button onClick={() => exportAnalytics('tat')} className="min-h-ds-touch block w-full text-left px-4 py-2 hover:bg-ds-subtle">TAT Report</button>
+                      <button onClick={() => exportAnalytics('volume')} className="min-h-ds-touch block w-full text-left px-4 py-2 hover:bg-ds-subtle">Volume Report</button>
+                      <button onClick={() => exportAnalytics('critical')} className="min-h-ds-touch block w-full text-left px-4 py-2 hover:bg-ds-subtle">Critical Results</button>
                     </div>
                   </div>
                 </div>
@@ -3313,87 +3315,87 @@ const LabDashboard: React.FC = () => {
 
             {/* Analytics Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Total Tests</div>
-                <div className="text-2xl font-bold text-gray-700 mt-1">{analytics?.totals?.total_tests || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Total Tests</div>
+                <div className="text-2xl font-bold text-ds-text-secondary mt-1">{analytics?.totals?.total_tests || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Avg TAT</div>
-                <div className="text-2xl font-bold text-secondary-600 mt-1">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Avg TAT</div>
+                <div className="text-2xl font-bold text-ds-accent-text mt-1">
                   {formatTAT(analytics?.turnaround_time?.average_tat_hours || null)}
                 </div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">STAT Tests</div>
-                <div className="text-2xl font-bold text-danger-600 mt-1">{analytics?.totals?.stat_tests || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">STAT Tests</div>
+                <div className="text-2xl font-bold text-ds-critical-text mt-1">{analytics?.totals?.stat_tests || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Critical Results</div>
-                <div className="text-2xl font-bold text-danger-600 mt-1">{analytics?.critical_results?.total_critical || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Critical Results</div>
+                <div className="text-2xl font-bold text-ds-critical-text mt-1">{analytics?.critical_results?.total_critical || 0}</div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* TAT by Priority */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Turnaround Time by Priority</h3>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
+                <h3 className="text-lg font-bold text-ds-text mb-4">Turnaround Time by Priority</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-danger-600">STAT</span>
-                    <span className="text-gray-900">{formatTAT(analytics?.turnaround_time?.stat_tat_hours || null)}</span>
+                    <span className="font-medium text-ds-critical-text">STAT</span>
+                    <span className="text-ds-text">{formatTAT(analytics?.turnaround_time?.stat_tat_hours || null)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-warning-600">Urgent</span>
-                    <span className="text-gray-900">{formatTAT(analytics?.turnaround_time?.urgent_tat_hours || null)}</span>
+                    <span className="font-medium text-ds-warning-text">Urgent</span>
+                    <span className="text-ds-text">{formatTAT(analytics?.turnaround_time?.urgent_tat_hours || null)}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-600">Routine</span>
-                    <span className="text-gray-900">{formatTAT(analytics?.turnaround_time?.routine_tat_hours || null)}</span>
+                    <span className="font-medium text-ds-text-secondary">Routine</span>
+                    <span className="text-ds-text">{formatTAT(analytics?.turnaround_time?.routine_tat_hours || null)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Test Volume by Category */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Test Volume by Category</h3>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
+                <h3 className="text-lg font-bold text-ds-text mb-4">Test Volume by Category</h3>
                 <div className="space-y-2">
                   {testVolumeData.slice(0, 6).map((item: any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center">
-                      <span className="text-gray-600">{item.category}</span>
-                      <span className="font-bold text-gray-900">{item.test_count}</span>
+                      <span className="text-ds-text-secondary">{item.category}</span>
+                      <span className="font-bold text-ds-text">{item.test_count}</span>
                     </div>
                   ))}
                   {testVolumeData.length === 0 && (
-                    <p className="text-gray-500 text-center">No data available</p>
+                    <p className="text-ds-text-muted text-center">No data available</p>
                   )}
                 </div>
               </div>
 
               {/* Top Tests */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 lg:col-span-2">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Top 10 Most Ordered Tests</h3>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 lg:col-span-2">
+                <h3 className="text-lg font-bold text-ds-text mb-4">Top 10 Most Ordered Tests</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b">
-                        <th className="text-left py-2 text-gray-600 font-medium">Test Name</th>
-                        <th className="text-right py-2 text-gray-600 font-medium">Order Count</th>
-                        <th className="text-right py-2 text-gray-600 font-medium">Completed</th>
-                        <th className="text-right py-2 text-gray-600 font-medium">Avg TAT</th>
+                        <th className="text-left py-2 text-ds-text-secondary font-medium">Test Name</th>
+                        <th className="text-right py-2 text-ds-text-secondary font-medium">Order Count</th>
+                        <th className="text-right py-2 text-ds-text-secondary font-medium">Completed</th>
+                        <th className="text-right py-2 text-ds-text-secondary font-medium">Avg TAT</th>
                       </tr>
                     </thead>
                     <tbody>
                       {topTests.map((test: any, idx: number) => (
                         <tr key={idx} className="border-b">
-                          <td className="py-2 text-gray-900">{test.test_name}</td>
-                          <td className="py-2 text-right font-bold text-gray-900">{test.order_count}</td>
-                          <td className="py-2 text-right text-gray-600">{test.completed_count}</td>
-                          <td className="py-2 text-right text-gray-600">{formatTAT(test.avg_tat_hours)}</td>
+                          <td className="py-2 text-ds-text">{test.test_name}</td>
+                          <td className="py-2 text-right font-bold text-ds-text">{test.order_count}</td>
+                          <td className="py-2 text-right text-ds-text-secondary">{test.completed_count}</td>
+                          <td className="py-2 text-right text-ds-text-secondary">{formatTAT(test.avg_tat_hours)}</td>
                         </tr>
                       ))}
                       {topTests.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-4 text-center text-gray-500">No data available</td>
+                          <td colSpan={4} className="py-4 text-center text-ds-text-muted">No data available</td>
                         </tr>
                       )}
                     </tbody>
@@ -3407,14 +3409,14 @@ const LabDashboard: React.FC = () => {
         {/* Critical Alerts Tab */}
         {activeTab === 'alerts' && (
           <div>
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-danger-50 to-orange-50 rounded-t-xl">
-                <h2 className="text-xl font-bold text-gray-900">Critical Result Alerts</h2>
-                <p className="text-sm text-gray-600 mt-1">Results requiring immediate physician review</p>
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
+              <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-critical-soft to-ds-warning-soft rounded-t-xl">
+                <h2 className="text-xl font-bold text-ds-text">Critical Result Alerts</h2>
+                <p className="text-sm text-ds-text-secondary mt-1">Results requiring immediate physician review</p>
               </div>
-              <div className="divide-y divide-gray-200">
+              <div className="divide-y divide-ds-border">
                 {criticalAlerts.length === 0 ? (
-                  <div className="px-6 py-8 text-center text-gray-500">
+                  <div className="px-6 py-8 text-center text-ds-text-muted">
                     <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
@@ -3424,35 +3426,35 @@ const LabDashboard: React.FC = () => {
                   criticalAlerts.map((alert) => (
                     <div
                       key={alert.id}
-                      className={`px-6 py-4 ${!alert.is_acknowledged ? 'bg-danger-50' : 'bg-gray-50'}`}
+                      className={`px-6 py-4 ${!alert.is_acknowledged ? 'bg-ds-critical-soft' : 'bg-ds-subtle'}`}
                     >
                       <div className="flex justify-between items-start">
                         <div>
                           <div className="flex items-center gap-3 mb-2">
-                            <span className="text-lg font-bold text-gray-900">{alert.patient_name}</span>
+                            <span className="text-lg font-bold text-ds-text">{alert.patient_name}</span>
                             <span className={`px-2 py-1 text-xs font-bold rounded-full ${
-                              alert.alert_type === 'critical_high' ? 'bg-danger-600 text-white' :
-                              alert.alert_type === 'critical_low' ? 'bg-primary-600 text-white' :
-                              'bg-secondary-600 text-white'
+                              alert.alert_type === 'critical_high' ? 'bg-ds-critical text-white' :
+                              alert.alert_type === 'critical_low' ? 'bg-ds-accent text-ds-on-accent' :
+                              'bg-ds-accent text-ds-on-accent'
                             }`}>
                               {alert.alert_type.replace('_', ' ').toUpperCase()}
                             </span>
                             {alert.is_acknowledged && (
-                              <span className="px-2 py-1 text-xs bg-success-100 text-success-800 rounded-full">
+                              <span className="px-2 py-1 text-xs bg-ds-success-soft text-ds-success-text rounded-full">
                                 ACKNOWLEDGED
                               </span>
                             )}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-ds-text-secondary">
                             <span className="font-semibold">Test:</span> {alert.test_name}
                             <span className="mx-2">|</span>
-                            <span className="font-semibold">Result:</span> <span className="text-danger-600 font-bold">{alert.result_value}</span>
+                            <span className="font-semibold">Result:</span> <span className="text-ds-critical-text font-bold">{alert.result_value}</span>
                           </div>
-                          <div className="text-sm text-gray-500 mt-1">
+                          <div className="text-sm text-ds-text-muted mt-1">
                             <span>Ordering Physician: {alert.ordering_provider_name}</span>
                             {alert.room_number && <span className="ml-4">Room: {alert.room_number}</span>}
                           </div>
-                          <div className="text-xs text-gray-400 mt-1">
+                          <div className="text-xs text-ds-text-muted mt-1">
                             Created: {new Date(alert.created_at).toLocaleString()}
                             {alert.is_acknowledged && alert.acknowledged_by_name && (
                               <span className="ml-4">Acknowledged by: {alert.acknowledged_by_name}</span>
@@ -3463,7 +3465,7 @@ const LabDashboard: React.FC = () => {
                           {/* Acknowledging is the doctor's job (their dashboard); lab sees
                               whether it has happened, so they know when to phone. */}
                           {!alert.is_acknowledged && (
-                            <span className="inline-block px-3 py-1.5 text-xs font-semibold rounded-lg bg-warning-100 text-warning-800">
+                            <span className="inline-block px-3 py-1.5 text-xs font-semibold rounded-lg bg-ds-warning-soft text-ds-warning-text">
                               Waiting for the doctor — phone if urgent
                             </span>
                           )}
@@ -3482,29 +3484,29 @@ const LabDashboard: React.FC = () => {
           <div>
             {/* QC Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Total QC Runs</div>
-                <div className="text-2xl font-bold text-gray-700 mt-1">{qcSummary?.total_qc_runs || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Total QC Runs</div>
+                <div className="text-2xl font-bold text-ds-text-secondary mt-1">{qcSummary?.total_qc_runs || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Within Limits</div>
-                <div className="text-2xl font-bold text-success-600 mt-1">{qcSummary?.within_limits || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Within Limits</div>
+                <div className="text-2xl font-bold text-ds-success-text mt-1">{qcSummary?.within_limits || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Out of Limits</div>
-                <div className="text-2xl font-bold text-danger-600 mt-1">{qcSummary?.out_of_limits || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Out of Limits</div>
+                <div className="text-2xl font-bold text-ds-critical-text mt-1">{qcSummary?.out_of_limits || 0}</div>
               </div>
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-                <div className="text-xs font-medium text-gray-500 uppercase">Tests with QC</div>
-                <div className="text-2xl font-bold text-primary-600 mt-1">{qcSummary?.tests_with_qc || 0}</div>
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                <div className="text-xs font-medium text-ds-text-muted uppercase">Tests with QC</div>
+                <div className="text-2xl font-bold text-ds-accent-text mt-1">{qcSummary?.tests_with_qc || 0}</div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Levey-Jennings Chart */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">Levey-Jennings Chart</h3>
+                  <h3 className="text-lg font-bold text-ds-text">Levey-Jennings Chart</h3>
                   <AppSelect
                     value={selectedQCTest}
                     onChange={(val) => setSelectedQCTest(val)}
@@ -3514,11 +3516,11 @@ const LabDashboard: React.FC = () => {
                 </div>
 
                 {leveyJenningsData ? (
-                  <div className="relative h-64 bg-gray-50 rounded-lg p-4">
+                  <div className="relative h-64 bg-ds-subtle rounded-lg p-4">
                     {/* Simple Levey-Jennings visualization */}
                     <div className="h-full flex flex-col justify-between relative">
                       {/* Y-axis labels */}
-                      <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between text-xs text-gray-500">
+                      <div className="absolute left-0 top-0 bottom-0 w-16 flex flex-col justify-between text-xs text-ds-text-muted">
                         <span>+3SD ({Number(leveyJenningsData.upper_limit_3sd).toFixed(1)})</span>
                         <span>+2SD ({Number(leveyJenningsData.upper_limit_2sd).toFixed(1)})</span>
                         <span>Target ({Number(leveyJenningsData.target_value).toFixed(1)})</span>
@@ -3527,13 +3529,13 @@ const LabDashboard: React.FC = () => {
                       </div>
 
                       {/* Chart area */}
-                      <div className="ml-20 h-full relative border border-gray-200 bg-white rounded">
+                      <div className="ml-20 h-full relative border border-ds-border bg-ds-surface rounded">
                         {/* Grid lines */}
                         <div className="absolute inset-0 flex flex-col justify-between">
-                          <div className="border-b border-danger-300 border-dashed" style={{ height: '10%' }}></div>
-                          <div className="border-b border-orange-300 border-dashed" style={{ height: '20%' }}></div>
-                          <div className="border-b border-success-500" style={{ height: '40%' }}></div>
-                          <div className="border-b border-orange-300 border-dashed" style={{ height: '20%' }}></div>
+                          <div className="border-b border-ds-critical-border border-dashed" style={{ height: '10%' }}></div>
+                          <div className="border-b border-ds-warning-border border-dashed" style={{ height: '20%' }}></div>
+                          <div className="border-b border-ds-success" style={{ height: '40%' }}></div>
+                          <div className="border-b border-ds-warning-border border-dashed" style={{ height: '20%' }}></div>
                           <div style={{ height: '10%' }}></div>
                         </div>
 
@@ -3554,10 +3556,10 @@ const LabDashboard: React.FC = () => {
                                 style={{ height: `${clampedPercent}%` }}
                               >
                                 <div
-                                  className={`w-3 h-3 rounded-full ${point.is_within_limits ? 'bg-primary-600' : 'bg-danger-600'}`}
+                                  className={`w-3 h-3 rounded-full ${point.is_within_limits ? 'bg-ds-accent' : 'bg-ds-critical'}`}
                                 />
                                 {/* Tooltip */}
-                                <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap z-10">
+                                <div className="hidden group-hover:block absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-ds-text text-ds-canvas text-xs rounded whitespace-nowrap z-10">
                                   {pointValue.toFixed(2)} - {new Date(point.date).toLocaleDateString()}
                                 </div>
                               </div>
@@ -3570,29 +3572,29 @@ const LabDashboard: React.FC = () => {
                     {/* Legend */}
                     <div className="flex gap-4 mt-2 text-xs">
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-primary-600"></div>
+                        <div className="w-3 h-3 rounded-full bg-ds-accent"></div>
                         <span>Within limits</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-danger-600"></div>
+                        <div className="w-3 h-3 rounded-full bg-ds-critical"></div>
                         <span>Out of limits</span>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="h-64 flex items-center justify-center text-gray-500">
+                  <div className="h-64 flex items-center justify-center text-ds-text-muted">
                     Select a test to view Levey-Jennings chart
                   </div>
                 )}
               </div>
 
               {/* Record QC Result */}
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold text-gray-900">Record QC Result</h3>
+                  <h3 className="text-lg font-bold text-ds-text">Record QC Result</h3>
                   <button
                     onClick={() => setShowQCModal(true)}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors"
                   >
                     + New QC Entry
                   </button>
@@ -3603,27 +3605,27 @@ const LabDashboard: React.FC = () => {
                   {qcResults.slice(0, 10).map((result) => (
                     <div
                       key={result.id}
-                      className={`p-3 rounded-lg border ${result.is_within_limits ? 'bg-success-50 border-success-200' : 'bg-danger-50 border-danger-200'}`}
+                      className={`p-3 rounded-lg border ${result.is_within_limits ? 'bg-ds-success-soft border-ds-success/30' : 'bg-ds-critical-soft border-ds-critical-border'}`}
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="font-mono font-bold text-primary-600">{result.test_code}</span>
-                          <span className="ml-2 text-gray-600">{result.control_level}</span>
+                          <span className="font-mono font-bold text-ds-accent-text">{result.test_code}</span>
+                          <span className="ml-2 text-ds-text-secondary">{result.control_level}</span>
                         </div>
-                        <span className={`text-sm font-bold ${result.is_within_limits ? 'text-success-600' : 'text-danger-600'}`}>
+                        <span className={`text-sm font-bold ${result.is_within_limits ? 'text-ds-success-text' : 'text-ds-critical-text'}`}>
                           {result.measured_value} {result.unit}
                         </span>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-ds-text-muted mt-1">
                         Target: {result.target_value} | SD: {result.standard_deviation} | {new Date(result.performed_at).toLocaleString()}
                       </div>
                       {result.performed_by_name && (
-                        <div className="text-xs text-gray-400">By: {result.performed_by_name}</div>
+                        <div className="text-xs text-ds-text-muted">By: {result.performed_by_name}</div>
                       )}
                     </div>
                   ))}
                   {qcResults.length === 0 && (
-                    <div className="text-center text-gray-500 py-4">No QC results recorded</div>
+                    <div className="text-center text-ds-text-muted py-4">No QC results recorded</div>
                   )}
                 </div>
               </div>
@@ -3634,10 +3636,10 @@ const LabDashboard: React.FC = () => {
       {/* Add Tests Modal for Walk-in Patients */}
       {addTestsWalkin && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setAddTestsWalkin(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-primary-100 rounded-t-xl">
-              <h3 className="text-lg font-bold text-gray-900">Add Lab Tests</h3>
-              <p className="text-sm text-gray-600 mt-0.5">{addTestsWalkin.patient_name} — {addTestsWalkin.encounter_number}</p>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-lg max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-accent-soft to-ds-accent-soft rounded-t-xl">
+              <h3 className="text-lg font-bold text-ds-text">Add Lab Tests</h3>
+              <p className="text-sm text-ds-text-secondary mt-0.5">{addTestsWalkin.patient_name} — {addTestsWalkin.encounter_number}</p>
             </div>
             <div className="p-6 space-y-4 flex-1 overflow-y-auto">
               {/* Add test form */}
@@ -3646,7 +3648,7 @@ const LabDashboard: React.FC = () => {
                   value={walkinTestName}
                   onChange={(value) => setWalkinTestName(value)}
                   sectionId="lab_tests"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 bg-white"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring bg-ds-surface"
                   placeholder="Test name (e.g., CBC, FBS, Urinalysis)"
                 />
                 <div className="grid grid-cols-2 gap-3">
@@ -3665,7 +3667,7 @@ const LabDashboard: React.FC = () => {
                   value={walkinNotes}
                   onChange={(e) => setWalkinNotes(e.target.value)}
                   placeholder="Notes (optional)"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm focus:ring-2 focus:ring-ds-focus-ring"
                 />
                 <button
                   onClick={() => {
@@ -3682,7 +3684,7 @@ const LabDashboard: React.FC = () => {
                     setWalkinNotes('');
                     setWalkinFrequency('once');
                   }}
-                  className="w-full px-3 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 flex items-center justify-center gap-2"
+                  className="min-h-ds-touch w-full px-3 py-2 bg-ds-accent text-ds-on-accent rounded-lg text-sm font-medium hover:bg-ds-accent-hover flex items-center justify-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   Add to List
@@ -3691,25 +3693,25 @@ const LabDashboard: React.FC = () => {
 
               {/* Staged tests */}
               {walkinTests.length > 0 && (
-                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                <div className="border border-ds-border rounded-lg divide-y divide-ds-border">
                   {walkinTests.map((test, idx) => (
                     <div key={idx} className="px-4 py-2.5 flex justify-between items-center">
                       <div>
-                        <span className="font-medium text-gray-900 text-sm">{test.test_name}</span>
+                        <span className="font-medium text-ds-text text-sm">{test.test_name}</span>
                         {test.frequency && test.frequency !== 'once' && (
-                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-secondary-100 text-secondary-700">
+                          <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-ds-accent-soft text-ds-brand-plum">
                             {test.frequency === 'daily' ? 'Daily' : test.frequency === 'weekly' ? 'Weekly' : `Q${test.frequency.toUpperCase()}`}
                           </span>
                         )}
                         <span className={`ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded ${
-                          test.priority === 'stat' ? 'bg-danger-100 text-danger-700' :
-                          test.priority === 'urgent' ? 'bg-warning-100 text-warning-700' :
-                          'bg-gray-100 text-gray-600'
+                          test.priority === 'stat' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                          test.priority === 'urgent' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                          'bg-ds-subtle text-ds-text-secondary'
                         }`}>{test.priority.toUpperCase()}</span>
                       </div>
                       <button
                         onClick={() => setWalkinTests(walkinTests.filter((_, i) => i !== idx))}
-                        className="text-gray-400 hover:text-danger-600"
+                        className="text-ds-text-muted hover:text-ds-critical-text"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3720,14 +3722,14 @@ const LabDashboard: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-between items-center">
-              <span className="text-sm text-gray-500">{walkinTests.length} test(s) staged</span>
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-between items-center">
+              <span className="text-sm text-ds-text-muted">{walkinTests.length} test(s) staged</span>
               <div className="flex gap-2">
-                <button onClick={() => setAddTestsWalkin(null)} className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg text-sm">Cancel</button>
+                <button onClick={() => setAddTestsWalkin(null)} className="min-h-ds-touch px-4 py-2 text-ds-text-secondary font-medium hover:bg-ds-border rounded-lg text-sm">Cancel</button>
                 <button
                   onClick={handleSubmitWalkinTests}
                   disabled={walkinTests.length === 0 || submittingWalkinTests}
-                  className="px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent font-medium rounded-lg hover:bg-ds-accent-hover text-sm disabled:opacity-50"
                 >
                   {submittingWalkinTests ? 'Creating...' : `Create ${walkinTests.length} Order(s)`}
                 </button>
@@ -3748,21 +3750,21 @@ const LabDashboard: React.FC = () => {
       {/* Inventory Modal */}
       {showInventoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-ds-border bg-ds-subtle rounded-t-xl">
+              <h2 className="text-xl font-bold text-ds-text">
                 {editingItem ? 'Edit Inventory Item' : 'Add New Inventory Item'}
               </h2>
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Item Name *</label>
                   <input
                     type="text"
                     value={inventoryForm.item_name}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, item_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     required
                   />
                 </div>
@@ -3779,87 +3781,87 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Category</label>
                   <input
                     type="text"
                     value={inventoryForm.category}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit *</label>
                   <input
                     type="text"
                     value={inventoryForm.unit}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, unit: e.target.value })}
                     placeholder="e.g., test, ml, piece"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Initial Quantity</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Initial Quantity</label>
                   <input
                     type="number"
                     value={inventoryForm.quantity_on_hand}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, quantity_on_hand: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     disabled={!!editingItem}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Reorder Level</label>
                   <input
                     type="number"
                     value={inventoryForm.reorder_level}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, reorder_level: parseInt(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost ($)</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit Cost ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={inventoryForm.unit_cost}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, unit_cost: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Expiry Date</label>
                   <input
                     type="date"
                     value={inventoryForm.expiry_date}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, expiry_date: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot Number</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Lot Number</label>
                   <input
                     type="text"
                     value={inventoryForm.lot_number}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, lot_number: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Supplier</label>
                   <input
                     type="text"
                     value={inventoryForm.supplier}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, supplier: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Storage Location</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Storage Location</label>
                   <input
                     type="text"
                     value={inventoryForm.storage_location}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, storage_location: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
@@ -3877,19 +3879,19 @@ const LabDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowInventoryModal(false);
                   resetInventoryForm();
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={saveInventoryItem}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
               >
                 {editingItem ? 'Update Item' : 'Add Item'}
               </button>
@@ -3901,14 +3903,14 @@ const LabDashboard: React.FC = () => {
       {/* Adjust Stock Modal */}
       {showAdjustStockModal && editingItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">Adjust Stock</h2>
-              <p className="text-sm text-gray-600">{editingItem.item_name}</p>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md">
+            <div className="px-6 py-4 border-b border-ds-border bg-ds-subtle rounded-t-xl">
+              <h2 className="text-xl font-bold text-ds-text">Adjust Stock</h2>
+              <p className="text-sm text-ds-text-secondary">{editingItem.item_name}</p>
             </div>
             <div className="p-6">
               <div className="mb-4">
-                <p className="text-sm text-gray-600">Current Stock: <span className="font-bold">{editingItem.quantity_on_hand} {editingItem.unit}</span></p>
+                <p className="text-sm text-ds-text-secondary">Current Stock: <span className="font-bold">{editingItem.quantity_on_hand} {editingItem.unit}</span></p>
               </div>
               <div className="mb-4">
                 <AppSelect
@@ -3924,37 +3926,37 @@ const LabDashboard: React.FC = () => {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (+ to add, - to remove)</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Quantity (+ to add, - to remove)</label>
                 <input
                   type="number"
                   value={adjustStockForm.adjustment}
                   onChange={(e) => setAdjustStockForm({ ...adjustStockForm, adjustment: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes</label>
                 <textarea
                   value={adjustStockForm.notes}
                   onChange={(e) => setAdjustStockForm({ ...adjustStockForm, notes: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   rows={2}
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowAdjustStockModal(false);
                   setAdjustStockForm({ adjustment: 0, transaction_type: 'adjustment', notes: '' });
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={adjustStock}
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
               >
                 Adjust Stock
               </button>
@@ -3966,53 +3968,53 @@ const LabDashboard: React.FC = () => {
       {/* Calibration Modal */}
       {showCalibrationModal && editingItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">Record Calibration</h2>
-              <p className="text-sm text-gray-600">{editingItem.item_name}</p>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md">
+            <div className="px-6 py-4 border-b border-ds-border bg-ds-subtle rounded-t-xl">
+              <h2 className="text-xl font-bold text-ds-text">Record Calibration</h2>
+              <p className="text-sm text-ds-text-secondary">{editingItem.item_name}</p>
             </div>
             <div className="p-6">
               {editingItem.last_calibration_date && (
                 <div className="mb-4">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-ds-text-secondary">
                     Last Calibration: <span className="font-bold">{new Date(editingItem.last_calibration_date).toLocaleDateString()}</span>
                   </p>
                 </div>
               )}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Next Calibration Date *</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Next Calibration Date *</label>
                 <input
                   type="date"
                   value={calibrationForm.next_calibration_date}
                   onChange={(e) => setCalibrationForm({ ...calibrationForm, next_calibration_date: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes</label>
                 <textarea
                   value={calibrationForm.notes}
                   onChange={(e) => setCalibrationForm({ ...calibrationForm, notes: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   rows={2}
                   placeholder="Calibration details, technician name, etc."
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowCalibrationModal(false);
                   setCalibrationForm({ next_calibration_date: '', notes: '' });
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={recordCalibration}
-                className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-brand-plum/90"
               >
                 Record Calibration
               </button>
@@ -4024,40 +4026,40 @@ const LabDashboard: React.FC = () => {
       {/* Test Catalog Modal */}
       {showTestModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-ds-border bg-ds-subtle rounded-t-xl">
+              <h2 className="text-xl font-bold text-ds-text">
                 {editingTest ? 'Edit Test' : 'Add New Test'}
               </h2>
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Code *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Test Code *</label>
                   <input
                     type="text"
                     value={testForm.test_code}
                     onChange={(e) => setTestForm({ ...testForm, test_code: e.target.value.toUpperCase() })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring font-mono"
                     placeholder="e.g., CBC, HB, GLU"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Name *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Test Name *</label>
                   <input
                     type="text"
                     value={testForm.test_name}
                     onChange={(e) => setTestForm({ ...testForm, test_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Category</label>
                   <input
                     type="text"
                     value={testForm.category}
                     onChange={(e) => setTestForm({ ...testForm, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="e.g., Hematology, Chemistry"
                   />
                 </div>
@@ -4078,92 +4080,92 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">TAT (hours)</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">TAT (hours)</label>
                   <input
                     type="number"
                     value={testForm.turnaround_time_hours}
                     onChange={(e) => setTestForm({ ...testForm, turnaround_time_hours: parseInt(e.target.value) || 24 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Base Price (GHS)</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Base Price (GHS)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={testForm.base_price}
                     onChange={(e) => setTestForm({ ...testForm, base_price: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit</label>
                   <input
                     type="text"
                     value={testForm.unit}
                     onChange={(e) => setTestForm({ ...testForm, unit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="e.g., g/dL, mmol/L"
                   />
                 </div>
                 <div className="col-span-2 border-t pt-4 mt-2">
-                  <h3 className="font-medium text-gray-900 mb-3">Reference Ranges</h3>
+                  <h3 className="font-medium text-ds-text mb-3">Reference Ranges</h3>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Normal Range Low</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Normal Range Low</label>
                   <input
                     type="number"
                     step="0.01"
                     value={testForm.normal_range_low}
                     onChange={(e) => setTestForm({ ...testForm, normal_range_low: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Normal Range High</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Normal Range High</label>
                   <input
                     type="number"
                     step="0.01"
                     value={testForm.normal_range_high}
                     onChange={(e) => setTestForm({ ...testForm, normal_range_high: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-danger-700 mb-1">Critical Low</label>
+                  <label className="block text-sm font-medium text-ds-critical-text mb-1">Critical Low</label>
                   <input
                     type="number"
                     step="0.01"
                     value={testForm.critical_low}
                     onChange={(e) => setTestForm({ ...testForm, critical_low: e.target.value })}
-                    className="w-full px-4 py-2 border border-danger-300 rounded-lg focus:ring-2 focus:ring-danger-500 bg-danger-50"
+                    className="w-full px-4 py-2 border border-ds-critical-border rounded-lg focus:ring-2 focus:ring-ds-critical bg-ds-critical-soft"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-danger-700 mb-1">Critical High</label>
+                  <label className="block text-sm font-medium text-ds-critical-text mb-1">Critical High</label>
                   <input
                     type="number"
                     step="0.01"
                     value={testForm.critical_high}
                     onChange={(e) => setTestForm({ ...testForm, critical_high: e.target.value })}
-                    className="w-full px-4 py-2 border border-danger-300 rounded-lg focus:ring-2 focus:ring-danger-500 bg-danger-50"
+                    className="w-full px-4 py-2 border border-ds-critical-border rounded-lg focus:ring-2 focus:ring-ds-critical bg-ds-critical-soft"
                   />
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowTestModal(false);
                   resetTestForm();
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={saveTest}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
               >
                 {editingTest ? 'Update Test' : 'Add Test'}
               </button>
@@ -4175,35 +4177,35 @@ const LabDashboard: React.FC = () => {
       {/* Structured Result Entry Modal */}
       {deferringOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !savingDefer && setDeferringOrder(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="defer-title">
-            <h2 id="defer-title" className="text-lg font-bold text-gray-900">Do this test later</h2>
-            <p className="text-sm text-gray-600 mt-1">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="defer-title">
+            <h2 id="defer-title" className="text-lg font-bold text-ds-text">Do this test later</h2>
+            <p className="text-sm text-ds-text-secondary mt-1">
               {deferringOrder.patient_name} — {deferringOrder.test_name}
             </p>
-            <p className="text-sm text-gray-600 mt-3">
+            <p className="text-sm text-ds-text-secondary mt-3">
               The test moves to <strong>Awaiting Patient</strong> and comes back to the active list on the return date. It is not cancelled.
             </p>
-            <label htmlFor="defer-date" className="block text-sm font-medium text-gray-700 mt-4 mb-1">Expected return date</label>
+            <label htmlFor="defer-date" className="block text-sm font-medium text-ds-text-secondary mt-4 mb-1">Expected return date</label>
             <input
               id="defer-date"
               type="date"
               value={deferDate}
               min={new Date().toISOString().slice(0, 10)}
               onChange={(e) => setDeferDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
             />
             <div className="flex justify-end gap-2 mt-6">
               <button
                 onClick={() => setDeferringOrder(null)}
                 disabled={savingDefer}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="min-h-ds-touch px-4 py-2 text-sm text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border"
               >
                 Cancel
               </button>
               <button
                 onClick={submitDefer}
                 disabled={savingDefer || !deferDate}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 text-sm font-medium text-white dark:text-ds-canvas bg-ds-info rounded-lg hover:bg-ds-info/90 disabled:opacity-50"
               >
                 {savingDefer ? 'Saving…' : 'Save'}
               </button>
@@ -4214,20 +4216,20 @@ const LabDashboard: React.FC = () => {
 
       {showResultModal && selectedOrderForResult && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className={`bg-white rounded-xl shadow-2xl w-full ${templateParams.length > 0 ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col`}>
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-success-50 to-success-50 rounded-t-xl">
+          <div className={`bg-ds-surface rounded-ds-card shadow-ds-overlay w-full ${templateParams.length > 0 ? 'max-w-4xl' : 'max-w-lg'} max-h-[90vh] flex flex-col`}>
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-success-soft to-ds-success-soft rounded-t-xl">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Enter Test Results</h2>
-                  <p className="text-sm text-gray-600">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
+                  <h2 className="text-xl font-bold text-ds-text">Enter Test Results</h2>
+                  <p className="text-sm text-ds-text-secondary">{selectedOrderForResult.patient_name} - {selectedOrderForResult.test_name}</p>
                   {templateMatchedName && (
-                    <p className="text-xs text-gray-500 mt-0.5">Template: {templateMatchedName}</p>
+                    <p className="text-xs text-ds-text-muted mt-0.5">Template: {templateMatchedName}</p>
                   )}
                 </div>
                 {selectedOrderForResult.path_no && (
                   <div className="text-right">
-                    <div className="text-xs text-gray-500 uppercase">Path No</div>
-                    <div className="text-lg font-mono font-bold text-primary-700">{selectedOrderForResult.path_no}</div>
+                    <div className="text-xs text-ds-text-muted uppercase">Path No</div>
+                    <div className="text-lg font-mono font-bold text-ds-accent-text">{selectedOrderForResult.path_no}</div>
                   </div>
                 )}
               </div>
@@ -4247,26 +4249,26 @@ const LabDashboard: React.FC = () => {
                 });
                 return (
                   <div className="mb-4">
-                    <div className="text-xs text-gray-500 mb-2">
+                    <div className="text-xs text-ds-text-muted mb-2">
                       Structured entry — flags show next to each value as you type.
                     </div>
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="border border-ds-border rounded-lg overflow-hidden">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-100">
+                        <thead className="bg-ds-subtle">
                           <tr>
-                            <th className="text-left px-3 py-2 font-semibold text-gray-700">Parameter</th>
-                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-40">Value</th>
-                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-24">Unit</th>
-                            <th className="text-left px-3 py-2 font-semibold text-gray-700 w-24">Flag</th>
-                            <th className="text-left px-3 py-2 font-semibold text-gray-700">Reference</th>
+                            <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Parameter</th>
+                            <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary w-40">Value</th>
+                            <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary w-24">Unit</th>
+                            <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary w-24">Flag</th>
+                            <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Reference</th>
                           </tr>
                         </thead>
                         <tbody>
                           {sections.map((section, sIdx) => (
                             <React.Fragment key={`section-${sIdx}`}>
                               {section.label && (
-                                <tr className="bg-gray-50 border-t border-gray-200">
-                                  <td colSpan={5} className="px-3 py-1 text-xs font-bold text-gray-600 uppercase">
+                                <tr className="bg-ds-subtle border-t border-ds-border">
+                                  <td colSpan={5} className="px-3 py-1 text-xs font-bold text-ds-text-secondary uppercase">
                                     {section.label}
                                   </td>
                                 </tr>
@@ -4277,12 +4279,12 @@ const LabDashboard: React.FC = () => {
                                 const flag = classifyValue(p, value);
                                 const flagClass =
                                   flag === 'CRITICAL_LOW' || flag === 'CRITICAL_HIGH'
-                                    ? 'bg-danger-100 text-danger-700 font-bold'
+                                    ? 'bg-ds-critical-soft text-ds-critical-text font-bold'
                                     : flag === 'LOW' || flag === 'HIGH'
-                                    ? 'bg-warning-100 text-warning-700 font-semibold'
+                                    ? 'bg-ds-warning-soft text-ds-warning-text font-semibold'
                                     : flag === 'NORMAL'
-                                    ? 'text-success-700'
-                                    : 'text-gray-400';
+                                    ? 'text-ds-success-text'
+                                    : 'text-ds-text-muted';
                                 const flagLabel =
                                   flag === 'CRITICAL_LOW' ? 'CRIT-LOW'
                                   : flag === 'CRITICAL_HIGH' ? 'CRIT-HIGH'
@@ -4292,7 +4294,7 @@ const LabDashboard: React.FC = () => {
                                   : '';
 
                                 return (
-                                  <tr key={p.id} className="border-t border-gray-200 hover:bg-gray-50">
+                                  <tr key={p.id} className="border-t border-ds-border hover:bg-ds-subtle">
                                     <td className="px-3 py-2">{p.parameter_name}</td>
                                     <td className="px-3 py-2">
                                       {p.value_type === 'qualitative' && p.qualitative_options ? (
@@ -4305,7 +4307,7 @@ const LabDashboard: React.FC = () => {
                                           onChange={(e) =>
                                             setTemplateValues({ ...templateValues, [key]: e.target.value })
                                           }
-                                          className="w-full px-2 py-1.5 border border-gray-300 rounded bg-white text-sm"
+                                          className="w-full px-2 py-1.5 border border-ds-border-control rounded bg-ds-surface text-sm"
                                         >
                                           <option value="">—</option>
                                           {p.qualitative_options.split('|').map((opt) => (
@@ -4320,14 +4322,14 @@ const LabDashboard: React.FC = () => {
                                           onChange={(e) =>
                                             setTemplateValues({ ...templateValues, [key]: e.target.value })
                                           }
-                                          className="w-full px-2 py-1 border border-gray-300 rounded font-mono"
+                                          className="w-full px-2 py-1 border border-ds-border-control rounded font-mono"
                                           placeholder={p.value_type === 'numeric' ? '0.0' : ''}
                                         />
                                       )}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-600">{p.unit || ''}</td>
+                                    <td className="px-3 py-2 text-ds-text-secondary">{p.unit || ''}</td>
                                     <td className={`px-3 py-2 ${flagClass}`}>{flagLabel}</td>
-                                    <td className="px-3 py-2 text-gray-500 text-xs">
+                                    <td className="px-3 py-2 text-ds-text-muted text-xs">
                                       {formatReference(p)}
                                     </td>
                                   </tr>
@@ -4339,12 +4341,12 @@ const LabDashboard: React.FC = () => {
                       </table>
                     </div>
                     <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Remarks / Comments</label>
+                      <label className="block text-sm font-medium text-ds-text-secondary mb-1">Remarks / Comments</label>
                       <textarea
                         value={templateNotes}
                         onChange={(e) => setTemplateNotes(e.target.value)}
                         rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                         placeholder="Methodology notes, observations, lot numbers, etc."
                       />
                     </div>
@@ -4353,15 +4355,15 @@ const LabDashboard: React.FC = () => {
               })()}
 
               {templateLoading && templateParams.length === 0 && (
-                <div className="mb-4 text-sm text-gray-500">Looking up template…</div>
+                <div className="mb-4 text-sm text-ds-text-muted">Looking up template…</div>
               )}
 
               {templateError && templateParams.length === 0 && (
-                <div className="mb-4 p-3 bg-danger-50 border border-danger-200 rounded-lg text-sm text-danger-800 flex items-center justify-between gap-3">
+                <div className="mb-4 p-3 bg-ds-critical-soft border border-ds-critical-border rounded-lg text-sm text-ds-critical-text flex items-center justify-between gap-3">
                   <span>The result template couldn't be loaded (connection problem). Retry before entering results.</span>
                   <button
                     onClick={() => openResultModal(selectedOrderForResult)}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-danger-600 rounded-lg hover:bg-danger-700 flex-shrink-0"
+                    className="min-h-ds-touch px-3 py-1.5 text-xs font-medium text-white bg-ds-critical rounded-lg hover:bg-ds-critical/90 flex-shrink-0"
                   >
                     Retry
                   </button>
@@ -4373,19 +4375,19 @@ const LabDashboard: React.FC = () => {
                 <>
               {/* Reference ranges display */}
               {testReferenceRanges && (
-                <div className="mb-4 p-3 bg-primary-50 rounded-lg border border-primary-200">
-                  <h4 className="font-medium text-primary-800 mb-2">Reference Ranges</h4>
+                <div className="mb-4 p-3 bg-ds-accent-soft rounded-lg border border-ds-accent/30">
+                  <h4 className="font-medium text-ds-accent-text mb-2">Reference Ranges</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     {testReferenceRanges.normal_range_low !== null && testReferenceRanges.normal_range_high !== null && (
                       <div>
-                        <span className="text-gray-600">Normal:</span>
+                        <span className="text-ds-text-secondary">Normal:</span>
                         <span className="ml-2 font-medium">{testReferenceRanges.normal_range_low} - {testReferenceRanges.normal_range_high} {testReferenceRanges.unit}</span>
                       </div>
                     )}
                     {(testReferenceRanges.critical_low !== null || testReferenceRanges.critical_high !== null) && (
                       <div>
-                        <span className="text-danger-600">Critical:</span>
-                        <span className="ml-2 font-medium text-danger-600">
+                        <span className="text-ds-critical-text">Critical:</span>
+                        <span className="ml-2 font-medium text-ds-critical-text">
                           {testReferenceRanges.critical_low !== null && `<${testReferenceRanges.critical_low}`}
                           {testReferenceRanges.critical_low !== null && testReferenceRanges.critical_high !== null && ' or '}
                           {testReferenceRanges.critical_high !== null && `>${testReferenceRanges.critical_high}`}
@@ -4397,18 +4399,18 @@ const LabDashboard: React.FC = () => {
               )}
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Specimen ID</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Specimen ID</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={structuredResult.specimen_id}
                     onChange={(e) => setStructuredResult({ ...structuredResult, specimen_id: e.target.value })}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-mono"
+                    className="flex-1 px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring font-mono"
                     placeholder="SP20240221-ABC123"
                   />
                   <button
                     onClick={() => setStructuredResult({ ...structuredResult, specimen_id: generateSpecimenId() })}
-                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                    className="min-h-ds-touch px-3 py-2 bg-ds-subtle text-ds-text-secondary rounded-lg hover:bg-ds-border"
                     title="Generate ID"
                   >
                     Generate
@@ -4418,23 +4420,23 @@ const LabDashboard: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Result Value *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Result Value *</label>
                   <input
                     type="text"
                     value={structuredResult.value}
                     onChange={(e) => setStructuredResult({ ...structuredResult, value: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-lg font-bold"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-lg font-bold"
                     placeholder="Enter result"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit</label>
                   <input
                     type="text"
                     value={structuredResult.unit}
                     onChange={(e) => setStructuredResult({ ...structuredResult, unit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="e.g., g/dL"
                   />
                 </div>
@@ -4445,8 +4447,8 @@ const LabDashboard: React.FC = () => {
                 (testReferenceRanges.critical_low !== null && parseFloat(structuredResult.value) < testReferenceRanges.critical_low) ||
                 (testReferenceRanges.critical_high !== null && parseFloat(structuredResult.value) > testReferenceRanges.critical_high)
               ) && (
-                <div className="mb-4 p-3 bg-danger-100 rounded-lg border border-danger-300">
-                  <div className="flex items-center gap-2 text-danger-800 font-bold">
+                <div className="mb-4 p-3 bg-ds-critical-soft rounded-lg border border-ds-critical-border">
+                  <div className="flex items-center gap-2 text-ds-critical-text font-bold">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
@@ -4456,11 +4458,11 @@ const LabDashboard: React.FC = () => {
               )}
 
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes/Comments</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes/Comments</label>
                 <textarea
                   value={structuredResult.notes}
                   onChange={(e) => setStructuredResult({ ...structuredResult, notes: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   rows={2}
                   placeholder="Additional observations, methodology notes, etc."
                 />
@@ -4471,19 +4473,19 @@ const LabDashboard: React.FC = () => {
               {/* Specimen ID — shown in both flows */}
               {templateParams.length > 0 && (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Specimen ID</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Specimen ID</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={structuredResult.specimen_id}
                       onChange={(e) => setStructuredResult({ ...structuredResult, specimen_id: e.target.value })}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                      className="flex-1 px-3 py-2 border border-ds-border-control rounded-lg font-mono text-sm"
                       placeholder="SP20240221-ABC123"
                     />
                     <button
                       type="button"
                       onClick={() => setStructuredResult({ ...structuredResult, specimen_id: generateSpecimenId() })}
-                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                      className="min-h-ds-touch px-3 py-2 bg-ds-subtle text-ds-text-secondary rounded-lg hover:bg-ds-border text-sm"
                     >
                       Generate
                     </button>
@@ -4495,13 +4497,13 @@ const LabDashboard: React.FC = () => {
                   verified yet. Hidden on grandfathered/already-verified rows
                   where the server skips the verification flow. */}
               {selectedOrderForResult.verification_status !== 'verified' && (
-                <div className="mb-4 border-t border-gray-200 pt-4">
+                <div className="mb-4 border-t border-ds-border pt-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-ds-text-secondary">
                         Peer Review
                       </label>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-ds-text-muted">
                         Result goes to the doctor after another lab tech reviews and approves it.
                       </p>
                     </div>
@@ -4513,13 +4515,13 @@ const LabDashboard: React.FC = () => {
                           setSkipVerification(e.target.checked);
                           if (e.target.checked) setAssignedReviewerId('');
                         }}
-                        className="w-4 h-4 rounded border-gray-300 text-warning-600 focus:ring-warning-500"
+                        className="w-4 h-4 rounded border-ds-border-control text-ds-warning-text focus:ring-ds-warning"
                       />
-                      <span className="text-sm font-medium text-warning-700">Skip Verification</span>
+                      <span className="text-sm font-medium text-ds-warning-text">Skip Verification</span>
                     </label>
                   </div>
                   {skipVerification ? (
-                    <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-sm text-warning-800">
+                    <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-3 text-sm text-ds-warning-text">
                       <strong>Verification skipped.</strong> Result will go directly to the doctor without peer review.
                     </div>
                   ) : (
@@ -4534,7 +4536,7 @@ const LabDashboard: React.FC = () => {
                         placeholder="— Pick a reviewer —"
                       />
                       {labReviewers.length === 0 && (
-                        <p className="text-xs text-danger-600 mt-1">
+                        <p className="text-xs text-ds-critical-text mt-1">
                           No other lab user is set up. Check &quot;Skip Verification&quot; to submit directly.
                         </p>
                       )}
@@ -4542,11 +4544,11 @@ const LabDashboard: React.FC = () => {
                   )}
                   {selectedOrderForResult.verification_status === 'rejected' &&
                     selectedOrderForResult.rejection_reason && (
-                      <div className="mt-3 p-3 bg-warning-50 border border-warning-200 rounded-lg text-sm">
-                        <div className="font-semibold text-warning-800">
+                      <div className="mt-3 p-3 bg-ds-warning-soft border border-ds-warning-border rounded-lg text-sm">
+                        <div className="font-semibold text-ds-warning-text">
                           Previously rejected — reason:
                         </div>
-                        <div className="text-warning-700">
+                        <div className="text-ds-warning-text">
                           {selectedOrderForResult.rejection_reason}
                         </div>
                       </div>
@@ -4555,8 +4557,8 @@ const LabDashboard: React.FC = () => {
               )}
 
               {/* File Upload Section */}
-              <div className="border-t border-gray-200 pt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Lab Result Document (Optional)</label>
+              <div className="border-t border-ds-border pt-4">
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">Upload Lab Result Document (Optional)</label>
                 <div className="flex items-center gap-3">
                   <input
                     ref={fileInputRef}
@@ -4568,19 +4570,19 @@ const LabDashboard: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                    className="min-h-ds-touch px-4 py-2 border border-ds-border-control rounded-lg hover:bg-ds-subtle flex items-center gap-2"
                   >
-                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-ds-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                     Choose File
                   </button>
                   {selectedFile && (
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="text-success-600">{selectedFile.name}</span>
+                      <span className="text-ds-success-text">{selectedFile.name}</span>
                       <button
                         onClick={() => setSelectedFile(null)}
-                        className="text-danger-500 hover:text-danger-700"
+                        className="text-ds-critical-text hover:text-ds-critical-text"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -4589,10 +4591,10 @@ const LabDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Images up to {formatBytes(MAX_IMAGE_INPUT_BYTES)} (compressed automatically) or PDFs up to {formatBytes(MAX_UPLOAD_BYTES)}. This will be attached to the patient's profile.</p>
+                <p className="text-xs text-ds-text-muted mt-1">Images up to {formatBytes(MAX_IMAGE_INPUT_BYTES)} (compressed automatically) or PDFs up to {formatBytes(MAX_UPLOAD_BYTES)}. This will be attached to the patient's profile.</p>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowResultModal(false);
@@ -4603,7 +4605,7 @@ const LabDashboard: React.FC = () => {
                   setAssignedReviewerId('');
                   setSkipVerification(false);
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
@@ -4622,7 +4624,7 @@ const LabDashboard: React.FC = () => {
                   submittingResult ||
                   (selectedOrderForResult.verification_status !== 'verified' && !skipVerification && !assignedReviewerId)
                 }
-                className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {uploadingFile && (
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -4670,20 +4672,20 @@ const LabDashboard: React.FC = () => {
             order={orderForModal}
             onClose={closeVerify}
             banner={
-              <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 space-y-2">
-                <p className="text-sm text-warning-900">
+              <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-3 space-y-2">
+                <p className="text-sm text-ds-warning-text">
                   <span className="font-semibold">Peer review.</span> Approving will mark the order
                   completed and notify the doctor. Critical-value alerts (if any) will fire now.
                 </p>
                 <div>
-                  <label className="block text-xs font-medium text-warning-900 mb-1">
+                  <label className="block text-xs font-medium text-ds-warning-text mb-1">
                     Reviewer notes (optional)
                   </label>
                   <textarea
                     value={verifyNotes}
                     onChange={(e) => setVerifyNotes(e.target.value)}
                     rows={2}
-                    className="w-full px-3 py-2 border border-warning-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm bg-white"
+                    className="w-full px-3 py-2 border border-ds-warning-border rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm bg-ds-surface"
                     placeholder="e.g. Cross-checked against control"
                   />
                 </div>
@@ -4693,13 +4695,13 @@ const LabDashboard: React.FC = () => {
               <>
                 <button
                   onClick={closeVerify}
-                  className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                  className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle text-sm"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitVerification}
-                  className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 text-sm inline-flex items-center gap-1"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 text-sm inline-flex items-center gap-1"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -4715,45 +4717,45 @@ const LabDashboard: React.FC = () => {
       {/* Reject modal */}
       {rejectingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900">Send result back</h2>
-              <p className="text-sm text-gray-600 mt-1">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md">
+            <div className="px-6 py-4 border-b border-ds-border">
+              <h2 className="text-lg font-bold text-ds-text">Send result back</h2>
+              <p className="text-sm text-ds-text-secondary mt-1">
                 {rejectingOrder.test_name} for {rejectingOrder.patient_name}
               </p>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ds-text-secondary">
                 The result will go back to <span className="font-medium">{rejectingOrder.entered_by_name || 'the entry tech'}</span> for correction. The doctor will not see it.
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reason <span className="text-danger-600">*</span>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">
+                  Reason <span className="text-ds-critical-text">*</span>
                 </label>
                 <textarea
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm"
+                  className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm"
                   placeholder="e.g. Value looks like a typo (10× expected); please rerun"
                   autoFocus
                 />
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setRejectingOrder(null);
                   setRejectReason('');
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={submitRejection}
                 disabled={!rejectReason.trim()}
-                className="px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-ds-touch px-4 py-2 bg-ds-critical text-white rounded-lg hover:bg-ds-critical/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Send back
               </button>
@@ -4765,13 +4767,13 @@ const LabDashboard: React.FC = () => {
       {/* Print Report Modal */}
       {showPrintModal && selectedOrderForPrint && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900">Lab Report Preview</h2>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-ds-border flex justify-between items-center">
+              <h2 className="text-xl font-bold text-ds-text">Lab Report Preview</h2>
               <div className="flex gap-2">
                 <button
                   onClick={handlePrint}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -4783,7 +4785,7 @@ const LabDashboard: React.FC = () => {
                     setShowPrintModal(false);
                     setSelectedOrderForPrint(null);
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                  className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border"
                 >
                   Close
                 </button>
@@ -4956,30 +4958,30 @@ const LabDashboard: React.FC = () => {
       {/* QC Entry Modal */}
       {showQCModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-secondary-50 to-secondary-50 rounded-t-xl">
-              <h2 className="text-xl font-bold text-gray-900">Record QC Result</h2>
-              <p className="text-sm text-gray-600">Enter quality control measurement data</p>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-lg">
+            <div className="px-6 py-4 border-b border-ds-border bg-gradient-to-r from-ds-subtle to-ds-subtle rounded-t-xl">
+              <h2 className="text-xl font-bold text-ds-text">Record QC Result</h2>
+              <p className="text-sm text-ds-text-secondary">Enter quality control measurement data</p>
             </div>
             <div className="p-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Code *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Test Code *</label>
                   <input
                     type="text"
                     value={qcForm.test_code}
                     onChange={(e) => setQCForm({ ...qcForm, test_code: e.target.value.toUpperCase() })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500 font-mono"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring font-mono"
                     placeholder="e.g., GLU, HB"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Test Name</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Test Name</label>
                   <input
                     type="text"
                     value={qcForm.test_name}
                     onChange={(e) => setQCForm({ ...qcForm, test_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="e.g., Blood Glucose"
                   />
                 </div>
@@ -4996,64 +4998,64 @@ const LabDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot Number</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Lot Number</label>
                   <input
                     type="text"
                     value={qcForm.lot_number}
                     onChange={(e) => setQCForm({ ...qcForm, lot_number: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="Control lot #"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Measured Value *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Measured Value *</label>
                   <input
                     type="number"
                     step="0.01"
                     value={qcForm.measured_value}
                     onChange={(e) => setQCForm({ ...qcForm, measured_value: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="Your reading"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Unit</label>
                   <input
                     type="text"
                     value={qcForm.unit}
                     onChange={(e) => setQCForm({ ...qcForm, unit: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="e.g., mg/dL"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Value *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Target Value *</label>
                   <input
                     type="number"
                     step="0.01"
                     value={qcForm.target_value}
                     onChange={(e) => setQCForm({ ...qcForm, target_value: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="Expected value"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Standard Deviation *</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Standard Deviation *</label>
                   <input
                     type="number"
                     step="0.01"
                     value={qcForm.standard_deviation}
                     onChange={(e) => setQCForm({ ...qcForm, standard_deviation: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     placeholder="SD"
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <label className="block text-sm font-medium text-ds-text-secondary mb-1">Notes</label>
                   <textarea
                     value={qcForm.notes}
                     onChange={(e) => setQCForm({ ...qcForm, notes: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary-500"
+                    className="w-full px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                     rows={2}
                     placeholder="Additional notes, corrective actions, etc."
                   />
@@ -5062,21 +5064,21 @@ const LabDashboard: React.FC = () => {
 
               {/* Preview calculation */}
               {qcForm.measured_value && qcForm.target_value && qcForm.standard_deviation && (
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg border">
+                <div className="mt-4 p-3 bg-ds-subtle rounded-lg border">
                   <div className="text-sm">
                     <span className="font-medium">Deviation: </span>
                     {Math.abs(parseFloat(qcForm.measured_value) - parseFloat(qcForm.target_value)).toFixed(2)}
                     <span className="ml-4 font-medium">Status: </span>
                     {Math.abs(parseFloat(qcForm.measured_value) - parseFloat(qcForm.target_value)) <= 2 * parseFloat(qcForm.standard_deviation) ? (
-                      <span className="text-success-600 font-bold">Within 2SD (OK)</span>
+                      <span className="text-ds-success-text font-bold">Within 2SD (OK)</span>
                     ) : (
-                      <span className="text-danger-600 font-bold">Outside 2SD (OUT OF CONTROL)</span>
+                      <span className="text-ds-critical-text font-bold">Outside 2SD (OUT OF CONTROL)</span>
                     )}
                   </div>
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl flex justify-end gap-3">
+            <div className="px-6 py-4 border-t border-ds-border bg-ds-subtle rounded-b-ds-card flex justify-end gap-3">
               <button
                 onClick={() => {
                   setShowQCModal(false);
@@ -5092,14 +5094,14 @@ const LabDashboard: React.FC = () => {
                     notes: '',
                   });
                 }}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="min-h-ds-touch px-4 py-2 text-ds-text-secondary bg-ds-surface border border-ds-border-control rounded-lg hover:bg-ds-subtle"
               >
                 Cancel
               </button>
               <button
                 onClick={recordQCResult}
                 disabled={!qcForm.test_code || !qcForm.measured_value || !qcForm.target_value || !qcForm.standard_deviation}
-                className="px-4 py-2 bg-secondary-600 text-white rounded-lg hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-brand-plum/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Record QC Result
               </button>

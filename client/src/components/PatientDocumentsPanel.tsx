@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import apiClient from '../api/client';
 import { useNotification } from '../context/NotificationContext';
@@ -213,8 +214,8 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
 
   return (
     <div className="space-y-4">
-      <div className="bg-warning-50 border border-warning-200 rounded-lg p-6">
-        <h3 className="text-lg font-bold text-warning-800 mb-4 flex items-center gap-2">
+      <div className={dsClass("bg-warning-50 border border-warning-200 rounded-lg p-6")}>
+        <h3 className={dsClass("text-lg font-bold text-warning-800 mb-4 flex items-center gap-2")}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
@@ -225,7 +226,7 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
           </svg>
           Scanned Documents
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className={dsClass("text-sm text-gray-600 mb-4")}>
           Upload and manage scanned documents for this patient. Pick a category
           first, then drop or select files — they'll appear under the matching
           section below.
@@ -240,11 +241,11 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
                 key={cat.value}
                 type="button"
                 onClick={() => setPendingCategory(cat.value)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
+                className={dsClass(`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-colors ${
                   active
                     ? 'bg-warning-600 text-white border-warning-600'
                     : 'bg-white text-warning-700 border-warning-300 hover:bg-warning-100'
-                }`}
+                }`)}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -268,12 +269,12 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
           }}
           onDragLeave={() => setDragActive(false)}
           onDrop={onDrop}
-          className={`border-2 border-dashed rounded-lg p-8 text-center bg-white mb-4 transition-colors ${
+          className={dsClass(`border-2 border-dashed rounded-lg p-8 text-center bg-white mb-4 transition-colors ${
             dragActive ? 'border-warning-500 bg-warning-100' : 'border-warning-300'
-          }`}
+          }`)}
         >
           <svg
-            className="w-12 h-12 mx-auto text-warning-400 mb-3"
+            className={dsClass("w-12 h-12 mx-auto text-warning-400 mb-3")}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -285,17 +286,17 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
               d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
             />
           </svg>
-          <p className="text-warning-700 font-semibold mb-1">
+          <p className={dsClass("text-warning-700 font-semibold mb-1")}>
             Upload to: {CATEGORIES.find((c) => c.value === pendingCategory)?.label}
           </p>
-          <p className="text-sm text-gray-500 mb-3">
+          <p className={dsClass("text-sm text-gray-500 mb-3")}>
             Drag and drop files here, or click to browse
           </p>
           <button
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 bg-warning-600 text-white rounded-lg hover:bg-warning-700 transition-colors font-semibold disabled:opacity-60"
+            className={dsClass("px-4 py-2 bg-warning-600 text-white rounded-lg hover:bg-warning-700 transition-colors font-semibold disabled:opacity-60")}
           >
             {uploading ? 'Uploading…' : 'Select Files'}
           </button>
@@ -312,7 +313,7 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
               }
             }}
           />
-          <p className="text-xs text-gray-400 mt-2">
+          <p className={dsClass("text-xs text-gray-400 mt-2")}>
             Photos &amp; scans (JPG, PNG) up to {formatBytes(MAX_IMAGE_INPUT_BYTES)} — automatically
             compressed. PDFs up to {formatBytes(MAX_UPLOAD_BYTES)}.
           </p>
@@ -323,10 +324,10 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
           {grouped.map((cat) => (
             <div
               key={cat.value}
-              className="bg-white border border-warning-200 rounded-lg p-3"
+              className={dsClass("bg-white border border-warning-200 rounded-lg p-3")}
             >
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-warning-700 font-semibold">
+                <div className={dsClass("flex items-center gap-2 text-warning-700 font-semibold")}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -337,27 +338,27 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
                   </svg>
                   {cat.label}
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-warning-100 text-warning-700 font-semibold">
+                <span className={dsClass("text-xs px-2 py-0.5 rounded-full bg-warning-100 text-warning-700 font-semibold")}>
                   {cat.docs.length}
                 </span>
               </div>
               {cat.docs.length === 0 ? (
-                <p className="text-sm text-gray-500">No documents uploaded</p>
+                <p className={dsClass("text-sm text-gray-500")}>No documents uploaded</p>
               ) : (
                 <ul className="space-y-1.5">
                   {cat.docs.map((doc) => (
                     <li
                       key={doc.id}
-                      className="flex items-center justify-between gap-2 text-sm border border-gray-100 rounded px-2 py-1.5"
+                      className={dsClass("flex items-center justify-between gap-2 text-sm border border-gray-100 rounded px-2 py-1.5")}
                     >
                       <button
                         type="button"
                         onClick={() => handleDownload(doc)}
-                        className="flex-1 min-w-0 text-left hover:text-primary-600"
+                        className={dsClass("flex-1 min-w-0 text-left hover:text-primary-600")}
                         title={doc.document_name}
                       >
                         <div className="truncate font-medium">{doc.document_name}</div>
-                        <div className="text-xs text-gray-500">
+                        <div className={dsClass("text-xs text-gray-500")}>
                           {formatBytes(doc.file_size)}
                           {doc.uploaded_by_name ? ` • ${doc.uploaded_by_name}` : ''}
                         </div>
@@ -365,7 +366,7 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
                       <button
                         type="button"
                         onClick={() => handleDelete(doc)}
-                        className="text-danger-500 hover:text-danger-700 p-1"
+                        className={dsClass("text-danger-500 hover:text-danger-700 p-1")}
                         title="Delete"
                       >
                         <svg
@@ -391,7 +392,7 @@ const PatientDocumentsPanel: React.FC<Props> = ({ patientId, encounterId }) => {
         </div>
 
         {loading && (
-          <p className="text-xs text-gray-500 mt-3 text-center">Loading documents…</p>
+          <p className={dsClass("text-xs text-gray-500 mt-3 text-center")}>Loading documents…</p>
         )}
       </div>
     </div>
