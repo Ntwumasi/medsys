@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { patientPortalAPI } from '../../api/patientPortal';
-import { branding } from '../../config/branding';
+import PortalAuthLayout from '../../components/portal/PortalAuthLayout';
 
 const PortalLogin: React.FC = () => {
   const { user } = useAuth();
@@ -34,73 +34,64 @@ const PortalLogin: React.FC = () => {
   if (user?.role === 'patient') return <Navigate to="/dashboard" replace />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-white px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{branding.clinicName}</h1>
-          <p className="text-gray-500 mt-1">Patient Portal</p>
-        </div>
-
-        {sent ? (
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-12 h-12 rounded-full bg-success-100 flex items-center justify-center text-success-600 text-2xl">
-              ✓
-            </div>
-            <p className="text-gray-700">
-              {sentByEmail
-                ? "If an account exists for that email address, we've sent you a login link. Open it and confirm your date of birth to view your records."
-                : "If an account exists for that number, we've sent a login link by SMS. Open the link on your phone and confirm your date of birth to view your records."}
-            </p>
-            <p className="text-sm text-gray-400">The link is valid for 15 minutes.</p>
-            <button
-              onClick={() => { setSent(false); setIdentifier(''); }}
-              className="text-primary-600 hover:underline text-sm"
-            >
-              Use a different email or number
-            </button>
+    <PortalAuthLayout
+      title={sent ? 'Check your phone' : 'Sign in'}
+      subtitle={sent ? 'Your secure link is on its way.' : "No password needed — we'll send you a secure link."}
+    >
+      {sent ? (
+        <div className="space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-success-50 text-success-600 flex items-center justify-center">
+            <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-gray-600 text-sm">
-              Enter the email address or mobile number registered at the clinic and we'll
-              send you a secure link to access your records.
-            </p>
-            <div>
-              <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 mb-1">
-                Email or mobile number
-              </label>
-              <input
-                id="identifier"
-                type="text"
-                inputMode="email"
-                autoComplete="email"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="you@example.com or 024 123 4567"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                required
-              />
-              <p className="mt-1 text-xs text-gray-400">
-                We'll email you if you enter an email address, or text you if you enter a number.
-              </p>
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full py-3 bg-primary-600 text-white font-semibold rounded-lg hover:bg-primary-700 disabled:opacity-50"
-            >
-              {submitting ? 'Sending…' : 'Send me a login link'}
-            </button>
-          </form>
-        )}
-
-        <div className="mt-6 text-center">
-          <Link to="/login" className="text-sm text-gray-400 hover:text-gray-600">
-            Staff login
-          </Link>
+          <p className="text-text-primary">
+            {sentByEmail
+              ? "If an account exists for that email address, we've emailed you a link. Open it and confirm your date of birth to see your records."
+              : "If an account exists for that number, we've texted you a link. Open it on your phone and confirm your date of birth to see your records."}
+          </p>
+          <p className="text-sm text-text-secondary">The link works for 15 minutes.</p>
+          <button
+            onClick={() => { setSent(false); setIdentifier(''); }}
+            className="text-sm font-semibold text-primary-600 hover:text-primary-700"
+          >
+            Use a different email or number
+          </button>
         </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="identifier" className="block text-sm font-medium text-text-primary mb-1.5">
+              Mobile number or email
+            </label>
+            <input
+              id="identifier"
+              type="text"
+              inputMode="email"
+              autoComplete="email"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="024 123 4567 or you@example.com"
+              className="w-full px-4 py-3.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+              required
+            />
+            <p className="mt-1.5 text-xs text-text-secondary">Use the number or email you gave the clinic.</p>
+          </div>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white font-semibold rounded-xl shadow-sm hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 transition-all"
+          >
+            {submitting ? 'Sending…' : 'Send me a sign-in link'}
+          </button>
+        </form>
+      )}
+      <div className="mt-6 pt-5 border-t border-gray-100 text-center">
+        <Link to="/login" className="text-xs text-text-secondary hover:text-text-primary">
+          Clinic staff? Sign in here
+        </Link>
       </div>
-    </div>
+    </PortalAuthLayout>
   );
 };
 

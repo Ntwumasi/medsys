@@ -15,6 +15,9 @@ import { branding } from '../config/branding';
 import { parseLabResult, labFlag, rangeText, FLAG_TEXT } from '../components/portal/labDisplay';
 import type { LabFlag } from '../components/portal/labDisplay';
 import { printBill, printLabReport } from '../components/portal/portalPrint';
+import PortalShell, { PortalIcon } from '../components/portal/PortalShell';
+import { PORTAL_NAV } from '../components/portal/portalNav';
+import type { PortalView } from '../components/portal/portalNav';
 
 /**
  * Patient portal — phone-first. Its own layout (no staff sidebar/search).
@@ -23,14 +26,6 @@ import { printBill, printLabReport } from '../components/portal/portalPrint';
  * finalised (enforced by the server); until then the patient sees when.
  */
 
-type View = 'home' | 'results' | 'bills' | 'medicines' | 'visits';
-const VIEWS: { key: View; label: string }[] = [
-  { key: 'home', label: 'Home' },
-  { key: 'results', label: 'Results' },
-  { key: 'bills', label: 'Bills' },
-  { key: 'medicines', label: 'Medicines' },
-  { key: 'visits', label: 'Visits' },
-];
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -102,11 +97,26 @@ const labOutOfRange = (lab: PortalLab): number => {
 
 // ── small UI pieces ────────────────────────────────────────────────────────
 
-const Card: React.FC<{ title?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, action, children, className = '' }) => (
-  <section className={`bg-white rounded-xl shadow-lg border border-gray-200 p-4 sm:p-5 ${className}`}>
+type Tone = 'primary' | 'secondary' | 'success' | 'warning';
+const TONE: Record<Tone, string> = {
+  primary: 'bg-primary-50 text-primary-600',
+  secondary: 'bg-secondary-50 text-secondary-600',
+  success: 'bg-success-50 text-success-600',
+  warning: 'bg-warning-50 text-warning-600',
+};
+
+const Card: React.FC<{ title?: string; icon?: PortalView; action?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, icon, action, children, className = '' }) => (
+  <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-5 ${className}`}>
     {(title || action) && (
-      <div className="flex items-center justify-between gap-3 mb-3">
-        {title && <h3 className="text-base font-semibold text-gray-900">{title}</h3>}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {icon && (
+            <span className="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+              <PortalIcon name={icon} className="w-4 h-4" />
+            </span>
+          )}
+          {title && <h3 className="text-base font-semibold text-text-primary truncate">{title}</h3>}
+        </div>
         {action}
       </div>
     )}
@@ -114,35 +124,115 @@ const Card: React.FC<{ title?: string; action?: React.ReactNode; children: React
   </section>
 );
 
+const ListSection: React.FC<{ title: string; icon: PortalView; children: React.ReactNode }> = ({ title, icon, children }) => (
+  <section>
+    <div className="flex items-center gap-2.5 mb-3">
+      <span className="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+        <PortalIcon name={icon} className="w-4 h-4" />
+      </span>
+      <h2 className="!text-base font-semibold text-text-primary">{title}</h2>
+    </div>
+    {children}
+  </section>
+);
+
+const PageHeader: React.FC<{ title: string; subtitle: string }> = ({ title, subtitle }) => (
+  <div className="mb-5 lg:mb-6">
+    <h1 className="text-2xl font-bold text-text-primary">{title}</h1>
+    <p className="text-sm text-text-secondary mt-1">{subtitle}</p>
+  </div>
+);
+
 const SectionState: React.FC<{ loading: boolean; error: boolean; retry: () => void; what: string }> = ({ loading, error, retry, what }) => {
   if (loading) {
     return (
-      <div className="space-y-2" aria-busy="true" aria-label={`Loading ${what}`}>
-        <div className="h-4 bg-gray-100 rounded animate-pulse w-2/3" />
-        <div className="h-4 bg-gray-100 rounded animate-pulse w-1/2" />
+      <div className="space-y-3" aria-busy="true" aria-label={`Loading ${what}`}>
+        {[0, 1].map((i) => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3.5 bg-gray-100 rounded animate-pulse w-2/3" />
+              <div className="h-3 bg-gray-100 rounded animate-pulse w-1/3" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
   if (error) {
     return (
-      <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg p-3 flex items-center justify-between gap-3">
+      <div className="text-sm text-danger-700 bg-danger-50 border border-danger-100 rounded-xl p-3 flex items-center justify-between gap-3">
         <span>We couldn't load your {what}.</span>
-        <button onClick={retry} className="font-medium underline">Try again</button>
+        <button onClick={retry} className="font-semibold underline underline-offset-2">Try again</button>
       </div>
     );
   }
   return null;
 };
 
+const EmptyState: React.FC<{ icon: PortalView; title: string; text?: string; action?: React.ReactNode }> = ({ icon, title, text, action }) => (
+  <div className="flex flex-col items-center text-center py-8 px-4">
+    <span className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary-50 to-secondary-50 text-primary-500 flex items-center justify-center mb-3">
+      <PortalIcon name={icon} className="w-7 h-7" />
+    </span>
+    <p className="font-semibold text-text-primary">{title}</p>
+    {text && <p className="text-sm text-text-secondary mt-1 max-w-xs">{text}</p>}
+    {action && <div className="mt-4">{action}</div>}
+  </div>
+);
+
 const LinkButton: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
-  <button onClick={onClick} className="text-sm font-medium text-primary-700 hover:text-primary-800">
+  <button onClick={onClick} className="text-sm font-semibold text-primary-600 hover:text-primary-700 shrink-0">
+    {children} →
+  </button>
+);
+
+const StatTile: React.FC<{ icon: PortalView; tone: Tone; label: string; value: string; hint?: string; onClick: () => void; loading?: boolean }> = ({ icon, tone, label, value, hint, onClick, loading }) => (
+  <button
+    onClick={onClick}
+    className="group bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-left hover:shadow-md hover:border-primary-200 transition-all"
+  >
+    <span className={`w-10 h-10 rounded-xl flex items-center justify-center ${TONE[tone]}`}>
+      <PortalIcon name={icon} />
+    </span>
+    <p className="text-xs font-medium text-text-secondary mt-3">{label}</p>
+    {loading ? (
+      <div className="h-6 mt-1 bg-gray-100 rounded animate-pulse w-2/3" />
+    ) : (
+      <p className="text-lg font-bold text-text-primary leading-tight mt-0.5 truncate">{value}</p>
+    )}
+    {hint && !loading && <p className="text-xs text-text-secondary mt-0.5 truncate">{hint}</p>}
+  </button>
+);
+
+const Chip: React.FC<{ className: string; children: React.ReactNode }> = ({ className, children }) => (
+  <span className={`shrink-0 inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full ${className}`}>{children}</span>
+);
+
+const SecondaryButton: React.FC<{ onClick: () => void; children: React.ReactNode }> = ({ onClick, children }) => (
+  <button
+    onClick={onClick}
+    className="mt-4 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
+  >
     {children}
   </button>
 );
 
-const Empty: React.FC<{ text: string }> = ({ text }) => <p className="text-sm text-gray-500 py-2">{text}</p>;
+const CLINIC_TEL = branding.clinicPhone ? `tel:${branding.clinicPhone.replace(/[^\d+]/g, '')}` : '';
+const CallButton: React.FC<{ light?: boolean; label?: string }> = ({ light, label = 'Call the clinic' }) =>
+  CLINIC_TEL ? (
+    <a
+      href={CLINIC_TEL}
+      className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
+        light ? 'bg-white text-primary-700 hover:bg-primary-50' : 'bg-primary-500 text-white hover:bg-primary-600'
+      }`}
+    >
+      <PortalIcon name="phone" className="w-4 h-4" />
+      {label}
+    </a>
+  ) : null;
 
-// ── result cards ───────────────────────────────────────────────────────────
+// ── result / bill cards ────────────────────────────────────────────────────
 
 const LabCard: React.FC<{ lab: PortalLab; me: PortalMe | null; onPopupBlocked: () => void }> = ({ lab, me, onPopupBlocked }) => {
   const [open, setOpen] = useState(false);
@@ -150,92 +240,97 @@ const LabCard: React.FC<{ lab: PortalLab; me: PortalMe | null; onPopupBlocked: (
   const outOfRange = released ? labOutOfRange(lab) : 0;
   const parsed = released ? parseLabResult(lab.result) : null;
   const byCode = useMemo(() => new Map(lab.parameters.map((p) => [p.parameter_code, p])), [lab.parameters]);
+  const tone = !released ? 'bg-gray-100 text-gray-500' : outOfRange ? 'bg-warning-50 text-warning-600' : 'bg-success-50 text-success-600';
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div className={`bg-white rounded-2xl border transition-shadow ${open ? 'border-primary-200 shadow-md' : 'border-gray-100 shadow-sm'}`}>
       <button
-        className="w-full text-left p-4 flex items-start justify-between gap-3"
+        className="w-full text-left p-4 flex items-center gap-3 disabled:cursor-default"
         onClick={() => released && setOpen((o) => !o)}
         aria-expanded={released ? open : undefined}
         disabled={!released}
       >
-        <div className="min-w-0">
-          <p className="font-semibold text-gray-900 capitalize">{lab.test_name}</p>
-          <p className="text-sm text-gray-500">
-            Ordered {fmtDate(lab.ordered_date)}{lab.ordered_by ? ` · ${lab.ordered_by}` : ''}
-          </p>
-          {released && (
-            <p className={`text-sm mt-1 ${outOfRange ? 'text-warning-800' : 'text-success-700'}`}>
-              {outOfRange
-                ? `${outOfRange} value${outOfRange > 1 ? 's' : ''} outside the normal range — your doctor will discuss ${outOfRange > 1 ? 'them' : 'it'} with you.`
-                : parsed?.kind === 'structured' && lab.parameters.length ? 'All values in the normal range.' : 'Result ready.'}
-            </p>
-          )}
-          {lab.release_state === 'awaiting_review' && (
-            <p className="text-sm text-gray-600 mt-1">
-              Done — your doctor is reviewing it. You can see it here by {fmtDate(lab.available_by, false)}.
-            </p>
-          )}
-          {lab.release_state === 'in_progress' && <p className="text-sm text-gray-600 mt-1">In progress at the lab.</p>}
-        </div>
-        <span
-          className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${
-            released ? 'bg-success-100 text-success-800' : 'bg-gray-100 text-gray-700'
-          }`}
-        >
-          {released ? (open ? 'Hide' : 'View') : lab.release_state === 'awaiting_review' ? 'With doctor' : 'Pending'}
+        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
+          <PortalIcon name="results" />
         </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-text-primary capitalize truncate">{lab.test_name}</p>
+          <p className="text-xs text-text-secondary truncate">
+            {fmtDate(lab.ordered_date)}{lab.ordered_by ? ` · ${lab.ordered_by}` : ''}
+          </p>
+          {released ? (
+            <p className={`text-sm mt-1 ${outOfRange ? 'text-warning-700' : 'text-success-700'}`}>
+              {outOfRange
+                ? `${outOfRange} value${outOfRange > 1 ? 's' : ''} outside the normal range`
+                : parsed?.kind === 'structured' && lab.parameters.length ? 'All values in the normal range' : 'Result ready'}
+            </p>
+          ) : (
+            <p className="text-sm text-text-secondary mt-1">
+              {lab.release_state === 'awaiting_review'
+                ? `With your doctor · here by ${fmtDate(lab.available_by, false)}`
+                : 'In progress at the lab'}
+            </p>
+          )}
+        </div>
+        {released ? (
+          <svg className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        ) : (
+          <Chip className="bg-gray-100 text-gray-600">{lab.release_state === 'awaiting_review' ? 'Reviewing' : 'Pending'}</Chip>
+        )}
       </button>
 
       {released && open && parsed && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          {lab.doctor_reviewed && <p className="text-xs text-gray-500 mt-3">Reviewed by your doctor.</p>}
-          {parsed.kind === 'structured' ? (
-            <ul className="divide-y divide-gray-100 mt-2">
-              {parsed.values.map(({ code, label, value }) => {
-                const def = byCode.get(code);
-                const flag = labFlag(value, def);
-                const range = rangeText(def);
-                return (
-                  <li key={code} className="py-2 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-900">{def?.parameter_name || label}</p>
-                      {range && <p className="text-xs text-gray-500">Normal: {range}</p>}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-semibold text-gray-900 tabular-nums">
-                        {value}{def?.unit && !value.includes(def.unit) ? ` ${def.unit}` : ''}
-                      </p>
-                      {flag !== 'none' && (
-                        <span className={`inline-block mt-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded ${FLAG_CLS[flag]}`}>
-                          {FLAG_TEXT[flag]}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-800 whitespace-pre-wrap mt-3">{parsed.text}</p>
-          )}
-          {parsed.kind === 'structured' && parsed.notes && (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap mt-2"><span className="font-medium">Notes: </span>{parsed.notes}</p>
-          )}
-          {outOfRange > 0 && (
-            <p className="text-xs text-gray-500 mt-3">
-              A value outside the normal range isn't always a problem. If you're worried, call the clinic
-              {branding.clinicPhone ? ` on ${branding.clinicPhone}` : ''}.
-            </p>
-          )}
-          {me && (
-            <button
-              onClick={() => { if (!printLabReport(lab, me)) onPopupBlocked(); }}
-              className="mt-3 w-full sm:w-auto px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
-            >
-              Download report (PDF)
-            </button>
-          )}
+        <div className="px-4 pb-4">
+          <div className="border-t border-gray-100 pt-3">
+            {lab.doctor_reviewed && (
+              <p className="text-xs font-medium text-primary-700 bg-primary-50 inline-block px-2 py-1 rounded-md mb-2">Reviewed by your doctor</p>
+            )}
+            {parsed.kind === 'structured' ? (
+              <ul className="space-y-2">
+                {parsed.values.map(({ code, label, value }) => {
+                  const def = byCode.get(code);
+                  const flag = labFlag(value, def);
+                  const range = rangeText(def);
+                  return (
+                    <li key={code} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text-primary">{def?.parameter_name || label}</p>
+                        {range && <p className="text-xs text-text-secondary">Normal {range}</p>}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-text-primary tabular-nums">
+                          {value}{def?.unit && !value.includes(def.unit) ? <span className="font-normal text-text-secondary"> {def.unit}</span> : null}
+                        </p>
+                        {flag !== 'none' && (
+                          <span className={`inline-block mt-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded ${FLAG_CLS[flag]}`}>
+                            {FLAG_TEXT[flag]}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-text-primary whitespace-pre-wrap">{parsed.text}</p>
+            )}
+            {parsed.kind === 'structured' && parsed.notes && (
+              <p className="text-sm text-text-primary whitespace-pre-wrap mt-3"><span className="font-semibold">Notes: </span>{parsed.notes}</p>
+            )}
+            {outOfRange > 0 && (
+              <p className="text-xs text-text-secondary mt-3">
+                A value outside the normal range isn't always a problem — your doctor will discuss it with you.
+                {branding.clinicPhone ? ` Worried? Call ${branding.clinicPhone}.` : ''}
+              </p>
+            )}
+            {me && (
+              <SecondaryButton onClick={() => { if (!printLabReport(lab, me)) onPopupBlocked(); }}>
+                Download report (PDF)
+              </SecondaryButton>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -246,29 +341,37 @@ const ImagingCard: React.FC<{ scan: PortalImaging }> = ({ scan }) => {
   const [open, setOpen] = useState(false);
   const released = scan.release_state === 'released';
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div className={`bg-white rounded-2xl border transition-shadow ${open ? 'border-primary-200 shadow-md' : 'border-gray-100 shadow-sm'}`}>
       <button
-        className="w-full text-left p-4 flex items-start justify-between gap-3"
+        className="w-full text-left p-4 flex items-center gap-3 disabled:cursor-default"
         onClick={() => released && setOpen((o) => !o)}
         aria-expanded={released ? open : undefined}
         disabled={!released}
       >
-        <div>
-          <p className="font-semibold text-gray-900">{scan.imaging_type}{scan.body_part ? ` — ${scan.body_part}` : ''}</p>
-          <p className="text-sm text-gray-500">Ordered {fmtDate(scan.ordered_date)}</p>
-          {scan.release_state === 'awaiting_review' && (
-            <p className="text-sm text-gray-600 mt-1">Done — the report will be here by {fmtDate(scan.available_by, false)}.</p>
-          )}
-          {scan.release_state === 'in_progress' && <p className="text-sm text-gray-600 mt-1">Not done yet.</p>}
-        </div>
-        <span className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${released ? 'bg-success-100 text-success-800' : 'bg-gray-100 text-gray-700'}`}>
-          {released ? (open ? 'Hide' : 'View') : 'Pending'}
+        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${released ? 'bg-secondary-50 text-secondary-600' : 'bg-gray-100 text-gray-500'}`}>
+          <PortalIcon name="results" />
         </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-text-primary truncate">{scan.imaging_type}{scan.body_part ? ` — ${scan.body_part}` : ''}</p>
+          <p className="text-xs text-text-secondary">{fmtDate(scan.ordered_date)}</p>
+          <p className="text-sm text-text-secondary mt-1">
+            {released ? 'Report ready' : scan.release_state === 'awaiting_review' ? `Report here by ${fmtDate(scan.available_by, false)}` : 'Not done yet'}
+          </p>
+        </div>
+        {released ? (
+          <svg className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        ) : (
+          <Chip className="bg-gray-100 text-gray-600">Pending</Chip>
+        )}
       </button>
       {released && open && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          <p className="text-xs text-gray-500 mt-3">This is the radiologist's report. Your doctor will explain what it means for you.</p>
-          <p className="text-sm text-gray-800 whitespace-pre-wrap mt-2">{scan.findings}</p>
+        <div className="px-4 pb-4">
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs text-text-secondary mb-2">The radiologist's report. Your doctor will explain what it means for you.</p>
+            <p className="text-sm text-text-primary whitespace-pre-wrap rounded-xl bg-gray-50 p-3">{scan.findings}</p>
+          </div>
         </div>
       )}
     </div>
@@ -277,64 +380,67 @@ const ImagingCard: React.FC<{ scan: PortalImaging }> = ({ scan }) => {
 
 const BillCard: React.FC<{ bill: PortalBill; me: PortalMe | null; onPopupBlocked: () => void }> = ({ bill, me, onPopupBlocked }) => {
   const [open, setOpen] = useState(false);
+  const owes = bill.balance_due > 0;
   return (
-    <div className="border border-gray-200 rounded-lg">
-      <button className="w-full text-left p-4 flex items-start justify-between gap-3" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <div className="min-w-0">
-          <p className="font-semibold text-gray-900">{fmtDate(bill.invoice_date)}</p>
-          <p className="text-sm text-gray-500">
-            Invoice {bill.invoice_number} · {ghs(bill.total)}
-            {bill.covered ? ` · ${bill.payer_name || 'Insurance/company'} covers ${ghs(bill.covered_share)}` : ''}
+    <div className={`bg-white rounded-2xl border transition-shadow ${open ? 'border-primary-200 shadow-md' : 'border-gray-100 shadow-sm'}`}>
+      <button className="w-full text-left p-4 flex items-center gap-3" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${owes ? 'bg-warning-50 text-warning-600' : 'bg-success-50 text-success-600'}`}>
+          <PortalIcon name="bills" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-text-primary">{fmtDate(bill.invoice_date)}</p>
+          <p className="text-xs text-text-secondary truncate">
+            {bill.invoice_number}{bill.covered ? ` · ${bill.payer_name || 'Insurance/company'} covers ${ghs(bill.covered_share)}` : ''}
           </p>
         </div>
-        <span
-          className={`shrink-0 text-xs font-medium px-2 py-1 rounded-full ${
-            bill.balance_due > 0 ? 'bg-warning-100 text-warning-800' : 'bg-success-100 text-success-800'
-          }`}
-        >
-          {bill.balance_due > 0 ? `You owe ${ghs(bill.balance_due)}` : 'Paid'}
-        </span>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold text-text-primary tabular-nums">{ghs(bill.covered ? bill.your_share : bill.total)}</p>
+          <Chip className={owes ? 'bg-warning-100 text-warning-800 mt-1' : 'bg-success-100 text-success-800 mt-1'}>
+            {owes ? `Owe ${ghs(bill.balance_due)}` : 'Paid'}
+          </Chip>
+        </div>
       </button>
       {open && (
-        <div className="px-4 pb-4 border-t border-gray-100">
-          <ul className="divide-y divide-gray-100 mt-2">
-            {bill.items.map((i, idx) => (
-              <li key={idx} className="py-2 flex justify-between gap-3 text-sm">
-                <span className="text-gray-800 min-w-0">
-                  {i.description}{i.quantity > 1 ? ` × ${i.quantity}` : ''}
-                  {bill.covered && (
-                    <span className="block text-xs text-gray-500">{i.paid_by === 'you' ? 'You pay' : `Covered by ${bill.payer_name || 'your cover'}`}</span>
-                  )}
-                </span>
-                <span className="tabular-nums text-gray-900 shrink-0">{ghs(i.amount)}</span>
-              </li>
-            ))}
-          </ul>
-          <dl className="mt-3 text-sm space-y-1">
-            {bill.covered && (
-              <div className="flex justify-between"><dt className="text-gray-600">Your share</dt><dd className="tabular-nums">{ghs(bill.your_share)}</dd></div>
-            )}
-            <div className="flex justify-between"><dt className="text-gray-600">You paid</dt><dd className="tabular-nums">{ghs(bill.you_paid)}</dd></div>
-            <div className="flex justify-between font-semibold"><dt>Balance due</dt><dd className="tabular-nums">{ghs(bill.balance_due)}</dd></div>
-          </dl>
-          {bill.payments.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Your payments</p>
-              {bill.payments.map((p, idx) => (
-                <p key={idx} className="text-sm text-gray-700">
-                  {fmtDate(p.date)} · {ghs(p.amount)}{p.method ? ` · ${p.method.replace(/_/g, ' ')}` : ''}
-                </p>
+        <div className="px-4 pb-4">
+          <div className="border-t border-gray-100 pt-3">
+            <ul className="space-y-2">
+              {bill.items.map((i, idx) => (
+                <li key={idx} className="flex justify-between gap-3 text-sm">
+                  <span className="text-text-primary min-w-0">
+                    {i.description}{i.quantity > 1 ? ` × ${i.quantity}` : ''}
+                    {bill.covered && (
+                      <span className={`block text-xs ${i.paid_by === 'you' ? 'text-warning-700' : 'text-text-secondary'}`}>
+                        {i.paid_by === 'you' ? 'You pay' : `Covered by ${bill.payer_name || 'your cover'}`}
+                      </span>
+                    )}
+                  </span>
+                  <span className="tabular-nums text-text-primary shrink-0">{ghs(i.amount)}</span>
+                </li>
               ))}
-            </div>
-          )}
-          {me && (
-            <button
-              onClick={() => { if (!printBill(bill, me)) onPopupBlocked(); }}
-              className="mt-3 w-full sm:w-auto px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100"
-            >
-              Download invoice (PDF)
-            </button>
-          )}
+            </ul>
+            <dl className="mt-3 rounded-xl bg-gray-50 p-3 text-sm space-y-1.5">
+              {bill.covered && (
+                <div className="flex justify-between"><dt className="text-text-secondary">Your share</dt><dd className="tabular-nums">{ghs(bill.your_share)}</dd></div>
+              )}
+              <div className="flex justify-between"><dt className="text-text-secondary">You paid</dt><dd className="tabular-nums">{ghs(bill.you_paid)}</dd></div>
+              <div className="flex justify-between font-bold text-text-primary"><dt>Balance due</dt><dd className="tabular-nums">{ghs(bill.balance_due)}</dd></div>
+            </dl>
+            {bill.payments.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">Your payments</p>
+                {bill.payments.map((p, idx) => (
+                  <p key={idx} className="text-sm text-text-primary">
+                    {fmtDate(p.date)} · {ghs(p.amount)}{p.method ? ` · ${p.method.replace(/_/g, ' ')}` : ''}
+                  </p>
+                ))}
+              </div>
+            )}
+            {me && (
+              <SecondaryButton onClick={() => { if (!printBill(bill, me)) onPopupBlocked(); }}>
+                Download invoice (PDF)
+              </SecondaryButton>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -343,11 +449,16 @@ const BillCard: React.FC<{ bill: PortalBill; me: PortalMe | null; onPopupBlocked
 
 // ── page ───────────────────────────────────────────────────────────────────
 
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
+
 const PatientPortal: React.FC = () => {
   const { logout } = useAuth();
   const [params, setParams] = useSearchParams();
-  const view = (VIEWS.find((v) => v.key === params.get('view'))?.key || 'home') as View;
-  const go = (v: View) => {
+  const view = (PORTAL_NAV.find((v) => v.key === params.get('view'))?.key || 'home') as PortalView;
+  const go = (v: PortalView) => {
     setParams(v === 'home' ? {} : { view: v });
     window.scrollTo({ top: 0 });
   };
@@ -379,253 +490,269 @@ const PatientPortal: React.FC = () => {
   const upcoming = (visits.data || []).filter(isUpcoming).sort((a, b) => a.appointment_date.localeCompare(b.appointment_date));
   const pastVisits = (visits.data || []).filter((a) => !isUpcoming(a));
   const nextVisit = upcoming[0];
+  const totalDue = bills.data?.total_due ?? 0;
 
-  const visitLine = (a: PortalAppointment) =>
-    `${fmtDate(a.appointment_date)}${a.has_time ? ` at ${fmtTime(a.appointment_date)}` : ''}`;
+  const visitWhen = (a: PortalAppointment) =>
+    `${fmtDate(a.appointment_date)}${a.has_time ? ` · ${fmtTime(a.appointment_date)}` : ''}`;
 
-  const callButton = branding.clinicPhone ? (
-    <a
-      href={`tel:${branding.clinicPhone.replace(/[^\d+]/g, '')}`}
-      className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700"
-    >
-      Call the clinic
-    </a>
-  ) : null;
+  const fullName = me.data ? `${me.data.first_name} ${me.data.last_name}` : '';
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            {branding.clinicLogo && <img src={branding.clinicLogo} alt="" className="h-8 w-auto" />}
-            <span className="font-semibold text-gray-900 truncate">{branding.clinicName}</span>
-          </div>
-          <button
-            onClick={logout}
-            className="shrink-0 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-          >
-            Sign out
-          </button>
+    <PortalShell
+      view={view}
+      onNavigate={go}
+      onSignOut={logout}
+      patientName={fullName || 'My account'}
+      badges={{ results: recentResults.length || undefined, bills: totalDue > 0 ? bills.data!.bills.filter((b) => b.balance_due > 0).length : undefined }}
+    >
+      {popupBlocked && (
+        <div className="mb-4 text-sm bg-warning-50 border border-warning-200 text-warning-800 rounded-xl p-3 flex justify-between gap-3">
+          <span>Your browser blocked the download. Allow pop-ups for this site, then try again.</span>
+          <button onClick={() => setPopupBlocked(false)} className="font-semibold underline">OK</button>
         </div>
-        <nav className="max-w-2xl mx-auto px-2 flex gap-1 overflow-x-auto" aria-label="Portal sections">
-          {VIEWS.map((v) => (
-            <button
-              key={v.key}
-              onClick={() => go(v.key)}
-              aria-current={view === v.key ? 'page' : undefined}
-              className={`px-3 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px ${
-                view === v.key ? 'border-primary-600 text-primary-700' : 'border-transparent text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </nav>
-      </header>
+      )}
 
-      <main className="max-w-2xl mx-auto px-4 py-5 space-y-4">
-        {popupBlocked && (
-          <div className="text-sm bg-warning-50 border border-warning-200 text-warning-800 rounded-lg p-3 flex justify-between gap-3">
-            <span>Your browser blocked the download window. Allow pop-ups for this site, then try again.</span>
-            <button onClick={() => setPopupBlocked(false)} className="font-medium underline">OK</button>
-          </div>
-        )}
-
-        {view === 'home' && (
-          <>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {me.data?.first_name ? `Hello, ${me.data.first_name}` : 'Your health records'}
-              </h1>
-              {me.data?.patient_number && <p className="text-sm text-gray-500">Patient no. {me.data.patient_number}</p>}
-            </div>
-
-            <Card title="Next visit" action={(visits.data?.length ?? 0) > 0 ? <LinkButton onClick={() => go('visits')}>All visits</LinkButton> : undefined}>
-              <SectionState {...visits} what="visits" />
-              {!visits.loading && !visits.error && (nextVisit ? (
-                <div>
-                  <p className="text-lg font-semibold text-gray-900">{visitLine(nextVisit)}</p>
-                  <p className="text-sm text-gray-600">
-                    {[nextVisit.provider_name && `With ${nextVisit.provider_name}`, nextVisit.reason].filter(Boolean).join(' · ')}
-                  </p>
-                  {branding.clinicPhone && <p className="text-xs text-gray-500 mt-2">Need to change it? Call {branding.clinicPhone}.</p>}
-                </div>
-              ) : <Empty text="No upcoming visits booked." />)}
-            </Card>
-
-            <Card title="Results" action={<LinkButton onClick={() => go('results')}>See all</LinkButton>}>
-              <SectionState {...labs} what="results" />
-              {!labs.loading && !labs.error && (
-                <div className="space-y-1">
-                  <p className="text-sm text-gray-800">
-                    {recentResults.length
-                      ? `${recentResults.length} new result${recentResults.length > 1 ? 's' : ''} in the last 2 weeks.`
-                      : releasedLabs.length ? 'No new results.' : 'No results yet.'}
-                  </p>
-                  {waitingResults > 0 && (
-                    <p className="text-sm text-gray-600">{waitingResults} more being reviewed by your doctor.</p>
-                  )}
-                </div>
-              )}
-            </Card>
-
-            <Card title="Bills" action={<LinkButton onClick={() => go('bills')}>See all</LinkButton>}>
-              <SectionState {...bills} what="bills" />
-              {!bills.loading && !bills.error && bills.data && (
-                bills.data.total_due > 0 ? (
-                  <p className="text-lg font-semibold text-warning-800">You owe {ghs(bills.data.total_due)}</p>
+      {view === 'home' && (
+        <div className="space-y-5 lg:space-y-6">
+          {/* Welcome banner */}
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-500 via-primary-500 to-secondary-500 text-white p-6 lg:p-8 shadow-lg">
+            <div aria-hidden="true" className="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-white/10" />
+            <div aria-hidden="true" className="absolute right-24 -bottom-24 w-56 h-56 rounded-full bg-white/10" />
+            <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+              <div>
+                <p className="text-sm font-medium text-white/85">{greeting()},</p>
+                <h1 className="text-3xl lg:text-4xl font-bold mt-0.5 !text-white">{me.data?.first_name || 'Welcome'}</h1>
+                {me.data?.patient_number && <p className="text-sm text-white/80 mt-1">Patient no. {me.data.patient_number}</p>}
+              </div>
+              <div className="rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20 p-4 lg:min-w-[300px]">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/80">Next visit</p>
+                {visits.loading ? (
+                  <div className="h-5 mt-2 bg-white/20 rounded animate-pulse w-2/3" />
+                ) : nextVisit ? (
+                  <>
+                    <p className="text-lg font-bold mt-1">{visitWhen(nextVisit)}</p>
+                    <p className="text-sm text-white/85">{[nextVisit.provider_name && `With ${nextVisit.provider_name}`, nextVisit.reason].filter(Boolean).join(' · ')}</p>
+                  </>
                 ) : (
-                  <p className="text-sm text-success-700 font-medium">{bills.data.bills.length ? "You're all paid up." : 'No bills yet.'}</p>
-                )
-              )}
+                  <>
+                    <p className="text-base font-semibold mt-1">No visit booked</p>
+                    <div className="mt-3"><CallButton light label="Call to book" /></div>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+
+          {/* At a glance */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <StatTile
+              icon="results" tone="primary" label="Results" loading={labs.loading}
+              value={labs.error ? '—' : recentResults.length ? `${recentResults.length} new` : releasedLabs.length ? `${releasedLabs.length} ready` : 'None yet'}
+              hint={waitingResults ? `${waitingResults} with your doctor` : releasedLabs.length ? 'Up to date' : undefined}
+              onClick={() => go('results')}
+            />
+            <StatTile
+              icon="bills" tone={totalDue > 0 ? 'warning' : 'success'} label="Balance" loading={bills.loading}
+              value={bills.error ? '—' : totalDue > 0 ? ghs(totalDue) : bills.data?.bills.length ? 'All paid' : 'No bills'}
+              hint={totalDue > 0 ? 'Pay at the front desk' : bills.data?.bills.length ? 'Nothing owing' : undefined}
+              onClick={() => go('bills')}
+            />
+            <StatTile
+              icon="medicines" tone="secondary" label="Medicines" loading={meds.loading}
+              value={meds.error ? '—' : currentMeds.length ? `${currentMeds.length} current` : 'None'}
+              hint={currentMeds[0]?.medication_name}
+              onClick={() => go('medicines')}
+            />
+            <StatTile
+              icon="visits" tone="primary" label="Visits" loading={visits.loading}
+              value={visits.error ? '—' : upcoming.length ? `${upcoming.length} upcoming` : 'None booked'}
+              hint={pastVisits.length ? `${pastVisits.length} past visit${pastVisits.length > 1 ? 's' : ''}` : undefined}
+              onClick={() => go('visits')}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
+            <Card title="Latest results" icon="results" className="lg:col-span-2" action={(labs.data?.length ?? 0) > 0 ? <LinkButton onClick={() => go('results')}>See all</LinkButton> : undefined}>
+              <SectionState {...labs} what="results" />
+              {!labs.loading && !labs.error && (labs.data?.length ? (
+                <div className="space-y-3">
+                  {labs.data.slice(0, 3).map((l) => <LabCard key={l.id} lab={l} me={me.data} onPopupBlocked={onPopupBlocked} />)}
+                </div>
+              ) : (
+                <EmptyState icon="results" title="No results yet" text="When your doctor orders a test, you'll follow it here — from the lab to your doctor's review." />
+              ))}
             </Card>
 
-            <Card title="Medicines" action={(meds.data?.length ?? 0) > 0 ? <LinkButton onClick={() => go('medicines')}>See all</LinkButton> : undefined}>
-              <SectionState {...meds} what="medicines" />
-              {!meds.loading && !meds.error && (currentMeds.length ? (
-                <ul className="space-y-1">
-                  {currentMeds.slice(0, 3).map((m) => (
-                    <li key={m.id} className="text-sm text-gray-800">
-                      <span className="font-medium">{m.medication_name}</span>
-                      {[m.dosage, m.frequency].filter(Boolean).length > 0 && (
-                        <span className="text-gray-500"> · {[m.dosage, m.frequency].filter(Boolean).join(', ')}</span>
-                      )}
-                    </li>
-                  ))}
-                  {currentMeds.length > 3 && <li className="text-sm text-gray-500">and {currentMeds.length - 3} more</li>}
-                </ul>
-              ) : <Empty text="No current medicines." />)}
-            </Card>
+            <div className="space-y-5 lg:space-y-6">
+              <Card title="Your medicines" icon="medicines" action={(meds.data?.length ?? 0) > 0 ? <LinkButton onClick={() => go('medicines')}>All</LinkButton> : undefined}>
+                <SectionState {...meds} what="medicines" />
+                {!meds.loading && !meds.error && (currentMeds.length ? (
+                  <ul className="space-y-2.5">
+                    {currentMeds.slice(0, 4).map((m) => (
+                      <li key={m.id} className="flex items-start gap-3">
+                        <span className="mt-1.5 w-2 h-2 rounded-full bg-secondary-400 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-text-primary truncate">{m.medication_name}</p>
+                          <p className="text-xs text-text-secondary">{[m.dosage, m.frequency].filter(Boolean).join(' · ') || 'As directed'}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyState icon="medicines" title="No current medicines" />
+                ))}
+              </Card>
 
-            <Card title="Need help?">
-              <p className="text-sm text-gray-600 mb-3">
-                Questions about your results, bills or medicines? We're happy to help.
-                {branding.clinicAddress ? ` ${branding.clinicAddress}.` : ''}
-              </p>
-              {callButton}
-              <p className="text-xs text-gray-500 mt-3">In an emergency, go to the nearest emergency room.</p>
-            </Card>
-          </>
-        )}
+              <section className="rounded-2xl bg-gradient-to-br from-secondary-50 to-primary-50 border border-secondary-100 p-5">
+                <h3 className="font-semibold text-text-primary">Need help?</h3>
+                <p className="text-sm text-text-secondary mt-1">
+                  Questions about results, bills or medicines? Our team is happy to help.
+                </p>
+                {branding.clinicAddress && <p className="text-xs text-text-secondary mt-2">{branding.clinicAddress}</p>}
+                <div className="mt-4"><CallButton /></div>
+                <p className="text-xs text-text-secondary mt-3">In an emergency, go to the nearest emergency room.</p>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
 
-        {view === 'results' && (
-          <>
-            <Card title="Lab results">
+      {view === 'results' && (
+        <>
+          <PageHeader title="Results" subtitle="Lab tests appear once your doctor has reviewed them, or after 3 days at the latest." />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 lg:gap-6 items-start">
+            <ListSection title="Lab tests" icon="results">
               <SectionState {...labs} what="lab results" />
               {!labs.loading && !labs.error && (labs.data?.length ? (
                 <div className="space-y-3">
                   {labs.data.map((l) => <LabCard key={l.id} lab={l} me={me.data} onPopupBlocked={onPopupBlocked} />)}
                 </div>
-              ) : <Empty text="No lab tests yet." />)}
-              <p className="text-xs text-gray-500 mt-3">
-                Results appear here once your doctor has reviewed them, or after 3 days at the latest.
-              </p>
-            </Card>
-            <Card title="Scans and X-rays">
+              ) : <Card><EmptyState icon="results" title="No lab tests yet" /></Card>)}
+            </ListSection>
+            <ListSection title="Scans and X-rays" icon="results">
               <SectionState {...imaging} what="scans" />
               {!imaging.loading && !imaging.error && (imaging.data?.length ? (
                 <div className="space-y-3">{imaging.data.map((s) => <ImagingCard key={s.id} scan={s} />)}</div>
-              ) : <Empty text="No scans or X-rays yet." />)}
-            </Card>
-          </>
-        )}
+              ) : <Card><EmptyState icon="results" title="No scans or X-rays yet" /></Card>)}
+            </ListSection>
+          </div>
+        </>
+      )}
 
-        {view === 'bills' && (
-          <Card title="Bills">
-            <SectionState {...bills} what="bills" />
-            {!bills.loading && !bills.error && bills.data && (
-              <>
-                <div className={`rounded-lg p-3 mb-3 ${bills.data.total_due > 0 ? 'bg-warning-50 text-warning-800' : 'bg-success-50 text-success-700'}`}>
-                  <p className="font-semibold">
-                    {bills.data.total_due > 0 ? `Total you owe: ${ghs(bills.data.total_due)}` : "You're all paid up."}
-                  </p>
-                  {bills.data.total_due > 0 && <p className="text-sm">Pay at the front desk on your next visit, or call us to arrange payment.</p>}
-                </div>
+      {view === 'bills' && (
+        <>
+          <PageHeader title="Bills" subtitle="Every visit's bill, what your insurance or company covers, and what you've paid." />
+          <SectionState {...bills} what="bills" />
+          {!bills.loading && !bills.error && bills.data && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6 items-start">
+              <section className={`rounded-2xl p-5 text-white shadow-lg lg:order-2 ${totalDue > 0 ? 'bg-gradient-to-br from-warning-500 to-secondary-500' : 'bg-gradient-to-br from-success-500 to-primary-500'}`}>
+                <p className="text-sm font-medium text-white/85">{totalDue > 0 ? 'You owe' : 'Balance'}</p>
+                <p className="text-3xl font-bold mt-1">{totalDue > 0 ? ghs(totalDue) : 'All paid up'}</p>
+                <p className="text-sm text-white/85 mt-2">
+                  {totalDue > 0 ? 'Pay at the front desk on your next visit, or call us to arrange payment.' : 'Thank you — nothing is outstanding.'}
+                </p>
+                {totalDue > 0 && <div className="mt-4"><CallButton light /></div>}
+              </section>
+              <div className="lg:col-span-2 lg:order-1">
                 {bills.data.bills.length ? (
                   <div className="space-y-3">
                     {bills.data.bills.map((b) => <BillCard key={b.id} bill={b} me={me.data} onPopupBlocked={onPopupBlocked} />)}
                   </div>
-                ) : <Empty text="No bills yet." />}
-              </>
-            )}
-          </Card>
-        )}
+                ) : (
+                  <Card><EmptyState icon="bills" title="No bills yet" /></Card>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
-        {view === 'medicines' && (
-          <>
-            <Card title="Current medicines">
+      {view === 'medicines' && (
+        <>
+          <PageHeader title="Medicines" subtitle="What you're taking now, and what you've had before." />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+            <Card title="Current" icon="medicines">
               <SectionState {...meds} what="medicines" />
               {!meds.loading && !meds.error && (currentMeds.length ? (
-                <ul className="divide-y divide-gray-100">
+                <ul className="space-y-3">
                   {currentMeds.map((m) => (
-                    <li key={m.id} className="py-3">
-                      <p className="font-medium text-gray-900">{m.medication_name}</p>
-                      <p className="text-sm text-gray-600">{[m.dosage, m.frequency, m.route].filter(Boolean).join(' · ')}</p>
-                      <p className="text-xs text-gray-500">
-                        {m.prescribed_by ? `Prescribed by ${m.prescribed_by}` : ''}
-                        {m.end_date ? `${m.prescribed_by ? ' · ' : ''}Until ${fmtDate(m.end_date)}` : ''}
+                    <li key={m.id} className="rounded-xl bg-gray-50 p-3">
+                      <p className="font-semibold text-text-primary">{m.medication_name}</p>
+                      <p className="text-sm text-text-secondary">{[m.dosage, m.frequency, m.route].filter(Boolean).join(' · ') || 'As directed'}</p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        {[m.prescribed_by && `Prescribed by ${m.prescribed_by}`, m.end_date && `Until ${fmtDate(m.end_date)}`].filter(Boolean).join(' · ')}
                       </p>
                     </li>
                   ))}
                 </ul>
-              ) : <Empty text="No current medicines." />)}
+              ) : <EmptyState icon="medicines" title="No current medicines" />)}
               {!meds.loading && !meds.error && currentMeds.length > 0 && (
-                <p className="text-xs text-gray-500 mt-3">Running low? Call the clinic or visit our pharmacy for a refill.</p>
+                <p className="text-xs text-text-secondary mt-4">Running low? Call the clinic or visit our pharmacy for a refill.</p>
               )}
             </Card>
-            {pastMeds.length > 0 && (
-              <Card title="Past medicines">
+            <Card title="Past" icon="medicines">
+              {!meds.loading && !meds.error && (pastMeds.length ? (
                 <ul className="divide-y divide-gray-100">
                   {pastMeds.map((m) => (
-                    <li key={m.id} className="py-2">
-                      <p className="text-sm text-gray-800">{m.medication_name}</p>
-                      <p className="text-xs text-gray-500">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}{m.start_date ? ` · from ${fmtDate(m.start_date)}` : ''}</p>
+                    <li key={m.id} className="py-2.5">
+                      <p className="text-sm font-medium text-text-primary">{m.medication_name}</p>
+                      <p className="text-xs text-text-secondary">{[m.dosage, m.frequency].filter(Boolean).join(' · ')}{m.start_date ? ` · from ${fmtDate(m.start_date)}` : ''}</p>
                     </li>
                   ))}
                 </ul>
-              </Card>
-            )}
-          </>
-        )}
+              ) : <EmptyState icon="medicines" title="Nothing here yet" />)}
+            </Card>
+          </div>
+        </>
+      )}
 
-        {view === 'visits' && (
-          <>
-            <Card title="Upcoming visits">
+      {view === 'visits' && (
+        <>
+          <PageHeader title="Visits" subtitle="Your upcoming appointments and the visits you've had with us." />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 items-start">
+            <Card title="Upcoming" icon="visits">
               <SectionState {...visits} what="visits" />
               {!visits.loading && !visits.error && (upcoming.length ? (
-                <ul className="divide-y divide-gray-100">
+                <ul className="space-y-3">
                   {upcoming.map((a) => (
-                    <li key={a.id} className="py-3">
-                      <p className="font-medium text-gray-900">{visitLine(a)}</p>
-                      <p className="text-sm text-gray-600">{[a.provider_name && `With ${a.provider_name}`, a.reason].filter(Boolean).join(' · ')}</p>
+                    <li key={a.id} className="flex items-center gap-3 rounded-xl bg-primary-50/60 p-3">
+                      <span className="w-12 h-12 rounded-xl bg-white text-primary-600 flex flex-col items-center justify-center shadow-sm shrink-0">
+                        <span className="text-[10px] font-semibold uppercase leading-none">{new Date(a.appointment_date).toLocaleDateString('en-GB', { month: 'short' })}</span>
+                        <span className="text-lg font-bold leading-none mt-0.5">{new Date(a.appointment_date).getDate()}</span>
+                      </span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-text-primary">{visitWhen(a)}</p>
+                        <p className="text-sm text-text-secondary truncate">{[a.provider_name && `With ${a.provider_name}`, a.reason].filter(Boolean).join(' · ')}</p>
+                      </div>
                     </li>
                   ))}
                 </ul>
-              ) : <Empty text="No upcoming visits booked." />)}
-              {branding.clinicPhone && <p className="text-xs text-gray-500 mt-3">To book or change a visit, call {branding.clinicPhone}.</p>}
+              ) : (
+                <EmptyState icon="visits" title="No visits booked" text="Call us and we'll find a time that suits you." action={<CallButton label="Call to book" />} />
+              ))}
             </Card>
-            {pastVisits.length > 0 && (
-              <Card title="Past visits">
+            <Card title="Past visits" icon="visits">
+              {!visits.loading && !visits.error && (pastVisits.length ? (
                 <ul className="divide-y divide-gray-100">
                   {pastVisits.map((a) => {
                     const st = VISIT_STATUS[a.status] || { text: a.status, cls: 'bg-gray-100 text-gray-700' };
                     return (
-                      <li key={a.id} className="py-2 flex items-start justify-between gap-3">
+                      <li key={a.id} className="py-3 flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm text-gray-900">{fmtDate(a.appointment_date)}</p>
-                          <p className="text-xs text-gray-500">{[a.provider_name, a.reason].filter(Boolean).join(' · ')}</p>
+                          <p className="text-sm font-semibold text-text-primary">{fmtDate(a.appointment_date)}</p>
+                          <p className="text-xs text-text-secondary truncate">{[a.provider_name, a.reason].filter(Boolean).join(' · ')}</p>
                         </div>
-                        <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${st.cls}`}>{st.text}</span>
+                        <Chip className={st.cls}>{st.text}</Chip>
                       </li>
                     );
                   })}
                 </ul>
-              </Card>
-            )}
-          </>
-        )}
-      </main>
-    </div>
+              ) : <EmptyState icon="visits" title="No past visits" />)}
+            </Card>
+          </div>
+        </>
+      )}
+    </PortalShell>
   );
 };
 
