@@ -118,14 +118,14 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
   const to = Math.min(page * PAGE_SIZE, total);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
       {error ? (
         <div className="p-8 text-center">
-          <p className="text-danger-700 font-semibold">Couldn't load the contact list</p>
-          <p className="text-gray-600 text-sm mt-1">{error}</p>
+          <p className="text-ds-critical-text font-semibold">Couldn't load the contact list</p>
+          <p className="text-ds-text-secondary text-sm mt-1">{error}</p>
           <button
             onClick={() => setReloadKey((k) => k + 1)}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+            className="mt-4 px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium"
           >
             Try again
           </button>
@@ -134,41 +134,41 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
         <>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-ds-subtle">
                 <tr>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Name</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Phone</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Email</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Location</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Gender</th>
-                  <th className="text-left px-3 py-2 font-semibold text-gray-700">Last visit</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Name</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Phone</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Email</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Location</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Gender</th>
+                  <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Last visit</th>
                   <th className="px-3 py-2"><span className="sr-only">Marketing</span></th>
                 </tr>
               </thead>
               <tbody className={loading ? 'opacity-50' : ''}>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-gray-500">
+                    <td colSpan={7} className="py-12 text-center text-ds-text-muted">
                       {loading ? 'Loading…' : optedOut ? 'No one has opted out.' : 'No contacts match.'}
                     </td>
                   </tr>
                 ) : (
                   rows.map((c) => (
-                    <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
+                    <tr key={c.id} className="border-t border-ds-border hover:bg-ds-subtle">
                       <td className="px-3 py-2">
-                        <div className="text-gray-900 font-medium">{`${c.first_name} ${c.last_name}`.trim() || '—'}</div>
-                        <div className="text-xs text-gray-400">{c.patient_number}</div>
+                        <div className="text-ds-text font-medium">{`${c.first_name} ${c.last_name}`.trim() || '—'}</div>
+                        <div className="text-xs text-ds-text-muted">{c.patient_number}</div>
                       </td>
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-700">{c.phone || '—'}</td>
-                      <td className="px-3 py-2 text-gray-700 break-all">{c.email || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{[c.city, c.region].filter(Boolean).join(', ') || '—'}</td>
-                      <td className="px-3 py-2 text-gray-600 capitalize">{c.gender || '—'}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-600">{fmtDate(c.last_visit)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-ds-text-secondary">{c.phone || '—'}</td>
+                      <td className="px-3 py-2 text-ds-text-secondary break-all">{c.email || '—'}</td>
+                      <td className="px-3 py-2 text-ds-text-secondary">{[c.city, c.region].filter(Boolean).join(', ') || '—'}</td>
+                      <td className="px-3 py-2 text-ds-text-secondary capitalize">{c.gender || '—'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-ds-text-secondary">{fmtDate(c.last_visit)}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button
                           onClick={() => toggleOptOut(c)}
                           disabled={busyId === c.id}
-                          className={`text-xs hover:underline disabled:opacity-50 ${optedOut ? 'text-primary-600' : 'text-gray-500'}`}
+                          className={`text-xs hover:underline disabled:opacity-50 ${optedOut ? 'text-ds-accent-text' : 'text-ds-text-muted'}`}
                           aria-label={optedOut ? `Add ${c.first_name} ${c.last_name} back to marketing` : `Stop marketing to ${c.first_name} ${c.last_name}`}
                         >
                           {optedOut ? 'Add back' : 'No marketing'}
@@ -180,7 +180,7 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
               </tbody>
             </table>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-ds-border text-sm text-ds-text-secondary">
             <span>
               {total === 0 ? '0 contacts' : `${from.toLocaleString()}–${to.toLocaleString()} of ${total.toLocaleString()}`}
             </span>
@@ -188,7 +188,7 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1 || loading}
-                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+                className="px-3 py-1 border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-40"
               >
                 Previous
               </button>
@@ -198,7 +198,7 @@ const MarketingContactList: React.FC<Props> = ({ since, search, has, optedOut, o
               <button
                 onClick={() => setPage((p) => Math.min(pages, p + 1))}
                 disabled={page >= pages || loading}
-                className="px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40"
+                className="px-3 py-1 border border-ds-border-control rounded-lg hover:bg-ds-subtle disabled:opacity-40"
               >
                 Next
               </button>

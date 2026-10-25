@@ -177,13 +177,13 @@ const PatientAutoTexts: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="py-12 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="py-12 text-center text-ds-text-muted">Loading…</div>;
   if (loadFailed) {
     return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
-        <p className="font-semibold text-gray-900">Couldn't load the automatic text settings.</p>
-        <p className="text-sm text-gray-600 mt-1">Nothing has been changed. Check your connection and try again.</p>
-        <button onClick={() => { setLoading(true); load(); }} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
+      <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6 text-center">
+        <p className="font-semibold text-ds-text">Couldn't load the automatic text settings.</p>
+        <p className="text-sm text-ds-text-secondary mt-1">Nothing has been changed. Check your connection and try again.</p>
+        <button onClick={() => { setLoading(true); load(); }} className="mt-4 px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover">
           Try again
         </button>
       </div>
@@ -194,8 +194,8 @@ const PatientAutoTexts: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Automatic texts</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-semibold text-ds-text">Automatic texts</h2>
+          <p className="text-sm text-ds-text-secondary mt-1">
             Reminders and notices sent to patients without anyone clicking. Each type is off until you turn it on.
             Patients marked “No reminder texts” on their record are always skipped. Texts never name a test or medication.
           </p>
@@ -203,14 +203,14 @@ const PatientAutoTexts: React.FC = () => {
         <button
           onClick={runNow}
           disabled={running}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+          className="px-4 py-2 text-sm font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
         >
           {running ? 'Sending…' : 'Send today’s reminders now'}
         </button>
       </div>
 
       {env && (!env.sms_configured || env.sandbox || !env.sender_approved) && (
-        <div className="p-3 text-sm rounded-lg bg-warning-50 border border-warning-200 text-warning-800">
+        <div className="p-3 text-sm rounded-lg bg-ds-warning-soft border border-ds-warning-border text-ds-warning-text">
           {!env.sms_configured
             ? 'No SMS provider is configured here — texts will be logged as failed.'
             : env.sandbox
@@ -219,16 +219,16 @@ const PatientAutoTexts: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 divide-y divide-gray-200">
+      <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border divide-y divide-ds-border">
         {KINDS.map((k) => {
           const key = `patient_sms_${k.kind}_enabled`;
           const on = settings[key] === 'true';
           return (
             <div key={k.kind} className="px-6 py-4 flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="font-medium text-gray-900">{k.label}</div>
-                <div className="text-sm text-gray-600">{k.when}</div>
-                <div className="text-xs text-gray-500 mt-1 italic">“{k.example}”</div>
+                <div className="font-medium text-ds-text">{k.label}</div>
+                <div className="text-sm text-ds-text-secondary">{k.when}</div>
+                <div className="text-xs text-ds-text-muted mt-1 italic">“{k.example}”</div>
               </div>
               <button
                 role="switch"
@@ -236,48 +236,48 @@ const PatientAutoTexts: React.FC = () => {
                 aria-label={k.label}
                 onClick={() => toggle(k.kind)}
                 disabled={saving === key}
-                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-success-600' : 'bg-gray-300'}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-ds-success' : 'bg-ds-border-control'}`}
               >
-                <span className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                <span className={`inline-block h-5 w-5 mt-0.5 rounded-full bg-ds-surface shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           );
         })}
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Text details</h3>
+      <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
+        <h3 className="font-semibold text-ds-text mb-4">Text details</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="text-sm text-gray-700">
+          <label className="text-sm text-ds-text-secondary">
             Clinic name in texts
             <input
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
               value={details.clinicName}
               onChange={(e) => setDetails((d) => ({ ...d, clinicName: e.target.value }))}
             />
           </label>
-          <label className="text-sm text-gray-700">
+          <label className="text-sm text-ds-text-secondary">
             Phone patients should call
             <input
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
               value={details.clinicPhone}
               onChange={(e) => setDetails((d) => ({ ...d, clinicPhone: e.target.value }))}
             />
           </label>
-          <label className="text-sm text-gray-700">
+          <label className="text-sm text-ds-text-secondary">
             Follow-up reminder: days before the visit
             <input
               type="number" min={1} max={14}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
               value={details.followUpDays}
               onChange={(e) => setDetails((d) => ({ ...d, followUpDays: e.target.value }))}
             />
           </label>
-          <label className="text-sm text-gray-700">
+          <label className="text-sm text-ds-text-secondary">
             Refill reminder: days before it runs out
             <input
               type="number" min={1} max={14}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
               value={details.refillDays}
               onChange={(e) => setDetails((d) => ({ ...d, refillDays: e.target.value }))}
             />
@@ -287,21 +287,21 @@ const PatientAutoTexts: React.FC = () => {
           <button
             onClick={saveDetails}
             disabled={saving === 'details'}
-            className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-ds-accent-text bg-ds-accent-soft border border-ds-accent/40 rounded-lg hover:bg-ds-accent-soft disabled:opacity-50"
           >
             {saving === 'details' ? 'Saving…' : 'Save details'}
           </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-        <div className="px-6 py-4 font-semibold text-gray-900 border-b border-gray-200">Recent automatic texts</div>
+      <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
+        <div className="px-6 py-4 font-semibold text-ds-text border-b border-ds-border">Recent automatic texts</div>
         {log.length === 0 ? (
-          <div className="px-4 pb-6 text-sm text-gray-500">None sent yet.</div>
+          <div className="px-4 pb-6 text-sm text-ds-text-muted">None sent yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">
+              <thead className="bg-ds-subtle text-left text-xs font-medium text-ds-text-muted uppercase">
                 <tr>
                   <th className="px-4 py-2">When</th>
                   <th className="px-4 py-2">Patient</th>
@@ -316,7 +316,7 @@ const PatientAutoTexts: React.FC = () => {
                     <td className="px-4 py-2 whitespace-nowrap">{fmt(r.created_at)}</td>
                     <td className="px-4 py-2">
                       {r.patient_name || '—'}
-                      {r.patient_number && <span className="text-gray-500"> · {r.patient_number}</span>}
+                      {r.patient_number && <span className="text-ds-text-muted"> · {r.patient_number}</span>}
                     </td>
                     <td className="px-4 py-2">{KIND_LABEL[r.kind] || r.kind}{r.channel === 'email' ? ' (email)' : ''}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{r.destination || '—'}</td>
@@ -324,10 +324,10 @@ const PatientAutoTexts: React.FC = () => {
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           r.status === 'sent'
-                            ? 'bg-success-100 text-success-800'
+                            ? 'bg-ds-success-soft text-ds-success-text'
                             : r.status === 'failed'
-                              ? 'bg-danger-100 text-danger-800'
-                              : 'bg-gray-100 text-gray-700'
+                              ? 'bg-ds-critical-soft text-ds-critical-text'
+                              : 'bg-ds-subtle text-ds-text-secondary'
                         }`}
                         title={r.error || ''}
                       >

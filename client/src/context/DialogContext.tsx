@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { dsClass } from '../utils/dsClass';
 import type { ReactNode } from 'react';
 
 type DialogVariant = 'default' | 'warning' | 'danger' | 'success';
@@ -66,7 +67,7 @@ const variantStyles: Record<DialogVariant, { btn: string; iconBg: string; iconCo
     iconBg: 'bg-primary-100',
     iconColor: 'text-primary-600',
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className={dsClass("w-5 h-5")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
@@ -76,7 +77,7 @@ const variantStyles: Record<DialogVariant, { btn: string; iconBg: string; iconCo
     iconBg: 'bg-warning-100',
     iconColor: 'text-warning-600',
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className={dsClass("w-5 h-5")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3l-6.93-12a2 2 0 00-3.48 0l-6.93 12a2 2 0 001.74 3z" />
       </svg>
     ),
@@ -86,7 +87,7 @@ const variantStyles: Record<DialogVariant, { btn: string; iconBg: string; iconCo
     iconBg: 'bg-danger-100',
     iconColor: 'text-danger-600',
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className={dsClass("w-5 h-5")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M4.93 19h14.14a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.19 16a2 2 0 001.74 3z" />
       </svg>
     ),
@@ -96,7 +97,7 @@ const variantStyles: Record<DialogVariant, { btn: string; iconBg: string; iconCo
     iconBg: 'bg-success-100',
     iconColor: 'text-success-600',
     icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className={dsClass("w-5 h-5")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
       </svg>
     ),
@@ -219,30 +220,30 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       {children}
       {dialog && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          className={dsClass("fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4")}
           role="dialog"
           aria-modal="true"
           onClick={dialog.kind === 'alert' ? handleConfirm : handleCancel}
         >
           <div
-            className="bg-white rounded-xl shadow-2xl w-full max-w-md"
+            className={dsClass("bg-white rounded-xl shadow-2xl w-full max-w-md")}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5">
-              <div className="flex items-start gap-3">
+            <div className={dsClass("p-5")}>
+              <div className={dsClass("flex items-start gap-3")}>
                 <div
-                  className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${variantStyles[dialog.variant].iconBg} ${variantStyles[dialog.variant].iconColor}`}
+                  className={dsClass(`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${variantStyles[dialog.variant].iconBg} ${variantStyles[dialog.variant].iconColor}`)}
                 >
                   {variantStyles[dialog.variant].icon}
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className={dsClass("min-w-0 flex-1")}>
                   {dialog.title && (
-                    <h3 className="text-base font-semibold text-gray-900 mb-1">{dialog.title}</h3>
+                    <h3 className={dsClass("text-base font-semibold text-gray-900 mb-1")}>{dialog.title}</h3>
                   )}
-                  <div className="text-sm text-gray-600 whitespace-pre-line">{dialog.message}</div>
+                  <div className={dsClass("text-sm text-gray-600 whitespace-pre-line")}>{dialog.message}</div>
 
                   {dialog.kind === 'prompt' && (
-                    <div className="mt-3">
+                    <div className={dsClass("mt-3")}>
                       {dialog.multiline ? (
                         <textarea
                           ref={(el) => {
@@ -255,9 +256,9 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                           }}
                           placeholder={dialog.placeholder}
                           rows={3}
-                          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y ${
+                          className={dsClass(`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 resize-y ${
                             inputError ? 'border-danger-300' : 'border-gray-300'
-                          }`}
+                          }`)}
                         />
                       ) : (
                         <input
@@ -271,31 +272,31 @@ export const DialogProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                             if (inputError) setInputError(null);
                           }}
                           placeholder={dialog.placeholder}
-                          className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
+                          className={dsClass(`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 ${
                             inputError ? 'border-danger-300' : 'border-gray-300'
-                          }`}
+                          }`)}
                         />
                       )}
                       {inputError && (
-                        <p className="mt-1 text-xs text-danger-600">{inputError}</p>
+                        <p className={dsClass("mt-1 text-xs text-danger-600")}>{inputError}</p>
                       )}
                     </div>
                   )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 rounded-b-xl">
+            <div className={dsClass("flex items-center justify-end gap-2 px-5 py-3 bg-gray-50 rounded-b-xl")}>
               {dialog.kind !== 'alert' && (
                 <button
                   onClick={handleCancel}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
+                  className={dsClass("px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400")}
                 >
                   {dialog.cancelLabel}
                 </button>
               )}
               <button
                 onClick={handleConfirm}
-                className={`px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${variantStyles[dialog.variant].btn}`}
+                className={dsClass(`px-4 py-2 text-sm font-semibold text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 ${variantStyles[dialog.variant].btn}`)}
               >
                 {dialog.confirmLabel}
               </button>

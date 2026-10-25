@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 export type ColorSchemeChoice = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'ds-color-scheme';
+const CHANGE_EVENT = 'ds-color-scheme-change';
 
 const readChoice = (): ColorSchemeChoice => {
   try {
@@ -26,6 +27,18 @@ export function useColorScheme() {
   const [choice, setChoiceState] = useState<ColorSchemeChoice>(readChoice);
   const [systemDark, setSystemDark] = useState<boolean>(systemPrefersDark);
 
+  // Every component using this hook (a screen and its frame's toggle) stays in
+  // step: a change in one is broadcast to the others, and to other tabs.
+  useEffect(() => {
+    const sync = () => setChoiceState(readChoice());
+    window.addEventListener(CHANGE_EVENT, sync);
+    window.addEventListener('storage', sync);
+    return () => {
+      window.removeEventListener(CHANGE_EVENT, sync);
+      window.removeEventListener('storage', sync);
+    };
+  }, []);
+
   useEffect(() => {
     if (!window.matchMedia) return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -41,6 +54,7 @@ export function useColorScheme() {
     } catch {
       /* private mode: the choice just isn't remembered */
     }
+    window.dispatchEvent(new Event(CHANGE_EVENT));
   }, []);
 
   const isDark = choice === 'dark' || (choice === 'system' && systemDark);

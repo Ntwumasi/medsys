@@ -1,0 +1,32 @@
+/*
+ * react-big-calendar on the "Care" tokens (screens that call useDesignSystemPage).
+ * Scoped under html[data-ds="on"] so calendars on unmigrated screens are unchanged.
+ */
+html[data-ds='on'] .rbc-calendar { color: rgb(var(--ds-text)); font-family: var(--ds-font-sans); }
+html[data-ds='on'] .rbc-month-view,
+html[data-ds='on'] .rbc-time-view,
+html[data-ds='on'] .rbc-agenda-view { background: rgb(var(--ds-surface)); border-color: rgb(var(--ds-border)); border-radius: 18px; overflow: hidden; }
+html[data-ds='on'] .rbc-header,
+html[data-ds='on'] .rbc-day-bg + .rbc-day-bg,
+html[data-ds='on'] .rbc-month-row + .rbc-month-row,
+html[data-ds='on'] .rbc-time-content,
+html[data-ds='on'] .rbc-time-header-content,
+html[data-ds='on'] .rbc-timeslot-group,
+html[data-ds='on'] .rbc-day-slot .rbc-time-slot,
+html[data-ds='on'] .rbc-agenda-view table.rbc-agenda-table,
+html[data-ds='on'] .rbc-agenda-view table.rbc-agenda-table tbody > tr > td + td,
+html[data-ds='on'] .rbc-agenda-view table.rbc-agenda-table tbody > tr + tr { border-color: rgb(var(--ds-border)); }
+html[data-ds='on'] .rbc-header { padding: 8px 4px; font-weight: 700; color: rgb(var(--ds-text-muted)); }
+html[data-ds='on'] .rbc-off-range-bg { background: rgb(var(--ds-subtle)); }
+html[data-ds='on'] .rbc-off-range { color: rgb(var(--ds-text-muted)); }
+html[data-ds='on'] .rbc-today { background: rgb(var(--ds-accent-soft)); }
+html[data-ds='on'] .rbc-event,
+html[data-ds='on'] .rbc-day-slot .rbc-background-event { background: rgb(var(--ds-accent)); color: rgb(var(--ds-on-accent)); border-radius: 8px; }
+html[data-ds='on'] .rbc-show-more { color: rgb(var(--ds-accent-text)); background: transparent; }
+html[data-ds='on'] .rbc-toolbar button { color: rgb(var(--ds-text)); border-color: rgb(var(--ds-border-control)); min-height: 44px; padding: 0 14px; }
+html[data-ds='on'] .rbc-toolbar button:hover,
+html[data-ds='on'] .rbc-toolbar button:focus { background: rgb(var(--ds-subtle)); }
+html[data-ds='on'] .rbc-toolbar button.rbc-active { background: rgb(var(--ds-accent-soft)); color: rgb(var(--ds-accent-text)); box-shadow: none; }
+html[data-ds='on'] .rbc-time-header-gutter,
+html[data-ds='on'] .rbc-time-gutter { color: rgb(var(--ds-text-muted)); }
+html[data-ds='on'] .rbc-current-time-indicator { background: rgb(var(--ds-critical)); }
