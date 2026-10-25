@@ -1,0 +1,326 @@
+{
+  "$description": "MedSys design system — direction C · Care (hyperlegible, warm, touch-first). Source of truth for client/src/styles/tokens.css and the `ds` namespace in tailwind.config.cjs. Contrast ratios are WCAG 2.x, measured on the surface each pair is used on. See docs/design-system.md.",
+  "version": "1.0.0",
+  "color": {
+    "light": {
+      "canvas": {
+        "value": "#F6F4F1",
+        "use": "App background"
+      },
+      "surface": {
+        "value": "#FFFFFF",
+        "use": "Cards, panels, inputs"
+      },
+      "subtle": {
+        "value": "#F3EFEA",
+        "use": "Table header, wells, skeletons"
+      },
+      "border": {
+        "value": "#E5DED4",
+        "use": "Hairline dividers (decorative, 1.33:1)"
+      },
+      "borderControl": {
+        "value": "#8C857C",
+        "use": "Input / select / checkbox outlines (3.65:1)"
+      },
+      "text": {
+        "value": "#1C1917",
+        "use": "Primary text (17.5:1)"
+      },
+      "textSecondary": {
+        "value": "#57534E",
+        "use": "Secondary text (7.6:1)"
+      },
+      "textMuted": {
+        "value": "#6B6560",
+        "use": "Labels, metadata (5.7:1)"
+      },
+      "accent": {
+        "value": "#0F766E",
+        "use": "Tenant accent: primary actions, focus, selection (5.5:1)",
+        "tenant": true
+      },
+      "accentHover": {
+        "value": "#0B5E57",
+        "tenant": true
+      },
+      "onAccent": {
+        "value": "#FFFFFF",
+        "use": "Text on accent (5.5:1)",
+        "tenant": true
+      },
+      "accentSoft": {
+        "value": "#E3F2EF",
+        "use": "Selected nav, chips",
+        "tenant": true
+      },
+      "accentText": {
+        "value": "#0B5E57",
+        "use": "Accent-coloured text on accentSoft (6.6:1)",
+        "tenant": true
+      },
+      "brandPlum": {
+        "value": "#8E4585",
+        "use": "Default brand secondary (avatars, illustration) — never status"
+      },
+      "critical": {
+        "value": "#C8291C",
+        "use": "Critical fill (white text 5.5:1)"
+      },
+      "criticalText": {
+        "value": "#A8261A"
+      },
+      "criticalSoft": {
+        "value": "#FDF0EE"
+      },
+      "criticalBorder": {
+        "value": "#F7C6BE"
+      },
+      "warning": {
+        "value": "#B45309"
+      },
+      "warningText": {
+        "value": "#8A4B07",
+        "use": "on warningSoft 6.3:1"
+      },
+      "warningSoft": {
+        "value": "#FEF5E6"
+      },
+      "warningBorder": {
+        "value": "#F6D69A"
+      },
+      "success": {
+        "value": "#18703F"
+      },
+      "successText": {
+        "value": "#18703F",
+        "use": "on successSoft 5.5:1"
+      },
+      "successSoft": {
+        "value": "#EAF6EE"
+      },
+      "info": {
+        "value": "#1D4ED8"
+      },
+      "infoText": {
+        "value": "#1D4ED8",
+        "use": "on infoSoft 6.0:1"
+      },
+      "infoSoft": {
+        "value": "#EEF3FF"
+      },
+      "focusRing": {
+        "value": "#0F766E",
+        "tenant": true
+      }
+    },
+    "dark": {
+      "canvas": {
+        "value": "#141210"
+      },
+      "surface": {
+        "value": "#1C1A17"
+      },
+      "subtle": {
+        "value": "#24211D"
+      },
+      "border": {
+        "value": "#353029"
+      },
+      "borderControl": {
+        "value": "#766E64",
+        "use": "3.46:1 on surface"
+      },
+      "text": {
+        "value": "#F5F1EB",
+        "use": "15.4:1"
+      },
+      "textSecondary": {
+        "value": "#CBC3B8",
+        "use": "10.0:1"
+      },
+      "textMuted": {
+        "value": "#A9A095",
+        "use": "6.7:1"
+      },
+      "accent": {
+        "value": "#3CC4B3",
+        "use": "8.1:1",
+        "tenant": true
+      },
+      "accentHover": {
+        "value": "#6FDCCB",
+        "tenant": true
+      },
+      "onAccent": {
+        "value": "#062420",
+        "use": "7.6:1",
+        "tenant": true
+      },
+      "accentSoft": {
+        "value": "#20322D",
+        "use": "accent at 14% over surface",
+        "tenant": true
+      },
+      "accentText": {
+        "value": "#6FDCCB",
+        "use": "8.2:1 on accentSoft",
+        "tenant": true
+      },
+      "brandPlum": {
+        "value": "#D49BCB"
+      },
+      "critical": {
+        "value": "#C8291C",
+        "use": "FILL ONLY in dark (white text 5.5:1); never as text"
+      },
+      "criticalText": {
+        "value": "#FFA69C",
+        "use": "8.1:1 on criticalSoft"
+      },
+      "criticalSoft": {
+        "value": "#3B1D18"
+      },
+      "criticalBorder": {
+        "value": "#7B372E"
+      },
+      "warning": {
+        "value": "#F8C76B"
+      },
+      "warningText": {
+        "value": "#F8C76B",
+        "use": "8.5:1 on warningSoft"
+      },
+      "warningSoft": {
+        "value": "#3A2D19"
+      },
+      "warningBorder": {
+        "value": "#66491D"
+      },
+      "success": {
+        "value": "#7FD8A4"
+      },
+      "successText": {
+        "value": "#7FD8A4",
+        "use": "8.1:1 on successSoft"
+      },
+      "successSoft": {
+        "value": "#203023"
+      },
+      "info": {
+        "value": "#9DB8FF"
+      },
+      "infoText": {
+        "value": "#9DB8FF",
+        "use": "7.2:1 on infoSoft"
+      },
+      "infoSoft": {
+        "value": "#262B3C"
+      },
+      "focusRing": {
+        "value": "#3CC4B3",
+        "tenant": true
+      }
+    }
+  },
+  "font": {
+    "sans": "'Atkinson Hyperlegible Next Variable', 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Devanagari', sans-serif",
+    "mono": "'Atkinson Hyperlegible Mono Variable', 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono', monospace",
+    "weights": [
+      400,
+      500,
+      700
+    ],
+    "hosting": "Self-hosted via @fontsource-variable (OFL-1.1), imported by src/styles/dsFonts.ts from migrated areas only; per-subset unicode-range so browsers fetch only the scripts in use; font-display: swap; system fallback."
+  },
+  "type": {
+    "display": {
+      "size": 32,
+      "line": 40,
+      "weight": 700,
+      "tracking": "-0.01em"
+    },
+    "title": {
+      "size": 22,
+      "line": 30,
+      "weight": 700
+    },
+    "heading": {
+      "size": 17,
+      "line": 24,
+      "weight": 700
+    },
+    "body": {
+      "size": 16,
+      "line": 24,
+      "weight": 400
+    },
+    "small": {
+      "size": 14,
+      "line": 20,
+      "weight": 500
+    },
+    "caption": {
+      "size": 13,
+      "line": 18,
+      "weight": 500,
+      "note": "Minimum size; never below 13px"
+    },
+    "data": {
+      "size": 15,
+      "line": 22,
+      "weight": 500,
+      "family": "mono",
+      "numerals": "tabular-nums"
+    }
+  },
+  "space": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ],
+  "radius": {
+    "sm": 8,
+    "control": 12,
+    "card": 18,
+    "sheet": 24,
+    "pill": 9999
+  },
+  "size": {
+    "touchMin": 44,
+    "control": 48,
+    "controlCompact": 40,
+    "navItem": 48,
+    "sidebar": 248,
+    "patientBanner": 72
+  },
+  "shadow": {
+    "none": "none",
+    "card": "0 1px 2px rgba(28,25,23,0.04), 0 6px 20px rgba(28,25,23,0.06)",
+    "overlay": "0 24px 60px rgba(28,25,23,0.18)",
+    "cardDark": "0 1px 2px rgba(0,0,0,0.30)",
+    "overlayDark": "0 24px 60px rgba(0,0,0,0.55)"
+  },
+  "motion": {
+    "fast": "150ms",
+    "base": "220ms",
+    "slow": "280ms",
+    "easing": "cubic-bezier(0.2, 0, 0, 1)",
+    "exitEasing": "cubic-bezier(0.4, 0, 1, 1)",
+    "reducedMotion": "Opacity fades only; no movement or scale"
+  },
+  "breakpoints": {
+    "phone": 0,
+    "tablet": 768,
+    "desktop": 1024,
+    "wide": 1440
+  }
+}

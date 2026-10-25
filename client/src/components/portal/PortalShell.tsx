@@ -1,4 +1,7 @@
 import React from 'react';
+import '../../styles/dsFonts';
+import { useColorScheme } from '../../hooks/useColorScheme';
+import ColorSchemeToggle from '../ui/ColorSchemeToggle';
 import { branding } from '../../config/branding';
 import { PORTAL_NAV } from './portalNav';
 import type { PortalView } from './portalNav';
@@ -40,42 +43,45 @@ const initials = (name: string) =>
 
 const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, patientName, badges = {}, children }) => {
   const telHref = branding.clinicPhone ? `tel:${branding.clinicPhone.replace(/[^\d+]/g, '')}` : '';
+  const { choice, setChoice, isDark } = useColorScheme();
 
   return (
-    <div className="min-h-screen bg-background relative">
+    // Dark mode is scoped to the portal's own root (see hooks/useColorScheme).
+    <div className={`${isDark ? 'dark ' : ''}min-h-screen bg-ds-canvas text-ds-text font-ds-sans antialiased dark:[color-scheme:dark] relative`}>
       {/* Same ambient background as the staff site */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary-200 opacity-20 blur-3xl" />
-        <div className="absolute top-1/3 right-[-180px] w-[480px] h-[480px] rounded-full bg-secondary-200 opacity-15 blur-3xl" />
-        <div className="absolute bottom-[-200px] left-1/3 w-[520px] h-[520px] rounded-full bg-accent-200 opacity-15 blur-3xl" />
+        <div className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-ds-accent opacity-[0.07] blur-3xl" />
+        <div className="absolute top-1/3 right-[-180px] w-[480px] h-[480px] rounded-full bg-ds-brand-plum opacity-[0.05] blur-3xl" />
+        <div className="absolute bottom-[-200px] left-1/3 w-[520px] h-[520px] rounded-full bg-ds-accent opacity-[0.04] blur-3xl" />
       </div>
 
       <div className="relative z-10">
         <a href="#portal-main" className="skip-to-content">Skip to content</a>
 
         {/* Top bar */}
-        <header className="fixed top-0 left-0 right-0 h-16 bg-surface/90 backdrop-blur border-b border-border z-40 flex items-center px-4 lg:px-6">
+        <header className="fixed top-0 left-0 right-0 h-16 bg-ds-surface/90 backdrop-blur border-b border-ds-border z-40 flex items-center px-4 lg:px-6">
           <button onClick={() => onNavigate('home')} className="flex items-center gap-2 min-w-0" aria-label="Home">
             {branding.clinicLogo ? (
               <img src={branding.clinicLogo} alt={branding.clinicName} className="h-9 w-auto" />
             ) : (
-              <span className="font-bold text-text-primary">{branding.clinicName}</span>
+              <span className="font-bold text-ds-text">{branding.clinicName}</span>
             )}
-            <span className="hidden sm:inline-block ml-2 pl-3 border-l border-border text-sm font-medium text-text-secondary">
+            <span className="hidden sm:inline-block ml-2 pl-3 border-l border-ds-border text-sm font-medium text-ds-text-muted">
               Patient Portal
             </span>
           </button>
           <div className="ml-auto flex items-center gap-3">
+            <ColorSchemeToggle value={choice} onChange={setChoice} />
             <div className="hidden sm:block text-right leading-tight">
-              <p className="text-sm font-semibold text-text-primary">{patientName}</p>
-              <p className="text-xs text-text-secondary">Patient</p>
+              <p className="text-sm font-semibold text-ds-text">{patientName}</p>
+              <p className="text-xs text-ds-text-muted">Patient</p>
             </div>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-ds-accent to-ds-brand-plum dark:from-ds-accent-soft dark:to-ds-subtle flex items-center justify-center text-white dark:text-ds-accent-text font-semibold text-sm shadow-ds-card">
               {initials(patientName)}
             </div>
             <button
               onClick={onSignOut}
-              className="p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-600 lg:hidden"
+              className="p-2 rounded-lg text-ds-text-muted hover:bg-ds-accent-soft hover:text-ds-accent-hover lg:hidden"
               aria-label="Sign out"
             >
               <PortalIcon name="logout" />
@@ -84,7 +90,7 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
         </header>
 
         {/* Sidebar — desktop */}
-        <aside className="fixed left-0 top-16 bottom-0 w-64 bg-surface border-r border-border z-30 hidden lg:flex flex-col">
+        <aside className="fixed left-0 top-16 bottom-0 w-64 bg-ds-surface border-r border-ds-border z-30 hidden lg:flex flex-col">
           <nav aria-label="Portal navigation" className="flex-1 p-3 space-y-1">
             {PORTAL_NAV.map((item) => {
               const active = view === item.key;
@@ -95,13 +101,13 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
                   onClick={() => onNavigate(item.key)}
                   aria-current={active ? 'page' : undefined}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all w-full text-left ${
-                    active ? 'bg-primary-50 text-primary-600 font-medium' : 'text-text-secondary hover:bg-primary-50 hover:text-primary-600'
+                    active ? 'bg-ds-accent-soft text-ds-accent-text font-medium' : 'text-ds-text-muted hover:bg-ds-accent-soft hover:text-ds-accent-hover'
                   }`}
                 >
                   <PortalIcon name={item.key} />
                   <span className="flex-1">{item.label}</span>
                   {!!badge && (
-                    <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-secondary-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                    <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-ds-brand-plum text-white dark:text-ds-canvas text-[11px] font-semibold flex items-center justify-center">
                       {badge}
                     </span>
                   )}
@@ -109,24 +115,24 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
               );
             })}
           </nav>
-          <div className="p-4 border-t border-border space-y-3">
+          <div className="p-4 border-t border-ds-border space-y-3">
             {telHref && (
               <a
                 href={telHref}
-                className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-100 hover:border-primary-300 transition-colors"
+                className="flex items-center gap-3 p-3 rounded-ds-control bg-ds-accent-soft border border-ds-accent/40 hover:border-ds-accent transition-colors"
               >
-                <span className="w-9 h-9 rounded-lg bg-white text-primary-600 flex items-center justify-center shadow-sm">
+                <span className="w-9 h-9 rounded-lg bg-ds-surface text-ds-accent-text flex items-center justify-center shadow-ds-card">
                   <PortalIcon name="phone" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-text-primary">Call the clinic</span>
-                  <span className="block text-xs text-text-secondary truncate">{branding.clinicPhone}</span>
+                  <span className="block text-sm font-semibold text-ds-text">Call the clinic</span>
+                  <span className="block text-xs text-ds-text-muted truncate">{branding.clinicPhone}</span>
                 </span>
               </a>
             )}
             <button
               onClick={onSignOut}
-              className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-text-secondary hover:bg-danger-50 hover:text-danger-600 transition-colors"
+              className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-ds-text-muted hover:bg-ds-critical-soft hover:text-ds-critical-text transition-colors"
             >
               <PortalIcon name="logout" />
               <span className="text-sm font-medium">Sign out</span>
@@ -139,7 +145,7 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
         </main>
 
         {/* Bottom tab bar — phones */}
-        <nav aria-label="Portal navigation" className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur border-t border-border z-40 lg:hidden safe-area-bottom">
+        <nav aria-label="Portal navigation" className="fixed bottom-0 left-0 right-0 bg-ds-surface/95 backdrop-blur border-t border-ds-border z-40 lg:hidden safe-area-bottom">
           <div className="flex justify-around items-center h-16">
             {PORTAL_NAV.map((item) => {
               const active = view === item.key;
@@ -150,7 +156,7 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
                   onClick={() => onNavigate(item.key)}
                   aria-current={active ? 'page' : undefined}
                   className={`relative flex flex-col items-center justify-center flex-1 h-full px-1 transition-colors ${
-                    active ? 'text-primary-600' : 'text-text-secondary'
+                    active ? 'text-ds-accent-text' : 'text-ds-text-muted'
                   }`}
                 >
                   <span className={`transition-transform ${active ? 'scale-110' : ''}`}>
@@ -158,11 +164,11 @@ const PortalShell: React.FC<PortalShellProps> = ({ view, onNavigate, onSignOut, 
                   </span>
                   <span className={`text-[11px] mt-1 ${active ? 'font-semibold' : 'font-medium'}`}>{item.label}</span>
                   {!!badge && (
-                    <span className="absolute top-2 left-1/2 ml-2 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-secondary-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                    <span className="absolute top-2 left-1/2 ml-2 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-ds-brand-plum text-white dark:text-ds-canvas text-[10px] font-semibold flex items-center justify-center">
                       {badge}
                     </span>
                   )}
-                  {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-primary-500" />}
+                  {active && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-ds-accent" />}
                 </button>
               );
             })}

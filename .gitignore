@@ -56,3 +56,7 @@ docs/MedSys-Website-Prompt.md
 
 # Raw payer rate spreadsheets (sensitive commercial pricing) — seeded into DB, not committed
 docs/pricing/
+
+# Python bytecode (vendored skill scripts)
+__pycache__/
+*.pyc

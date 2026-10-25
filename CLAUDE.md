@@ -158,6 +158,23 @@ import { someFunction } from './module';   // For values
 
 ---
 
+## Clinical UI rules (apply to ALL UI work)
+
+These are patient-safety rules, not style preferences. Check every UI change against them.
+
+1. **Patient identity always visible.** On every patient-specific screen the patient's name, ID (patient number) and age stay visible — including while scrolling and inside modals that act on the chart.
+2. **No stale patient data.** When the selected patient changes, clear all patient-specific state and show a loading state — never the previous patient's data. Ignore any response that arrives for a patient who is no longer selected (use `hooks/useActiveId`; see `utils/vitalsHandoff` for unsaved vitals).
+3. **Saves name the patient.** Anything saved to a chart confirms which patient it was saved to (e.g. "Vitals saved for Ama Owusu").
+4. **Critical alerts and allergies stand out.** Always visually distinct (danger tokens, not the brand accent) and never dismissible without an explicit acknowledgement. A failed allergy load says so — never "No known allergies".
+5. **Touch and contrast.** Minimum 44×44px touch targets (nurses use tablets); WCAG AA contrast (4.5:1 text, 3:1 large text/UI).
+6. **UI work changes UI only.** Styling and layout only — no business logic, API, validation or data changes during UI work unless the user explicitly approves it.
+
+Design system: **`docs/design-system.md`** (direction "Care"). New UI uses the `ds` Tailwind tokens (`bg-ds-surface`, `text-ds-text-muted`, `rounded-ds-control`, `h-ds-control` …) from `client/src/styles/design-tokens.json` → `npm run tokens`; never raw hex or the legacy `primary`/`danger` palette in new code.
+
+Design guidance: the `ui-ux-pro-max` skill (`.claude/skills/ui-ux-pro-max/`) — run its search script for style, colour, typography and UX checks.
+
+---
+
 ## Common Tasks
 
 ### Adding a New API Endpoint

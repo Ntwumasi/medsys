@@ -8,6 +8,40 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Design system (direction C · Care) — values live in src/styles/tokens.css,
+        // generated from src/styles/design-tokens.json. Use these for all new UI:
+        // bg-ds-surface, text-ds-text-muted, bg-ds-critical-soft, ring-ds-focus-ring …
+        ds: {
+          'canvas': 'rgb(var(--ds-canvas) / <alpha-value>)',
+          'surface': 'rgb(var(--ds-surface) / <alpha-value>)',
+          'subtle': 'rgb(var(--ds-subtle) / <alpha-value>)',
+          'border': 'rgb(var(--ds-border) / <alpha-value>)',
+          'border-control': 'rgb(var(--ds-border-control) / <alpha-value>)',
+          'text': 'rgb(var(--ds-text) / <alpha-value>)',
+          'text-secondary': 'rgb(var(--ds-text-secondary) / <alpha-value>)',
+          'text-muted': 'rgb(var(--ds-text-muted) / <alpha-value>)',
+          'accent': 'rgb(var(--ds-accent) / <alpha-value>)',
+          'accent-hover': 'rgb(var(--ds-accent-hover) / <alpha-value>)',
+          'on-accent': 'rgb(var(--ds-on-accent) / <alpha-value>)',
+          'accent-soft': 'rgb(var(--ds-accent-soft) / <alpha-value>)',
+          'accent-text': 'rgb(var(--ds-accent-text) / <alpha-value>)',
+          'brand-plum': 'rgb(var(--ds-brand-plum) / <alpha-value>)',
+          'critical': 'rgb(var(--ds-critical) / <alpha-value>)',
+          'critical-text': 'rgb(var(--ds-critical-text) / <alpha-value>)',
+          'critical-soft': 'rgb(var(--ds-critical-soft) / <alpha-value>)',
+          'critical-border': 'rgb(var(--ds-critical-border) / <alpha-value>)',
+          'warning': 'rgb(var(--ds-warning) / <alpha-value>)',
+          'warning-text': 'rgb(var(--ds-warning-text) / <alpha-value>)',
+          'warning-soft': 'rgb(var(--ds-warning-soft) / <alpha-value>)',
+          'warning-border': 'rgb(var(--ds-warning-border) / <alpha-value>)',
+          'success': 'rgb(var(--ds-success) / <alpha-value>)',
+          'success-text': 'rgb(var(--ds-success-text) / <alpha-value>)',
+          'success-soft': 'rgb(var(--ds-success-soft) / <alpha-value>)',
+          'info': 'rgb(var(--ds-info) / <alpha-value>)',
+          'info-text': 'rgb(var(--ds-info-text) / <alpha-value>)',
+          'info-soft': 'rgb(var(--ds-info-soft) / <alpha-value>)',
+          'focus-ring': 'rgb(var(--ds-focus-ring) / <alpha-value>)',
+        },
         // Brand Colors from Medics Clinic Logo
         primary: {
           50: '#E8F7F7',
@@ -95,6 +129,8 @@ module.exports = {
         },
       },
       fontFamily: {
+        'ds-sans': 'var(--ds-font-sans)',
+        'ds-mono': 'var(--ds-font-mono)',
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'monospace'],
       },
@@ -105,16 +141,39 @@ module.exports = {
         '84': '21rem',
         '96': '24rem',
       },
+      minHeight: {
+        'ds-touch': '44px',
+        'ds-control': '48px',
+      },
+      height: {
+        'ds-control': '48px',
+        'ds-control-compact': '40px',
+      },
+      transitionDuration: {
+        'ds-fast': 'var(--ds-motion-fast)',
+        'ds-base': 'var(--ds-motion-base)',
+        'ds-slow': 'var(--ds-motion-slow)',
+      },
+      transitionTimingFunction: {
+        'ds': 'cubic-bezier(0.2, 0, 0, 1)',
+        'ds-exit': 'cubic-bezier(0.4, 0, 1, 1)',
+      },
       maxWidth: {
         '8xl': '1400px',
         '9xl': '1600px',
       },
       borderRadius: {
+        'ds-sm': '8px',
+        'ds-control': '12px',
+        'ds-card': '18px',
+        'ds-sheet': '24px',
         'xl': '12px',
         '2xl': '16px',
         '3xl': '24px',
       },
       boxShadow: {
+        'ds-card': 'var(--ds-shadow-card)',
+        'ds-overlay': 'var(--ds-shadow-overlay)',
         'soft': '0 1px 3px rgba(0, 0, 0, 0.08)',
         'medium': '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
         'hard': '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',

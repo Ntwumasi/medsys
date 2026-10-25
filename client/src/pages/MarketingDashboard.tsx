@@ -5,12 +5,15 @@ import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import type { View } from 'react-big-calendar';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
+import '../styles/rbc-ds.css';
 import AppSelect from '../components/ui/AppSelect';
 import apiClient from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import { taskDueMeta } from '../utils/taskDue';
+import { toDsClasses } from '../utils/dsClass';
 import { getApiError } from '../utils/apiError';
 import MarketingContactList from '../components/MarketingContactList';
 import MarketingSmsCampaigns from '../components/MarketingSmsCampaigns';
@@ -69,6 +72,8 @@ interface ContactSummary {
 }
 
 const MarketingDashboard: React.FC = () => {
+  // On the "Care" design system: tokens, self-hosted fonts, light/dark.
+  useDesignSystemPage();
   const { user } = useAuth();
   const { showToast } = useNotification();
   const { confirm } = useDialog();
@@ -268,9 +273,9 @@ const MarketingDashboard: React.FC = () => {
   };
 
   return (
-    <AppLayout title="Marketing">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex gap-1 mb-6 border-b border-gray-200">
+    <AppLayout title="Marketing" designSystem>
+      <div>
+        <nav aria-label="Marketing sections" className="flex gap-1 mb-6 border-b border-ds-border overflow-x-auto">
           {([
             { id: 'tasks' as const, label: 'My Tasks' },
             { id: 'calendar' as const, label: 'Calendar' },
@@ -280,82 +285,83 @@ const MarketingDashboard: React.FC = () => {
             <button
               key={t.id}
               onClick={() => setView(t.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              aria-current={view === t.id ? 'page' : undefined}
+              className={`min-h-ds-control px-4 text-sm whitespace-nowrap border-b-2 -mb-px transition-colors duration-ds-fast ${
                 view === t.id
-                  ? 'border-primary-600 text-primary-700'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-ds-accent text-ds-text font-bold'
+                  : 'border-transparent text-ds-text-muted font-medium hover:text-ds-text'
               }`}
             >
               {t.label}
             </button>
           ))}
-        </div>
+        </nav>
 
         {view === 'sms' && <MarketingSmsCampaigns />}
 
         {view === 'contacts' && (
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Patient Contacts</h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <h2 className="text-xl font-semibold text-ds-text">Patient Contacts</h2>
+              <p className="text-sm text-ds-text-secondary mt-1">
                 Contact details for campaigns. Patients who have asked not to receive marketing are
                 excluded automatically, as are merged duplicates and closed records.
               </p>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-wrap items-end gap-4">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 flex flex-wrap items-end gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Seen since (optional)</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-1">Seen since (optional)</label>
                 <input
                   type="date"
                   value={contactsSince}
                   onChange={(e) => setContactsSince(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                 />
-                <p className="text-xs text-gray-400 mt-1">Leave blank for all active patients.</p>
+                <p className="text-xs text-ds-text-muted mt-1">Leave blank for all active patients.</p>
               </div>
               {contactsSince && (
-                <button onClick={() => setContactsSince('')} className="text-sm text-primary-600 hover:underline pb-2">
+                <button onClick={() => setContactsSince('')} className="text-sm text-ds-accent-text hover:underline pb-2">
                   Clear
                 </button>
               )}
               <div className="flex-1 min-w-[200px]">
-                <label htmlFor="contact-search" className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <label htmlFor="contact-search" className="block text-sm font-medium text-ds-text-secondary mb-1">Search</label>
                 <input
                   id="contact-search"
                   type="search"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Name, phone or patient number"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
                 />
-                <p className="text-xs text-gray-400 mt-1">&nbsp;</p>
+                <p className="text-xs text-ds-text-muted mt-1">&nbsp;</p>
               </div>
               <div>
-                <label htmlFor="contact-has" className="block text-sm font-medium text-gray-700 mb-1">Show</label>
+                <label htmlFor="contact-has" className="block text-sm font-medium text-ds-text-secondary mb-1">Show</label>
                 <select
                   id="contact-has"
                   value={contactHas}
                   onChange={(e) => setContactHas(e.target.value as '' | 'phone' | 'email')}
-                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                  className="border border-ds-border-control rounded-lg px-3 py-2 text-sm bg-ds-surface"
                 >
                   <option value="">Everyone</option>
                   <option value="phone">Has a phone number</option>
                   <option value="email">Has an email address</option>
                 </select>
-                <p className="text-xs text-gray-400 mt-1">&nbsp;</p>
+                <p className="text-xs text-ds-text-muted mt-1">&nbsp;</p>
               </div>
             </div>
 
             {contactsLoading ? (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-12 text-center text-ds-text-muted">
                 Loading contacts…
               </div>
             ) : contactsError ? (
-              <div className="bg-white rounded-xl shadow-sm border border-danger-200 p-8 text-center">
-                <p className="text-danger-700 font-semibold">Couldn't load the contact list</p>
-                <p className="text-gray-600 text-sm mt-1">{contactsError}</p>
-                <button onClick={() => loadContacts()} className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium">
+              <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-critical-border p-8 text-center">
+                <p className="text-ds-critical-text font-semibold">Couldn't load the contact list</p>
+                <p className="text-ds-text-secondary text-sm mt-1">{contactsError}</p>
+                <button onClick={() => loadContacts()} className="mt-4 px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium">
                   Try again
                 </button>
               </div>
@@ -363,41 +369,41 @@ const MarketingDashboard: React.FC = () => {
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: 'Contacts', value: contactSummary.total, tone: 'text-gray-900' },
-                    { label: 'With phone', value: contactSummary.with_phone, tone: 'text-gray-900' },
-                    { label: 'With email', value: contactSummary.with_email, tone: 'text-gray-900' },
-                    { label: 'Opted out', value: contactSummary.excluded_opted_out, tone: 'text-gray-500' },
+                    { label: 'Contacts', value: contactSummary.total, tone: 'text-ds-text' },
+                    { label: 'With phone', value: contactSummary.with_phone, tone: 'text-ds-text' },
+                    { label: 'With email', value: contactSummary.with_email, tone: 'text-ds-text' },
+                    { label: 'Opted out', value: contactSummary.excluded_opted_out, tone: 'text-ds-text-muted' },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                      <p className="text-sm text-gray-500">{s.label}</p>
+                    <div key={s.label} className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
+                      <p className="text-sm text-ds-text-muted">{s.label}</p>
                       <p className={`text-2xl font-bold tabular-nums ${s.tone}`}>{s.value.toLocaleString()}</p>
                     </div>
                   ))}
                 </div>
 
                 {contactSummary.with_email < contactSummary.total && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-ds-text-secondary">
                     Only {contactSummary.with_email.toLocaleString()} of {contactSummary.total.toLocaleString()} have a
                     real email address on file — SMS reaches far more people than email does.
                   </p>
                 )}
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
+                <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 flex flex-wrap gap-3 items-center">
                   <button
                     onClick={() => downloadContacts('csv')}
                     disabled={downloading}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50"
+                    className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium disabled:opacity-50"
                   >
                     {downloading ? 'Preparing…' : 'Download CSV'}
                   </button>
                   <button
                     onClick={() => downloadContacts('xlsx')}
                     disabled={downloading}
-                    className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium disabled:opacity-50"
+                    className="px-4 py-2 bg-ds-surface border border-ds-border-control text-ds-text-secondary rounded-lg hover:bg-ds-subtle text-sm font-medium disabled:opacity-50"
                   >
                     Download Excel
                   </button>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-ds-text-muted">
                     Downloads match the search and filters above, and are recorded in the audit log. Patient contact
                     details — please keep the file safe and don't forward it outside the clinic.
                   </p>
@@ -414,8 +420,8 @@ const MarketingDashboard: React.FC = () => {
                       aria-pressed={showOptedOut === o.opted}
                       className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                         showOptedOut === o.opted
-                          ? 'bg-primary-600 text-white border-primary-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          ? 'bg-ds-accent text-ds-on-accent border-ds-accent'
+                          : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'
                       }`}
                     >
                       {o.label}
@@ -423,7 +429,7 @@ const MarketingDashboard: React.FC = () => {
                   ))}
                 </div>
                 {showOptedOut && (
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-ds-text-secondary">
                     Patients who asked not to receive marketing. They never appear in downloads. Use "Add back" only if
                     one was switched off by mistake.
                   </p>
@@ -445,14 +451,14 @@ const MarketingDashboard: React.FC = () => {
         <>
         <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">My Tasks</h2>
-            <p className="text-sm text-gray-600 mt-1">
+            <h2 className="text-xl font-semibold text-ds-text">My Tasks</h2>
+            <p className="text-sm text-ds-text-secondary mt-1">
               Marketing tasks and reminders. Give a task a deadline and it shows on the Calendar tab.
             </p>
           </div>
           <button
             onClick={() => openAdd()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+            className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium"
           >
             + Add task
           </button>
@@ -466,8 +472,8 @@ const MarketingDashboard: React.FC = () => {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${
                 statusFilter === s
-                  ? 'bg-primary-600 text-white border-primary-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  ? 'bg-ds-accent text-ds-on-accent border-ds-accent'
+                  : 'bg-ds-surface text-ds-text-secondary border-ds-border-control hover:bg-ds-subtle'
               }`}
             >
               {s === 'all' ? 'All' : s === 'in_progress' ? 'In Progress' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -478,21 +484,22 @@ const MarketingDashboard: React.FC = () => {
           ))}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
           {loading ? (
-            <div className="py-12 text-center text-gray-500 text-sm">Loading…</div>
+            <div className="py-12 text-center text-ds-text-muted text-sm">Loading…</div>
           ) : visibleTasks.length === 0 ? (
-            <div className="py-12 text-center text-gray-500 text-sm">No tasks yet.</div>
+            <div className="py-12 text-center text-ds-text-muted text-sm">No tasks yet.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50">
+              {/* Keeps columns readable on phones; the card scrolls sideways instead. */}
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-ds-subtle">
                   <tr>
-                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Task</th>
-                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Category</th>
-                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Status</th>
-                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Deadline</th>
-                    <th className="text-left px-3 py-2 font-semibold text-gray-700">Remarks</th>
+                    <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Task</th>
+                    <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Category</th>
+                    <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Status</th>
+                    <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Deadline</th>
+                    <th className="text-left px-3 py-2 font-semibold text-ds-text-secondary">Remarks</th>
                     <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
@@ -501,9 +508,9 @@ const MarketingDashboard: React.FC = () => {
                     const done = t.status === 'complete';
                     const due = taskDueMeta(t.due_date, done, today);
                     return (
-                      <tr key={t.id} className={`border-t border-gray-100 hover:bg-gray-50 ${done ? 'bg-gray-50/60' : ''}`}>
-                        <td className={`px-3 py-2 ${done ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{t.task}</td>
-                        <td className="px-3 py-2 text-gray-500 text-xs">{t.category}</td>
+                      <tr key={t.id} className={`border-t border-ds-border hover:bg-ds-subtle ${done ? 'bg-ds-subtle/60' : ''}`}>
+                        <td className={`px-3 py-2 ${done ? 'text-ds-text-muted line-through' : 'text-ds-text'}`}>{t.task}</td>
+                        <td className="px-3 py-2 text-ds-text-muted text-xs">{t.category}</td>
                         <td className="px-3 py-2">
                           <AppSelect
                             value={t.status}
@@ -513,21 +520,21 @@ const MarketingDashboard: React.FC = () => {
                           />
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <span className={`text-xs px-2 py-1 rounded border bg-white ${due.inputCls}`}>{fmt(t.due_date)}</span>
+                          <span className={`text-xs px-2 py-1 rounded border bg-ds-surface ${toDsClasses(due.inputCls)}`}>{fmt(t.due_date)}</span>
                           {due.badge && (
-                            <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-danger-600' : 'text-warning-600'}`}>
+                            <span className={`ml-1 text-[10px] font-semibold uppercase ${due.level === 'overdue' ? 'text-ds-critical-text' : 'text-ds-warning-text'}`}>
                               {due.badge}
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-gray-600 text-xs max-w-xs truncate" title={t.remarks || ''}>
+                        <td className="px-3 py-2 text-ds-text-secondary text-xs max-w-xs truncate" title={t.remarks || ''}>
                           {t.remarks || '—'}
                         </td>
                         <td className="px-3 py-2 text-right">
                           {canDelete(t) && (
                             <button
                               onClick={() => deleteTask(t)}
-                              className="text-xs text-danger-600 hover:underline"
+                              className="text-xs text-ds-critical-text hover:underline"
                               aria-label={`Delete task ${t.task}`}
                             >
                               Delete
@@ -549,25 +556,25 @@ const MarketingDashboard: React.FC = () => {
           <div className="space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Calendar</h2>
-                <p className="text-sm text-gray-600 mt-1">
+                <h2 className="text-xl font-semibold text-ds-text">Calendar</h2>
+                <p className="text-sm text-ds-text-secondary mt-1">
                   Your tasks on their deadlines. Click a day to add a reminder for it; click a task to update it.
                 </p>
               </div>
               <button
                 onClick={() => openAdd()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+                className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium"
               >
                 + Add reminder
               </button>
             </div>
-            <div className="flex flex-wrap gap-4 text-xs text-gray-600">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#dc2626' }}></span> Overdue</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#d97706' }}></span> Due within 3 days</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#7c3aed' }}></span> Upcoming</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded" style={{ backgroundColor: '#9ca3af' }}></span> Complete</span>
+            <div className="flex flex-wrap gap-4 text-xs text-ds-text-secondary">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ds-critical"></span> Overdue</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ds-warning-soft border border-ds-warning-border"></span> Due within 3 days</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ds-accent"></span> Upcoming</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-ds-subtle border border-ds-border"></span> Complete</span>
             </div>
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 overflow-x-auto">
+            <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4 overflow-x-auto">
               <div style={{ height: 600, minWidth: 560 }}>
                 <Calendar
                   localizer={localizer}
@@ -586,8 +593,18 @@ const MarketingDashboard: React.FC = () => {
                   eventPropGetter={(e: TaskEvent) => {
                     const done = e.resource.status === 'complete';
                     const level = taskDueMeta(e.resource.due_date, done, today).level;
-                    const backgroundColor = done ? '#9ca3af' : level === 'overdue' ? '#dc2626' : level === 'soon' ? '#d97706' : '#7c3aed';
-                    return { style: { backgroundColor, borderRadius: '4px', border: 'none' } };
+                    // Design-system tokens: overdue = critical, due soon = warning,
+                    // upcoming = accent, done = muted. Each pairs a fill with a text
+                    // colour that stays readable in light and dark.
+                    const v = (token: string) => `rgb(var(--ds-${token}))`;
+                    const [backgroundColor, color] = done
+                      ? [v('subtle'), v('text-muted')]
+                      : level === 'overdue'
+                        ? [v('critical'), '#FFFFFF']
+                        : level === 'soon'
+                          ? [v('warning-soft'), v('warning-text')]
+                          : [v('accent'), v('on-accent')];
+                    return { style: { backgroundColor, color, borderRadius: '8px', border: 'none' } };
                   }}
                 />
               </div>
@@ -598,10 +615,10 @@ const MarketingDashboard: React.FC = () => {
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="add-task-title">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 id="add-task-title" className="text-lg font-semibold text-gray-900">Add task / reminder</h3>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md p-6 space-y-4">
+            <h3 id="add-task-title" className="text-lg font-semibold text-ds-text">Add task / reminder</h3>
             <div>
-              <label htmlFor="new-task" className="block text-sm font-medium text-gray-700 mb-1">Task</label>
+              <label htmlFor="new-task" className="block text-sm font-medium text-ds-text-secondary mb-1">Task</label>
               <input
                 id="new-task"
                 autoFocus
@@ -609,37 +626,37 @@ const MarketingDashboard: React.FC = () => {
                 onChange={(e) => setNewTask(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') saveTask(); }}
                 placeholder="e.g. Call Ecobank HR about staff health screening"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label htmlFor="new-due" className="block text-sm font-medium text-gray-700 mb-1">Deadline (optional)</label>
+              <label htmlFor="new-due" className="block text-sm font-medium text-ds-text-secondary mb-1">Deadline (optional)</label>
               <input
                 id="new-due"
                 type="date"
                 value={newDue}
                 onChange={(e) => setNewDue(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
               />
             </div>
             <div>
-              <label htmlFor="new-remarks" className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+              <label htmlFor="new-remarks" className="block text-sm font-medium text-ds-text-secondary mb-1">Notes (optional)</label>
               <textarea
                 id="new-remarks"
                 value={newRemarks}
                 onChange={(e) => setNewRemarks(e.target.value)}
                 rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-ds-border-control rounded-lg px-3 py-2 text-sm"
               />
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100">
+              <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-ds-text-secondary rounded-lg hover:bg-ds-subtle">
                 Cancel
               </button>
               <button
                 onClick={saveTask}
                 disabled={saving || !newTask.trim()}
-                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium disabled:opacity-50"
               >
                 {saving ? 'Saving…' : 'Add'}
               </button>
@@ -650,17 +667,17 @@ const MarketingDashboard: React.FC = () => {
 
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="task-detail-title" onClick={() => setSelectedTask(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h3 id="task-detail-title" className="text-lg font-semibold text-gray-900">{selectedTask.task}</h3>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 id="task-detail-title" className="text-lg font-semibold text-ds-text">{selectedTask.task}</h3>
             <dl className="text-sm space-y-2">
-              <div className="flex gap-2"><dt className="text-gray-500 w-20">Deadline</dt><dd className="text-gray-900">{fmt(selectedTask.due_date)}</dd></div>
-              <div className="flex gap-2"><dt className="text-gray-500 w-20">Category</dt><dd className="text-gray-900">{selectedTask.category}</dd></div>
+              <div className="flex gap-2"><dt className="text-ds-text-muted w-20">Deadline</dt><dd className="text-ds-text">{fmt(selectedTask.due_date)}</dd></div>
+              <div className="flex gap-2"><dt className="text-ds-text-muted w-20">Category</dt><dd className="text-ds-text">{selectedTask.category}</dd></div>
               {selectedTask.remarks && (
-                <div className="flex gap-2"><dt className="text-gray-500 w-20">Notes</dt><dd className="text-gray-900 whitespace-pre-wrap">{selectedTask.remarks}</dd></div>
+                <div className="flex gap-2"><dt className="text-ds-text-muted w-20">Notes</dt><dd className="text-ds-text whitespace-pre-wrap">{selectedTask.remarks}</dd></div>
               )}
             </dl>
             <div>
-              <span className="block text-sm font-medium text-gray-700 mb-1">Status</span>
+              <span className="block text-sm font-medium text-ds-text-secondary mb-1">Status</span>
               <AppSelect
                 value={selectedTask.status}
                 onChange={(val) => updateStatus(selectedTask.id, val)}
@@ -670,11 +687,11 @@ const MarketingDashboard: React.FC = () => {
             </div>
             <div className="flex justify-between gap-2">
               {canDelete(selectedTask) ? (
-                <button onClick={() => deleteTask(selectedTask)} className="px-4 py-2 text-sm text-danger-600 rounded-lg hover:bg-danger-50">
+                <button onClick={() => deleteTask(selectedTask)} className="px-4 py-2 text-sm text-ds-critical-text rounded-lg hover:bg-ds-critical-soft">
                   Delete
                 </button>
               ) : <span />}
-              <button onClick={() => setSelectedTask(null)} className="px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100">
+              <button onClick={() => setSelectedTask(null)} className="px-4 py-2 text-sm text-ds-text-secondary rounded-lg hover:bg-ds-subtle">
                 Close
               </button>
             </div>

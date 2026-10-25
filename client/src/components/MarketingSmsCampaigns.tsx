@@ -66,12 +66,12 @@ interface Recipient {
 }
 
 const STATUS_STYLE: Record<Campaign['status'], { label: string; className: string }> = {
-  pending_approval: { label: 'Awaiting approval', className: 'bg-warning-100 text-warning-800' },
-  approved: { label: 'Approved — ready to send', className: 'bg-primary-100 text-primary-800' },
-  rejected: { label: 'Rejected', className: 'bg-danger-100 text-danger-800' },
-  sending: { label: 'Sending', className: 'bg-blue-100 text-blue-800' },
-  sent: { label: 'Sent', className: 'bg-success-100 text-success-800' },
-  cancelled: { label: 'Cancelled', className: 'bg-gray-100 text-gray-700' },
+  pending_approval: { label: 'Awaiting approval', className: 'bg-ds-warning-soft text-ds-warning-text' },
+  approved: { label: 'Approved — ready to send', className: 'bg-ds-accent-soft text-ds-accent-text' },
+  rejected: { label: 'Rejected', className: 'bg-ds-critical-soft text-ds-critical-text' },
+  sending: { label: 'Sending', className: 'bg-ds-info-soft text-ds-info-text' },
+  sent: { label: 'Sent', className: 'bg-ds-success-soft text-ds-success-text' },
+  cancelled: { label: 'Cancelled', className: 'bg-ds-subtle text-ds-text-secondary' },
 };
 
 const fmtDate = (s?: string | null): string => {
@@ -222,7 +222,7 @@ const MarketingSmsCampaigns: React.FC = () => {
             <strong>{c.name}</strong> to <strong>{c.recipient_count}</strong> patients ({describeFilters(c.filters)}),
             about <strong>{c.recipient_count * c.credits_per_message}</strong> SMS credits.
           </p>
-          <p className="whitespace-pre-wrap bg-gray-50 border rounded p-2">{c.message}</p>
+          <p className="whitespace-pre-wrap bg-ds-subtle border rounded p-2">{c.message}</p>
         </div>
       ),
       confirmLabel: 'Approve',
@@ -317,20 +317,20 @@ const MarketingSmsCampaigns: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="py-12 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="py-12 text-center text-ds-text-muted">Loading…</div>;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Bulk SMS</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-xl font-semibold text-ds-text">Bulk SMS</h2>
+          <p className="text-sm text-ds-text-secondary mt-1">
             Text groups of patients. Patients who opted out are always excluded. Every campaign needs an admin’s approval before it is sent.
           </p>
         </div>
         <button
           onClick={() => setShowCompose(true)}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm font-medium"
+          className="px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm font-medium"
         >
           New campaign
         </button>
@@ -339,9 +339,9 @@ const MarketingSmsCampaigns: React.FC = () => {
       {status && (
         <div
           className={`p-3 rounded-lg border text-sm flex flex-wrap gap-x-6 gap-y-1 ${
-            !status.configured ? 'bg-danger-50 border-danger-200 text-danger-800'
-              : status.live ? 'bg-success-50 border-success-200 text-success-900'
-              : 'bg-warning-50 border-warning-200 text-warning-900'
+            !status.configured ? 'bg-ds-critical-soft border-ds-critical-border text-ds-critical-text'
+              : status.live ? 'bg-ds-success-soft border-ds-border text-ds-success-text'
+              : 'bg-ds-warning-soft border-ds-warning-border text-ds-warning-text'
           }`}
           role="status"
         >
@@ -358,23 +358,23 @@ const MarketingSmsCampaigns: React.FC = () => {
       )}
 
       {sendingId && progress && (
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex justify-between text-sm text-blue-900 mb-2">
+        <div className="p-4 bg-ds-info-soft border border-ds-border rounded-lg">
+          <div className="flex justify-between text-sm text-ds-info-text mb-2">
             <span>Sending… {progress.done} of {progress.total}</span>
-            <button onClick={() => { stopRef.current = true; }} className="text-blue-700 underline">Pause</button>
+            <button onClick={() => { stopRef.current = true; }} className="text-ds-info-text underline">Pause</button>
           </div>
-          <div className="h-2 bg-blue-100 rounded" aria-hidden="true">
-            <div className="h-2 bg-blue-600 rounded transition-all" style={{ width: `${progress.total ? Math.min(100, (progress.done / progress.total) * 100) : 0}%` }} />
+          <div className="h-2 bg-ds-info-soft rounded" aria-hidden="true">
+            <div className="h-2 bg-ds-info rounded transition-all" style={{ width: `${progress.total ? Math.min(100, (progress.done / progress.total) * 100) : 0}%` }} />
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-x-auto">
+      <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-x-auto">
         {campaigns.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No campaigns yet. Click “New campaign” to write one.</div>
+          <div className="p-8 text-center text-ds-text-muted">No campaigns yet. Click “New campaign” to write one.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-gray-600">
+            <thead className="bg-ds-subtle text-left text-ds-text-secondary">
               <tr>
                 <th className="px-4 py-2">Campaign</th>
                 <th className="px-4 py-2">Status</th>
@@ -383,26 +383,26 @@ const MarketingSmsCampaigns: React.FC = () => {
                 <th className="px-4 py-2 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-ds-border">
               {campaigns.map((c) => {
                 const st = STATUS_STYLE[c.status];
                 const busy = sendingId !== null;
                 return (
                   <tr key={c.id} className="align-top">
                     <td className="px-4 py-3">
-                      <button onClick={() => openDetail(c)} className="font-medium text-primary-700 hover:underline text-left">{c.name}</button>
-                      <div className="text-xs text-gray-500">by {c.created_by_name || '—'} · {fmtDate(c.created_at)}</div>
-                      {c.sandbox && <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-800">SANDBOX</span>}
+                      <button onClick={() => openDetail(c)} className="font-medium text-ds-accent-text hover:underline text-left">{c.name}</button>
+                      <div className="text-xs text-ds-text-muted">by {c.created_by_name || '—'} · {fmtDate(c.created_at)}</div>
+                      {c.sandbox && <span className="inline-block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded bg-ds-warning-soft text-ds-warning-text">SANDBOX</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${st.className}`}>{st.label}</span>
-                      {c.status === 'rejected' && c.rejection_reason && <div className="text-xs text-danger-700 mt-1">{c.rejection_reason}</div>}
+                      {c.status === 'rejected' && c.rejection_reason && <div className="text-xs text-ds-critical-text mt-1">{c.rejection_reason}</div>}
                     </td>
                     <td className="px-4 py-3">
                       <div>{c.recipient_count} patients</div>
-                      <div className="text-xs text-gray-500">{describeFilters(c.filters)}</div>
+                      <div className="text-xs text-ds-text-muted">{describeFilters(c.filters)}</div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-700">
+                    <td className="px-4 py-3 text-xs text-ds-text-secondary">
                       {['sending', 'sent', 'cancelled'].includes(c.status) ? (
                         <>
                           <div>Sent {c.sent_count} · Delivered {c.delivered_count}</div>
@@ -414,21 +414,21 @@ const MarketingSmsCampaigns: React.FC = () => {
                       <div className="flex flex-wrap justify-end gap-2">
                         {c.status === 'pending_approval' && isAdmin && (
                           <>
-                            <button onClick={() => approve(c)} className="px-3 py-1 text-xs font-medium text-white bg-success-600 rounded-lg hover:bg-success-700">Approve</button>
-                            <button onClick={() => reject(c)} className="px-3 py-1 text-xs font-medium text-danger-700 bg-danger-50 rounded-lg hover:bg-danger-100">Reject</button>
+                            <button onClick={() => approve(c)} className="px-3 py-1 text-xs font-medium text-white dark:text-ds-canvas bg-ds-success rounded-lg hover:bg-ds-success/90">Approve</button>
+                            <button onClick={() => reject(c)} className="px-3 py-1 text-xs font-medium text-ds-critical-text bg-ds-critical-soft rounded-lg hover:bg-ds-critical-soft">Reject</button>
                           </>
                         )}
                         {(c.status === 'approved' || (c.status === 'sending' && c.pending_count > 0)) && (
                           <button
                             onClick={() => send(c)}
                             disabled={busy}
-                            className="px-3 py-1 text-xs font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                            className="px-3 py-1 text-xs font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
                           >
                             {c.status === 'sending' ? 'Resume sending' : 'Send'}
                           </button>
                         )}
                         {['pending_approval', 'approved', 'sending'].includes(c.status) && (
-                          <button onClick={() => cancel(c)} disabled={sendingId === c.id} className="px-3 py-1 text-xs text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">Cancel</button>
+                          <button onClick={() => cancel(c)} disabled={sendingId === c.id} className="px-3 py-1 text-xs text-ds-text-secondary bg-ds-subtle rounded-lg hover:bg-ds-border disabled:opacity-50">Cancel</button>
                         )}
                       </div>
                     </td>
@@ -442,25 +442,25 @@ const MarketingSmsCampaigns: React.FC = () => {
 
       {showCompose && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-labelledby="sms-compose-title">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-3xl max-h-[92vh] flex flex-col">
             <div className="px-6 py-4 border-b">
-              <h3 id="sms-compose-title" className="text-lg font-semibold text-gray-900">New SMS campaign</h3>
+              <h3 id="sms-compose-title" className="text-lg font-semibold text-ds-text">New SMS campaign</h3>
             </div>
             <div className="p-6 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="sms-name" className="block text-sm font-medium text-gray-700 mb-1">Campaign name (internal)</label>
-                  <input id="sms-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. October BP check" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                  <label htmlFor="sms-name" className="block text-sm font-medium text-ds-text-secondary mb-1">Campaign name (internal)</label>
+                  <input id="sms-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. October BP check" className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent" />
                 </div>
                 <fieldset className="space-y-3">
-                  <legend className="text-sm font-medium text-gray-700">Who gets it</legend>
+                  <legend className="text-sm font-medium text-ds-text-secondary">Who gets it</legend>
                   <div>
-                    <label htmlFor="sms-since" className="block text-xs text-gray-600 mb-1">Visited since (optional)</label>
-                    <input id="sms-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    <label htmlFor="sms-since" className="block text-xs text-ds-text-secondary mb-1">Visited since (optional)</label>
+                    <input id="sms-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent" />
                   </div>
                   <div>
-                    <label htmlFor="sms-gender" className="block text-xs text-gray-600 mb-1">Sex</label>
-                    <select id="sms-gender" value={gender} onChange={(e) => setGender(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    <label htmlFor="sms-gender" className="block text-xs text-ds-text-secondary mb-1">Sex</label>
+                    <select id="sms-gender" value={gender} onChange={(e) => setGender(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent">
                       <option value="">Everyone</option>
                       <option value="female">Women</option>
                       <option value="male">Men</option>
@@ -468,21 +468,21 @@ const MarketingSmsCampaigns: React.FC = () => {
                   </div>
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label htmlFor="sms-min-age" className="block text-xs text-gray-600 mb-1">Min age</label>
-                      <input id="sms-min-age" type="number" min={0} max={130} value={minAge} onChange={(e) => setMinAge(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                      <label htmlFor="sms-min-age" className="block text-xs text-ds-text-secondary mb-1">Min age</label>
+                      <input id="sms-min-age" type="number" min={0} max={130} value={minAge} onChange={(e) => setMinAge(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent" />
                     </div>
                     <div className="flex-1">
-                      <label htmlFor="sms-max-age" className="block text-xs text-gray-600 mb-1">Max age</label>
-                      <input id="sms-max-age" type="number" min={0} max={130} value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                      <label htmlFor="sms-max-age" className="block text-xs text-ds-text-secondary mb-1">Max age</label>
+                      <input id="sms-max-age" type="number" min={0} max={130} value={maxAge} onChange={(e) => setMaxAge(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent" />
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Age filters leave out patients with no date of birth on file.</p>
+                  <p className="text-xs text-ds-text-muted">Age filters leave out patients with no date of birth on file.</p>
                 </fieldset>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label htmlFor="sms-message" className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                  <label htmlFor="sms-message" className="block text-sm font-medium text-ds-text-secondary mb-1">Message</label>
                   <textarea
                     id="sms-message"
                     ref={messageRef}
@@ -491,46 +491,46 @@ const MarketingSmsCampaigns: React.FC = () => {
                     rows={6}
                     maxLength={640}
                     placeholder="Hello {first_name}, …"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent"
                   />
                   <div className="flex flex-wrap gap-2 mt-1">
-                    <button type="button" onClick={() => insertAtCursor('{first_name}')} className="px-2 py-1 text-xs bg-gray-100 rounded-lg hover:bg-gray-200">+ First name</button>
-                    <button type="button" onClick={() => setMessage((m) => (m.trim() ? `${m.trim()} ${optOutLine}` : optOutLine))} disabled={hasOptOut} className="px-2 py-1 text-xs bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50">+ Opt-out line</button>
+                    <button type="button" onClick={() => insertAtCursor('{first_name}')} className="px-2 py-1 text-xs bg-ds-subtle rounded-lg hover:bg-ds-border">+ First name</button>
+                    <button type="button" onClick={() => setMessage((m) => (m.trim() ? `${m.trim()} ${optOutLine}` : optOutLine))} disabled={hasOptOut} className="px-2 py-1 text-xs bg-ds-subtle rounded-lg hover:bg-ds-border disabled:opacity-50">+ Opt-out line</button>
                   </div>
                 </div>
 
-                <div className="p-3 bg-gray-50 border rounded-lg text-sm space-y-2" aria-live="polite">
+                <div className="p-3 bg-ds-subtle border rounded-lg text-sm space-y-2" aria-live="polite">
                   {previewLoading && !preview ? (
-                    <span className="text-gray-500">Counting…</span>
+                    <span className="text-ds-text-muted">Counting…</span>
                   ) : preview ? (
                     <>
-                      <div><strong>{preview.recipients}</strong> patients will receive it{preview.invalid_phones > 0 && <span className="text-gray-500"> ({preview.invalid_phones} skipped — invalid number)</span>}</div>
+                      <div><strong>{preview.recipients}</strong> patients will receive it{preview.invalid_phones > 0 && <span className="text-ds-text-muted"> ({preview.invalid_phones} skipped — invalid number)</span>}</div>
                       <div>
-                        {preview.length} characters → <strong>{preview.parts}</strong> SMS each{preview.unicode && <span className="text-warning-700"> (special characters/emoji make each SMS shorter)</span>}
+                        {preview.length} characters → <strong>{preview.parts}</strong> SMS each{preview.unicode && <span className="text-ds-warning-text"> (special characters/emoji make each SMS shorter)</span>}
                       </div>
                       <div>Cost: about <strong>{preview.credits}</strong> SMS credits{status?.balance_sms != null && <> · balance {status.balance_sms}</>}</div>
-                      {overBalance && <div className="text-danger-700 font-medium">Not enough balance — top up Arkesel before sending.</div>}
-                      {preview.too_many && <div className="text-danger-700 font-medium">Too many recipients (max {preview.max_audience}). Narrow the filters.</div>}
+                      {overBalance && <div className="text-ds-critical-text font-medium">Not enough balance — top up Arkesel before sending.</div>}
+                      {preview.too_many && <div className="text-ds-critical-text font-medium">Too many recipients (max {preview.max_audience}). Narrow the filters.</div>}
                       {message && (
                         <div>
-                          <div className="text-xs text-gray-500 mb-1">How it will look:</div>
-                          <div className="whitespace-pre-wrap bg-white border rounded p-2">{preview.sample_message}</div>
+                          <div className="text-xs text-ds-text-muted mb-1">How it will look:</div>
+                          <div className="whitespace-pre-wrap bg-ds-surface border rounded p-2">{preview.sample_message}</div>
                         </div>
                       )}
-                      {message && !hasOptOut && <div className="text-warning-800 text-xs">Tip: add an opt-out line so patients know how to stop these messages.</div>}
+                      {message && !hasOptOut && <div className="text-ds-warning-text text-xs">Tip: add an opt-out line so patients know how to stop these messages.</div>}
                     </>
                   ) : (
-                    <span className="text-gray-500">Preview unavailable</span>
+                    <span className="text-ds-text-muted">Preview unavailable</span>
                   )}
                 </div>
               </div>
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-2">
-              <button onClick={() => { setShowCompose(false); resetCompose(); }} className="px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100">Cancel</button>
+              <button onClick={() => { setShowCompose(false); resetCompose(); }} className="px-4 py-2 text-sm text-ds-text-secondary rounded-lg hover:bg-ds-subtle">Cancel</button>
               <button
                 onClick={createCampaign}
                 disabled={creating || !name.trim() || !message.trim() || !preview || preview.recipients === 0 || preview.too_many}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-ds-on-accent bg-ds-accent rounded-lg hover:bg-ds-accent-hover disabled:opacity-50"
               >
                 {creating ? 'Saving…' : isAdmin ? 'Save campaign' : 'Submit for approval'}
               </button>
@@ -541,37 +541,37 @@ const MarketingSmsCampaigns: React.FC = () => {
 
       {detail && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-labelledby="sms-detail-title" onClick={() => setDetail(null)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b flex justify-between items-start gap-4">
               <div>
-                <h3 id="sms-detail-title" className="text-lg font-semibold text-gray-900">{detail.campaign.name}</h3>
-                <p className="text-xs text-gray-500">
+                <h3 id="sms-detail-title" className="text-lg font-semibold text-ds-text">{detail.campaign.name}</h3>
+                <p className="text-xs text-ds-text-muted">
                   {describeFilters(detail.campaign.filters)} · approved by {detail.campaign.approved_by_name || '—'}
                 </p>
               </div>
-              <button onClick={() => setDetail(null)} className="text-gray-500 hover:text-gray-700" aria-label="Close">✕</button>
+              <button onClick={() => setDetail(null)} className="text-ds-text-muted hover:text-ds-text" aria-label="Close">✕</button>
             </div>
             <div className="p-6 overflow-y-auto space-y-4">
-              <div className="whitespace-pre-wrap bg-gray-50 border rounded p-3 text-sm">{detail.campaign.message}</div>
+              <div className="whitespace-pre-wrap bg-ds-subtle border rounded p-3 text-sm">{detail.campaign.message}</div>
               <table className="w-full text-sm">
-                <thead className="text-left text-gray-600 bg-gray-50">
+                <thead className="text-left text-ds-text-secondary bg-ds-subtle">
                   <tr><th className="px-3 py-2">Patient</th><th className="px-3 py-2">Phone</th><th className="px-3 py-2">Status</th></tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-ds-border">
                   {detail.recipients.map((r) => (
                     <tr key={r.id}>
-                      <td className="px-3 py-1.5">{r.first_name || '—'} <span className="text-xs text-gray-500">{r.patient_number}</span></td>
+                      <td className="px-3 py-1.5">{r.first_name || '—'} <span className="text-xs text-ds-text-muted">{r.patient_number}</span></td>
                       <td className="px-3 py-1.5 font-mono text-xs">{r.phone}</td>
                       <td className="px-3 py-1.5 text-xs">
                         {r.status}{r.delivery_status ? ` · ${r.delivery_status}` : ''}
-                        {r.error && <div className="text-danger-700">{r.error}</div>}
+                        {r.error && <div className="text-ds-critical-text">{r.error}</div>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               {detail.campaign.recipient_count > detail.recipients.length && (
-                <p className="text-xs text-gray-500">Showing the first {detail.recipients.length} of {detail.campaign.recipient_count}.</p>
+                <p className="text-xs text-ds-text-muted">Showing the first {detail.recipients.length} of {detail.campaign.recipient_count}.</p>
               )}
             </div>
           </div>

@@ -11,6 +11,17 @@ import IncomingCallModal from './IncomingCallModal';
 import ActiveCallBar from './ActiveCallBar';
 import apiClient from '../api/client';
 import NetworkStatus from './NetworkStatus';
+import { toDsClasses } from '../utils/dsClass';
+import { useColorScheme } from '../hooks/useColorScheme';
+import ColorSchemeToggle from './ui/ColorSchemeToggle';
+
+// Screens on the "Care" design system render this frame with design-system
+// tokens (light/dark); every other screen gets the legacy classes unchanged.
+const DsContext = React.createContext(false);
+const identity = (classes: string) => classes;
+const useFrameClasses = () => (React.useContext(DsContext) ? toDsClasses : identity);
+// Module-level JSX (nav icon definitions) carries sizes only — no colours to translate.
+const c = identity;
 
 interface NavItem {
   label: string;
@@ -30,7 +41,7 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     path: '/dashboard',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
       </svg>
     ),
@@ -40,7 +51,7 @@ const navItems: NavItem[] = [
     label: 'Register',
     path: '/register',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
       </svg>
     ),
@@ -50,7 +61,7 @@ const navItems: NavItem[] = [
     label: 'Refills',
     path: '/refills-calendar',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     ),
@@ -60,7 +71,7 @@ const navItems: NavItem[] = [
     label: 'Patients',
     path: '/patients',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
@@ -69,7 +80,7 @@ const navItems: NavItem[] = [
     label: 'Invoices',
     path: '/invoices',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
@@ -79,7 +90,7 @@ const navItems: NavItem[] = [
     label: 'Staff',
     path: '/dashboard?view=staff',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     ),
@@ -89,7 +100,7 @@ const navItems: NavItem[] = [
     label: 'SMS',
     path: '/sms-campaigns',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
       </svg>
     ),
@@ -99,7 +110,7 @@ const navItems: NavItem[] = [
     label: 'Receipts',
     path: '/receipts',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
       </svg>
     ),
@@ -109,7 +120,7 @@ const navItems: NavItem[] = [
     label: 'Pending Payments',
     path: '/pending-payments',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
@@ -119,7 +130,7 @@ const navItems: NavItem[] = [
     label: 'Appointments',
     path: '/appointments',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
       </svg>
     ),
@@ -129,7 +140,7 @@ const navItems: NavItem[] = [
     label: 'Calls',
     path: '/nurse/follow-up-calls',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
       </svg>
     ),
@@ -139,7 +150,7 @@ const navItems: NavItem[] = [
     label: 'Inventory',
     path: '/nurse/inventory',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
       </svg>
     ),
@@ -149,7 +160,7 @@ const navItems: NavItem[] = [
     label: 'Procurement',
     path: '/nurse/procurement',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
       </svg>
     ),
@@ -160,7 +171,7 @@ const navItems: NavItem[] = [
     label: 'QA Review',
     path: '/nurse/qa',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
       </svg>
     ),
@@ -176,7 +187,7 @@ const navItems: NavItem[] = [
     label: 'Pharmacy',
     path: '/pharmacy',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     ),
@@ -186,7 +197,7 @@ const navItems: NavItem[] = [
     label: 'Imaging',
     path: '/imaging',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
       </svg>
     ),
@@ -196,7 +207,7 @@ const navItems: NavItem[] = [
     label: 'Finances',
     path: '/finances',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
@@ -206,7 +217,7 @@ const navItems: NavItem[] = [
     label: 'QB Data',
     path: '/qb',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
@@ -216,7 +227,7 @@ const navItems: NavItem[] = [
     label: 'QB Settings',
     path: '/quickbooks',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
@@ -227,7 +238,7 @@ const navItems: NavItem[] = [
     label: 'My Health',
     path: '/dashboard',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
       </svg>
     ),
@@ -237,7 +248,7 @@ const navItems: NavItem[] = [
     label: 'Clinics',
     path: '/clinics',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
     ),
@@ -247,7 +258,7 @@ const navItems: NavItem[] = [
     label: 'Price List',
     path: '/price-list',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
       </svg>
     ),
@@ -260,7 +271,7 @@ const navItems: NavItem[] = [
     label: 'Past Patients',
     path: '/dashboard?view=pastPatients',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
@@ -270,7 +281,7 @@ const navItems: NavItem[] = [
     label: 'Login Records',
     path: '/dashboard?view=logins',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
       </svg>
@@ -281,7 +292,7 @@ const navItems: NavItem[] = [
     label: 'System Updates',
     path: '/dashboard?view=updates',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
       </svg>
     ),
@@ -291,7 +302,7 @@ const navItems: NavItem[] = [
     label: 'Documentation',
     path: '/dashboard?view=docs',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
       </svg>
     ),
@@ -304,7 +315,7 @@ const navItems: NavItem[] = [
     actionId: 'open-guide',
     conditional: 'has-guide',
     icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" />
       </svg>
     ),
@@ -315,6 +326,8 @@ interface AppLayoutProps {
   children: React.ReactNode;
   title?: string;
   breadcrumbs?: { label: string; path?: string }[];
+  /** The screen has moved to the design system (call useDesignSystemPage in it). */
+  designSystem?: boolean;
 }
 
 interface SearchResult {
@@ -327,6 +340,7 @@ interface SearchResult {
 
 // ── Call Panel Button (topbar VoIP dropdown) ──
 function CallPanelButton() {
+  const c = useFrameClasses();
   const { onlineUsers, callUser, callState } = useVoIP();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -345,30 +359,30 @@ function CallPanelButton() {
   const otherUsers = onlineUsers.filter(u => u.id !== user?.id);
 
   return (
-    <div className="relative" ref={panelRef}>
+    <div className={c("relative")} ref={panelRef}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors relative"
+        className={c("p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors relative")}
         aria-label="Voice calls"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
         {otherUsers.length > 0 && (
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-success-500 rounded-full border-2 border-white" />
+          <span className={c("absolute top-1 right-1 w-2.5 h-2.5 bg-success-500 rounded-full border-2 border-white")} />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-900">Staff Online</h3>
-            <p className="text-xs text-gray-500">{otherUsers.length} available</p>
+        <div className={c("absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden")}>
+          <div className={c("px-4 py-3 border-b border-gray-100 bg-gray-50")}>
+            <h3 className={c("text-sm font-semibold text-gray-900")}>Staff Online</h3>
+            <p className={c("text-xs text-gray-500")}>{otherUsers.length} available</p>
           </div>
-          <div className="max-h-64 overflow-y-auto">
+          <div className={c("max-h-64 overflow-y-auto")}>
             {otherUsers.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-gray-500 text-center">No staff online</p>
+              <p className={c("px-4 py-6 text-sm text-gray-500 text-center")}>No staff online</p>
             ) : (
               otherUsers.map(u => (
                 <button
@@ -381,21 +395,21 @@ function CallPanelButton() {
                     }
                   }}
                   disabled={callState !== 'idle'}
-                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left disabled:opacity-50"
+                  className={c("w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left disabled:opacity-50")}
                 >
-                  <div className="relative">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-xs">
+                  <div className={c("relative")}>
+                    <div className={c("w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-xs")}>
                       {u.first_name?.[0]}{u.last_name?.[0]}
                     </div>
-                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                    <span className={c(`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
                       u.status === 'in_call' ? 'bg-warning-400' : 'bg-success-500'
-                    }`} />
+                    }`)} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{u.first_name} {u.last_name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{u.role}{u.status === 'in_call' ? ' · On a call' : ''}</p>
+                  <div className={c("flex-1 min-w-0")}>
+                    <p className={c("text-sm font-medium text-gray-900 truncate")}>{u.first_name} {u.last_name}</p>
+                    <p className={c("text-xs text-gray-500 capitalize")}>{u.role}{u.status === 'in_call' ? ' · On a call' : ''}</p>
                   </div>
-                  <svg className="w-4 h-4 text-success-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <svg className={c("w-4 h-4 text-success-500 flex-shrink-0")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                   </svg>
                 </button>
@@ -408,7 +422,9 @@ function CallPanelButton() {
   );
 }
 
-const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) => {
+const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, designSystem = false }) => {
+  const c = designSystem ? toDsClasses : identity;
+  const scheme = useColorScheme();
   const { user, logout, activeRole, impersonation } = useAuth();
   const { open: openGuide, hasGuide } = useGuide();
   const location = useLocation();
@@ -513,19 +529,20 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
   };
 
   return (
-    <div className="min-h-screen bg-background relative">
+    <DsContext.Provider value={designSystem}>
+    <div className={c("min-h-screen bg-background relative") + (designSystem ? " font-ds-sans text-ds-text" : "")}>
       {/* Ambient background — three large blurred color blobs at low
           opacity give the canvas quiet depth without competing with
           content. Pure CSS, no render cost. Fixed positioning so the
           blobs stay put while content scrolls above them. */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden -z-0">
-        <div className="absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary-200 opacity-20 blur-3xl" />
-        <div className="absolute top-1/3 right-[-180px] w-[480px] h-[480px] rounded-full bg-secondary-200 opacity-15 blur-3xl" />
-        <div className="absolute bottom-[-200px] left-1/3 w-[520px] h-[520px] rounded-full bg-accent-200 opacity-15 blur-3xl" />
+      <div aria-hidden="true" className={c("pointer-events-none fixed inset-0 overflow-hidden -z-0")}>
+        <div className={c("absolute -top-32 -left-32 w-[420px] h-[420px] rounded-full bg-primary-200 opacity-20 blur-3xl")} />
+        <div className={c("absolute top-1/3 right-[-180px] w-[480px] h-[480px] rounded-full bg-secondary-200 opacity-15 blur-3xl")} />
+        <div className={c("absolute bottom-[-200px] left-1/3 w-[520px] h-[520px] rounded-full bg-accent-200 opacity-15 blur-3xl")} />
       </div>
-      <div className="relative z-10">
+      <div className={c("relative z-10")}>
       {/* Skip to content link for accessibility */}
-      <a href="#main-content" className="skip-to-content">
+      <a href="#main-content" className={c("skip-to-content")}>
         Skip to content
       </a>
 
@@ -533,14 +550,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
       <NetworkStatus />
 
       {/* Top Navigation Bar */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border z-40 flex items-center px-4 lg:px-6">
+      <header className={c("fixed top-0 left-0 right-0 h-16 bg-surface border-b border-border z-40 flex items-center px-4 lg:px-6")}>
         {/* Mobile menu button */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-500 mr-2"
+          className={c("lg:hidden p-2 rounded-lg text-text-secondary hover:bg-primary-50 hover:text-primary-500 mr-2")}
           aria-label="Toggle menu"
         >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className={c("w-6 h-6")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             {mobileMenuOpen ? (
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             ) : (
@@ -550,15 +567,15 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         </button>
 
         {/* Logo */}
-        <Link to="/dashboard" className="flex items-center">
+        <Link to="/dashboard" className={c("flex items-center")}>
           <Logo size="sm" showText={!sidebarCollapsed} />
         </Link>
 
         {/* Global Search */}
-        <div ref={searchRef} className="relative ml-4 lg:ml-8 flex-1 max-w-md hidden sm:block">
-          <div className="relative">
+        <div ref={searchRef} className={c("relative ml-4 lg:ml-8 flex-1 max-w-md hidden sm:block")}>
+          <div className={c("relative")}>
             <svg
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary"
+              className={c("absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-secondary")}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -574,49 +591,49 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                 setSearchOpen(true);
               }}
               onFocus={() => setSearchOpen(true)}
-              className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              className={c("w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all")}
             />
             {searchLoading && (
-              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                <div className="w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              <div className={c("absolute right-3 top-1/2 transform -translate-y-1/2")}>
+                <div className={c("w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin")} />
               </div>
             )}
           </div>
 
           {/* Search Results Dropdown */}
           {searchOpen && searchQuery.length >= 2 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-card-hover border border-border overflow-hidden z-50 animate-slide-in-up">
+            <div className={c("absolute top-full left-0 right-0 mt-2 bg-surface rounded-xl shadow-card-hover border border-border overflow-hidden z-50 animate-slide-in-up")}>
               {searchResults.length > 0 ? (
-                <ul className="py-2">
+                <ul className={c("py-2")}>
                   {searchResults.map((result) => (
                     <li key={`${result.type}-${result.id}`}>
                       <button
                         onClick={() => handleSearchSelect(result)}
-                        className="w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3"
+                        className={c("w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3")}
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        <div className={c(`w-8 h-8 rounded-full flex items-center justify-center ${
                           result.type === 'patient' ? 'bg-primary-100 text-primary-600' : 'bg-secondary-100 text-secondary-600'
-                        }`}>
+                        }`)}>
                           {result.type === 'patient' ? (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className={c("w-4 h-4")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                           ) : (
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className={c("w-4 h-4")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           )}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-text-primary">{result.title}</p>
-                          <p className="text-xs text-text-secondary">{result.subtitle}</p>
+                          <p className={c("text-sm font-medium text-text-primary")}>{result.title}</p>
+                          <p className={c("text-xs text-text-secondary")}>{result.subtitle}</p>
                         </div>
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : !searchLoading ? (
-                <div className="px-4 py-6 text-center text-text-secondary text-sm">
+                <div className={c("px-4 py-6 text-center text-text-secondary text-sm")}>
                   No results found for "{searchQuery}"
                 </div>
               ) : null}
@@ -625,15 +642,20 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
         </div>
 
         {/* Spacer (for mobile) */}
-        <div className="flex-1 sm:hidden" />
+        <div className={c("flex-1 sm:hidden")} />
 
         {/* Right side items */}
-        <div className="flex items-center gap-1 ml-auto">
+        <div className={c("flex items-center gap-1 ml-auto")}>
           {/* Super Admin Role Switcher */}
           <SuperAdminRoleSwitcher />
 
+          {/* Light / dark / system — only on screens using the design system */}
+          {designSystem && (
+            <ColorSchemeToggle value={scheme.choice} onChange={scheme.setChoice} className="hidden sm:inline-flex mr-2" />
+          )}
+
           {/* Action icons group */}
-          <div className="flex items-center gap-0.5">
+          <div className={c("flex items-center gap-0.5")}>
             {/* Messages */}
             <MessageBadge />
 
@@ -645,26 +667,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px h-7 bg-gray-200 mx-2" />
+          <div className={c("hidden sm:block w-px h-7 bg-gray-200 mx-2")} />
 
           {/* User menu */}
-          <div className="relative">
+          <div className={c("relative")}>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-gray-50 transition-colors group"
+              className={c("flex items-center gap-2.5 p-1.5 rounded-lg hover:bg-gray-50 transition-colors group")}
             >
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-transparent group-hover:ring-primary-200 transition-all">
+              <div className={c("w-9 h-9 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-transparent group-hover:ring-primary-200 transition-all")}>
                 {user?.first_name?.[0]}{user?.last_name?.[0]}
               </div>
-              <div className="hidden md:block text-left min-w-[100px]">
-                <p className="text-sm font-medium text-gray-900 truncate leading-tight">
+              <div className={c("hidden md:block text-left min-w-[100px]")}>
+                <p className={c("text-sm font-medium text-gray-900 truncate leading-tight")}>
                   {user?.first_name} {user?.last_name}
                 </p>
-                <p className="text-xs text-gray-500 capitalize leading-tight mt-0.5">
+                <p className={c("text-xs text-gray-500 capitalize leading-tight mt-0.5")}>
                   {user?.display_title || user?.role?.replace('_', ' ')}
                 </p>
               </div>
-              <svg className="w-4 h-4 text-gray-400 hidden md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={c("w-4 h-4 text-gray-400 hidden md:block")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
@@ -672,43 +694,51 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
             {/* Dropdown menu */}
             {userMenuOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden">
+                <div className={c("fixed inset-0 z-10")} onClick={() => setUserMenuOpen(false)} />
+                <div className={c("absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 z-20 overflow-hidden")}>
                   {/* User header */}
-                  <div className="px-5 py-4 bg-gradient-to-br from-primary-50 via-white to-secondary-50 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-white shadow-sm">
+                  <div className={c("px-5 py-4 bg-gradient-to-br from-primary-50 via-white to-secondary-50 border-b border-gray-100")}>
+                    <div className={c("flex items-center gap-3")}>
+                      <div className={c("w-11 h-11 rounded-full bg-gradient-to-br from-primary-400 to-secondary-500 flex items-center justify-center text-white font-semibold text-sm ring-2 ring-white shadow-sm")}>
                         {user?.first_name?.[0]}{user?.last_name?.[0]}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
+                      <div className={c("min-w-0")}>
+                        <p className={c("text-sm font-semibold text-gray-900 truncate")}>
                           {user?.first_name} {user?.last_name}
                         </p>
-                        <p className={`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getRoleColor(user?.role || '')}`}>
+                        <p className={c(`text-xs px-2 py-0.5 rounded-full inline-block mt-1 ${getRoleColor(user?.role || '')}`)}>
                           {user?.display_title || user?.role?.replace('_', ' ')}
                         </p>
                       </div>
                     </div>
                   </div>
 
+                  {/* Colour scheme — in the menu so phones (where the header toggle is hidden) get it too */}
+                  {designSystem && (
+                    <div className="px-4 py-3 border-b border-ds-border flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium text-ds-text-secondary">Appearance</span>
+                      <ColorSchemeToggle value={scheme.choice} onChange={scheme.setChoice} />
+                    </div>
+                  )}
+
                   {/* Menu items */}
-                  <div className="py-1.5 px-1.5">
+                  <div className={c("py-1.5 px-1.5")}>
                     <Link
                       to="/profile"
-                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                      className={c("flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors")}
                       onClick={() => setUserMenuOpen(false)}
                     >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <svg className={c("w-4 h-4 text-gray-400")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       My Profile
                     </Link>
                     <Link
                       to="/messages"
-                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                      className={c("flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors")}
                       onClick={() => setUserMenuOpen(false)}
                     >
-                      <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <svg className={c("w-4 h-4 text-gray-400")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                       Messages
@@ -716,12 +746,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                   </div>
 
                   {/* Sign out */}
-                  <div className="border-t border-gray-100 py-1.5 px-1.5">
+                  <div className={c("border-t border-gray-100 py-1.5 px-1.5")}>
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-3 w-full px-3 py-2.5 text-sm text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                      className={c("flex items-center gap-3 w-full px-3 py-2.5 text-sm text-danger-600 hover:bg-danger-50 rounded-lg transition-colors")}
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <svg className={c("w-4 h-4")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                       </svg>
                       Sign Out
@@ -736,24 +766,24 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
 
       {/* Sidebar - Desktop */}
       <aside
-        className={`fixed left-0 top-16 bottom-0 bg-surface border-r border-border z-30 transition-all duration-200 hidden lg:block ${
+        className={c(`fixed left-0 top-16 bottom-0 bg-surface border-r border-border z-30 transition-all duration-200 hidden lg:block ${
           sidebarCollapsed ? 'w-16' : 'w-64'
-        }`}
+        }`)}
       >
-        <div className="flex flex-col h-full">
+        <div className={c("flex flex-col h-full")}>
           {/* Collapse toggle */}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="absolute -right-3 top-6 w-6 h-6 bg-surface border border-border rounded-full flex items-center justify-center text-text-secondary hover:text-primary-500 hover:border-primary-500 transition-colors"
+            className={c("absolute -right-3 top-6 w-6 h-6 bg-surface border border-border rounded-full flex items-center justify-center text-text-secondary hover:text-primary-500 hover:border-primary-500 transition-colors")}
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <svg className={`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className={c(`w-4 h-4 transition-transform ${sidebarCollapsed ? 'rotate-180' : ''}`)} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
 
           {/* Navigation */}
-          <nav aria-label="Main navigation" className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <nav aria-label="Main navigation" className={c("flex-1 p-3 space-y-1 overflow-y-auto")}>
             {filteredNavItems.map((item) => {
               const key = item.path || item.actionId || item.label;
               const isActive = !!item.path && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'));
@@ -769,7 +799,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                     key={key}
                     type="button"
                     onClick={handler}
-                    className={cls}
+                    className={c(cls)}
                     title={sidebarCollapsed ? item.label : undefined}
                     aria-label={sidebarCollapsed ? item.label : undefined}
                   >
@@ -782,7 +812,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                 <Link
                   key={key}
                   to={item.path!}
-                  className={cls}
+                  className={c(cls)}
                   title={sidebarCollapsed ? item.label : undefined}
                   aria-label={sidebarCollapsed ? item.label : undefined}
                   aria-current={isActive ? 'page' : undefined}
@@ -796,8 +826,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
 
           {/* Sidebar footer */}
           {!sidebarCollapsed && (
-            <div className="p-4 border-t border-border">
-              <div className="text-xs text-text-secondary text-center">
+            <div className={c("p-4 border-t border-border")}>
+              <div className={c("text-xs text-text-secondary text-center")}>
                 MedSys EMR
               </div>
             </div>
@@ -809,22 +839,22 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
       {mobileMenuOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            className={c("fixed inset-0 bg-black/50 z-40 lg:hidden")}
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="fixed left-0 top-0 bottom-0 w-64 bg-surface z-50 lg:hidden animate-slide-in-right">
-            <div className="flex items-center justify-between p-4 border-b border-border">
+          <aside className={c("fixed left-0 top-0 bottom-0 w-64 bg-surface z-50 lg:hidden animate-slide-in-right")}>
+            <div className={c("flex items-center justify-between p-4 border-b border-border")}>
               <Logo size="sm" />
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 rounded-lg text-text-secondary hover:bg-primary-50"
+                className={c("p-2 rounded-lg text-text-secondary hover:bg-primary-50")}
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <nav className="p-3 space-y-1">
+            <nav className={c("p-3 space-y-1")}>
               {filteredNavItems.map((item) => {
                 const key = item.path || item.actionId || item.label;
                 const isActive = !!item.path && location.pathname === item.path;
@@ -840,7 +870,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                       key={key}
                       type="button"
                       onClick={(e) => { handler(e); setMobileMenuOpen(false); }}
-                      className={cls}
+                      className={c(cls)}
                     >
                       {item.icon}
                       <span>{item.label}</span>
@@ -852,7 +882,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
                     key={key}
                     to={item.path!}
                     onClick={() => setMobileMenuOpen(false)}
-                    className={cls}
+                    className={c(cls)}
                   >
                     {item.icon}
                     <span>{item.label}</span>
@@ -867,9 +897,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
       {/* Main Content */}
       <main
         id="main-content"
-        className={`pt-16 min-h-screen transition-all duration-200 ${
+        className={c(`pt-16 min-h-screen transition-all duration-200 ${
           sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
-        }`}
+        }`)}
       >
         {/* Greeting and breadcrumb strips were removed in favor of the slim
             DashboardHeader component each role dashboard renders itself.
@@ -878,54 +908,54 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
 
         {/* Page header with breadcrumbs and title */}
         {title && location.pathname !== '/dashboard' && (
-          <div className="bg-surface border-b border-border px-4 lg:px-6 py-3">
+          <div className={c("bg-surface border-b border-border px-4 lg:px-6 py-3")}>
             {/* Auto breadcrumb */}
-            <nav className="flex items-center gap-1.5 text-sm mb-1">
+            <nav className={c("flex items-center gap-1.5 text-sm mb-1")}>
               <Link
                 to="/dashboard"
-                className="text-gray-400 hover:text-primary-600 transition-colors flex items-center gap-1"
+                className={c("text-gray-400 hover:text-primary-600 transition-colors flex items-center gap-1")}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className={c("w-3.5 h-3.5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                 </svg>
                 Dashboard
               </Link>
               {title && location.pathname !== '/dashboard' && (
                 <>
-                  <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className={c("w-3.5 h-3.5 text-gray-300")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  <span className="text-gray-700 font-medium">{title}</span>
+                  <span className={c("text-gray-700 font-medium")}>{title}</span>
                 </>
               )}
               {breadcrumbs && breadcrumbs.map((crumb, index) => (
                 <React.Fragment key={index}>
-                  <svg className="w-3.5 h-3.5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className={c("w-3.5 h-3.5 text-gray-300")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                   {crumb.path ? (
-                    <Link to={crumb.path} className="text-gray-400 hover:text-primary-600 transition-colors">{crumb.label}</Link>
+                    <Link to={crumb.path} className={c("text-gray-400 hover:text-primary-600 transition-colors")}>{crumb.label}</Link>
                   ) : (
-                    <span className="text-gray-700 font-medium">{crumb.label}</span>
+                    <span className={c("text-gray-700 font-medium")}>{crumb.label}</span>
                   )}
                 </React.Fragment>
               ))}
             </nav>
-            {title && <h1 className="text-xl font-bold text-text-primary">{title}</h1>}
+            {title && <h1 className={c("text-xl font-bold text-text-primary")}>{title}</h1>}
           </div>
         )}
 
         {/* Page content */}
-        <div className="p-4 lg:p-6 pb-20 lg:pb-6">
-          <div className="animate-fade-in">
+        <div className={c("p-4 lg:p-6 pb-20 lg:pb-6")}>
+          <div className={c("animate-fade-in")}>
             {children}
           </div>
         </div>
       </main>
 
       {/* Mobile Bottom Tab Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-40 lg:hidden safe-area-bottom">
-        <div className="flex justify-around items-center h-16">
+      <nav className={c("fixed bottom-0 left-0 right-0 bg-surface border-t border-border z-40 lg:hidden safe-area-bottom")}>
+        <div className={c("flex justify-around items-center h-16")}>
           {/* Mobile bottom nav: only show items with a real path. Actions
               like How-To Guide are surfaced from the slide-out menu only. */}
           {filteredNavItems.filter((i) => i.path).slice(0, 5).map((item) => {
@@ -934,14 +964,14 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
               <Link
                 key={item.path}
                 to={item.path!}
-                className={`flex flex-col items-center justify-center flex-1 h-full px-2 transition-colors ${
+                className={c(`flex flex-col items-center justify-center flex-1 h-full px-2 transition-colors ${
                   isActive ? 'text-primary-600' : 'text-text-secondary'
-                }`}
+                }`)}
               >
-                <span className={`${isActive ? 'scale-110' : ''} transition-transform`}>
+                <span className={c(`${isActive ? 'scale-110' : ''} transition-transform`)}>
                   {item.icon}
                 </span>
-                <span className={`text-[10px] mt-1 ${isActive ? 'font-semibold' : 'font-medium'}`}>
+                <span className={c(`text-[10px] mt-1 ${isActive ? 'font-semibold' : 'font-medium'}`)}>
                   {item.label}
                 </span>
               </Link>
@@ -950,12 +980,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
           {filteredNavItems.length > 5 && (
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="flex flex-col items-center justify-center flex-1 h-full px-2 text-text-secondary"
+              className={c("flex flex-col items-center justify-center flex-1 h-full px-2 text-text-secondary")}
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              <span className="text-[10px] mt-1 font-medium">More</span>
+              <span className={c("text-[10px] mt-1 font-medium")}>More</span>
             </button>
           )}
         </div>
@@ -966,6 +996,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs }) =
       <IncomingCallModal />
       <ActiveCallBar />
     </div>
+    </DsContext.Provider>
   );
 };
 
