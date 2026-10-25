@@ -7,7 +7,7 @@ import type { User } from '../../types';
 import type { ApiError } from '../../types';
 
 const SELECT_CLS =
-  'w-full px-3 py-3.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500';
+  'w-full px-3 h-ds-control border border-ds-border-control rounded-ds-control bg-ds-surface text-ds-text focus:bg-ds-surface focus:ring-2 focus:ring-ds-focus-ring focus:border-ds-accent';
 const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const YEARS = Array.from({ length: 111 }, (_, i) => String(new Date().getFullYear() - i));
@@ -48,15 +48,15 @@ const PortalVerify: React.FC = () => {
     <PortalAuthLayout title="Confirm it's you" subtitle="For your security, enter your date of birth.">
       {!token ? (
         <div className="space-y-3">
-          <p className="text-text-primary">This link is missing its access code.</p>
-          <Link to="/portal" className="text-sm font-semibold text-primary-600 hover:text-primary-700">
+          <p className="text-ds-text">This link is missing its access code.</p>
+          <Link to="/portal" className="text-sm font-semibold text-ds-accent-text hover:text-ds-accent-hover">
             Get a new sign-in link
           </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <fieldset>
-            <legend className="block text-sm font-medium text-text-primary mb-1.5">Date of birth</legend>
+            <legend className="block text-sm font-medium text-ds-text mb-1.5">Date of birth</legend>
             <div className="grid grid-cols-[1fr_1.6fr_1.3fr] gap-2">
               <select aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} required className={SELECT_CLS}>
                 <option value="">Day</option>
@@ -73,17 +73,17 @@ const PortalVerify: React.FC = () => {
             </div>
           </fieldset>
           {error && (
-            <p className="text-sm text-danger-700 bg-danger-50 border border-danger-100 rounded-xl px-3 py-2" role="alert">{error}</p>
+            <p className="text-sm text-ds-critical-text bg-ds-critical-soft border border-ds-critical-border rounded-ds-control px-3 py-2" role="alert">{error}</p>
           )}
           <button
             type="submit"
             disabled={submitting || !dob}
-            className="w-full py-3.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white font-semibold rounded-xl shadow-sm hover:from-primary-600 hover:to-primary-700 disabled:opacity-50 transition-all"
+            className="w-full h-ds-control bg-ds-accent text-ds-on-accent font-semibold rounded-ds-control shadow-ds-card hover:bg-ds-accent-hover disabled:opacity-50 transition-all"
           >
             {submitting ? 'Checking…' : 'See my records'}
           </button>
           <div className="text-center">
-            <Link to="/portal" className="text-sm text-text-secondary hover:text-text-primary">
+            <Link to="/portal" className="text-sm text-ds-text-muted hover:text-ds-text">
               Link not working? Get a new one
             </Link>
           </div>
