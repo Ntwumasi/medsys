@@ -71,6 +71,17 @@ const formatRange = (
   return `< ${hi}${displayUnit ? ' ' + displayUnit : ''}`;
 };
 
+// FBC critical (panic) limits, the same for every age/sex variant. A value at
+// or past a limit raises a critical-result alert to the ordering doctor and
+// the visit nurse (services/criticalResultService). Approved 2026-10-25;
+// keep in step with migrations/addFbcCriticalLimits.ts.
+export const FBC_CRITICAL_LIMITS: Record<string, [number | null, number | null]> = {
+  HGB: [7.0, 20.0],      // g/dL
+  PLT: [20, 1000],       // 10^9/L
+  WBC: [2.0, 30.0],      // 10^9/L
+  NEU_ABS: [0.5, null],  // 10^9/L — severe neutropenia
+};
+
 // FBC parameter list — the parameter NAMES are the same across age/sex,
 // only the reference ranges differ. We define the parameter scaffold once
 // and inject ranges from the per-variant tables below.
@@ -89,6 +100,7 @@ const fbcParameterTemplate = (
     sort: number,
   ): ParameterSeed => {
     const [lo, hi] = ranges[rangeKey] ?? [null, null];
+    const [critLo, critHi] = FBC_CRITICAL_LIMITS[code] ?? [null, null];
     return {
       parameter_name: name,
       parameter_code: code,
@@ -96,6 +108,8 @@ const fbcParameterTemplate = (
       unit,
       normal_low: lo ?? undefined,
       normal_high: hi ?? undefined,
+      critical_low: critLo ?? undefined,
+      critical_high: critHi ?? undefined,
       // Use the explicit refText if provided; otherwise derive from the
       // range so every row in the printed report has something legible.
       reference_range_text: refText || formatRange(lo, hi, unit),
