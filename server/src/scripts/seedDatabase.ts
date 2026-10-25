@@ -1,8 +1,10 @@
 import pool from '../database/db';
 import bcrypt from 'bcrypt';
+import { devSeedPassword } from '../database/seedPasswords';
 
 async function seedDatabase() {
   const client = await pool.connect();
+  const devPassword = devSeedPassword();
 
   try {
     await client.query('BEGIN');
@@ -37,7 +39,7 @@ async function seedDatabase() {
     if (userCount === 0) {
       console.log('👥 Seeding demo users...');
 
-      const password = await bcrypt.hash('demo123', 10);
+      const password = await bcrypt.hash(devPassword, 10);
 
       // Create admin user
       await client.query(
@@ -101,7 +103,7 @@ async function seedDatabase() {
       );
 
       console.log('✅ Created 9 demo users (admin, receptionist, 2 nurses, 2 doctors, lab, pharmacy, imaging)');
-      console.log('   Password for all users: demo123');
+      console.log(`   Password for all users: ${devPassword}`);
     } else {
       console.log(`✓ Users already seeded (${userCount} staff users found)`);
     }
@@ -110,14 +112,14 @@ async function seedDatabase() {
     console.log('');
     console.log('🎉 Database seeding completed successfully!');
     console.log('');
-    console.log('Demo credentials:');
-    console.log('  Admin: admin@medsys.com / demo123');
-    console.log('  Receptionist: receptionist@medsys.com / demo123');
-    console.log('  Nurse: nurse@medsys.com / demo123');
-    console.log('  Doctor: doctor@medsys.com / demo123');
-    console.log('  Lab: lab@medsys.com / demo123');
-    console.log('  Pharmacy: pharmacy@medsys.com / demo123');
-    console.log('  Imaging: imaging@medsys.com / demo123');
+    console.log(`Demo credentials (password: ${devPassword}):`);
+    console.log('  Admin: admin@medsys.com');
+    console.log('  Receptionist: receptionist@medsys.com');
+    console.log('  Nurse: nurse@medsys.com');
+    console.log('  Doctor: doctor@medsys.com');
+    console.log('  Lab: lab@medsys.com');
+    console.log('  Pharmacy: pharmacy@medsys.com');
+    console.log('  Imaging: imaging@medsys.com');
 
   } catch (error) {
     await client.query('ROLLBACK');

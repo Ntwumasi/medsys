@@ -1,5 +1,5 @@
 import pool from '../db';
-import bcrypt from 'bcrypt';
+import { unusablePasswordHash } from '../seedPasswords';
 
 async function addPatientUser() {
   const client = await pool.connect();
@@ -9,7 +9,7 @@ async function addPatientUser() {
 
     console.log('Adding patient portal user...');
 
-    const password = await bcrypt.hash('demo123', 10);
+    const password = await unusablePasswordHash();
 
     // Check if patient user exists
     const patientCheck = await client.query(
@@ -22,7 +22,7 @@ async function addPatientUser() {
          VALUES ($1, $2, 'patient', 'Demo', 'Patient', '555-0099')`,
         ['patient@medsys.com', password]
       );
-      console.log('Created patient user: patient@medsys.com / demo123');
+      console.log('Created patient user: patient@medsys.com (no usable password)');
     } else {
       console.log('Patient user already exists');
     }

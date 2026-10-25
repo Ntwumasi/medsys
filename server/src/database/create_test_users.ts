@@ -1,11 +1,12 @@
 import pool from './db';
 import bcrypt from 'bcrypt';
+import { devSeedPassword } from './seedPasswords';
 
 const createTestUsers = async () => {
   const client = await pool.connect();
 
   try {
-    const password = 'demo123';
+    const password = devSeedPassword();
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create receptionist
@@ -39,10 +40,11 @@ const createTestUsers = async () => {
     console.log('✅ Test users created successfully!');
     console.log('\nLogin credentials:');
     console.log('─────────────────────────────────────');
-    console.log('Receptionist: receptionist@medsys.com / demo123');
-    console.log('Nurse:        nurse@medsys.com / demo123');
-    console.log('Doctor:       doctor@medsys.com / demo123');
-    console.log('Admin:        admin@medsys.com / demo123');
+    console.log('Receptionist: receptionist@medsys.com');
+    console.log('Nurse:        nurse@medsys.com');
+    console.log('Doctor:       doctor@medsys.com');
+    console.log('Admin:        admin@medsys.com');
+    console.log(`Password (all): ${password}`);
     console.log('─────────────────────────────────────\n');
 
   } catch (error) {
