@@ -30,6 +30,10 @@ const isCarecode = (row: { source?: string; patient_number: string }): boolean =
  * survivor — stamps the survivor's carecode_origin_number so the patient card
  * still shows the legacy provenance. Reversible via the audit trail.
  *
+ * Only a row that duplicates one the survivor already has (a unique
+ * conflict) is dropped, and a full copy of it is kept in patient_merges.
+ * Any other error aborts the merge.
+ *
  * Shared by the super-admin HTTP handler and the bulk cleanup script so the
  * destructive logic lives in exactly one place.
  */
@@ -58,24 +62,55 @@ export const performPatientMerge = async (
 
   // Re-point every table referencing patient_id (dynamic — future-proof).
   const tables = (await client.query(
-    "SELECT table_name FROM information_schema.columns WHERE column_name = 'patient_id' AND table_schema = 'public'"
+    `SELECT c.table_name FROM information_schema.columns c
+       JOIN information_schema.tables t ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+      WHERE c.column_name = 'patient_id' AND c.table_schema = 'public' AND t.table_type = 'BASE TABLE'`
   )).rows.map((r: any) => r.table_name);
 
   const moved: Record<string, number> = {};
   const dropped: Record<string, number> = {};
+  // Full copies of any rows dropped as duplicates, kept in patient_merges so
+  // nothing is lost beyond recovery.
+  const droppedRows: Record<string, any[]> = {};
+  const isUniqueViolation = (e: any) => e?.code === '23505';
   for (const t of tables) {
     await client.query('SAVEPOINT sp');
     try {
       const r = await client.query(`UPDATE "${t}" SET patient_id = $1 WHERE patient_id = $2`, [targetPatientId, sourcePatientId]);
       if (r.rowCount) moved[t] = r.rowCount;
       await client.query('RELEASE SAVEPOINT sp');
-    } catch {
-      // A unique/constraint conflict means the target already has the canonical
-      // row — drop the source's duplicate rows for this table instead.
+      continue;
+    } catch (e) {
       await client.query('ROLLBACK TO SAVEPOINT sp');
-      const d = await client.query(`DELETE FROM "${t}" WHERE patient_id = $1`, [sourcePatientId]);
-      if (d.rowCount) dropped[t] = d.rowCount;
       await client.query('RELEASE SAVEPOINT sp');
+      // Anything but a duplicate (FK, check, trigger…) stops the merge: the
+      // whole transaction rolls back. This used to delete ALL of the source's
+      // rows in the table on any error.
+      if (!isUniqueViolation(e)) {
+        throw new MergeError(409, `Could not move the ${t} records (${(e as Error).message}). Nothing was merged.`);
+      }
+    }
+
+    // A unique conflict: the survivor already has an equivalent row for some of
+    // these. Move row by row; only a row that itself conflicts is dropped.
+    const rows = await client.query(`SELECT ctid::text AS _ctid, * FROM "${t}" WHERE patient_id = $1`, [sourcePatientId]);
+    for (const row of rows.rows) {
+      await client.query('SAVEPOINT sp_row');
+      try {
+        await client.query(`UPDATE "${t}" SET patient_id = $1 WHERE ctid = $2::tid`, [targetPatientId, row._ctid]);
+        moved[t] = (moved[t] || 0) + 1;
+        await client.query('RELEASE SAVEPOINT sp_row');
+      } catch (e) {
+        await client.query('ROLLBACK TO SAVEPOINT sp_row');
+        await client.query('RELEASE SAVEPOINT sp_row');
+        if (!isUniqueViolation(e)) {
+          throw new MergeError(409, `Could not move the ${t} records (${(e as Error).message}). Nothing was merged.`);
+        }
+        await client.query(`DELETE FROM "${t}" WHERE ctid = $1::tid`, [row._ctid]);
+        const { _ctid: _drop, ...copy } = row;
+        (droppedRows[t] ||= []).push(copy);
+        dropped[t] = (dropped[t] || 0) + 1;
+      }
     }
   }
 
@@ -99,7 +134,7 @@ export const performPatientMerge = async (
   await client.query(
     `INSERT INTO patient_merges (source_patient_id, target_patient_id, source_patient_number, target_patient_number, merged_by, details)
      VALUES ($1, $2, $3, $4, $5, $6)`,
-    [sourcePatientId, targetPatientId, source.patient_number, target.patient_number, mergedById, JSON.stringify({ moved, dropped, carecodeOriginStamped })]
+    [sourcePatientId, targetPatientId, source.patient_number, target.patient_number, mergedById, JSON.stringify({ moved, dropped, dropped_rows: droppedRows, carecodeOriginStamped })]
   );
 
   return {

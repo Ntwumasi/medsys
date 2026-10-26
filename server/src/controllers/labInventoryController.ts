@@ -282,11 +282,12 @@ export const adjustLabStock = async (req: Request, res: Response): Promise<void>
 
     // Get current stock
     const current = await client.query(
-      `SELECT quantity_on_hand FROM lab_inventory WHERE id = $1`,
+      `SELECT quantity_on_hand FROM lab_inventory WHERE id = $1 FOR UPDATE`,
       [id]
     );
 
     if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Lab inventory item not found' });
       return;
     }
@@ -294,6 +295,7 @@ export const adjustLabStock = async (req: Request, res: Response): Promise<void>
     const newQuantity = current.rows[0].quantity_on_hand + adjustment;
 
     if (newQuantity < 0) {
+      await client.query('ROLLBACK');
       res.status(400).json({ error: 'Insufficient stock for this adjustment' });
       return;
     }
@@ -348,11 +350,12 @@ export const useLabSupply = async (req: Request, res: Response): Promise<void> =
 
     // Get current stock
     const current = await client.query(
-      `SELECT * FROM lab_inventory WHERE id = $1`,
+      `SELECT * FROM lab_inventory WHERE id = $1 FOR UPDATE`,
       [inventory_id]
     );
 
     if (current.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Lab supply not found in inventory' });
       return;
     }
@@ -360,6 +363,7 @@ export const useLabSupply = async (req: Request, res: Response): Promise<void> =
     const item = current.rows[0];
 
     if (item.quantity_on_hand < quantity) {
+      await client.query('ROLLBACK');
       res.status(400).json({
         error: 'Insufficient stock',
         available: item.quantity_on_hand,
@@ -515,6 +519,7 @@ export const recordCalibration = async (req: Request, res: Response): Promise<vo
     );
 
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
       res.status(404).json({ error: 'Equipment not found' });
       return;
     }

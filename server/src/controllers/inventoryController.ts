@@ -583,7 +583,7 @@ export const adjustStock = async (req: Request, res: Response): Promise<void> =>
     } else {
       // Negative adjustment: draw it down FEFO through the same path dispensing
       // uses, so batches and the cached count stay in agreement.
-      await dispenseFromBatches(client, parseInt(String(id)), Math.abs(adjustment), authReq.user?.id ?? null);
+      await dispenseFromBatches(client, parseInt(String(id)), Math.abs(adjustment), authReq.user?.id ?? null, { includeExpired: true });
     }
 
     // quantity_on_hand is derived from the batches — recompute rather than trust
@@ -1391,7 +1391,10 @@ export const dispenseFromBatches = async (
   client: any,
   inventoryId: number,
   quantityToDispense: number,
-  userId: number | null
+  userId: number | null,
+  // Stock write-downs (adjustments) may take expired stock — that is usually
+  // the point of them. Dispensing to a patient never does.
+  opts: { includeExpired?: boolean } = {}
 ): Promise<{ success: boolean; dispensedBatches: any[]; shortfall: number }> => {
   const dispensedBatches: any[] = [];
   let remainingQty = quantityToDispense;
@@ -1417,13 +1420,17 @@ export const dispenseFromBatches = async (
   // Get batches ordered by expiry date (FEFO). FOR UPDATE locks the batch rows
   // so two concurrent dispenses can't both read the same batch and over-draw it
   // (drive a batch negative). Concurrent callers serialize on these rows.
+  // EXPIRED batches are never dispensed: ordered by expiry, they used to be
+  // the first stock to go out. They stay on the count until pharmacy removes
+  // them; a dispense that only expired stock could cover shows as a shortfall.
   const batches = await client.query(
     `SELECT id, batch_number, quantity, expiry_date
      FROM inventory_batches
      WHERE inventory_id = $1 AND is_active = true AND quantity > 0
+       AND ($2::boolean OR expiry_date IS NULL OR expiry_date >= CURRENT_DATE)
      ORDER BY expiry_date ASC NULLS LAST, received_date ASC
      FOR UPDATE`,
-    [inventoryId]
+    [inventoryId, !!opts.includeExpired]
   );
 
   for (const batch of batches.rows) {
@@ -1612,6 +1619,25 @@ export const deletePurchase = async (req: Request, res: Response): Promise<void>
     }
 
     const tx = txResult.rows[0];
+
+    // If some of this delivery has already been dispensed, deleting it would
+    // take the full purchased quantity off the shelf count — including units
+    // that already left with patients — and leave stock below what's really
+    // there. Refuse, and say how much is left so it can be adjusted instead.
+    if (tx.reference_id) {
+      const batch = await client.query(
+        `SELECT quantity FROM inventory_batches WHERE id = $1 FOR UPDATE`,
+        [tx.reference_id]
+      );
+      const remaining = batch.rows.length ? Number(batch.rows[0].quantity) : 0;
+      if (remaining < Number(tx.quantity)) {
+        await client.query('ROLLBACK');
+        res.status(409).json({
+          error: `${Number(tx.quantity) - remaining} of the ${tx.quantity} ${tx.medication_name} in this purchase have already been dispensed, so it can't be deleted. Adjust the batch quantity instead (${remaining} left in it).`,
+        });
+        return;
+      }
+    }
 
     // Reverse the inventory quantity
     await client.query(
