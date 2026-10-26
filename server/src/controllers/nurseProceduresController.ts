@@ -188,7 +188,8 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
       // Resolve payer-specific price
       const { resolvePrice } = require('../services/priceResolutionService');
       const resolved = await resolvePrice(charge.id, invoice.id, client);
-      const billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
+      // Excluded by the payer → the patient pays the cash price.
+      const billingPrice = resolved.unitPrice;
 
       // Add invoice item — but only once. Guard against a double-click / retry
       // re-billing the same procedure (completeNurseProcedure had no dedup, so a
@@ -202,9 +203,9 @@ export const completeNurseProcedure = async (req: Request, res: Response): Promi
       if (alreadyBilled.rows.length === 0) {
         await client.query(
           `INSERT INTO invoice_items (
-            invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id
-          ) VALUES ($1, $2, $3, 1, $4, $4, 'procedure', 'nurse_procedure', $5)`,
-          [invoice.id, charge.id, procedure.procedure_name, billingPrice, id]
+            invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id, bill_to
+          ) VALUES ($1, $2, $3, 1, $4, $4, 'procedure', 'nurse_procedure', $5, $6)`,
+          [invoice.id, charge.id, procedure.procedure_name, billingPrice, id, resolved.isExcluded ? 'patient' : 'payer']
         );
       }
 

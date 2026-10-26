@@ -252,19 +252,29 @@ const humanizeFieldPath = (path: string): string => {
  */
 // Zod's defaults are written for developers ("String must contain at most 20
 // character(s)"). Rewrite the ones staff actually hit.
+// Covers Zod 4's wording ("Too big: expected string to have <=20 characters")
+// and Zod 3's ("String must contain at most 20 character(s)").
 const humanizeZodMessage = (message: string): string => {
-  const tooLong = message.match(/String must contain at most (\d+) character\(s\)/);
+  const tooLong =
+    message.match(/String must contain at most (\d+) character\(s\)/) ||
+    message.match(/^Too big: expected string to have <=(\d+) characters?/);
   if (tooLong) return `must be ${tooLong[1]} characters or fewer`;
 
-  const tooShort = message.match(/String must contain at least (\d+) character\(s\)/);
+  const tooShort =
+    message.match(/String must contain at least (\d+) character\(s\)/) ||
+    message.match(/^Too small: expected string to have >=(\d+) characters?/);
   if (tooShort) return `must be at least ${tooShort[1]} characters`;
 
   if (/^Invalid enum value.*received ''$/.test(message)) return 'please choose an option';
 
-  const enumMatch = message.match(/^Invalid enum value\. Expected (.*?), received/);
-  if (enumMatch) return `must be one of: ${enumMatch[1].replace(/'/g, '')}`;
+  const enumMatch =
+    message.match(/^Invalid enum value\. Expected (.*?), received/) ||
+    message.match(/^Invalid option: expected one of (.*)$/);
+  if (enumMatch) return `must be one of: ${enumMatch[1].replace(/['"]/g, '').replace(/\|/g, ', ')}`;
 
-  if (message === 'Required') return 'is required';
+  if (message === 'Required' || /^Invalid input: expected \w+, received (undefined|null)$/.test(message)) return 'is required';
+  const wrongType = message.match(/^Invalid input: expected (\w+), received \w+$/);
+  if (wrongType) return `must be a ${wrongType[1]}`;
   if (message === 'Invalid input') return 'is not a valid choice';
 
   return message;
@@ -300,7 +310,7 @@ export const validateBody = <T extends z.ZodType>(schema: T) => {
       const result = schema.safeParse(req.body);
 
       if (!result.success) {
-        const errors = result.error.errors.map((err) => ({
+        const errors = result.error.issues.map((err) => ({
           field: err.path.join('.'),
           message: err.message,
         }));
@@ -342,7 +352,7 @@ export const validateQuery = <T extends z.ZodType>(schema: T) => {
       const result = schema.safeParse(req.query);
 
       if (!result.success) {
-        const errors = result.error.errors.map((err) => ({
+        const errors = result.error.issues.map((err) => ({
           field: err.path.join('.'),
           message: err.message,
         }));
@@ -354,7 +364,7 @@ export const validateQuery = <T extends z.ZodType>(schema: T) => {
         return;
       }
 
-      req.query = result.data;
+      req.query = result.data as Request["query"];
       next();
     } catch (error) {
       console.error('Query validation error:', error);
@@ -372,7 +382,7 @@ export const validateParams = <T extends z.ZodType>(schema: T) => {
       const result = schema.safeParse(req.params);
 
       if (!result.success) {
-        const errors = result.error.errors.map((err) => ({
+        const errors = result.error.issues.map((err) => ({
           field: err.path.join('.'),
           message: err.message,
         }));
@@ -384,7 +394,7 @@ export const validateParams = <T extends z.ZodType>(schema: T) => {
         return;
       }
 
-      req.params = result.data;
+      req.params = result.data as Request["params"];
       next();
     } catch (error) {
       console.error('Params validation error:', error);

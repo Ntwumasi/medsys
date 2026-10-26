@@ -370,12 +370,11 @@ const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({
     const isFullPayment = isSelfPay && amountToApply >= balanceDue;
 
     // 1. Record the payment — the money operation. If THIS fails, stop and report.
-    const newAmountPaid = Number(invoice.amount_paid || 0) + amountToApply;
-    const newStatus = newAmountPaid >= Number(invoice.total_amount) ? 'paid' : 'partial';
+    // Send only the amount received now; the server adds it to the invoice and
+    // sets the status, so two cashiers can't overwrite each other.
     try {
       await apiClient.put(`/invoices/${invoice.id}`, {
-        status: newStatus,
-        amount_paid: newAmountPaid,
+        payment_amount: amountToApply,
         payment_method: paymentMethod,
       });
     } catch (error) {

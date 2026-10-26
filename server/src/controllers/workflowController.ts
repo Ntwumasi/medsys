@@ -227,8 +227,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
 
       checkInCharges.push({
         chargeMasterId: chargeResult.rows.length > 0 ? chargeResult.rows[0].id : null,
-        description: chargeResult.rows.length > 0 ? chargeResult.rows[0].service_name : 'Registration',
-        price: chargeResult.rows.length > 0 ? parseFloat(chargeResult.rows[0].price) : 100,
+        description: chargeResult.rows.length > 0 ? chargeResult.rows[0].service_name : 'Registration [PRICE PENDING]',
+        price: chargeResult.rows.length > 0 ? parseFloat(chargeResult.rows[0].price) : 0,
       });
     }
 
@@ -292,8 +292,8 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
       }
       checkInCharges.push({
         chargeMasterId: consultResult.rows.length > 0 ? consultResult.rows[0].id : null,
-        description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : `${clinic || 'General'} Consultation`,
-        price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 200,
+        description: consultResult.rows.length > 0 ? consultResult.rows[0].service_name : `${clinic || 'General'} Consultation [PRICE PENDING]`,
+        price: consultResult.rows.length > 0 ? parseFloat(consultResult.rows[0].price) : 0,
       });
       }
     }
@@ -339,27 +339,29 @@ export const checkInPatient = async (req: Request, res: Response): Promise<void>
     let resolvedTotal = 0;
     for (const charge of checkInCharges) {
       let finalPrice = charge.price;
+      let billTo: 'patient' | 'payer' = 'payer';
       if (charge.chargeMasterId) {
         try {
           const { resolvePrice } = require('../services/priceResolutionService');
           const resolved = await resolvePrice(charge.chargeMasterId, invoiceId, client);
-          if (!resolved.isExcluded) {
-            finalPrice = resolved.unitPrice;
-          }
+          finalPrice = resolved.unitPrice;
+          // Excluded by the payer → the patient pays the cash price.
+          if (resolved.isExcluded) billTo = 'patient';
         } catch {
           // Fall back to cash rate if resolution fails
         }
       }
 
       await client.query(
-        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, $2, $3, 1, $4, $4, $5)`,
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, bill_to)
+         VALUES ($1, $2, $3, 1, $4, $4, $5, $6)`,
         [
           invoiceId,
           charge.chargeMasterId,
           charge.description,
           finalPrice,
           charge.description.toLowerCase().includes('registration') ? 'registration' : 'consultation',
+          billTo,
         ]
       );
       resolvedTotal += finalPrice;
@@ -1626,8 +1628,8 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
     // sure each has a billed invoice_item. Covers the edge cases where a
     // lab order ended up in a half-done state (entered but not finalised,
     // verified but stuck in-progress, etc.) and never auto-billed via
-    // runLabCompletionSideEffects. Idempotent — the existence check on
-    // invoice_items.description prevents double-billing on repeat clicks.
+    // runLabCompletionSideEffects. Idempotent — the existence check on the
+    // line's source order prevents double-billing on repeat clicks.
     let labsBilled = 0;
     if (from_department === 'lab') {
       const invoiceId = await resolveEncounterInvoiceId(encounter_id, pool);
@@ -1657,10 +1659,16 @@ export const releaseToNurse = async (req: Request, res: Response): Promise<void>
             console.warn(`⚠️ Route-from-lab billing: "${lo.test_name}" (code ${lo.test_code}) billed 0 [PRICE PENDING] — ${labItem.match ? 'catalog base_price is 0' : 'no catalog match'}, review.`);
           }
 
-          // Dedup by the canonical catalog name so the same test isn't billed twice.
+          // Already billed for THIS order (any line — completion bills a panel
+          // as one line per test)? A repeat of the same test is a separate
+          // order and is billed. Pre-reference lines still dedup by name.
           const existing = await pool.query(
-            `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-            [invoiceId, description]
+            `SELECT id FROM invoice_items
+              WHERE invoice_id = $1
+                AND ((reference_type = 'lab_order' AND reference_id = $3)
+                  OR (reference_id IS NULL AND description = $2))
+              LIMIT 1`,
+            [invoiceId, description, lo.id]
           );
           if (existing.rows.length > 0) continue;
 

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { isPayerSettlement as isSettlementPayment, patientShares, primaryPayerTypeSql } from '../services/patientShare';
 import pool from '../database/db';
 import { sendReceiptEmail, validateEmail } from '../services/emailService';
 import { autoCheckoutIfFullyPaid } from '../services/autoCheckoutService';
@@ -385,7 +386,7 @@ export const getUnbilledPayerInvoices = async (req: Request, res: Response): Pro
 // marked bill_to='patient' (e.g. medications exempted from cover), and how much
 // of that they've paid. Checkout payments are the patient's; payer settlements
 // are recorded with the note '<type> payer settlement'.
-const isPayerSettlement = (p: { notes?: string | null }) => /payer settlement$/.test(p.notes || '');
+const isPayerSettlement = (p: { notes?: string | null }) => isSettlementPayment(p.notes);
 const patientShare = (items: any[], payments: any[]) => ({
   patient_portion: Math.round(items
     .filter((i) => i.bill_to === 'patient')
@@ -508,9 +509,11 @@ export const getPatientStatement = async (req: Request, res: Response): Promise<
     const invoicesResult = await pool.query(
       `SELECT i.id, i.invoice_number, i.invoice_date, i.due_date, i.status,
               i.subtotal, i.tax, i.total_amount, i.amount_paid,
-              e.encounter_date, e.chief_complaint
+              e.encounter_date, e.chief_complaint,
+              pps.payer_type AS invoice_payer_type
        FROM invoices i
        LEFT JOIN encounters e ON i.encounter_id = e.id
+       LEFT JOIN patient_payer_sources pps ON pps.id = i.payer_source_id
        WHERE i.patient_id = $1 AND i.status IN ('pending', 'partial')
        ORDER BY i.invoice_date ASC, i.id ASC`,
       [patient_id]
@@ -518,27 +521,45 @@ export const getPatientStatement = async (req: Request, res: Response): Promise<
 
     const invoiceIds = invoicesResult.rows.map((r) => r.id);
     const itemsByInvoice: Record<number, any[]> = {};
+    let items: any[] = [];
+    let payments: any[] = [];
     if (invoiceIds.length > 0) {
       const itemsResult = await pool.query(
-        `SELECT id, invoice_id, description, quantity, unit_price, total_price, category
+        `SELECT id, invoice_id, description, quantity, unit_price, total_price, category,
+                COALESCE(bill_to, 'payer') AS bill_to
            FROM invoice_items WHERE invoice_id = ANY($1)
           ORDER BY invoice_id ASC, id ASC`,
         [invoiceIds]
       );
-      for (const it of itemsResult.rows) {
+      items = itemsResult.rows;
+      for (const it of items) {
         (itemsByInvoice[it.invoice_id] ||= []).push(it);
       }
+      payments = (await pool.query(
+        `SELECT invoice_id, amount, notes, payment_method FROM payments WHERE invoice_id = ANY($1)`,
+        [invoiceIds]
+      )).rows;
     }
 
-    const invoices = invoicesResult.rows.map((inv) => ({
-      ...inv,
-      items: itemsByInvoice[inv.id] || [],
-    }));
+    // Only what the PATIENT owes: an insurer's or employer's share is billed
+    // to them, not to the patient.
+    const primary = await pool.query(primaryPayerTypeSql, [patient_id]);
+    const shares = patientShares(invoicesResult.rows, items, payments, primary.rows[0]?.payer_type);
 
-    const grandTotal = invoices.reduce(
-      (sum, inv) => sum + (parseFloat(inv.total_amount || 0) - parseFloat(inv.amount_paid || 0)),
-      0
-    );
+    const invoices = invoicesResult.rows
+      .map(({ invoice_payer_type: _payerType, ...inv }) => {
+        const share = shares.get(inv.id)!;
+        return {
+          ...inv,
+          items: itemsByInvoice[inv.id] || [],
+          covered_share: share.covered_share,
+          patient_paid: share.you_paid,
+          balance_due: share.balance_due,
+        };
+      })
+      .filter((inv) => inv.balance_due > 0);
+
+    const grandTotal = invoices.reduce((sum, inv) => sum + inv.balance_due, 0);
 
     res.json({
       patient: patientResult.rows[0],
@@ -721,7 +742,7 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { status, amount_paid, notes, payment_method } = req.body;
+    const { status, amount_paid, payment_amount, notes, payment_method } = req.body;
     const userId = (req as any).user?.id;
 
     await client.query('BEGIN');
@@ -744,16 +765,47 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
     const total = parseFloat(invoice.total_amount || 0);
     const currentAmountPaid = parseFloat(invoice.amount_paid || 0);
 
+    const statusFromAmounts = (paid: number) =>
+      paid >= total && total > 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+
     // Default: honor an explicit status change (e.g. cancel) when no payment.
     let newAmountPaid = currentAmountPaid;
     let derivedStatus = status ?? invoice.status;
 
-    if (amount_paid !== undefined && amount_paid !== null) {
-      newAmountPaid = parseFloat(amount_paid);
-      if (!Number.isFinite(newAmountPaid) || newAmountPaid < 0) {
+    // A payment is sent as the amount received NOW (payment_amount) and added
+    // to the locked row here. The old absolute amount_paid (a total worked out
+    // in the browser) let two cashiers overwrite each other's payment; it is
+    // still accepted from tabs running the old bundle, but only if it moves
+    // the total forward — a stale total gets a 409 instead of losing money.
+    const hasPayment = payment_amount !== undefined && payment_amount !== null;
+    const hasLegacyTotal = !hasPayment && amount_paid !== undefined && amount_paid !== null;
+
+    if (hasPayment || hasLegacyTotal) {
+      if (invoice.status === 'cancelled') {
         await client.query('ROLLBACK');
-        res.status(400).json({ error: 'Invalid payment amount.' });
+        res.status(400).json({ error: 'This invoice is cancelled.' });
         return;
+      }
+      if (hasPayment) {
+        const delta = Number(payment_amount);
+        if (!Number.isFinite(delta) || delta <= 0) {
+          await client.query('ROLLBACK');
+          res.status(400).json({ error: 'Invalid payment amount.' });
+          return;
+        }
+        newAmountPaid = Math.round((currentAmountPaid + delta) * 100) / 100;
+      } else {
+        newAmountPaid = parseFloat(amount_paid);
+        if (!Number.isFinite(newAmountPaid) || newAmountPaid < 0) {
+          await client.query('ROLLBACK');
+          res.status(400).json({ error: 'Invalid payment amount.' });
+          return;
+        }
+        if (newAmountPaid <= currentAmountPaid) {
+          await client.query('ROLLBACK');
+          res.status(409).json({ error: 'This invoice was updated by someone else. Reload it and record the payment again.' });
+          return;
+        }
       }
       // Reject overpayment rather than writing a negative balance / phantom credit.
       if (newAmountPaid > total) {
@@ -763,7 +815,16 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
       }
       // Derive status from the amounts — never trust the client's status on a
       // payment (previously an invoice could be marked 'paid' while underpaid).
-      derivedStatus = newAmountPaid >= total && total > 0 ? 'paid' : newAmountPaid > 0 ? 'partial' : 'pending';
+      derivedStatus = statusFromAmounts(newAmountPaid);
+    } else if (status === 'paid' || status === 'partial') {
+      // A status-only change can't make an invoice paid: that needs a payment
+      // (here) or a payer settlement. This was how invoices became "paid" with
+      // nothing collected.
+      if (statusFromAmounts(currentAmountPaid) !== status) {
+        await client.query('ROLLBACK');
+        res.status(400).json({ error: 'Record a payment to mark this invoice paid.' });
+        return;
+      }
     }
 
     const paymentAmount = newAmountPaid - currentAmountPaid;
@@ -846,7 +907,7 @@ export const updateInvoice = async (req: Request, res: Response): Promise<void> 
 
     // Queue invoice update to QuickBooks (for status change)
     const qbConfig = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
-    if (qbConfig.rows[0]?.is_connected && status) {
+    if (qbConfig.rows[0]?.is_connected && (status || paymentAmount > 0)) {
       // Check if invoice is already synced to QB
       const syncMap = await client.query(
         `SELECT quickbooks_id FROM quickbooks_sync_map

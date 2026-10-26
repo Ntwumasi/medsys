@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { isPayerSettlement, money, patientShares, primaryPayerTypeSql } from '../services/patientShare';
 import pool from '../database/db';
 import { loadLabOrderParameters } from './labInventoryController';
 
@@ -166,10 +167,6 @@ export const getPortalAppointments = withPatient(async (patientId, _req, res) =>
   res.json({ appointments: rows.rows });
 }, 'appointments');
 
-const isPayerSettlement = (notes: string | null | undefined, method: string | null | undefined) =>
-  /payer settlement$/.test(notes || '') || /_settlement$/.test(method || '');
-
-const money = (n: number) => Math.round(n * 100) / 100;
 
 /**
  * GET /patient-portal/bills — every invoice, past and present, with what the
@@ -177,13 +174,7 @@ const money = (n: number) => Math.round(n * 100) / 100;
  * the lines marked bill_to='patient'; the rest is shown as the payer's share.
  */
 export const getPortalBills = withPatient(async (patientId, _req, res) => {
-  const primary = await pool.query(
-    `SELECT payer_type FROM patient_payer_sources
-      WHERE patient_id = $1
-      ORDER BY is_primary DESC NULLS LAST, id ASC
-      LIMIT 1`,
-    [patientId]
-  );
+  const primary = await pool.query(primaryPayerTypeSql, [patientId]);
   const primaryPayerType: string = primary.rows[0]?.payer_type || 'self_pay';
 
   const invoices = await pool.query(
@@ -217,23 +208,13 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
     : { rows: [] as any[] };
 
   let totalDue = 0;
+  const shares = patientShares(invoices.rows, items.rows, payments.rows, primaryPayerType);
   const bills = invoices.rows.map((inv) => {
-    const payerType = inv.invoice_payer_type || primaryPayerType;
-    const covered = payerType !== 'self_pay';
+    const share = shares.get(inv.id)!;
+    const covered = share.covered;
     const lines = items.rows.filter((i) => i.invoice_id === inv.id);
     const pays = payments.rows.filter((p) => p.invoice_id === inv.id);
-    const total = Number(inv.total_amount) || 0;
-
-    const patientPaid = money(
-      pays.filter((p) => !isPayerSettlement(p.notes, p.payment_method)).reduce((s, p) => s + Number(p.amount || 0), 0)
-    );
-    const patientPortion = covered
-      ? money(lines.filter((l) => l.bill_to === 'patient').reduce((s, l) => s + Number(l.total_price || 0), 0))
-      : total;
-    const due = covered
-      ? Math.max(0, money(patientPortion - patientPaid))
-      : Math.max(0, money(total - Number(inv.amount_paid)));
-    totalDue += due;
+    totalDue += share.balance_due;
 
     return {
       id: inv.id,
@@ -242,11 +223,11 @@ export const getPortalBills = withPatient(async (patientId, _req, res) => {
       encounter_id: inv.encounter_id ?? null,
       covered,
       payer_name: covered ? inv.payer_name || null : null,
-      total,
-      your_share: patientPortion,
-      covered_share: covered ? money(total - patientPortion) : 0,
-      you_paid: covered ? patientPaid : money(Number(inv.amount_paid)),
-      balance_due: due,
+      total: share.total,
+      your_share: share.your_share,
+      covered_share: share.covered_share,
+      you_paid: share.you_paid,
+      balance_due: share.balance_due,
       items: lines.map((l) => ({
         description: l.description,
         quantity: Number(l.quantity) || 1,

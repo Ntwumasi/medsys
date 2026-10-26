@@ -2,7 +2,9 @@ import type { PoolClient } from 'pg';
 import pool from '../database/db';
 
 interface ResolvedPrice {
+  /** For an excluded service this is the cash price — the patient pays it. */
   unitPrice: number;
+  /** The payer doesn't cover this service: bill the line to the patient (bill_to='patient'). */
   isExcluded: boolean;
   priceSource: 'cash' | 'payer_override' | 'lab_uniform';
 }
@@ -15,6 +17,10 @@ interface ResolvedPrice {
  * 2. Self-pay or no payer -> use charge_master.price (cash rate)
  * 3. Insurance/corporate -> look up payer_price_schedules override
  * 4. No override found -> fall back to charge_master.price (cash rate)
+ *
+ * A service the payer EXCLUDES comes back at the cash rate with isExcluded,
+ * and callers bill it to the patient (bill_to='patient'). It used to come back
+ * at 0, so excluded imaging/procedures were billed to nobody.
  */
 export async function resolvePrice(
   chargeId: number,
@@ -90,7 +96,7 @@ export async function resolvePrice(
   if (overrideResult && overrideResult.rows.length > 0) {
     const override = overrideResult.rows[0];
     if (override.is_excluded) {
-      return { unitPrice: 0, isExcluded: true, priceSource: 'payer_override' };
+      return { unitPrice: cashPrice, isExcluded: true, priceSource: 'payer_override' };
     }
     return {
       unitPrice: parseFloat(override.price),

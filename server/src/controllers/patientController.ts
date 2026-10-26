@@ -220,7 +220,12 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
     const { registration_payment } = req.body;
     let registrationInvoice = null;
     if (registration_payment === 'pay_now' || registration_payment === 'pay_later') {
-      const registrationFee = 75.00;
+      // Same price as check-in's registration charge (REG-001), not a fixed
+      // number in code; unpriced → [PRICE PENDING] for reception.
+      const regCharge = await client.query(
+        `SELECT price FROM charge_master WHERE service_code = 'REG-001' AND is_active = true LIMIT 1`
+      );
+      const registrationFee = parseFloat(regCharge.rows[0]?.price) || 0;
 
       // Generate invoice number
       const invoiceNumber = await nextInvoiceNumber(client);
@@ -237,8 +242,8 @@ export const createPatient = async (req: Request, res: Response): Promise<void> 
       // Create invoice item for registration fee
       await client.query(
         `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category)
-         VALUES ($1, 'Patient Registration Fee', 1, $2, $2, 'registration')`,
-        [invoiceResult.rows[0].id, registrationFee]
+         VALUES ($1, $3, 1, $2, $2, 'registration')`,
+        [invoiceResult.rows[0].id, registrationFee, registrationFee > 0 ? 'Patient Registration Fee' : 'Patient Registration Fee [PRICE PENDING]']
       );
 
       registrationInvoice = invoiceResult.rows[0];

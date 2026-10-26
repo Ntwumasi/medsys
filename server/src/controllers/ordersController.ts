@@ -159,7 +159,13 @@ export const createLabOrder = async (req: Request, res: Response): Promise<void>
             // A matched-but-unpriced (base_price 0) test must still be flagged so
             // it isn't billed silently free at the walk-in counter.
             const desc = price > 0 ? `Lab: ${labItem.match.test_name}` : `Lab: ${labItem.match.test_name} [PRICE PENDING]`;
-            const exists = await pool.query('SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2', [invoiceId, desc]);
+            // Already billed for THIS order? (A repeat of the same test is a
+            // separate order and a separate charge.)
+            const exists = await pool.query(
+              `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2
+                 AND ((reference_type = 'lab_order' AND reference_id = $3) OR reference_id IS NULL)`,
+              [invoiceId, desc, order.id]
+            );
             if (exists.rows.length === 0) {
               await pool.query(
                 'INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id) VALUES ($1, NULL, $2, 1, $3, $3, $4, $5, $6)',
@@ -751,11 +757,14 @@ const runLabCompletionSideEffects = async (
 
     if (invoiceId) {
       for (const line of lines) {
-        // Dedup by the canonical catalog name so the same test can't be billed
-        // twice under different spellings.
+        // Dedup per ORDER by the canonical catalog name, so this order can't be
+        // billed twice (walk-in billing at order time, then completion) — but a
+        // repeat of the same test is its own order and its own charge. Lines
+        // from before order references existed still dedup by name.
         const existingItem = await pool.query(
-          `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2`,
-          [invoiceId, line.description]
+          `SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2
+             AND ((reference_type = 'lab_order' AND reference_id = $3) OR reference_id IS NULL)`,
+          [invoiceId, line.description, orderId]
         );
 
         if (existingItem.rows.length === 0) {
@@ -1502,8 +1511,9 @@ export const getPendingVerificationQueue = async (
 
 // Imaging Orders
 // Shared helper: add an imaging study as a line item on the encounter's invoice.
-// Idempotent — guarded against double-billing by description, so it can safely run
-// both when a provider orders the study (bill immediately) and again on completion.
+// Idempotent per ORDER, so it can safely run both when a provider orders the
+// study (bill immediately) and again on completion — while a repeat of the same
+// study (a second order) is billed as its own line.
 // Returns silently if there's no invoice for the encounter yet (completion path will bill later).
 const billImagingOrderToInvoice = async (order: any): Promise<void> => {
   try {
@@ -1513,12 +1523,12 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
     const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
     const description = `Imaging: ${label}`;
 
-    // Guard against double-billing the same study on the same invoice
-    const existingItem = await pool.query(
-      'SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2',
+    // Lines from before order references existed are matched by description.
+    const legacyItem = await pool.query(
+      'SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2 AND reference_id IS NULL',
       [invoiceId, description]
     );
-    if (existingItem.rows.length > 0) return;
+    if (legacyItem.rows.length > 0) return;
 
     // Resolve the charge: prefer an exact service_name match, then a fuzzy type+body_part match
     let charge: { id: number; price: string } | null = null;
@@ -1541,23 +1551,23 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
     }
 
     let chargeMasterId: number | null = null;
-    let billingPrice: number;
+    let billingPrice = 0;
+    let billTo: 'patient' | 'payer' = 'payer';
+    let lineDescription = description;
     if (charge) {
       chargeMasterId = charge.id;
       const { resolvePrice } = require('../services/priceResolutionService');
       const resolved = await resolvePrice(charge.id, invoiceId);
-      billingPrice = resolved.isExcluded ? 0 : resolved.unitPrice;
-    } else {
-      // No catalog entry — fall back to standard imaging prices
-      const fallbackPrices: Record<string, number> = {
-        'X-Ray': 80.00,
-        'CT Scan': 350.00,
-        'MRI': 800.00,
-        'Ultrasound': 150.00,
-        'Mammogram': 200.00,
-        'Fluoroscopy': 250.00,
-      };
-      billingPrice = fallbackPrices[order.imaging_type] || 150.00;
+      // Excluded by the payer → the patient pays the cash price (it used to be
+      // billed at 0, so nobody paid).
+      billingPrice = resolved.unitPrice;
+      if (resolved.isExcluded) billTo = 'patient';
+    }
+    // No catalog price — flag it for reception to price rather than inventing
+    // one (this used to bill a guessed GHS 80–800 by study type).
+    if (!(billingPrice > 0)) {
+      billingPrice = 0;
+      lineDescription = `${description} [PRICE PENDING]`;
     }
 
     // Guard: an imaging study is billed at order time AND again on completion,
@@ -1571,9 +1581,9 @@ const billImagingOrderToInvoice = async (order: any): Promise<void> => {
     );
     if (alreadyBilled.rows.length === 0) {
       await pool.query(
-        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id)
-         VALUES ($1, $2, $3, 1, $4, $4, 'imaging', 'imaging_order', $5)`,
-        [invoiceId, chargeMasterId, description, billingPrice, order.id]
+        `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, reference_type, reference_id, bill_to)
+         VALUES ($1, $2, $3, 1, $4, $4, 'imaging', 'imaging_order', $5, $6)`,
+        [invoiceId, chargeMasterId, lineDescription, billingPrice, order.id, billTo]
       );
       await pool.query(
         `UPDATE invoices
@@ -1596,17 +1606,31 @@ const removeImagingOrderFromInvoice = async (order: any): Promise<void> => {
     const label = `${order.imaging_type}${order.body_part ? ' (' + order.body_part + ')' : ''}`;
     const description = `Imaging: ${label}`;
 
-    const del = await pool.query(
-      'DELETE FROM invoice_items WHERE invoice_id = $1 AND description = $2 RETURNING total_price',
-      [invoiceId, description]
+    // Remove THIS order's line. Matching by description removed every study
+    // with the same name — including another, still-valid order's charge.
+    let del = await pool.query(
+      `DELETE FROM invoice_items WHERE invoice_id = $1 AND reference_type = 'imaging_order' AND reference_id = $2
+       RETURNING total_price`,
+      [invoiceId, order.id]
     );
+    if (del.rows.length === 0) {
+      // A line from before order references existed: remove one by description.
+      del = await pool.query(
+        `DELETE FROM invoice_items WHERE id = (
+           SELECT id FROM invoice_items WHERE invoice_id = $1 AND description = $2 AND reference_id IS NULL
+           ORDER BY id DESC LIMIT 1)
+         RETURNING total_price`,
+        [invoiceId, description]
+      );
+    }
     if (del.rows.length > 0) {
-      const removed = del.rows.reduce((sum: number, r: any) => sum + parseFloat(r.total_price), 0);
       await pool.query(
         `UPDATE invoices
-         SET subtotal = subtotal - $2, total_amount = total_amount - $2, updated_at = CURRENT_TIMESTAMP
+         SET subtotal = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0),
+             total_amount = COALESCE((SELECT SUM(total_price) FROM invoice_items WHERE invoice_id = $1), 0) + COALESCE(tax, 0),
+             updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
-        [invoiceId, removed]
+        [invoiceId]
       );
     }
   } catch (err) {
@@ -2674,6 +2698,29 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         } else {
           // Medication not in inventory — still create active medication and commit
           console.warn(`Medication not found in inventory: ${updatedOrder.medication_name}`);
+
+          // It was handed over, so it must reach the bill. With no inventory
+          // price it goes on as [PRICE PENDING] for reception to price — it used
+          // to be dispensed with no invoice line at all.
+          const invoiceIdNoInv = await getOrCreateEncounterInvoice(updatedOrder.encounter_id, client);
+          const alreadyBilledNoInv = await client.query(
+            `SELECT 1 FROM invoice_items WHERE invoice_id = $1 AND reference_type = 'pharmacy_order' AND reference_id = $2 LIMIT 1`,
+            [invoiceIdNoInv, parseInt(id)]
+          );
+          if (alreadyBilledNoInv.rows.length === 0) {
+            const medNameNoInv = updatedOrder.substitute_medication || updatedOrder.medication_name;
+            await client.query(
+              `INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, total_price, category, reference_type, reference_id, bill_to)
+               VALUES ($1, $2, $3, 0, 0, 'medication', 'pharmacy_order', $4, $5)`,
+              [
+                invoiceIdNoInv,
+                `${medNameNoInv}${updatedOrder.dosage ? ` (${updatedOrder.dosage})` : ''} [PRICE PENDING]`,
+                quantity,
+                parseInt(id),
+                updatedOrder.patient_pays ? 'patient' : 'payer',
+              ]
+            );
+          }
 
           // Still insert into medications table so it appears in Active Medications
           const daysSupplyNoInv = parseInt(updatedOrder.days_supply) || 0;

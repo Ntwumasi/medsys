@@ -4,6 +4,7 @@ import pool from '../database/db';
 import { auditService } from '../services/auditService';
 import { isArkeselSandbox, isSMSConfigured } from '../services/smsService';
 import { PATIENT_TEXT_KINDS, runDailyPatientTexts } from '../services/patientAutoTextService';
+import { cleanupExpiredTokens } from '../services/tokenService';
 
 // Only these keys can be written from the settings screen.
 const EDITABLE_KEYS = new Set<string>([
@@ -153,9 +154,13 @@ export const cronDailyPatientTexts = async (req: Request, res: Response): Promis
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
+  // Daily housekeeping rides on the same (only) Vercel cron: nothing
+  // long-running survives on serverless, so the setInterval cleanup in
+  // index.ts only ever ran locally. Never throws.
+  const expiredTokensRemoved = await cleanupExpiredTokens();
   try {
     const result = await runDailyPatientTexts();
-    res.json({ ok: true, result });
+    res.json({ ok: true, result, expired_tokens_removed: expiredTokensRemoved });
   } catch (error) {
     console.error('Cron daily patient texts error:', error);
     res.status(500).json({ error: 'Daily reminders failed' });
