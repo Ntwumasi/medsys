@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { patientShares, primaryPayerTypeSql } from '../services/patientShare';
 
 // Get financial dashboard summary
 export const getFinancialSummary = async (req: Request, res: Response): Promise<void> => {
@@ -1040,10 +1041,13 @@ export const generatePatientStatement = async (req: Request, res: Response): Pro
         (i.total_amount - COALESCE(i.amount_paid, 0)) as balance,
         i.status,
         e.encounter_number,
-        CURRENT_DATE - DATE(i.invoice_date) as days_outstanding
+        CURRENT_DATE - DATE(i.invoice_date) as days_outstanding,
+        pps.payer_type AS invoice_payer_type
       FROM invoices i
       LEFT JOIN encounters e ON i.encounter_id = e.id
+      LEFT JOIN patient_payer_sources pps ON pps.id = i.payer_source_id
       WHERE i.patient_id = $1
+        AND i.status <> 'cancelled'
         AND (i.total_amount - COALESCE(i.amount_paid, 0)) > 0
         ${dateFilter}
       ORDER BY i.invoice_date DESC
@@ -1059,7 +1063,8 @@ export const generatePatientStatement = async (req: Request, res: Response): Pro
           ii.description,
           ii.quantity,
           ii.unit_price,
-          ii.total_price
+          ii.total_price,
+          COALESCE(ii.bill_to, 'payer') AS bill_to
         FROM invoice_items ii
         WHERE ii.invoice_id = ANY($1)
         ORDER BY ii.invoice_id, ii.id
@@ -1067,25 +1072,46 @@ export const generatePatientStatement = async (req: Request, res: Response): Pro
       lineItems = itemsResult.rows;
     }
 
-    // Get payment history
+    // Payment history — the patient's own payments, not insurer settlements.
     const paymentsResult = await pool.query(`
       SELECT
+        pay.invoice_id,
         pay.payment_date,
         pay.amount,
         pay.payment_method,
         pay.reference_number,
+        pay.notes,
         i.invoice_number
       FROM payments pay
       JOIN invoices i ON pay.invoice_id = i.id
       WHERE i.patient_id = $1
+        AND COALESCE(pay.notes, '') NOT LIKE '%payer settlement'
+        AND COALESCE(pay.payment_method, '') NOT LIKE '%\\_settlement'
       ORDER BY pay.payment_date DESC
       LIMIT 10
     `, [patient_id]);
 
+    // Only what the PATIENT owes: an insurer's or employer's share is billed to
+    // them, not to the patient. Shares need every payment on these invoices.
+    const sharePayments = invoiceIds.length
+      ? (await pool.query(
+          `SELECT invoice_id, amount, notes, payment_method FROM payments WHERE invoice_id = ANY($1)`,
+          [invoiceIds]
+        )).rows
+      : [];
+    const primary = await pool.query(primaryPayerTypeSql, [patient_id]);
+    const shares = patientShares(invoicesResult.rows, lineItems, sharePayments, primary.rows[0]?.payer_type);
+    const statementInvoices = invoicesResult.rows
+      .map((inv: any) => {
+        const share = shares.get(inv.id)!;
+        return { ...inv, total_amount: share.your_share, amount_paid: share.you_paid, balance: share.balance_due };
+      })
+      .filter((inv: any) => inv.balance > 0);
+
     // Calculate totals
-    const totalBilled = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount), 0);
-    const totalPaid = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount_paid), 0);
-    const totalBalance = invoicesResult.rows.reduce((sum: number, inv: any) => sum + parseFloat(inv.balance), 0);
+    const totalBilled = statementInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.total_amount), 0);
+    const totalPaid = statementInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.amount_paid), 0);
+    const totalBalance = statementInvoices.reduce((sum: number, inv: any) => sum + parseFloat(inv.balance), 0);
 
     // Create PDF
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
@@ -1126,7 +1152,7 @@ export const generatePatientStatement = async (req: Request, res: Response): Pro
     doc.moveDown(1);
 
     // Invoices Table
-    if (invoicesResult.rows.length > 0) {
+    if (statementInvoices.length > 0) {
       doc.fontSize(12).font('Helvetica-Bold').text('Outstanding Invoices');
       doc.moveDown(0.5);
 
@@ -1146,7 +1172,7 @@ export const generatePatientStatement = async (req: Request, res: Response): Pro
       let rowY = tableTop + 18;
       doc.font('Helvetica').fontSize(9);
 
-      for (const inv of invoicesResult.rows) {
+      for (const inv of statementInvoices) {
         if (rowY > 700) {
           doc.addPage();
           rowY = 50;

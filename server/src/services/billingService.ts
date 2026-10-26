@@ -11,6 +11,12 @@ export interface BillingItem {
   referenceId?: number;
 }
 
+// A line with no known price goes on at 0 tagged [PRICE PENDING] for
+// reception to price (the tag drops off when they do). This safety net used to
+// invent prices instead: consult 200, lab 75, imaging 80–800, meds 10, procedure 50.
+const pending = (description: string, price: number) =>
+  price > 0 ? description : `${description} [PRICE PENDING]`;
+
 export const billingService = {
   /**
    * Recalculate invoice total from invoice_items
@@ -88,7 +94,13 @@ export const billingService = {
         `SELECT description, category, reference_type, reference_id FROM invoice_items WHERE invoice_id = $1`,
         [invoiceId]
       );
-      const existingDescriptions = new Set(existingItems.rows.map(r => `${r.category}:${r.description}`));
+      // Description matching only for lines with no source reference (legacy):
+      // two orders for the same test are two charges.
+      const existingDescriptions = new Set(
+        existingItems.rows
+          .filter(r => r.reference_id == null)
+          .map(r => `${r.category}:${String(r.description).replace(/\s*\[PRICE PENDING\]/i, '')}`)
+      );
       const billedReferences = new Set(
         existingItems.rows
           .filter(r => r.reference_type && r.reference_id != null)
@@ -125,10 +137,10 @@ export const billingService = {
         );
 
         const consultFee = consultResult.rows[0];
-        const consultPrice = consultFee ? parseFloat(consultFee.price) : 200.00;
+        const consultPrice = consultFee ? parseFloat(consultFee.price) || 0 : 0;
 
         newItems.push({
-          description: consultFee?.service_name || `${encounter.encounter_type || 'Walk-in'} Consultation`,
+          description: pending(consultFee?.service_name || `${encounter.encounter_type || 'Walk-in'} Consultation`, consultPrice),
           quantity: 1,
           unitPrice: consultPrice,
           category: 'consultation',
@@ -136,33 +148,35 @@ export const billingService = {
         });
       }
 
-      // 2. Check lab orders that were completed but not yet billed
+      // 2. Check lab orders that were completed but not yet billed. Priced
+      // from the lab catalog (the single source of lab prices), like
+      // completion billing — not a GHS 75 guess.
       const labResult = await client.query(
-        `SELECT lo.id, lo.test_name, lo.test_code,
-                cm.id as charge_id, cm.service_name, cm.price
+        `SELECT lo.id, lo.test_name, lo.test_code
          FROM lab_orders lo
-         LEFT JOIN charge_master cm ON (cm.service_code = lo.test_code OR cm.service_name ILIKE '%' || lo.test_name || '%')
-           AND cm.category = 'lab' AND cm.is_active = true
          WHERE lo.encounter_id = $1 AND lo.status = 'completed'`,
         [encounterId]
       );
 
       for (const lab of labResult.rows) {
-        const desc = `Lab: ${lab.service_name || lab.test_name}`;
-        const key = `lab:${desc}`;
         const refKey = `lab_order:${lab.id}`;
-        if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
-          newItems.push({
-            description: desc,
-            quantity: 1,
-            unitPrice: lab.price ? parseFloat(lab.price) : 75.00,
-            category: 'lab',
-            chargeMasterId: lab.charge_id || null,
-            referenceType: 'lab_order',
-            referenceId: lab.id,
-          });
-          billedReferences.add(refKey); // also collapse multiple charge_master matches for one order
-        }
+        if (billedReferences.has(refKey)) continue;
+        const { resolveLabCatalogItem } = require('../controllers/ordersController');
+        const labItem = await resolveLabCatalogItem(lab.test_code, lab.test_name);
+        const name = labItem.match ? labItem.match.test_name : lab.test_name;
+        const price = labItem.match ? Number(labItem.match.base_price) || 0 : 0;
+        const desc = `Lab: ${name}`;
+        if (existingDescriptions.has(`lab:${desc}`)) continue;
+        newItems.push({
+          description: pending(desc, price),
+          quantity: 1,
+          unitPrice: price,
+          category: 'lab',
+          chargeMasterId: null,
+          referenceType: 'lab_order',
+          referenceId: lab.id,
+        });
+        billedReferences.add(refKey);
       }
 
       // 3. Check imaging orders that were completed but not yet billed
@@ -181,13 +195,11 @@ export const billingService = {
         const key = `imaging:${desc}`;
         const refKey = `imaging_order:${imaging.id}`;
         if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
-          const defaultPrices: Record<string, number> = {
-            'X-Ray': 80, 'CT Scan': 350, 'MRI': 800, 'Ultrasound': 150
-          };
+          const price = imaging.price ? parseFloat(imaging.price) || 0 : 0;
           newItems.push({
-            description: desc,
+            description: pending(desc, price),
             quantity: 1,
-            unitPrice: imaging.price ? parseFloat(imaging.price) : (defaultPrices[imaging.imaging_type] || 150),
+            unitPrice: price,
             category: 'imaging',
             chargeMasterId: imaging.charge_id || null,
             referenceType: 'imaging_order',
@@ -214,9 +226,9 @@ export const billingService = {
         const key = `medication:${desc}`;
         const refKey = `pharmacy_order:${med.id}`;
         if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
-          const unitPrice = med.selling_price ? parseFloat(med.selling_price) : 10.00;
+          const unitPrice = med.selling_price ? parseFloat(med.selling_price) || 0 : 0;
           newItems.push({
-            description: desc,
+            description: pending(desc, unitPrice),
             quantity: parseInt(med.quantity) || 1,
             unitPrice: unitPrice,
             category: 'medication',
@@ -242,10 +254,11 @@ export const billingService = {
         const key = `procedure:${desc}`;
         const refKey = `nurse_procedure:${proc.id}`;
         if (!existingDescriptions.has(key) && !billedReferences.has(refKey)) {
+          const price = proc.price ? parseFloat(proc.price) || 0 : 0;
           newItems.push({
-            description: desc,
+            description: pending(desc, price),
             quantity: 1,
-            unitPrice: proc.price ? parseFloat(proc.price) : 50.00,
+            unitPrice: price,
             category: 'procedure',
             chargeMasterId: proc.charge_master_id || null,
             referenceType: 'nurse_procedure',

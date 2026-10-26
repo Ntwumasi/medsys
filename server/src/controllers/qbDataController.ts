@@ -313,54 +313,74 @@ export const getInvoiceById = async (req: Request, res: Response) => {
 
 // Record payment on invoice
 export const recordPayment = async (req: Request, res: Response) => {
+  // One transaction with the invoice row locked: the payment row and the
+  // invoice total are written together, and two people paying the same
+  // invoice can't both pass the balance check.
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { amount, payment_method, reference_number, notes } = req.body;
+    const { payment_method, reference_number, notes } = req.body;
+    const amount = Number(req.body.amount);
     const userId = (req as any).user?.id;
 
-    // Get the invoice
-    const invoiceResult = await pool.query(
-      'SELECT * FROM invoices WHERE id = $1',
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Enter a payment amount greater than zero' });
+    }
+
+    await client.query('BEGIN');
+
+    const invoiceResult = await client.query(
+      'SELECT * FROM invoices WHERE id = $1 FOR UPDATE',
       [id]
     );
 
     if (invoiceResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Invoice not found' });
     }
 
     const invoice = invoiceResult.rows[0];
-    const currentBalance = parseFloat(invoice.total_amount) - parseFloat(invoice.amount_paid);
+    if (invoice.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This invoice is cancelled' });
+    }
+    const total = parseFloat(invoice.total_amount || 0);
+    const paidSoFar = parseFloat(invoice.amount_paid || 0);
+    const currentBalance = Math.round((total - paidSoFar) * 100) / 100;
 
     if (amount > currentBalance) {
-      return res.status(400).json({ error: 'Payment amount exceeds balance due' });
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Payment amount exceeds balance due (GHS ${currentBalance.toFixed(2)})` });
     }
 
     // Insert payment record
-    const paymentResult = await pool.query(`
+    const paymentResult = await client.query(`
       INSERT INTO payments (invoice_id, payment_date, amount, payment_method, reference_number, notes, created_by)
       VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6)
       RETURNING *
     `, [id, amount, payment_method, reference_number, notes, userId]);
 
     // Update invoice
-    const newAmountPaid = parseFloat(invoice.amount_paid) + parseFloat(amount);
-    const newBalanceDue = parseFloat(invoice.total_amount) - newAmountPaid;
-    const newStatus = newBalanceDue <= 0 ? 'paid' : newAmountPaid > 0 ? 'partial' : invoice.status;
+    const newAmountPaid = Math.round((paidSoFar + amount) * 100) / 100;
+    const newBalanceDue = Math.round((total - newAmountPaid) * 100) / 100;
+    const newStatus = newBalanceDue <= 0 && total > 0 ? 'paid' : 'partial';
 
-    await pool.query(`
+    await client.query(`
       UPDATE invoices
       SET amount_paid = $1, status = $2, updated_at = CURRENT_TIMESTAMP
       WHERE id = $3
     `, [newAmountPaid, newStatus, id]);
 
     // Queue payment to QuickBooks (if connected)
-    const configResult = await pool.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
+    const configResult = await client.query('SELECT is_connected FROM quickbooks_config WHERE id = 1');
     if (configResult.rows[0]?.is_connected) {
-      await pool.query(`
+      await client.query(`
         INSERT INTO quickbooks_request_queue (operation, entity_type, medsys_id, status, priority, created_at)
         VALUES ('push', 'payment', $1, 'pending', 5, CURRENT_TIMESTAMP)
       `, [paymentResult.rows[0].id]);
     }
+
+    await client.query('COMMIT');
 
     // Auto-checkout if invoice is now fully paid (helps post-paid patients)
     let autoCheckedOut = false;
@@ -383,8 +403,11 @@ export const recordPayment = async (req: Request, res: Response) => {
       auto_checkout: autoCheckedOut,
     });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error recording payment:', error);
     res.status(500).json({ error: 'Failed to record payment' });
+  } finally {
+    client.release();
   }
 };
 

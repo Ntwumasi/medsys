@@ -25,6 +25,11 @@ interface StatementInvoice {
   encounter_date?: string | null;
   chief_complaint?: string | null;
   items: StatementItem[];
+  /** The insurer's / employer's part — billed to them, not owed by the patient. */
+  covered_share?: number;
+  patient_paid?: number;
+  /** What the patient still owes on this invoice. */
+  balance_due?: number;
 }
 
 interface StatementData {
@@ -49,7 +54,8 @@ interface PatientStatementProps {
 
 const ghs = (n: string | number): string => `GHS ${Number(n || 0).toFixed(2)}`;
 const balanceOf = (inv: StatementInvoice): number =>
-  Number(inv.total_amount || 0) - Number(inv.amount_paid || 0);
+  inv.balance_due ?? Number(inv.total_amount || 0) - Number(inv.amount_paid || 0);
+const paidOf = (inv: StatementInvoice): number => inv.patient_paid ?? Number(inv.amount_paid || 0);
 
 /**
  * Consolidated outstanding statement — every unpaid invoice for a patient in one
@@ -261,7 +267,8 @@ const PatientStatement: React.FC<PatientStatementProps> = ({ patientId, onClose 
                   </table>
                   <div className="flex justify-end mt-1">
                     <span className="text-sm text-gray-600">
-                      {Number(inv.amount_paid) > 0 && <>Paid {ghs(inv.amount_paid)} · </>}
+                      {Number(inv.covered_share) > 0 && <>Covered by your insurer/employer {ghs(inv.covered_share!)} · </>}
+                      {paidOf(inv) > 0 && <>Paid {ghs(paidOf(inv))} · </>}
                       <span className="font-semibold text-gray-900">Balance {ghs(balanceOf(inv))}</span>
                     </span>
                   </div>
