@@ -10,7 +10,7 @@ const messageFor = (body: unknown): string => {
   const result = createPatientSchema.safeParse(body);
   if (result.success) throw new Error('expected validation to fail');
   return formatValidationMessage(
-    result.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+    result.error.issues.map((e) => ({ field: e.path.join('.'), message: e.message }))
   );
 };
 

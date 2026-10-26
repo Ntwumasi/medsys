@@ -20,6 +20,9 @@ import routes from './routes';
 import pool from './database/db';
 import { cleanupExpiredTokens } from './services/tokenService';
 import logger from './utils/logger';
+import { reportConsoleErrorsToSentry } from './utils/errorReporting';
+
+reportConsoleErrorsToSentry();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -56,7 +59,7 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => {
     // Skip rate limiting for health checks
-    return req.path === '/health' || req.path === '/api/health';
+    return /^(\/api)?\/health(\/live)?$/.test(req.path);
   },
 });
 
@@ -155,13 +158,17 @@ app.use((req: Request, res: Response, next) => {
   next();
 });
 
+// Health checks are served under /api too: on Vercel only /api/* reaches this
+// function, so /health was answered by the SPA with a 200 even when the API
+// was down. Point uptime monitors at /api/health.
+
 // Liveness probe — lightweight, no DB hit (for load balancer / uptime pings)
-app.get('/health/live', (_req: Request, res: Response) => {
+app.get(['/health/live', '/api/health/live'], (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Deep health check — verifies database connectivity
-app.get('/health', async (_req: Request, res: Response) => {
+app.get(['/health', '/api/health'], async (_req: Request, res: Response) => {
   const checks: Record<string, { status: string; latency_ms?: number; error?: string }> = {};
 
   // Database connectivity
