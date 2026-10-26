@@ -224,14 +224,14 @@
     }
   },
   "font": {
-    "sans": "'Atkinson Hyperlegible Next Variable', 'Atkinson Hyperlegible Next', system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Devanagari', sans-serif",
-    "mono": "'Atkinson Hyperlegible Mono Variable', 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono', monospace",
+    "sans": "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans Devanagari', sans-serif",
+    "mono": "'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
     "weights": [
       400,
       500,
       700
     ],
-    "hosting": "Self-hosted via @fontsource-variable (OFL-1.1), imported by src/styles/dsFonts.ts from migrated areas only; per-subset unicode-range so browsers fetch only the scripts in use; font-display: swap; system fallback."
+    "hosting": "Inter + JetBrains Mono, the app's original fonts, loaded by the Google Fonts @import at the top of src/index.css (display=swap); system fallback."
   },
   "type": {
     "display": {

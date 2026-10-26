@@ -1,5 +1,4 @@
 import React from 'react';
-import '../../styles/dsFonts';
 import { useColorScheme } from '../../hooks/useColorScheme';
 import ColorSchemeToggle from '../ui/ColorSchemeToggle';
 import { branding } from '../../config/branding';

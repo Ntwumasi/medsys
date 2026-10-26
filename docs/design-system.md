@@ -14,11 +14,11 @@ The **Clinical UI rules** in `CLAUDE.md` apply to every screen and override anyt
 
 ## 1. Principles
 
-1. **Readable first.** Atkinson Hyperlegible was designed for low-vision readers. Letterforms are easy to tell apart (Il1, 0O), and that matters when the text is a dose or a lab value.
+1. **Readable first.** Inter, the app's long-standing font, at sizes and weights that keep doses and lab values easy to read. (Atkinson Hyperlegible was tried with the Care rollout and reverted on 2026-10-26 after staff feedback.)
 2. **Calm by default, loud only for danger.** The interface stays quiet so that a critical result or allergy stands out immediately. Colour is never decoration.
 3. **Touch is first-class.** Controls are 48 px tall by default and touch targets are never smaller than 44 px. Nurses on tablets get the same app as doctors at desks.
 4. **Every client, every country.** There's no regional styling. Each tenant sets one accent colour, and dates, numbers and currency follow the clinic's locale. Layouts survive text that is 30% longer in translation.
-5. **Fast on slow connections.** Fonts are self-hosted (woff2), system fallbacks are always declared, there are no icon fonts or web-font icon sets (icons are inline SVG), and skeletons reserve space so nothing jumps.
+5. **Fast on slow connections.** Fonts load with `display=swap`, system fallbacks are always declared, there are no icon fonts or web-font icon sets (icons are inline SVG), and skeletons reserve space so nothing jumps.
 
 ---
 
@@ -72,9 +72,9 @@ Contrast is the WCAG 2.x ratio on the surface where the colour is used. AA requi
 ## 3. Typography
 
 **Families:**
-- **Sans:** Atkinson Hyperlegible Next, falling back to `system-ui, -apple-system, Segoe UI, Roboto, Noto Sans`, then Noto Sans Arabic / Devanagari for those scripts.
-- **Mono / data:** Atkinson Hyperlegible Mono, falling back to `ui-monospace, SFMono-Regular, Menlo, Consolas, Noto Sans Mono`.
-- Both are self-hosted as woff2 in weights 400/500/700, with latin and latin-ext subsets and `font-display: swap`. Other scripts fall back to the system or Noto fonts, so there's no download cost for scripts a clinic doesn't use.
+- **Sans:** Inter, falling back to `-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans`, then Noto Sans Arabic / Devanagari for those scripts.
+- **Mono / data:** JetBrains Mono, falling back to `Fira Code, ui-monospace, SFMono-Regular, Menlo, Consolas`.
+- Both load from the Google Fonts `@import` at the top of `client/src/index.css` with `display=swap` — the same fonts the app used before Care, so the rollout changed colours and layout but not the typeface.
 
 | Style | Size / line | Weight | Use |
 |---|---|---|---|
