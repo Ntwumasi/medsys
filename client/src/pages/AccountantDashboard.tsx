@@ -3,6 +3,8 @@ import { format, parseISO, isValid, subDays, startOfWeek, startOfMonth, startOfY
 import apiClient from '../api/client';
 import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
+import { useDsColor } from '../hooks/useDsColor';
 import PrintableInvoice from '../components/PrintableInvoice';
 import DoctorRevenuePanel from '../components/DoctorRevenuePanel';
 import InsightCard from '../components/ui/InsightCard';
@@ -303,11 +305,11 @@ interface ReminderHistory {
 
 type FinanceAccent = 'neutral' | 'primary' | 'secondary' | 'warning' | 'success';
 const FINANCE_ACCENT: Record<FinanceAccent, { num: string; ring: string; iconBg: string; iconFg: string }> = {
-  neutral:   { num: 'text-text-primary', ring: 'ring-gray-200/60',     iconBg: 'bg-gray-100',      iconFg: 'text-gray-500' },
-  primary:   { num: 'text-primary-700',  ring: 'ring-primary-200/60',  iconBg: 'bg-primary-100',   iconFg: 'text-primary-600' },
-  secondary: { num: 'text-secondary-700', ring: 'ring-secondary-200/60', iconBg: 'bg-secondary-100', iconFg: 'text-secondary-600' },
-  warning:   { num: 'text-warning-700',  ring: 'ring-warning-200/60',  iconBg: 'bg-warning-100',   iconFg: 'text-warning-600' },
-  success:   { num: 'text-success-700',  ring: 'ring-success-200/60',  iconBg: 'bg-success-100',   iconFg: 'text-success-600' },
+  neutral:   { num: 'text-ds-text', ring: 'ring-ds-border/60',     iconBg: 'bg-ds-subtle',      iconFg: 'text-ds-text-muted' },
+  primary:   { num: 'text-ds-accent-text',  ring: 'ring-ds-focus-ring/30',  iconBg: 'bg-ds-accent-soft',   iconFg: 'text-ds-accent-text' },
+  secondary: { num: 'text-ds-brand-plum', ring: 'ring-ds-brand-plum/30', iconBg: 'bg-ds-accent-soft', iconFg: 'text-ds-accent-text' },
+  warning:   { num: 'text-ds-warning-text',  ring: 'ring-ds-warning/30',  iconBg: 'bg-ds-warning-soft',   iconFg: 'text-ds-warning-text' },
+  success:   { num: 'text-ds-success-text',  ring: 'ring-ds-success/30',  iconBg: 'bg-ds-success-soft',   iconFg: 'text-ds-success-text' },
 };
 
 interface FinanceStatCardProps {
@@ -327,10 +329,10 @@ const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, a
   return (
     <Comp
       onClick={onClick}
-      className={`text-left bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-1 transition-all p-4 ${a.ring} ${onClick ? 'cursor-pointer' : ''}`}
+      className={`text-left bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card hover:shadow-ds-overlay hover:ring-1 transition-all p-4 ${a.ring} ${onClick ? 'cursor-pointer' : ''}`}
     >
       <div className="flex items-start justify-between mb-3">
-        <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">{label}</span>
+        <span className="text-xs font-medium text-ds-text-muted uppercase tracking-wider">{label}</span>
         <span className={`w-9 h-9 rounded-lg ${a.iconBg} ${a.iconFg} flex items-center justify-center`}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
         </span>
@@ -342,7 +344,7 @@ const FinanceStatCard: React.FC<FinanceStatCardProps> = ({ label, value, hint, a
           <Delta series={series.map((p) => p.value)} direction={trendDirection} />
         </div>
       )}
-      {hint && <p className="text-xs text-text-secondary mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-ds-text-muted mt-1">{hint}</p>}
     </Comp>
   );
 };
@@ -365,6 +367,8 @@ const PAYER_TAB_LABEL: Record<string, string> = {
 };
 
 const AccountantDashboard: React.FC = () => {
+  useDesignSystemPage();
+  const dsColor = useDsColor();
   const { showToast } = useNotification();
   const { prompt: promptDialog, confirm: confirmDialog } = useDialog();
   const [activeTab, setActiveTab] = useState<'overview' | 'financials' | 'invoices' | 'insuranceInvoices' | 'corporateInvoices' | 'staffInvoices' | 'unbilled' | 'aging' | 'claims' | 'reminders' | 'doctorRevenue'>('overview');
@@ -412,12 +416,12 @@ const AccountantDashboard: React.FC = () => {
 
   // Chart colors from app theme
   const CHART_COLORS = {
-    primary: '#5BC5C8',    // Teal
-    secondary: '#8E4585',  // Purple
-    success: '#10B981',    // Green
-    warning: '#F59E0B',    // Orange
-    danger: '#EF4444',     // Red
-    accent: '#B8A9C9',     // Lavender
+    primary: dsColor('accent'),
+    secondary: dsColor('brand-plum'),
+    success: dsColor('success'),
+    warning: dsColor('warning'),
+    danger: dsColor('critical'),
+    accent: dsColor('info'),
   };
 
   const CATEGORY_COLORS: Record<string, string> = {
@@ -920,19 +924,19 @@ const AccountantDashboard: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      draft: 'bg-gray-100 text-gray-800',
-      pending_validation: 'bg-blue-100 text-blue-800',
-      pending_doctor_review: 'bg-warning-100 text-warning-800',
-      doctor_rejected: 'bg-danger-100 text-danger-800',
-      approved_by_doctor: 'bg-success-100 text-success-800',
-      submitted: 'bg-purple-100 text-purple-800',
-      processing: 'bg-indigo-100 text-indigo-800',
-      approved: 'bg-success-100 text-success-800',
-      partial: 'bg-orange-100 text-orange-800',
-      denied: 'bg-danger-100 text-danger-800',
-      paid: 'bg-success-100 text-success-800',
+      draft: 'bg-ds-subtle text-ds-text',
+      pending_validation: 'bg-ds-info-soft text-ds-info-text',
+      pending_doctor_review: 'bg-ds-warning-soft text-ds-warning-text',
+      doctor_rejected: 'bg-ds-critical-soft text-ds-critical-text',
+      approved_by_doctor: 'bg-ds-success-soft text-ds-success-text',
+      submitted: 'bg-ds-subtle text-ds-brand-plum',
+      processing: 'bg-ds-info-soft text-ds-info-text',
+      approved: 'bg-ds-success-soft text-ds-success-text',
+      partial: 'bg-ds-warning-soft text-ds-warning-text',
+      denied: 'bg-ds-critical-soft text-ds-critical-text',
+      paid: 'bg-ds-success-soft text-ds-success-text',
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || 'bg-ds-subtle text-ds-text';
   };
 
   const formatStatus = (status: string) => {
@@ -1038,13 +1042,13 @@ const AccountantDashboard: React.FC = () => {
   };
 
   return (
-    <AppLayout
+    <AppLayout designSystem
       title="Accountant Portal"
     >
       <div className="space-y-6">
         {/* Date Range Filter - Hidden for Payment Reminders tab */}
         {activeTab !== 'reminders' && (
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
             <div className="flex flex-wrap gap-4 items-center justify-between">
               {/* Quick Period Filters */}
               <div className="flex gap-2">
@@ -1058,10 +1062,10 @@ const AccountantDashboard: React.FC = () => {
                   <button
                     key={period.id}
                     onClick={() => setQuickPeriod(period.id)}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    className={`min-h-ds-touch px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       activePeriod === period.id
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-ds-accent text-ds-on-accent'
+                        : 'bg-ds-subtle text-ds-text-secondary hover:bg-ds-border'
                     }`}
                   >
                     {period.label}
@@ -1072,7 +1076,7 @@ const AccountantDashboard: React.FC = () => {
               {/* Custom Date Range */}
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">From:</label>
+                  <label className="text-sm text-ds-text-secondary">From:</label>
                   <input
                     type="date"
                     value={startDate}
@@ -1080,11 +1084,11 @@ const AccountantDashboard: React.FC = () => {
                       setStartDate(e.target.value);
                       setActivePeriod('custom');
                     }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">To:</label>
+                  <label className="text-sm text-ds-text-secondary">To:</label>
                   <input
                     type="date"
                     value={endDate}
@@ -1092,12 +1096,12 @@ const AccountantDashboard: React.FC = () => {
                       setEndDate(e.target.value);
                       setActivePeriod('custom');
                     }}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring"
                   />
                 </div>
                 <button
                   onClick={loadFinancialSummary}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover"
                 >
                   Apply
                 </button>
@@ -1107,8 +1111,8 @@ const AccountantDashboard: React.FC = () => {
         )}
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-          <div className="border-b border-gray-200">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
+          <div className="border-b border-ds-border">
             <nav className="flex -mb-px">
               {[
                 { id: 'overview', label: 'Overview' },
@@ -1128,8 +1132,8 @@ const AccountantDashboard: React.FC = () => {
                   onClick={() => setActiveTab(tab.id as typeof activeTab)}
                   className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? 'border-primary-600 text-primary-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-ds-accent text-ds-accent-text'
+                      : 'border-transparent text-ds-text-muted hover:text-ds-text hover:border-ds-border-control'
                   }`}
                 >
                   {tab.label}
@@ -1221,16 +1225,16 @@ const AccountantDashboard: React.FC = () => {
                     })()}
 
                     {/* Revenue Trend Chart */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                    <div className="bg-ds-surface rounded-ds-card border border-ds-border p-6 shadow-ds-card">
                       <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Revenue Trend</h3>
+                        <h3 className="text-lg font-semibold text-ds-text">Revenue Trend</h3>
                         <button
                           onClick={handleExportRevenueTrend}
                           disabled={exportingTrend || dailyRevenue.length === 0}
-                          className="px-3 py-1.5 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                          className="min-h-ds-touch px-3 py-1.5 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 flex items-center gap-2 text-sm disabled:opacity-50"
                         >
                           {exportingTrend ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ds-surface"></div>
                           ) : (
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1243,7 +1247,7 @@ const AccountantDashboard: React.FC = () => {
                         <div className="h-72">
                           <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={dailyRevenue}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                              <CartesianGrid strokeDasharray="3 3" stroke={dsColor('border')} />
                               <XAxis
                                 dataKey="date"
                                 tickFormatter={(value) => {
@@ -1253,12 +1257,12 @@ const AccountantDashboard: React.FC = () => {
                                     return value;
                                   }
                                 }}
-                                stroke="#6B7280"
+                                stroke={dsColor('text-muted')}
                                 fontSize={12}
                               />
                               <YAxis
                                 tickFormatter={(value) => `GHS ${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
-                                stroke="#6B7280"
+                                stroke={dsColor('text-muted')}
                                 fontSize={12}
                               />
                               <Tooltip
@@ -1270,7 +1274,7 @@ const AccountantDashboard: React.FC = () => {
                                     return label;
                                   }
                                 }}
-                                contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                                contentStyle={{ borderRadius: '8px', border: '1px solid rgb(var(--ds-border))', background: 'rgb(var(--ds-surface))', color: 'rgb(var(--ds-text))' }}
                               />
                               <Legend />
                               <Line
@@ -1295,13 +1299,13 @@ const AccountantDashboard: React.FC = () => {
                           </ResponsiveContainer>
                         </div>
                       ) : (
-                        <div className="h-72 flex items-center justify-center bg-gray-50 rounded-lg">
+                        <div className="h-72 flex items-center justify-center bg-ds-subtle rounded-lg">
                           <div className="text-center">
-                            <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-16 h-16 mx-auto text-ds-text-muted mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                             </svg>
-                            <p className="text-gray-500">No revenue data for selected period</p>
-                            <p className="text-sm text-gray-400 mt-1">Try selecting a different date range</p>
+                            <p className="text-ds-text-muted">No revenue data for selected period</p>
+                            <p className="text-sm text-ds-text-muted mt-1">Try selecting a different date range</p>
                           </div>
                         </div>
                       )}
@@ -1310,8 +1314,8 @@ const AccountantDashboard: React.FC = () => {
                     {/* Revenue by Category & Top Services */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Revenue by Category - Pie Chart */}
-                      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Category</h3>
+                      <div className="bg-ds-surface rounded-ds-card border border-ds-border p-6 shadow-ds-card">
+                        <h3 className="text-lg font-semibold text-ds-text mb-4">Revenue by Category</h3>
                         {categoryRevenue.length > 0 ? (
                           <div className="flex items-center gap-6">
                             <div className="w-48 h-48">
@@ -1336,7 +1340,7 @@ const AccountantDashboard: React.FC = () => {
                                   </Pie>
                                   <Tooltip
                                     formatter={(value) => formatCurrency(value as number)}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                                    contentStyle={{ borderRadius: '8px', border: '1px solid rgb(var(--ds-border))', background: 'rgb(var(--ds-surface))', color: 'rgb(var(--ds-text))' }}
                                   />
                                 </PieChart>
                               </ResponsiveContainer>
@@ -1349,32 +1353,32 @@ const AccountantDashboard: React.FC = () => {
                                       className="w-3 h-3 rounded-full"
                                       style={{ backgroundColor: CATEGORY_COLORS[cat.category] || Object.values(CHART_COLORS)[idx % 6] }}
                                     />
-                                    <span className="text-sm font-medium text-gray-700 capitalize">{cat.category}</span>
+                                    <span className="text-sm font-medium text-ds-text-secondary capitalize">{cat.category}</span>
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-sm font-semibold text-gray-900">{formatCurrency(cat.total_amount)}</p>
-                                    <p className="text-xs text-gray-500">{cat.invoice_count} items</p>
+                                    <p className="text-sm font-semibold text-ds-text">{formatCurrency(cat.total_amount)}</p>
+                                    <p className="text-xs text-ds-text-muted">{cat.invoice_count} items</p>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           </div>
                         ) : (
-                          <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="h-48 flex items-center justify-center bg-ds-subtle rounded-lg">
                             <div className="text-center">
-                              <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-12 h-12 mx-auto text-ds-text-muted mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
                               </svg>
-                              <p className="text-gray-500 text-sm">No category data</p>
+                              <p className="text-ds-text-muted text-sm">No category data</p>
                             </div>
                           </div>
                         )}
                       </div>
 
                       {/* Top Services */}
-                      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Services</h3>
+                      <div className="bg-ds-surface rounded-ds-card border border-ds-border p-6 shadow-ds-card">
+                        <h3 className="text-lg font-semibold text-ds-text mb-4">Top Services</h3>
                         {topServices.length > 0 ? (
                           <div className="space-y-3">
                             {topServices.slice(0, 8).map((service, idx) => {
@@ -1384,35 +1388,35 @@ const AccountantDashboard: React.FC = () => {
                                 <div key={idx} className="space-y-1">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold text-white bg-primary-500 rounded-full w-5 h-5 flex items-center justify-center">
+                                      <span className="text-xs font-bold text-ds-on-accent bg-ds-accent rounded-full w-5 h-5 flex items-center justify-center">
                                         {idx + 1}
                                       </span>
-                                      <span className="text-sm text-gray-700 truncate max-w-[180px]">{service.description}</span>
+                                      <span className="text-sm text-ds-text-secondary truncate max-w-[180px]">{service.description}</span>
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-sm font-semibold text-gray-900">{formatCurrency(service.total_revenue)}</p>
+                                      <p className="text-sm font-semibold text-ds-text">{formatCurrency(service.total_revenue)}</p>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-gray-100 rounded-full h-2">
+                                    <div className="flex-1 bg-ds-subtle rounded-full h-2">
                                       <div
-                                        className="bg-primary-500 h-2 rounded-full transition-all duration-500"
+                                        className="bg-ds-accent h-2 rounded-full transition-all duration-500"
                                         style={{ width: `${percentage}%` }}
                                       />
                                     </div>
-                                    <span className="text-xs text-gray-500 w-12">{service.times_billed}x</span>
+                                    <span className="text-xs text-ds-text-muted w-12">{service.times_billed}x</span>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
                         ) : (
-                          <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                          <div className="h-48 flex items-center justify-center bg-ds-subtle rounded-lg">
                             <div className="text-center">
-                              <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-12 h-12 mx-auto text-ds-text-muted mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
-                              <p className="text-gray-500 text-sm">No services billed</p>
+                              <p className="text-ds-text-muted text-sm">No services billed</p>
                             </div>
                           </div>
                         )}
@@ -1420,31 +1424,31 @@ const AccountantDashboard: React.FC = () => {
                     </div>
 
                     {/* Payment Methods - Bar Chart */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
+                    <div className="bg-ds-surface rounded-ds-card border border-ds-border p-6 shadow-ds-card">
+                      <h3 className="text-lg font-semibold text-ds-text mb-4">Payment Methods</h3>
                       {paymentMethods.length > 0 ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div className="h-64">
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={paymentMethods} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={dsColor('border')} />
                                 <XAxis
                                   type="number"
                                   tickFormatter={(value) => `GHS ${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
-                                  stroke="#6B7280"
+                                  stroke={dsColor('text-muted')}
                                   fontSize={12}
                                 />
                                 <YAxis
                                   type="category"
                                   dataKey="method"
                                   tickFormatter={(value) => value.replace('_', ' ').charAt(0).toUpperCase() + value.replace('_', ' ').slice(1)}
-                                  stroke="#6B7280"
+                                  stroke={dsColor('text-muted')}
                                   fontSize={12}
                                   width={100}
                                 />
                                 <Tooltip
                                   formatter={(value) => [formatCurrency(value as number), 'Amount']}
-                                  contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                                  contentStyle={{ borderRadius: '8px', border: '1px solid rgb(var(--ds-border))', background: 'rgb(var(--ds-surface))', color: 'rgb(var(--ds-text))' }}
                                 />
                                 <Bar dataKey="total" fill={CHART_COLORS.primary} radius={[0, 4, 4, 0]} />
                               </BarChart>
@@ -1456,24 +1460,24 @@ const AccountantDashboard: React.FC = () => {
                               return (
                                 <div
                                   key={method.method}
-                                  className="rounded-lg p-4 border border-gray-100"
+                                  className="rounded-lg p-4 border border-ds-border"
                                   style={{ backgroundColor: `${colors[idx % 4]}10` }}
                                 >
-                                  <p className="text-sm text-gray-600 capitalize font-medium">{method.method.replace('_', ' ')}</p>
-                                  <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(method.total)}</p>
-                                  <p className="text-xs text-gray-500 mt-1">{method.count} transactions</p>
+                                  <p className="text-sm text-ds-text-secondary capitalize font-medium">{method.method.replace('_', ' ')}</p>
+                                  <p className="text-2xl font-bold text-ds-text mt-1">{formatCurrency(method.total)}</p>
+                                  <p className="text-xs text-ds-text-muted mt-1">{method.count} transactions</p>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
                       ) : (
-                        <div className="h-48 flex items-center justify-center bg-gray-50 rounded-lg">
+                        <div className="h-48 flex items-center justify-center bg-ds-subtle rounded-lg">
                           <div className="text-center">
-                            <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-12 h-12 mx-auto text-ds-text-muted mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                             </svg>
-                            <p className="text-gray-500 text-sm">No payment data</p>
+                            <p className="text-ds-text-muted text-sm">No payment data</p>
                           </div>
                         </div>
                       )}
@@ -1487,8 +1491,8 @@ const AccountantDashboard: React.FC = () => {
             {(INVOICE_TABS as readonly string[]).includes(activeTab) && (
               <div className="space-y-4">
                 {activeTab !== 'invoices' && (
-                  <div className="text-sm text-gray-600">
-                    Showing <span className="font-semibold text-gray-900">{PAYER_TAB_LABEL[activeTab]}</span> invoices only.
+                  <div className="text-sm text-ds-text-secondary">
+                    Showing <span className="font-semibold text-ds-text">{PAYER_TAB_LABEL[activeTab]}</span> invoices only.
                   </div>
                 )}
                 <div className="flex flex-wrap gap-4 items-center justify-between">
@@ -1499,7 +1503,7 @@ const AccountantDashboard: React.FC = () => {
                       value={invoiceSearch}
                       onChange={(e) => setInvoiceSearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadInvoices()}
-                      className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg"
+                      className="flex-1 min-w-[200px] px-4 py-2 border border-ds-border-control rounded-lg"
                     />
                     <AppSelect
                       value={invoiceFilter}
@@ -1508,7 +1512,7 @@ const AccountantDashboard: React.FC = () => {
                     />
                     <button
                       onClick={loadInvoices}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-text-secondary text-ds-canvas rounded-lg hover:bg-ds-text"
                     >
                       Search
                     </button>
@@ -1516,10 +1520,10 @@ const AccountantDashboard: React.FC = () => {
                   <button
                     onClick={handleExportInvoices}
                     disabled={exporting}
-                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 flex items-center gap-2 disabled:opacity-50"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 flex items-center gap-2 disabled:opacity-50"
                   >
                     {exporting ? (
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ds-surface"></div>
                     ) : (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1530,23 +1534,23 @@ const AccountantDashboard: React.FC = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-ds-border">
+                    <thead className="bg-ds-subtle">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
                         {activeTab !== 'invoices' && (
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Payer</th>
                         )}
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Total</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Paid</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-ds-surface divide-y divide-ds-border">
                       {invoicesLoading ? (
                         <>
                           {Array.from({ length: 6 }).map((_, i) => (
@@ -1555,35 +1559,35 @@ const AccountantDashboard: React.FC = () => {
                         </>
                       ) : invoices.length === 0 ? (
                         <tr>
-                          <td colSpan={activeTab !== 'invoices' ? 9 : 8} className="px-4 py-8 text-center text-gray-500">No invoices found</td>
+                          <td colSpan={activeTab !== 'invoices' ? 9 : 8} className="px-4 py-8 text-center text-ds-text-muted">No invoices found</td>
                         </tr>
                       ) : (
                         invoices.map((inv) => (
-                          <tr key={inv.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                          <tr key={inv.id} className="hover:bg-ds-subtle">
+                            <td className="px-4 py-3 text-sm font-medium text-ds-text">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text-muted">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
                             <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
-                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                              <div className="text-sm font-medium text-ds-text">{inv.patient_name}</div>
+                              <div className="text-xs text-ds-text-muted">{inv.patient_number}</div>
                             </td>
                             {activeTab !== 'invoices' && (
-                              <td className="px-4 py-3 text-sm text-gray-700">{payerLabel(inv)}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">{payerLabel(inv)}</td>
                             )}
                             <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(inv.total_amount)}</td>
-                            <td className="px-4 py-3 text-sm text-right text-success-600">{formatCurrency(inv.amount_paid)}</td>
-                            <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
+                            <td className="px-4 py-3 text-sm text-right text-ds-success-text">{formatCurrency(inv.amount_paid)}</td>
+                            <td className="px-4 py-3 text-sm text-right text-ds-critical-text font-medium">
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
                               {isSubmittedAwaitingPayer(inv) ? (
-                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800" title={`Submitted to payer${inv.payer_submitted_at ? ' on ' + safeFormatDate(inv.payer_submitted_at, 'MMM d, yyyy') : ''} — awaiting settlement`}>
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-ds-subtle text-ds-brand-plum" title={`Submitted to payer${inv.payer_submitted_at ? ' on ' + safeFormatDate(inv.payer_submitted_at, 'MMM d, yyyy') : ''} — awaiting settlement`}>
                                   SUBMITTED
                                 </span>
                               ) : (
                                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                  inv.status === 'paid' ? 'bg-success-100 text-success-800' :
-                                  inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-warning-100 text-warning-800'
+                                  inv.status === 'paid' ? 'bg-ds-success-soft text-ds-success-text' :
+                                  inv.status === 'partial' ? 'bg-ds-info-soft text-ds-info-text' :
+                                  'bg-ds-warning-soft text-ds-warning-text'
                                 }`}>
                                   {inv.status.toUpperCase()}
                                 </span>
@@ -1593,14 +1597,14 @@ const AccountantDashboard: React.FC = () => {
                               <div className="flex justify-center gap-2">
                                 <button
                                   onClick={() => handleViewInvoice(inv.id)}
-                                  className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                  className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                                 >
                                   View
                                 </button>
                                 {isSubmittedAwaitingPayer(inv) && (
                                   <button
                                     onClick={() => handleSettlePayer(inv)}
-                                    className="text-purple-600 hover:text-purple-900 text-sm font-medium"
+                                    className="text-ds-brand-plum hover:text-ds-brand-plum text-sm font-medium"
                                     title="Record the payer's settlement for this invoice"
                                   >
                                     Settle
@@ -1608,7 +1612,7 @@ const AccountantDashboard: React.FC = () => {
                                 )}
                                 <button
                                   onClick={() => handleExportSingleInvoice(inv.id)}
-                                  className="text-success-600 hover:text-success-900 text-sm font-medium"
+                                  className="text-ds-success-text hover:text-ds-success-text text-sm font-medium"
                                 >
                                   Excel
                                 </button>
@@ -1627,8 +1631,8 @@ const AccountantDashboard: React.FC = () => {
                 not yet submitted to their payer (catch what front desk missed). */}
             {activeTab === 'unbilled' && (
               <div className="space-y-4">
-                <div className="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-gray-700 space-y-2">
-                  <div className="font-semibold text-warning-800">What "Awaiting Submission" means</div>
+                <div className="rounded-lg border border-ds-warning-border bg-ds-warning-soft p-4 text-sm text-ds-text-secondary space-y-2">
+                  <div className="font-semibold text-ds-warning-text">What "Awaiting Submission" means</div>
                   <p>
                     These are visits for patients paid by a <span className="font-semibold">company (corporate)</span> or an <span className="font-semibold">insurance</span> — not by the patient in cash. The visit is done and billed, but the bill <span className="font-semibold">hasn't been sent to that company/insurer yet</span>, so we can't get paid for it until it is.
                   </p>
@@ -1640,49 +1644,49 @@ const AccountantDashboard: React.FC = () => {
                   </p>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-ds-border">
+                    <thead className="bg-ds-subtle">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Action</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Payer</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-ds-surface divide-y divide-ds-border">
                       {unbilledLoading ? (
                         Array.from({ length: 5 }).map((_, i) => <TableRowSkeleton key={i} columns={6} />)
                       ) : unbilledInvoices.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-4 py-8 text-center text-ds-text-muted">
                             Nothing awaiting submission — all corporate/insurance encounters have been submitted.
                           </td>
                         </tr>
                       ) : (
                         unbilledInvoices.map((inv) => (
-                          <tr key={inv.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                          <tr key={inv.id} className="hover:bg-ds-subtle">
+                            <td className="px-4 py-3 text-sm font-medium text-ds-text">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text-muted">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
                             <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
-                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                              <div className="text-sm font-medium text-ds-text">{inv.patient_name}</div>
+                              <div className="text-xs text-ds-text-muted">{inv.patient_number}</div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">
-                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-primary-100 text-primary-700' : 'bg-warning-100 text-warning-700'}`}>
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary">
+                              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${inv.payer_type === 'insurance' ? 'bg-ds-accent-soft text-ds-accent-text' : 'bg-ds-warning-soft text-ds-warning-text'}`}>
                                 {inv.payer_type === 'insurance' ? 'Insurance' : 'Corporate'}
                               </span>
                               <span className="ml-2">{payerLabel(inv)}</span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">
+                            <td className="px-4 py-3 text-sm text-right text-ds-critical-text font-medium">
                               {formatCurrency((parseFloat(inv.total_amount as unknown as string) || 0) - (parseFloat(inv.amount_paid as unknown as string) || 0))}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <button
                                 onClick={() => handleSubmitToPayer(inv.id)}
                                 disabled={submittingId === inv.id}
-                                className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                                className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm disabled:opacity-50"
                               >
                                 {submittingId === inv.id ? 'Submitting…' : 'Submit to payer'}
                               </button>
@@ -1700,44 +1704,44 @@ const AccountantDashboard: React.FC = () => {
             {activeTab === 'financials' && (
               <div className="space-y-6">
                 {financialsLoading || !financials ? (
-                  <div className="py-12 text-center text-gray-500">Loading financial summary…</div>
+                  <div className="py-12 text-center text-ds-text-muted">Loading financial summary…</div>
                 ) : (
                   <>
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+                    <div className="rounded-lg border border-ds-info/30 bg-ds-info-soft p-3 text-xs text-ds-info-text">
                       <span className="font-semibold">Operational financial summary</span> — the clinic's revenue and cash position for the selected period{financials.period.label ? ` (${financials.period.label})` : ''}. This is not a GAAP balance sheet, income statement, or cash-flow statement — those come from QuickBooks, which tracks expenses, cash accounts and equity that this system doesn't.
                     </div>
 
                     {/* Headline metrics */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="rounded-xl p-4 bg-white border border-gray-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-gray-500">Billed</h4>
-                        <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(financials.headline.total_billed)}</p>
-                        <p className="text-xs text-gray-500 mt-1">{financials.headline.invoice_count} invoices</p>
+                      <div className="rounded-ds-card p-4 bg-ds-surface border border-ds-border shadow-ds-card">
+                        <h4 className="text-sm font-medium text-ds-text-muted">Billed</h4>
+                        <p className="text-2xl font-bold text-ds-text mt-1">{formatCurrency(financials.headline.total_billed)}</p>
+                        <p className="text-xs text-ds-text-muted mt-1">{financials.headline.invoice_count} invoices</p>
                       </div>
-                      <div className="rounded-xl p-4 bg-success-50 border border-success-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-success-700">Collected</h4>
-                        <p className="text-2xl font-bold text-success-900 mt-1">{formatCurrency(financials.headline.total_collected)}</p>
-                        <p className="text-xs text-success-600 mt-1">{financials.headline.payment_count} payments</p>
+                      <div className="rounded-ds-card p-4 bg-ds-success-soft border border-ds-success/30 shadow-ds-card">
+                        <h4 className="text-sm font-medium text-ds-success-text">Collected</h4>
+                        <p className="text-2xl font-bold text-ds-success-text mt-1">{formatCurrency(financials.headline.total_collected)}</p>
+                        <p className="text-xs text-ds-success-text mt-1">{financials.headline.payment_count} payments</p>
                       </div>
-                      <div className="rounded-xl p-4 bg-primary-50 border border-primary-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-primary-700">Collection Rate</h4>
-                        <p className="text-2xl font-bold text-primary-900 mt-1">{financials.headline.collection_rate}%</p>
-                        <p className="text-xs text-primary-600 mt-1">collected ÷ billed</p>
+                      <div className="rounded-ds-card p-4 bg-ds-accent-soft border border-ds-accent/30 shadow-ds-card">
+                        <h4 className="text-sm font-medium text-ds-accent-text">Collection Rate</h4>
+                        <p className="text-2xl font-bold text-ds-accent-text mt-1">{financials.headline.collection_rate}%</p>
+                        <p className="text-xs text-ds-accent-text mt-1">collected ÷ billed</p>
                       </div>
-                      <div className="rounded-xl p-4 bg-danger-50 border border-danger-200 shadow-sm">
-                        <h4 className="text-sm font-medium text-danger-700">Outstanding (A/R)</h4>
-                        <p className="text-2xl font-bold text-danger-900 mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
-                        <p className="text-xs text-danger-600 mt-1">current, all-time</p>
+                      <div className="rounded-ds-card p-4 bg-ds-critical-soft border border-ds-critical-border shadow-ds-card">
+                        <h4 className="text-sm font-medium text-ds-critical-text">Outstanding (A/R)</h4>
+                        <p className="text-2xl font-bold text-ds-critical-text mt-1">{formatCurrency(financials.headline.total_outstanding)}</p>
+                        <p className="text-xs text-ds-critical-text mt-1">current, all-time</p>
                       </div>
                     </div>
 
                     {/* Monthly billed vs collected */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed vs Collected by Month</h3>
+                    <div className="bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card p-4">
+                      <h3 className="text-lg font-semibold text-ds-text mb-4">Billed vs Collected by Month</h3>
                       <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={financials.monthly_trend}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                            <CartesianGrid strokeDasharray="3 3" stroke={dsColor('border')} />
                             <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                             <YAxis tick={{ fontSize: 11 }} />
                             <Tooltip formatter={(value) => formatCurrency(value as number)} />
@@ -1751,14 +1755,14 @@ const AccountantDashboard: React.FC = () => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Revenue by category */}
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Billed Revenue by Category</h3>
+                      <div className="bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card p-4">
+                        <h3 className="text-lg font-semibold text-ds-text mb-4">Billed Revenue by Category</h3>
                         <table className="min-w-full text-sm">
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="divide-y divide-ds-border">
                             {financials.revenue_by_category.map((r) => (
                               <tr key={r.category}>
-                                <td className="py-2 text-gray-700">{r.category}</td>
-                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.billed)}</td>
+                                <td className="py-2 text-ds-text-secondary">{r.category}</td>
+                                <td className="py-2 text-right font-medium text-ds-text">{formatCurrency(r.billed)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1766,15 +1770,15 @@ const AccountantDashboard: React.FC = () => {
                       </div>
 
                       {/* Collections by method */}
-                      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Collections by Payment Method</h3>
+                      <div className="bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card p-4">
+                        <h3 className="text-lg font-semibold text-ds-text mb-4">Collections by Payment Method</h3>
                         <table className="min-w-full text-sm">
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="divide-y divide-ds-border">
                             {financials.collections_by_method.map((r) => (
                               <tr key={r.method}>
-                                <td className="py-2 text-gray-700 capitalize">{r.method.replace(/_/g, ' ')}</td>
-                                <td className="py-2 text-center text-gray-400 text-xs">{r.count}</td>
-                                <td className="py-2 text-right font-medium text-gray-900">{formatCurrency(r.amount)}</td>
+                                <td className="py-2 text-ds-text-secondary capitalize">{r.method.replace(/_/g, ' ')}</td>
+                                <td className="py-2 text-center text-ds-text-muted text-xs">{r.count}</td>
+                                <td className="py-2 text-right font-medium text-ds-text">{formatCurrency(r.amount)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1783,25 +1787,25 @@ const AccountantDashboard: React.FC = () => {
                     </div>
 
                     {/* Revenue by payer: billed vs collected */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue by Payer</h3>
+                    <div className="bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card p-4">
+                      <h3 className="text-lg font-semibold text-ds-text mb-4">Revenue by Payer</h3>
                       <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
-                          <thead className="bg-gray-50">
+                          <thead className="bg-ds-subtle">
                             <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payer</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Billed</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Collected</th>
-                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-ds-text-muted uppercase">Payer</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-ds-text-muted uppercase">Billed</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-ds-text-muted uppercase">Collected</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-ds-text-muted uppercase">Outstanding</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-gray-100">
+                          <tbody className="divide-y divide-ds-border">
                             {financials.revenue_by_payer.map((r) => (
                               <tr key={r.payer_type}>
-                                <td className="px-4 py-2 text-gray-700 capitalize">{r.payer_type.replace(/_/g, ' ')}</td>
-                                <td className="px-4 py-2 text-right text-gray-900">{formatCurrency(r.billed)}</td>
-                                <td className="px-4 py-2 text-right text-success-700">{formatCurrency(r.collected)}</td>
-                                <td className="px-4 py-2 text-right text-danger-600">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
+                                <td className="px-4 py-2 text-ds-text-secondary capitalize">{r.payer_type.replace(/_/g, ' ')}</td>
+                                <td className="px-4 py-2 text-right text-ds-text">{formatCurrency(r.billed)}</td>
+                                <td className="px-4 py-2 text-right text-ds-success-text">{formatCurrency(r.collected)}</td>
+                                <td className="px-4 py-2 text-right text-ds-critical-text">{formatCurrency(Math.max(0, r.billed - r.collected))}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1810,19 +1814,19 @@ const AccountantDashboard: React.FC = () => {
                     </div>
 
                     {/* A/R aging snapshot */}
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounts Receivable — Aging</h3>
+                    <div className="bg-ds-surface rounded-ds-card border border-ds-border shadow-ds-card p-4">
+                      <h3 className="text-lg font-semibold text-ds-text mb-4">Accounts Receivable — Aging</h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {financials.aging.map((b) => (
                           <div key={b.aging_bucket} className={`rounded-lg p-3 ${
-                            b.aging_bucket === '90+ days' ? 'bg-danger-50 border border-danger-200' :
-                            b.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
-                            b.aging_bucket === '31-60 days' ? 'bg-warning-50 border border-warning-200' :
-                            'bg-success-50 border border-success-200'
+                            b.aging_bucket === '90+ days' ? 'bg-ds-critical-soft border border-ds-critical-border' :
+                            b.aging_bucket === '61-90 days' ? 'bg-ds-warning-soft border border-ds-warning-border' :
+                            b.aging_bucket === '31-60 days' ? 'bg-ds-warning-soft border border-ds-warning-border' :
+                            'bg-ds-success-soft border border-ds-success/30'
                           }`}>
-                            <h4 className="text-xs font-medium text-gray-700">{b.aging_bucket}</h4>
-                            <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(b.total_balance)}</p>
-                            <p className="text-xs text-gray-500">{b.invoice_count} invoices</p>
+                            <h4 className="text-xs font-medium text-ds-text-secondary">{b.aging_bucket}</h4>
+                            <p className="text-lg font-bold text-ds-text mt-1">{formatCurrency(b.total_balance)}</p>
+                            <p className="text-xs text-ds-text-muted">{b.invoice_count} invoices</p>
                           </div>
                         ))}
                       </div>
@@ -1838,18 +1842,18 @@ const AccountantDashboard: React.FC = () => {
                 {agingLoading ? (
                   <AgingSkeleton />
                 ) : agingError ? (
-                  <div className="bg-white rounded-xl shadow p-12 text-center border border-danger-200">
-                    <p className="text-danger-700 font-semibold">Couldn't load the aging report</p>
-                    <p className="text-gray-600 mt-1 text-sm">{agingError}</p>
+                  <div className="bg-ds-surface rounded-ds-card shadow p-12 text-center border border-ds-critical-border">
+                    <p className="text-ds-critical-text font-semibold">Couldn't load the aging report</p>
+                    <p className="text-ds-text-secondary mt-1 text-sm">{agingError}</p>
                     <button
                       onClick={loadAgingReport}
-                      className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                      className="min-h-ds-touch mt-4 px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover font-medium"
                     >
                       Try again
                     </button>
                   </div>
                 ) : agingSummary.length === 0 ? (
-                  <div className="bg-white rounded-xl shadow p-12 text-center text-gray-500">
+                  <div className="bg-ds-surface rounded-ds-card shadow p-12 text-center text-ds-text-muted">
                     No outstanding invoices to age — every invoice is settled.
                   </div>
                 ) : (
@@ -1859,54 +1863,54 @@ const AccountantDashboard: React.FC = () => {
                       {agingSummary.map((bucket) => (
                         <div
                           key={bucket.aging_bucket}
-                          className={`rounded-xl p-4 ${
-                            bucket.aging_bucket === '90+ days' ? 'bg-danger-50 border border-danger-200' :
-                            bucket.aging_bucket === '61-90 days' ? 'bg-orange-50 border border-orange-200' :
-                            bucket.aging_bucket === '31-60 days' ? 'bg-warning-50 border border-warning-200' :
-                            'bg-success-50 border border-success-200'
+                          className={`rounded-ds-card p-4 ${
+                            bucket.aging_bucket === '90+ days' ? 'bg-ds-critical-soft border border-ds-critical-border' :
+                            bucket.aging_bucket === '61-90 days' ? 'bg-ds-warning-soft border border-ds-warning-border' :
+                            bucket.aging_bucket === '31-60 days' ? 'bg-ds-warning-soft border border-ds-warning-border' :
+                            'bg-ds-success-soft border border-ds-success/30'
                           }`}
                         >
-                          <h4 className="text-sm font-medium text-gray-700">{bucket.aging_bucket}</h4>
-                          <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(bucket.total_balance)}</p>
-                          <p className="text-xs text-gray-500">{bucket.invoice_count} invoices</p>
+                          <h4 className="text-sm font-medium text-ds-text-secondary">{bucket.aging_bucket}</h4>
+                          <p className="text-2xl font-bold text-ds-text mt-1">{formatCurrency(bucket.total_balance)}</p>
+                          <p className="text-xs text-ds-text-muted">{bucket.invoice_count} invoices</p>
                         </div>
                       ))}
                     </div>
 
                     {/* Aging Details */}
                     <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
+                      <table className="min-w-full divide-y divide-ds-border">
+                        <thead className="bg-ds-subtle">
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
-                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Bucket</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Total</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Paid</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Balance</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Days</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Bucket</th>
                           </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                        <tbody className="bg-ds-surface divide-y divide-ds-border">
                           {agingInvoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
+                        <tr key={inv.id} className="hover:bg-ds-subtle">
+                          <td className="px-4 py-3 text-sm font-medium text-ds-text">{inv.invoice_number}</td>
+                          <td className="px-4 py-3 text-sm text-ds-text-muted">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</td>
                           <td className="px-4 py-3">
-                            <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
-                            <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                            <div className="text-sm font-medium text-ds-text">{inv.patient_name}</div>
+                            <div className="text-xs text-ds-text-muted">{inv.patient_number}</div>
                           </td>
                           <td className="px-4 py-3 text-sm text-right">{formatCurrency(inv.total_amount)}</td>
-                          <td className="px-4 py-3 text-sm text-right text-success-600">{formatCurrency(inv.amount_paid)}</td>
-                          <td className="px-4 py-3 text-sm text-right text-danger-600 font-medium">{formatCurrency(inv.balance)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-ds-success-text">{formatCurrency(inv.amount_paid)}</td>
+                          <td className="px-4 py-3 text-sm text-right text-ds-critical-text font-medium">{formatCurrency(inv.balance)}</td>
                           <td className="px-4 py-3 text-sm text-center font-medium">{inv.days_outstanding}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              inv.aging_bucket === '90+ days' ? 'bg-danger-100 text-danger-800' :
-                              inv.aging_bucket === '61-90 days' ? 'bg-orange-100 text-orange-800' :
-                              inv.aging_bucket === '31-60 days' ? 'bg-warning-100 text-warning-800' :
-                              'bg-success-100 text-success-800'
+                              inv.aging_bucket === '90+ days' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                              inv.aging_bucket === '61-90 days' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                              inv.aging_bucket === '31-60 days' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                              'bg-ds-success-soft text-ds-success-text'
                             }`}>
                               {inv.aging_bucket}
                               </span>
@@ -1927,41 +1931,41 @@ const AccountantDashboard: React.FC = () => {
                 {/* Summary Cards */}
                 {outstandingSummary && (
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="bg-success-50 rounded-xl p-4 border border-success-200">
-                      <h4 className="text-sm font-medium text-success-700">0-30 Days</h4>
-                      <p className="text-2xl font-bold text-success-900">{outstandingSummary.bucket_0_30}</p>
+                    <div className="bg-ds-success-soft rounded-ds-card p-4 border border-ds-success/30">
+                      <h4 className="text-sm font-medium text-ds-success-text">0-30 Days</h4>
+                      <p className="text-2xl font-bold text-ds-success-text">{outstandingSummary.bucket_0_30}</p>
                     </div>
-                    <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
-                      <h4 className="text-sm font-medium text-warning-700">31-60 Days</h4>
-                      <p className="text-2xl font-bold text-warning-900">{outstandingSummary.bucket_31_60}</p>
+                    <div className="bg-ds-warning-soft rounded-ds-card p-4 border border-ds-warning-border">
+                      <h4 className="text-sm font-medium text-ds-warning-text">31-60 Days</h4>
+                      <p className="text-2xl font-bold text-ds-warning-text">{outstandingSummary.bucket_31_60}</p>
                     </div>
-                    <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-                      <h4 className="text-sm font-medium text-orange-700">61-90 Days</h4>
-                      <p className="text-2xl font-bold text-orange-900">{outstandingSummary.bucket_61_90}</p>
+                    <div className="bg-ds-warning-soft rounded-ds-card p-4 border border-ds-warning-border">
+                      <h4 className="text-sm font-medium text-ds-warning-text">61-90 Days</h4>
+                      <p className="text-2xl font-bold text-ds-warning-text">{outstandingSummary.bucket_61_90}</p>
                     </div>
-                    <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
-                      <h4 className="text-sm font-medium text-danger-700">90+ Days</h4>
-                      <p className="text-2xl font-bold text-danger-900">{outstandingSummary.bucket_90_plus}</p>
+                    <div className="bg-ds-critical-soft rounded-ds-card p-4 border border-ds-critical-border">
+                      <h4 className="text-sm font-medium text-ds-critical-text">90+ Days</h4>
+                      <p className="text-2xl font-bold text-ds-critical-text">{outstandingSummary.bucket_90_plus}</p>
                     </div>
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <h4 className="text-sm font-medium text-blue-700">Total Outstanding</h4>
-                      <p className="text-xl font-bold text-blue-900">{formatCurrency(outstandingSummary.total_outstanding)}</p>
+                    <div className="bg-ds-info-soft rounded-ds-card p-4 border border-ds-info/30">
+                      <h4 className="text-sm font-medium text-ds-info-text">Total Outstanding</h4>
+                      <p className="text-xl font-bold text-ds-info-text">{formatCurrency(outstandingSummary.total_outstanding)}</p>
                     </div>
                   </div>
                 )}
 
                 {/* Settings Toggle */}
-                <div className="bg-gray-50 rounded-lg p-4">
+                <div className="bg-ds-subtle rounded-lg p-4">
                   <button
                     onClick={() => setShowSettings(!showSettings)}
-                    className="flex items-center gap-2 text-gray-700 font-medium"
+                    className="flex items-center gap-2 text-ds-text-secondary font-medium"
                   >
                     <svg className={`w-5 h-5 transition-transform ${showSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
                     Reminder Settings
                     {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
-                      <span className="text-xs bg-warning-100 text-warning-800 px-2 py-1 rounded-full ml-2">
+                      <span className="text-xs bg-ds-warning-soft text-ds-warning-text px-2 py-1 rounded-full ml-2">
                         SMS/Email not configured - reminders will be logged only
                       </span>
                     )}
@@ -1970,39 +1974,39 @@ const AccountantDashboard: React.FC = () => {
                   {showSettings && reminderSettings && (
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">First Reminder (days after invoice)</label>
+                        <label className="block text-sm text-ds-text-secondary mb-1">First Reminder (days after invoice)</label>
                         <input
                           type="number"
                           value={reminderSettings.first_reminder_days}
                           onChange={(e) => handleUpdateSettings({ first_reminder_days: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">Second Reminder (days after first)</label>
+                        <label className="block text-sm text-ds-text-secondary mb-1">Second Reminder (days after first)</label>
                         <input
                           type="number"
                           value={reminderSettings.second_reminder_days}
                           onChange={(e) => handleUpdateSettings({ second_reminder_days: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">Third Reminder (days after second)</label>
+                        <label className="block text-sm text-ds-text-secondary mb-1">Third Reminder (days after second)</label>
                         <input
                           type="number"
                           value={reminderSettings.third_reminder_days}
                           onChange={(e) => handleUpdateSettings({ third_reminder_days: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg"
                         />
                       </div>
                       <div className="md:col-span-3">
-                        <label className="block text-sm text-gray-600 mb-1">SMS Template</label>
+                        <label className="block text-sm text-ds-text-secondary mb-1">SMS Template</label>
                         <textarea
                           value={reminderSettings.reminder_template_sms}
                           onChange={(e) => handleUpdateSettings({ reminder_template_sms: e.target.value })}
                           rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          className="w-full px-3 py-2 border border-ds-border-control rounded-lg text-sm"
                           placeholder="Use {patient_name}, {amount}, {invoice_number}, {invoice_date}, {due_date}"
                         />
                       </div>
@@ -2024,10 +2028,10 @@ const AccountantDashboard: React.FC = () => {
                       <button
                         onClick={handleSendBulkReminders}
                         disabled={sendingReminder}
-                        className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
+                        className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover flex items-center gap-2 disabled:opacity-50"
                       >
                         {sendingReminder ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ds-surface"></div>
                         ) : (
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -2039,11 +2043,11 @@ const AccountantDashboard: React.FC = () => {
                     <button
                       onClick={handleStartAfresh}
                       disabled={afreshing || outstandingInvoices.length === 0}
-                      className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-surface border border-ds-border-control text-ds-text-secondary rounded-lg hover:bg-ds-subtle flex items-center gap-2 disabled:opacity-50"
                       title="Clear all current outstanding invoices from the reminders list — new invoices going forward still appear"
                     >
                       {afreshing ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ds-border-control"></div>
                       ) : (
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -2056,28 +2060,28 @@ const AccountantDashboard: React.FC = () => {
 
                 {/* Outstanding Invoices Table */}
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-ds-border">
+                    <thead className="bg-ds-subtle">
                       <tr>
                         <th className="px-4 py-3 text-left">
                           <input
                             type="checkbox"
                             checked={selectedForBulk.length === outstandingInvoices.length && outstandingInvoices.length > 0}
                             onChange={selectAllForBulk}
-                            className="rounded border-gray-300"
+                            className="rounded border-ds-border-control"
                           />
                         </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Reminders Sent</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Last Reminder</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Contact</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Balance</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Days</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Reminders Sent</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Last Reminder</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Contact</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-ds-surface divide-y divide-ds-border">
                       {remindersLoading ? (
                         <>
                           {Array.from({ length: 6 }).map((_, i) => (
@@ -2086,57 +2090,57 @@ const AccountantDashboard: React.FC = () => {
                         </>
                       ) : outstandingInvoices.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="px-4 py-8 text-center text-gray-500">No outstanding invoices</td>
+                          <td colSpan={9} className="px-4 py-8 text-center text-ds-text-muted">No outstanding invoices</td>
                         </tr>
                       ) : (
                         outstandingInvoices.map((inv) => (
-                          <tr key={inv.id} className="hover:bg-gray-50">
+                          <tr key={inv.id} className="hover:bg-ds-subtle">
                             <td className="px-4 py-3">
                               <input
                                 type="checkbox"
                                 checked={selectedForBulk.includes(inv.id)}
                                 onChange={() => toggleBulkSelection(inv.id)}
-                                className="rounded border-gray-300"
+                                className="rounded border-ds-border-control"
                               />
                             </td>
                             <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-gray-900">{inv.patient_name}</div>
-                              <div className="text-xs text-gray-500">{inv.patient_number}</div>
+                              <div className="text-sm font-medium text-ds-text">{inv.patient_name}</div>
+                              <div className="text-xs text-ds-text-muted">{inv.patient_number}</div>
                             </td>
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{inv.invoice_number}</td>
-                            <td className="px-4 py-3 text-sm text-right font-bold text-danger-600">{formatCurrency(inv.balance)}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-ds-text">{inv.invoice_number}</td>
+                            <td className="px-4 py-3 text-sm text-right font-bold text-ds-critical-text">{formatCurrency(inv.balance)}</td>
                             <td className="px-4 py-3 text-sm text-center">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                inv.days_outstanding > 90 ? 'bg-danger-100 text-danger-800' :
-                                inv.days_outstanding > 60 ? 'bg-orange-100 text-orange-800' :
-                                inv.days_outstanding > 30 ? 'bg-warning-100 text-warning-800' :
-                                'bg-success-100 text-success-800'
+                                inv.days_outstanding > 90 ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                inv.days_outstanding > 60 ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                inv.days_outstanding > 30 ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                'bg-ds-success-soft text-ds-success-text'
                               }`}>
                                 {inv.days_outstanding}d
                               </span>
                             </td>
                             <td className="px-4 py-3 text-sm text-center">
                               {inv.reminder_count > 0 ? (
-                                <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold">
+                                <span className="px-2 py-1 bg-ds-info-soft text-ds-info-text rounded-full text-xs font-semibold">
                                   {inv.reminder_count}
                                 </span>
                               ) : (
-                                <span className="text-gray-400">-</span>
+                                <span className="text-ds-text-muted">-</span>
                               )}
                             </td>
-                            <td className="px-4 py-3 text-sm text-center text-gray-500">
+                            <td className="px-4 py-3 text-sm text-center text-ds-text-muted">
                               {inv.last_reminder_sent ? safeFormatDate(inv.last_reminder_sent, 'MMM d') : '-'}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex justify-center gap-1">
                                 {inv.patient_phone && (
-                                  <span className="px-1.5 py-0.5 bg-success-100 text-success-800 rounded text-xs">Phone</span>
+                                  <span className="px-1.5 py-0.5 bg-ds-success-soft text-ds-success-text rounded text-xs">Phone</span>
                                 )}
                                 {inv.patient_email && (
-                                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">Email</span>
+                                  <span className="px-1.5 py-0.5 bg-ds-info-soft text-ds-info-text rounded text-xs">Email</span>
                                 )}
                                 {!inv.patient_phone && !inv.patient_email && (
-                                  <span className="text-gray-400 text-xs">No contact</span>
+                                  <span className="text-ds-text-muted text-xs">No contact</span>
                                 )}
                               </div>
                             </td>
@@ -2144,14 +2148,14 @@ const AccountantDashboard: React.FC = () => {
                               <div className="flex justify-center gap-2">
                                 <button
                                   onClick={() => handleOpenReminderModal(inv)}
-                                  className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                  className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                                 >
                                   Send
                                 </button>
                                 {inv.reminder_count > 0 && (
                                   <button
                                     onClick={() => handleViewHistory(inv.id)}
-                                    className="text-gray-500 hover:text-gray-700 text-sm"
+                                    className="text-ds-text-muted hover:text-ds-text text-sm"
                                   >
                                     History
                                   </button>
@@ -2173,30 +2177,30 @@ const AccountantDashboard: React.FC = () => {
                 {/* Claims Summary Cards */}
                 {claimsSummary && (
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <h4 className="text-sm font-medium text-blue-700">Total Claims</h4>
-                      <p className="text-2xl font-bold text-blue-900">{claimsSummary.total}</p>
+                    <div className="bg-ds-info-soft rounded-ds-card p-4 border border-ds-info/30">
+                      <h4 className="text-sm font-medium text-ds-info-text">Total Claims</h4>
+                      <p className="text-2xl font-bold text-ds-info-text">{claimsSummary.total}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                      <h4 className="text-sm font-medium text-gray-700">Draft</h4>
-                      <p className="text-2xl font-bold text-gray-900">{claimsSummary.draft}</p>
+                    <div className="bg-ds-subtle rounded-ds-card p-4 border border-ds-border">
+                      <h4 className="text-sm font-medium text-ds-text-secondary">Draft</h4>
+                      <p className="text-2xl font-bold text-ds-text">{claimsSummary.draft}</p>
                     </div>
-                    <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
-                      <h4 className="text-sm font-medium text-warning-700">Pending Review</h4>
-                      <p className="text-2xl font-bold text-warning-900">{claimsSummary.pending_review}</p>
+                    <div className="bg-ds-warning-soft rounded-ds-card p-4 border border-ds-warning-border">
+                      <h4 className="text-sm font-medium text-ds-warning-text">Pending Review</h4>
+                      <p className="text-2xl font-bold text-ds-warning-text">{claimsSummary.pending_review}</p>
                     </div>
-                    <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
-                      <h4 className="text-sm font-medium text-purple-700">Submitted</h4>
-                      <p className="text-2xl font-bold text-purple-900">{claimsSummary.submitted}</p>
+                    <div className="bg-ds-subtle rounded-ds-card p-4 border border-ds-border">
+                      <h4 className="text-sm font-medium text-ds-brand-plum">Submitted</h4>
+                      <p className="text-2xl font-bold text-ds-brand-plum">{claimsSummary.submitted}</p>
                     </div>
-                    <div className="bg-success-50 rounded-xl p-4 border border-success-200">
-                      <h4 className="text-sm font-medium text-success-700">Approved</h4>
-                      <p className="text-2xl font-bold text-success-900">{claimsSummary.approved}</p>
-                      <p className="text-xs text-success-600">{formatCurrency(claimsSummary.total_approved)}</p>
+                    <div className="bg-ds-success-soft rounded-ds-card p-4 border border-ds-success/30">
+                      <h4 className="text-sm font-medium text-ds-success-text">Approved</h4>
+                      <p className="text-2xl font-bold text-ds-success-text">{claimsSummary.approved}</p>
+                      <p className="text-xs text-ds-success-text">{formatCurrency(claimsSummary.total_approved)}</p>
                     </div>
-                    <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
-                      <h4 className="text-sm font-medium text-danger-700">Denied</h4>
-                      <p className="text-2xl font-bold text-danger-900">{claimsSummary.denied}</p>
+                    <div className="bg-ds-critical-soft rounded-ds-card p-4 border border-ds-critical-border">
+                      <h4 className="text-sm font-medium text-ds-critical-text">Denied</h4>
+                      <p className="text-2xl font-bold text-ds-critical-text">{claimsSummary.denied}</p>
                     </div>
                   </div>
                 )}
@@ -2210,7 +2214,7 @@ const AccountantDashboard: React.FC = () => {
                       value={claimSearch}
                       onChange={(e) => setClaimSearch(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && loadClaims()}
-                      className="flex-1 min-w-[200px] px-4 py-2 border border-gray-300 rounded-lg"
+                      className="flex-1 min-w-[200px] px-4 py-2 border border-ds-border-control rounded-lg"
                     />
                     <AppSelect
                       value={claimFilter}
@@ -2219,7 +2223,7 @@ const AccountantDashboard: React.FC = () => {
                     />
                     <button
                       onClick={loadClaims}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-text-secondary text-ds-canvas rounded-lg hover:bg-ds-text"
                     >
                       Search
                     </button>
@@ -2229,7 +2233,7 @@ const AccountantDashboard: React.FC = () => {
                       loadInsuranceInvoices();
                       setShowCreateClaimModal(true);
                     }}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover flex items-center gap-2"
                   >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2240,19 +2244,19 @@ const AccountantDashboard: React.FC = () => {
 
                 {/* Claims Table */}
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-ds-border">
+                    <thead className="bg-ds-subtle">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claim #</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Insurance</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Claim #</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Insurance</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Amount</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-ds-surface divide-y divide-ds-border">
                       {claimsLoading ? (
                         <>
                           {Array.from({ length: 6 }).map((_, i) => (
@@ -2261,30 +2265,30 @@ const AccountantDashboard: React.FC = () => {
                         </>
                       ) : claims.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No claims found</td>
+                          <td colSpan={7} className="px-4 py-8 text-center text-ds-text-muted">No claims found</td>
                         </tr>
                       ) : (
                         claims.map((claim) => (
-                          <tr key={claim.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{claim.claim_number}</td>
+                          <tr key={claim.id} className="hover:bg-ds-subtle">
+                            <td className="px-4 py-3 text-sm font-medium text-ds-text">{claim.claim_number}</td>
                             <td className="px-4 py-3">
-                              <div className="text-sm font-medium text-gray-900">{claim.patient_name}</div>
-                              <div className="text-xs text-gray-500">{claim.patient_number}</div>
+                              <div className="text-sm font-medium text-ds-text">{claim.patient_name}</div>
+                              <div className="text-xs text-ds-text-muted">{claim.patient_number}</div>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-700">{claim.insurance_provider_name}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary">{claim.insurance_provider_name}</td>
                             <td className="px-4 py-3 text-sm text-right font-medium">{formatCurrency(claim.total_charged)}</td>
                             <td className="px-4 py-3 text-center">
                               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(claim.status)}`}>
                                 {formatStatus(claim.status)}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-500">
+                            <td className="px-4 py-3 text-sm text-ds-text-muted">
                               {safeFormatDate(claim.created_at, 'MMM d, yyyy')}
                             </td>
                             <td className="px-4 py-3 text-center">
                               <button
                                 onClick={() => handleViewClaim(claim.id)}
-                                className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                                className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                               >
                                 View
                               </button>
@@ -2324,47 +2328,47 @@ const AccountantDashboard: React.FC = () => {
       {/* Create Claim Modal */}
       {showCreateClaimModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-ds-border">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Create Insurance Claim</h2>
-                <button onClick={() => setShowCreateClaimModal(false)} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-ds-text">Create Insurance Claim</h2>
+                <button onClick={() => setShowCreateClaimModal(false)} className="text-ds-text-muted hover:text-ds-text-secondary">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Select an insurance invoice to create a claim. Only invoices billed to an insurance provider appear here.</p>
+              <p className="text-sm text-ds-text-muted mt-1">Select an insurance invoice to create a claim. Only invoices billed to an insurance provider appear here.</p>
             </div>
             <div className="p-6">
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {insuranceInvoices.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">
+                  <p className="text-center text-ds-text-muted py-8">
                     No insurance invoices available for claims.<br />
-                    <span className="text-sm text-gray-400">Only invoices for patients whose payer is an insurance provider can become claims.</span>
+                    <span className="text-sm text-ds-text-muted">Only invoices for patients whose payer is an insurance provider can become claims.</span>
                   </p>
                 ) : (
                   insuranceInvoices.map((inv) => (
                     <div
                       key={inv.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                      className="border border-ds-border rounded-lg p-4 hover:bg-ds-subtle cursor-pointer"
                       onClick={() => handleCreateClaim(inv.id)}
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-medium text-gray-900">{inv.invoice_number}</p>
-                          <p className="text-sm text-gray-600">{inv.patient_name}</p>
+                          <p className="font-medium text-ds-text">{inv.invoice_number}</p>
+                          <p className="text-sm text-ds-text-secondary">{inv.patient_name}</p>
                           {inv.insurance_provider_name && (
-                            <p className="text-xs text-primary-600">{inv.insurance_provider_name}</p>
+                            <p className="text-xs text-ds-accent-text">{inv.insurance_provider_name}</p>
                           )}
-                          <p className="text-xs text-gray-500">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
+                          <p className="text-xs text-ds-text-muted">{safeFormatDate(inv.invoice_date, 'MMM d, yyyy')}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-gray-900">{formatCurrency(inv.total_amount)}</p>
+                          <p className="font-bold text-ds-text">{formatCurrency(inv.total_amount)}</p>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            inv.status === 'paid' ? 'bg-success-100 text-success-800' :
-                            inv.status === 'partial' ? 'bg-blue-100 text-blue-800' :
-                            'bg-warning-100 text-warning-800'
+                            inv.status === 'paid' ? 'bg-ds-success-soft text-ds-success-text' :
+                            inv.status === 'partial' ? 'bg-ds-info-soft text-ds-info-text' :
+                            'bg-ds-warning-soft text-ds-warning-text'
                           }`}>
                             {inv.status.toUpperCase()}
                           </span>
@@ -2382,16 +2386,16 @@ const AccountantDashboard: React.FC = () => {
       {/* Claim Detail Modal */}
       {showClaimModal && selectedClaim && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ds-border">
               <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">Claim {selectedClaim.claim_number}</h2>
+                  <h2 className="text-xl font-bold text-ds-text">Claim {selectedClaim.claim_number}</h2>
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(selectedClaim.status)}`}>
                     {formatStatus(selectedClaim.status)}
                   </span>
                 </div>
-                <button onClick={() => setShowClaimModal(false)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => setShowClaimModal(false)} className="text-ds-text-muted hover:text-ds-text-secondary">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -2402,27 +2406,27 @@ const AccountantDashboard: React.FC = () => {
             <div className="p-6 space-y-6">
               {/* Patient & Insurance Info */}
               <div className="grid grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Patient Information</h3>
+                <div className="bg-ds-subtle rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-3">Patient Information</h3>
                   <div className="space-y-2 text-sm">
-                    <p><span className="text-gray-500">Name:</span> {selectedClaim.patient_name}</p>
-                    <p><span className="text-gray-500">Patient #:</span> {selectedClaim.patient_number}</p>
-                    <p><span className="text-gray-500">Invoice:</span> {selectedClaim.invoice_number}</p>
+                    <p><span className="text-ds-text-muted">Name:</span> {selectedClaim.patient_name}</p>
+                    <p><span className="text-ds-text-muted">Patient #:</span> {selectedClaim.patient_number}</p>
+                    <p><span className="text-ds-text-muted">Invoice:</span> {selectedClaim.invoice_number}</p>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Insurance Information</h3>
+                <div className="bg-ds-subtle rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-3">Insurance Information</h3>
                   <div className="space-y-2 text-sm">
-                    <p><span className="text-gray-500">Provider:</span> {selectedClaim.insurance_provider_name}</p>
-                    <p><span className="text-gray-500">Member ID:</span> {selectedClaim.member_id || 'Not set'}</p>
-                    <p><span className="text-gray-500">Plan:</span> {selectedClaim.plan_option || 'Not set'}</p>
+                    <p><span className="text-ds-text-muted">Provider:</span> {selectedClaim.insurance_provider_name}</p>
+                    <p><span className="text-ds-text-muted">Member ID:</span> {selectedClaim.member_id || 'Not set'}</p>
+                    <p><span className="text-ds-text-muted">Plan:</span> {selectedClaim.plan_option || 'Not set'}</p>
                   </div>
                 </div>
               </div>
 
               {/* Diagnosis */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Diagnosis</h3>
+              <div className="bg-ds-info-soft rounded-lg p-4">
+                <h3 className="font-semibold text-ds-text mb-3">Diagnosis</h3>
                 <p className="text-sm">
                   <span className="font-medium">{selectedClaim.primary_diagnosis_code}</span>
                   {selectedClaim.primary_diagnosis_desc && ` - ${selectedClaim.primary_diagnosis_desc}`}
@@ -2431,33 +2435,33 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Coverage Info */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-success-50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-600">Annual Limit</p>
-                  <p className="text-xl font-bold text-success-700">{formatCurrency(selectedClaim.annual_limit || 0)}</p>
+                <div className="bg-ds-success-soft rounded-lg p-4 text-center">
+                  <p className="text-sm text-ds-text-secondary">Annual Limit</p>
+                  <p className="text-xl font-bold text-ds-success-text">{formatCurrency(selectedClaim.annual_limit || 0)}</p>
                 </div>
-                <div className="bg-orange-50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-600">Used to Date</p>
-                  <p className="text-xl font-bold text-orange-700">{formatCurrency(selectedClaim.used_to_date || 0)}</p>
+                <div className="bg-ds-warning-soft rounded-lg p-4 text-center">
+                  <p className="text-sm text-ds-text-secondary">Used to Date</p>
+                  <p className="text-xl font-bold text-ds-warning-text">{formatCurrency(selectedClaim.used_to_date || 0)}</p>
                 </div>
-                <div className="bg-blue-50 rounded-lg p-4 text-center">
-                  <p className="text-sm text-gray-600">Claim Amount</p>
-                  <p className="text-xl font-bold text-blue-700">{formatCurrency(selectedClaim.total_charged)}</p>
+                <div className="bg-ds-info-soft rounded-lg p-4 text-center">
+                  <p className="text-sm text-ds-text-secondary">Claim Amount</p>
+                  <p className="text-xl font-bold text-ds-info-text">{formatCurrency(selectedClaim.total_charged)}</p>
                 </div>
               </div>
 
               {/* Validation Result */}
               {validationResult && (
-                <div className={`rounded-lg p-4 ${validationResult.validated ? 'bg-success-50 border border-success-200' : 'bg-danger-50 border border-danger-200'}`}>
+                <div className={`rounded-lg p-4 ${validationResult.validated ? 'bg-ds-success-soft border border-ds-success/30' : 'bg-ds-critical-soft border border-ds-critical-border'}`}>
                   <h3 className="font-semibold mb-2">{validationResult.validated ? 'Validation Passed' : 'Validation Issues'}</h3>
                   {validationResult.issues?.map((issue: any, idx: number) => (
-                    <p key={idx} className="text-sm text-danger-700">{issue.issue}</p>
+                    <p key={idx} className="text-sm text-ds-critical-text">{issue.issue}</p>
                   ))}
                 </div>
               )}
 
               {/* Coverage Result */}
               {coverageResult && (
-                <div className={`rounded-lg p-4 ${coverageResult.exceeds_limit ? 'bg-danger-50 border border-danger-200' : 'bg-success-50 border border-success-200'}`}>
+                <div className={`rounded-lg p-4 ${coverageResult.exceeds_limit ? 'bg-ds-critical-soft border border-ds-critical-border' : 'bg-ds-success-soft border border-ds-success/30'}`}>
                   <h3 className="font-semibold mb-2">{coverageResult.message}</h3>
                   <p className="text-sm">Remaining Coverage: {formatCurrency(coverageResult.remaining_coverage)}</p>
                 </div>
@@ -2465,27 +2469,27 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Doctor Review Info */}
               {selectedClaim.reviewed_by_doctor && (
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Doctor Review</h3>
-                  <p className="text-sm"><span className="text-gray-500">Reviewed by:</span> {selectedClaim.reviewed_by_name}</p>
-                  <p className="text-sm"><span className="text-gray-500">Date:</span> {safeFormatDate(selectedClaim.doctor_reviewed_at, 'MMM d, yyyy h:mm a')}</p>
-                  {selectedClaim.doctor_notes && <p className="text-sm mt-2"><span className="text-gray-500">Notes:</span> {selectedClaim.doctor_notes}</p>}
+                <div className="bg-ds-subtle rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-2">Doctor Review</h3>
+                  <p className="text-sm"><span className="text-ds-text-muted">Reviewed by:</span> {selectedClaim.reviewed_by_name}</p>
+                  <p className="text-sm"><span className="text-ds-text-muted">Date:</span> {safeFormatDate(selectedClaim.doctor_reviewed_at, 'MMM d, yyyy h:mm a')}</p>
+                  {selectedClaim.doctor_notes && <p className="text-sm mt-2"><span className="text-ds-text-muted">Notes:</span> {selectedClaim.doctor_notes}</p>}
                 </div>
               )}
 
               {/* Actions based on status */}
-              <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+              <div className="flex flex-wrap gap-3 pt-4 border-t border-ds-border">
                 {selectedClaim.status === 'draft' && (
                   <>
                     <button
                       onClick={() => handleValidateDiagnosis(selectedClaim.id)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-info text-white dark:text-ds-canvas rounded-lg hover:bg-ds-info/90"
                     >
                       Validate Diagnosis
                     </button>
                     <button
                       onClick={() => handleCheckCoverage(selectedClaim.id)}
-                      className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
                     >
                       Check Coverage
                     </button>
@@ -2504,7 +2508,7 @@ const AccountantDashboard: React.FC = () => {
                         }
                         handleSubmitForReview(selectedClaim.id, reason || undefined);
                       }}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-brand-plum text-white dark:text-ds-canvas rounded-lg hover:bg-ds-brand-plum/90"
                     >
                       Submit for Doctor Review
                     </button>
@@ -2513,7 +2517,7 @@ const AccountantDashboard: React.FC = () => {
                 {selectedClaim.status === 'approved_by_doctor' && (
                   <button
                     onClick={() => handleUpdateClaimStatus(selectedClaim.id, 'submitted')}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-info text-white dark:text-ds-canvas rounded-lg hover:bg-ds-info/90"
                   >
                     Mark as Submitted to Insurance
                   </button>
@@ -2532,13 +2536,13 @@ const AccountantDashboard: React.FC = () => {
                           handleUpdateClaimStatus(selectedClaim.id, 'approved', { amount_approved: parseFloat(amount) });
                         }
                       }}
-                      className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
                     >
                       Mark Approved
                     </button>
                     <button
                       onClick={() => handleUpdateClaimStatus(selectedClaim.id, 'denied')}
-                      className="px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-critical text-white rounded-lg hover:bg-ds-critical/90"
                     >
                       Mark Denied
                     </button>
@@ -2557,14 +2561,14 @@ const AccountantDashboard: React.FC = () => {
                         handleUpdateClaimStatus(selectedClaim.id, 'paid', { amount_paid: parseFloat(amount) });
                       }
                     }}
-                    className="px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90"
                   >
                     Record Payment Received
                   </button>
                 )}
                 <button
                   onClick={() => setShowClaimModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border"
                 >
                   Close
                 </button>
@@ -2577,11 +2581,11 @@ const AccountantDashboard: React.FC = () => {
       {/* Send Reminder Modal */}
       {showReminderModal && selectedReminderInvoice && reminderPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-ds-border">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Send Payment Reminder</h2>
-                <button onClick={() => setShowReminderModal(false)} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-ds-text">Send Payment Reminder</h2>
+                <button onClick={() => setShowReminderModal(false)} className="text-ds-text-muted hover:text-ds-text-secondary">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -2592,29 +2596,29 @@ const AccountantDashboard: React.FC = () => {
             <div className="p-6 space-y-6">
               {/* Patient & Invoice Info */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Patient</h3>
+                <div className="bg-ds-subtle rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-2">Patient</h3>
                   <p className="text-sm">{reminderPreview.patient.name}</p>
                   <div className="mt-2 space-y-1">
-                    <p className="text-xs text-gray-500 flex items-center gap-2">
-                      <span className={reminderPreview.patient.phoneValid ? 'text-success-600' : 'text-danger-600'}>
+                    <p className="text-xs text-ds-text-muted flex items-center gap-2">
+                      <span className={reminderPreview.patient.phoneValid ? 'text-ds-success-text' : 'text-ds-critical-text'}>
                         {reminderPreview.patient.phoneValid ? '✓' : '✗'}
                       </span>
                       Phone: {reminderPreview.patient.phone || 'Not set'}
                     </p>
-                    <p className="text-xs text-gray-500 flex items-center gap-2">
-                      <span className={reminderPreview.patient.emailValid ? 'text-success-600' : 'text-danger-600'}>
+                    <p className="text-xs text-ds-text-muted flex items-center gap-2">
+                      <span className={reminderPreview.patient.emailValid ? 'text-ds-success-text' : 'text-ds-critical-text'}>
                         {reminderPreview.patient.emailValid ? '✓' : '✗'}
                       </span>
                       Email: {reminderPreview.patient.email || 'Not set'}
                     </p>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Invoice</h3>
+                <div className="bg-ds-subtle rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-2">Invoice</h3>
                   <p className="text-sm font-medium">{reminderPreview.invoice.number}</p>
-                  <p className="text-xl font-bold text-danger-600 mt-1">{formatCurrency(reminderPreview.invoice.balance)}</p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xl font-bold text-ds-critical-text mt-1">{formatCurrency(reminderPreview.invoice.balance)}</p>
+                  <p className="text-xs text-ds-text-muted mt-1">
                     Reminders sent: {reminderPreview.invoice.reminderCount}
                   </p>
                 </div>
@@ -2622,10 +2626,10 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Reminder Type Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Send via</label>
+                <label className="block text-sm font-medium text-ds-text-secondary mb-2">Send via</label>
                 <div className="flex gap-4">
                   <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
-                    reminderType === 'sms' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                    reminderType === 'sms' ? 'border-ds-accent bg-ds-accent-soft' : 'border-ds-border-control'
                   } ${!reminderPreview.patient.phoneValid ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="radio"
@@ -2634,12 +2638,12 @@ const AccountantDashboard: React.FC = () => {
                       checked={reminderType === 'sms'}
                       onChange={() => setReminderType('sms')}
                       disabled={!reminderPreview.patient.phoneValid}
-                      className="text-primary-600"
+                      className="text-ds-accent-text"
                     />
                     <span>SMS</span>
                   </label>
                   <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
-                    reminderType === 'email' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                    reminderType === 'email' ? 'border-ds-accent bg-ds-accent-soft' : 'border-ds-border-control'
                   } ${!reminderPreview.patient.emailValid ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="radio"
@@ -2648,12 +2652,12 @@ const AccountantDashboard: React.FC = () => {
                       checked={reminderType === 'email'}
                       onChange={() => setReminderType('email')}
                       disabled={!reminderPreview.patient.emailValid}
-                      className="text-primary-600"
+                      className="text-ds-accent-text"
                     />
                     <span>Email</span>
                   </label>
                   <label className={`flex items-center gap-2 px-4 py-2 border rounded-lg cursor-pointer ${
-                    reminderType === 'both' ? 'border-primary-500 bg-primary-50' : 'border-gray-300'
+                    reminderType === 'both' ? 'border-ds-accent bg-ds-accent-soft' : 'border-ds-border-control'
                   } ${(!reminderPreview.patient.phoneValid || !reminderPreview.patient.emailValid) ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="radio"
@@ -2662,7 +2666,7 @@ const AccountantDashboard: React.FC = () => {
                       checked={reminderType === 'both'}
                       onChange={() => setReminderType('both')}
                       disabled={!reminderPreview.patient.phoneValid || !reminderPreview.patient.emailValid}
-                      className="text-primary-600"
+                      className="text-ds-accent-text"
                     />
                     <span>Both</span>
                   </label>
@@ -2671,20 +2675,20 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Message Preview */}
               {(reminderType === 'sms' || reminderType === 'both') && reminderPreview.sms && (
-                <div className="bg-success-50 rounded-lg p-4">
+                <div className="bg-ds-success-soft rounded-lg p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-semibold text-gray-900">SMS Preview</h3>
-                    <span className="text-xs text-gray-500">{reminderPreview.sms.characterCount} characters</span>
+                    <h3 className="font-semibold text-ds-text">SMS Preview</h3>
+                    <span className="text-xs text-ds-text-muted">{reminderPreview.sms.characterCount} characters</span>
                   </div>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{reminderPreview.sms.message}</p>
+                  <p className="text-sm text-ds-text-secondary whitespace-pre-wrap">{reminderPreview.sms.message}</p>
                 </div>
               )}
 
               {(reminderType === 'email' || reminderType === 'both') && reminderPreview.email && (
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Email Preview</h3>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Subject: {reminderPreview.email.subject}</p>
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">
+                <div className="bg-ds-info-soft rounded-lg p-4">
+                  <h3 className="font-semibold text-ds-text mb-2">Email Preview</h3>
+                  <p className="text-sm font-medium text-ds-text-secondary mb-2">Subject: {reminderPreview.email.subject}</p>
+                  <div className="text-sm text-ds-text-secondary whitespace-pre-wrap bg-ds-surface p-3 rounded border">
                     {reminderPreview.email.body}
                   </div>
                 </div>
@@ -2692,12 +2696,12 @@ const AccountantDashboard: React.FC = () => {
 
               {/* Info Banner */}
               {reminderSettings?.sms_configured === 'false' && reminderSettings?.email_configured === 'false' && (
-                <div className="bg-warning-50 border border-warning-200 rounded-lg p-4">
+                <div className="bg-ds-warning-soft border border-ds-warning-border rounded-lg p-4">
                   <div className="flex items-center gap-2">
-                    <svg className="w-5 h-5 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-5 h-5 text-ds-warning-text" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-sm text-warning-800">
+                    <p className="text-sm text-ds-warning-text">
                       <strong>Stub Mode:</strong> SMS/Email APIs are not configured. This reminder will be logged but not actually sent. Configure API keys when ready for production.
                     </p>
                   </div>
@@ -2705,20 +2709,20 @@ const AccountantDashboard: React.FC = () => {
               )}
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <div className="flex justify-end gap-3 pt-4 border-t border-ds-border">
                 <button
                   onClick={() => setShowReminderModal(false)}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-border text-ds-text-secondary rounded-lg hover:bg-ds-border"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSendReminder}
                   disabled={sendingReminder || (!reminderPreview.patient.phoneValid && !reminderPreview.patient.emailValid)}
-                  className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center gap-2 disabled:opacity-50"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover flex items-center gap-2 disabled:opacity-50"
                 >
                   {sendingReminder ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-ds-surface"></div>
                   ) : (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -2735,11 +2739,11 @@ const AccountantDashboard: React.FC = () => {
       {/* Reminder History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="p-6 border-b border-ds-border">
               <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Reminder History</h2>
-                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-600">
+                <h2 className="text-xl font-bold text-ds-text">Reminder History</h2>
+                <button onClick={() => setShowHistoryModal(false)} className="text-ds-text-muted hover:text-ds-text-secondary">
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -2748,36 +2752,36 @@ const AccountantDashboard: React.FC = () => {
             </div>
             <div className="p-6">
               {reminderHistory.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No reminders sent yet</p>
+                <p className="text-center text-ds-text-muted py-8">No reminders sent yet</p>
               ) : (
                 <div className="space-y-4">
                   {reminderHistory.map((reminder) => (
-                    <div key={reminder.id} className="border border-gray-200 rounded-lg p-4">
+                    <div key={reminder.id} className="border border-ds-border rounded-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            reminder.reminder_type === 'sms' ? 'bg-success-100 text-success-800' : 'bg-blue-100 text-blue-800'
+                            reminder.reminder_type === 'sms' ? 'bg-ds-success-soft text-ds-success-text' : 'bg-ds-info-soft text-ds-info-text'
                           }`}>
                             {reminder.reminder_type.toUpperCase()}
                           </span>
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            reminder.status === 'sent' ? 'bg-success-100 text-success-800' :
-                            reminder.status === 'delivered' ? 'bg-success-100 text-success-800' :
-                            reminder.status === 'failed' ? 'bg-danger-100 text-danger-800' :
-                            'bg-gray-100 text-gray-800'
+                            reminder.status === 'sent' ? 'bg-ds-success-soft text-ds-success-text' :
+                            reminder.status === 'delivered' ? 'bg-ds-success-soft text-ds-success-text' :
+                            reminder.status === 'failed' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                            'bg-ds-subtle text-ds-text'
                           }`}>
                             {reminder.status}
                           </span>
-                          <span className="text-xs text-gray-500">Reminder #{reminder.reminder_number}</span>
+                          <span className="text-xs text-ds-text-muted">Reminder #{reminder.reminder_number}</span>
                         </div>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-ds-text-muted">
                           {safeFormatDate(reminder.sent_at, 'MMM d, yyyy h:mm a')}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600">To: {reminder.contact_method}</p>
-                      <p className="text-sm text-gray-500 mt-2 line-clamp-2">{reminder.message}</p>
+                      <p className="text-sm text-ds-text-secondary">To: {reminder.contact_method}</p>
+                      <p className="text-sm text-ds-text-muted mt-2 line-clamp-2">{reminder.message}</p>
                       {reminder.sent_by_name && (
-                        <p className="text-xs text-gray-400 mt-2">Sent by: {reminder.sent_by_name}</p>
+                        <p className="text-xs text-ds-text-muted mt-2">Sent by: {reminder.sent_by_name}</p>
                       )}
                     </div>
                   ))}

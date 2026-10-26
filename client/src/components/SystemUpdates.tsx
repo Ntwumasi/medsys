@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api/client';
 import { format, parseISO, isValid } from 'date-fns';
@@ -147,7 +148,7 @@ const SystemUpdates: React.FC = () => {
     };
     const badge = badges[category] || badges.feature;
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>
+      <span className={dsClass(`px-2 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`)}>
         {badge.label}
       </span>
     );
@@ -161,7 +162,7 @@ const SystemUpdates: React.FC = () => {
     };
     const badge = badges[status] || badges.completed;
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`}>
+      <span className={dsClass(`px-2 py-1 rounded-full text-xs font-semibold ${badge.bg} ${badge.text}`)}>
         {badge.label}
       </span>
     );
@@ -194,7 +195,7 @@ const SystemUpdates: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+        <div className={dsClass("animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600")}></div>
       </div>
     );
   }
@@ -204,21 +205,21 @@ const SystemUpdates: React.FC = () => {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200">
-            <div className="text-2xl font-bold text-primary-700">{stats.features}</div>
-            <div className="text-sm text-primary-600">Features</div>
+          <div className={dsClass("bg-gradient-to-br from-primary-50 to-primary-100 rounded-xl p-4 border border-primary-200")}>
+            <div className={dsClass("text-2xl font-bold text-primary-700")}>{stats.features}</div>
+            <div className={dsClass("text-sm text-primary-600")}>Features</div>
           </div>
-          <div className="bg-gradient-to-br from-success-50 to-success-100 rounded-xl p-4 border border-success-200">
-            <div className="text-2xl font-bold text-success-700">{stats.improvements}</div>
-            <div className="text-sm text-success-600">Improvements</div>
+          <div className={dsClass("bg-gradient-to-br from-success-50 to-success-100 rounded-xl p-4 border border-success-200")}>
+            <div className={dsClass("text-2xl font-bold text-success-700")}>{stats.improvements}</div>
+            <div className={dsClass("text-sm text-success-600")}>Improvements</div>
           </div>
-          <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200">
-            <div className="text-2xl font-bold text-orange-700">{stats.bugfixes}</div>
-            <div className="text-sm text-orange-600">Bug Fixes</div>
+          <div className={dsClass("bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl p-4 border border-orange-200")}>
+            <div className={dsClass("text-2xl font-bold text-orange-700")}>{stats.bugfixes}</div>
+            <div className={dsClass("text-sm text-orange-600")}>Bug Fixes</div>
           </div>
-          <div className="bg-gradient-to-br from-secondary-50 to-secondary-100 rounded-xl p-4 border border-secondary-200">
-            <div className="text-2xl font-bold text-secondary-700">{stats.planned}</div>
-            <div className="text-sm text-secondary-600">Planned</div>
+          <div className={dsClass("bg-gradient-to-br from-secondary-50 to-secondary-100 rounded-xl p-4 border border-secondary-200")}>
+            <div className={dsClass("text-2xl font-bold text-secondary-700")}>{stats.planned}</div>
+            <div className={dsClass("text-sm text-secondary-600")}>Planned</div>
           </div>
         </div>
       )}
@@ -261,7 +262,7 @@ const SystemUpdates: React.FC = () => {
             });
             setShowForm(!showForm);
           }}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2"
+          className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center gap-2")}
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -272,28 +273,28 @@ const SystemUpdates: React.FC = () => {
 
       {/* Add/Edit Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">
+        <form onSubmit={handleSubmit} className={dsClass("bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-4")}>
+          <h3 className={dsClass("text-lg font-semibold text-gray-900")}>
             {editingUpdate ? 'Edit Update' : 'Add New Update'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>Title *</label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500")}
                 required
                 placeholder="e.g., Added voice dictation feature"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+              <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>Description *</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500")}
                 rows={3}
                 required
                 placeholder="Describe the update in detail..."
@@ -325,29 +326,29 @@ const SystemUpdates: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Version</label>
+              <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>Version</label>
               <input
                 type="text"
                 value={formData.version}
                 onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500")}
                 placeholder="e.g., 1.2.0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className={dsClass("block text-sm font-medium text-gray-700 mb-1")}>Date</label>
               <input
                 type="date"
                 value={formData.update_date}
                 onChange={(e) => setFormData({ ...formData, update_date: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500")}
               />
             </div>
           </div>
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium"
+              className={dsClass("px-6 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 transition-colors font-medium")}
             >
               {editingUpdate ? 'Save Changes' : 'Add Update'}
             </button>
@@ -357,7 +358,7 @@ const SystemUpdates: React.FC = () => {
                 setShowForm(false);
                 setEditingUpdate(null);
               }}
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              className={dsClass("px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium")}
             >
               Cancel
             </button>
@@ -368,8 +369,8 @@ const SystemUpdates: React.FC = () => {
       {/* Timeline */}
       <div className="space-y-6">
         {sortedDates.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className={dsClass("text-center py-12 text-gray-500")}>
+            <svg className={dsClass("mx-auto h-12 w-12 text-gray-400 mb-4")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
             <p className="text-lg font-medium">No updates found</p>
@@ -380,38 +381,38 @@ const SystemUpdates: React.FC = () => {
             <div key={date} className="relative">
               {/* Date Header */}
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-primary-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md">
+                <div className={dsClass("bg-primary-600 text-white px-4 py-2 rounded-lg font-semibold shadow-md")}>
                   {formatDate(date)}
                 </div>
-                <div className="flex-1 h-px bg-gradient-to-r from-primary-200 to-transparent"></div>
+                <div className={dsClass("flex-1 h-px bg-gradient-to-r from-primary-200 to-transparent")}></div>
               </div>
 
               {/* Updates for this date */}
-              <div className="space-y-3 ml-4 border-l-2 border-primary-100 pl-6">
+              <div className={dsClass("space-y-3 ml-4 border-l-2 border-primary-100 pl-6")}>
                 {groupedUpdates[date].map((update) => (
                   <div
                     key={update.id}
-                    className="relative bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                    className={dsClass("relative bg-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-shadow")}
                   >
                     {/* Timeline dot */}
-                    <div className="absolute -left-9 top-6 w-4 h-4 bg-primary-500 rounded-full border-4 border-white shadow"></div>
+                    <div className={dsClass("absolute -left-9 top-6 w-4 h-4 bg-primary-500 rounded-full border-4 border-white shadow")}></div>
 
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <h4 className="font-semibold text-gray-900 text-lg">{update.title}</h4>
+                          <h4 className={dsClass("font-semibold text-gray-900 text-lg")}>{update.title}</h4>
                           {update.version && (
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono">
+                            <span className={dsClass("px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono")}>
                               v{update.version}
                             </span>
                           )}
                         </div>
-                        <p className="text-gray-600 text-sm leading-relaxed">{update.description}</p>
+                        <p className={dsClass("text-gray-600 text-sm leading-relaxed")}>{update.description}</p>
                         <div className="flex flex-wrap items-center gap-2 mt-3">
                           {getCategoryBadge(update.category)}
                           {getStatusBadge(update.status)}
                           {update.created_by_name && (
-                            <span className="text-xs text-gray-500">
+                            <span className={dsClass("text-xs text-gray-500")}>
                               by {update.created_by_name}
                             </span>
                           )}
@@ -420,7 +421,7 @@ const SystemUpdates: React.FC = () => {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleEdit(update)}
-                          className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                          className={dsClass("p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors")}
                           title="Edit"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -429,7 +430,7 @@ const SystemUpdates: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleDelete(update.id)}
-                          className="p-2 text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                          className={dsClass("p-2 text-danger-600 hover:bg-danger-50 rounded-lg transition-colors")}
                           title="Delete"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

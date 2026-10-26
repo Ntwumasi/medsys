@@ -1,3 +1,4 @@
+import { dsClass } from '../utils/dsClass';
 import React, { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
@@ -203,18 +204,18 @@ const LoginActivityPanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+    <div className={dsClass("bg-white rounded-xl shadow-lg border border-gray-200 p-6")}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Login Records</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className={dsClass("text-xl font-semibold text-gray-900")}>Login Records</h2>
+          <p className={dsClass("text-sm text-gray-600 mt-1")}>
             Every employee login attempt — who, when, from which IP, device, and location.
           </p>
         </div>
         <button
           onClick={exportCsv}
           disabled={filtered.length === 0}
-          className="px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm disabled:opacity-40 inline-flex items-center gap-1"
+          className={dsClass("px-3 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm disabled:opacity-40 inline-flex items-center gap-1")}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -226,21 +227,21 @@ const LoginActivityPanel: React.FC = () => {
       {/* Filters */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
+          <label className={dsClass("block text-xs font-medium text-gray-700 mb-1")}>From</label>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg text-sm")}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
+          <label className={dsClass("block text-xs font-medium text-gray-700 mb-1")}>To</label>
           <input
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg text-sm")}
           />
         </div>
         <div>
@@ -256,30 +257,30 @@ const LoginActivityPanel: React.FC = () => {
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">User</label>
+          <label className={dsClass("block text-xs font-medium text-gray-700 mb-1")}>User</label>
           <input
             type="text"
             placeholder="name or email"
             value={filterUser}
             onChange={(e) => setFilterUser(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg text-sm")}
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">IP contains</label>
+          <label className={dsClass("block text-xs font-medium text-gray-700 mb-1")}>IP contains</label>
           <input
             type="text"
             placeholder="e.g. 196.249."
             value={filterIp}
             onChange={(e) => setFilterIp(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className={dsClass("w-full px-3 py-2 border border-gray-300 rounded-lg text-sm")}
           />
         </div>
       </div>
       <div className="mb-4">
         <button
           onClick={fetchAttempts}
-          className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm"
+          className={dsClass("px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm")}
         >
           Apply filters
         </button>
@@ -296,21 +297,21 @@ const LoginActivityPanel: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="py-8 text-center text-gray-500 text-sm">Loading…</div>
+        <div className={dsClass("py-8 text-center text-gray-500 text-sm")}>Loading…</div>
       ) : filtered.length === 0 ? (
-        <div className="py-12 text-center text-gray-500 text-sm">No login activity in this window.</div>
+        <div className={dsClass("py-12 text-center text-gray-500 text-sm")}>No login activity in this window.</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className={dsClass("bg-gray-50 border-b border-gray-200")}>
               <tr>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">Time (Ghana)</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">User</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">Role</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">IP</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">Location</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">Device</th>
-                <th className="text-left px-3 py-2 font-semibold text-gray-700">Result</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>Time (Ghana)</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>User</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>Role</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>IP</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>Location</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>Device</th>
+                <th className={dsClass("text-left px-3 py-2 font-semibold text-gray-700")}>Result</th>
               </tr>
             </thead>
             <tbody>
@@ -325,29 +326,29 @@ const LoginActivityPanel: React.FC = () => {
                 const fullName = `${a.first_name || ''} ${a.last_name || ''}`.trim();
                 const name = fullName || (a.email ? `"${a.email}" (not found)` : 'Unknown');
                 return (
-                  <tr key={a.id} className={`border-t border-gray-100 hover:bg-gray-50 ${offHours ? 'bg-warning-50/50' : ''}`}>
-                    <td className="px-3 py-2 text-gray-800 whitespace-nowrap">
+                  <tr key={a.id} className={dsClass(`border-t border-gray-100 hover:bg-gray-50 ${offHours ? 'bg-warning-50/50' : ''}`)}>
+                    <td className={dsClass("px-3 py-2 text-gray-800 whitespace-nowrap")}>
                       {ghTime}
                       {offHours && (
                         <span
-                          className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-700"
+                          className={dsClass("ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-warning-100 text-warning-700")}
                           title="Login outside 6am–9pm Ghana time"
                         >
                           OFF-HRS
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-900 font-medium">{name}</td>
-                    <td className="px-3 py-2 text-gray-700 text-xs capitalize">{a.role || '—'}</td>
-                    <td className="px-3 py-2 text-gray-700 font-mono text-xs">{a.ip_address || '—'}</td>
+                    <td className={dsClass("px-3 py-2 text-gray-900 font-medium")}>{name}</td>
+                    <td className={dsClass("px-3 py-2 text-gray-700 text-xs capitalize")}>{a.role || '—'}</td>
+                    <td className={dsClass("px-3 py-2 text-gray-700 font-mono text-xs")}>{a.ip_address || '—'}</td>
                     <td className="px-3 py-2 text-xs">
                       {a.distance_from_clinic_m !== null && a.distance_from_clinic_m !== undefined ? (
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
+                          className={dsClass(`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${
                             a.distance_from_clinic_m > ONSITE_RADIUS_M
                               ? 'bg-warning-100 text-warning-700'
                               : 'bg-success-100 text-success-700'
-                          }`}
+                          }`)}
                           title={
                             a.latitude && a.longitude
                               ? `Lat ${a.latitude}, Lon ${a.longitude}` +
@@ -359,22 +360,22 @@ const LoginActivityPanel: React.FC = () => {
                           <span className="opacity-70">{formatDistance(a.distance_from_clinic_m)}</span>
                         </span>
                       ) : (
-                        <span className="text-gray-400" title={a.geo_source || ''}>
+                        <span className={dsClass("text-gray-400")} title={a.geo_source || ''}>
                           {a.geo_source ? GEO_SOURCE_LABELS[a.geo_source] || a.geo_source : '—'}
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-700 text-xs" title={a.user_agent || ''}>
+                    <td className={dsClass("px-3 py-2 text-gray-700 text-xs")} title={a.user_agent || ''}>
                       {summarizeUserAgent(a.user_agent)}
                     </td>
                     <td className="px-3 py-2">
                       {a.success ? (
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-success-100 text-success-700">
+                        <span className={dsClass("text-xs font-semibold px-2 py-0.5 rounded-full bg-success-100 text-success-700")}>
                           success
                         </span>
                       ) : (
                         <span
-                          className="text-xs font-semibold px-2 py-0.5 rounded-full bg-danger-100 text-danger-700"
+                          className={dsClass("text-xs font-semibold px-2 py-0.5 rounded-full bg-danger-100 text-danger-700")}
                           title={a.failure_reason || ''}
                         >
                           {FAILURE_LABELS[a.failure_reason || ''] || 'failed'}
@@ -409,7 +410,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, tone, note }) => {
           ? 'from-warning-50 to-warning-100 border-warning-200 text-warning-800'
           : 'from-gray-50 to-gray-100 border-gray-200 text-gray-800';
   return (
-    <div className={`rounded-lg p-3 border bg-gradient-to-br ${toneClass}`}>
+    <div className={dsClass(`rounded-lg p-3 border bg-gradient-to-br ${toneClass}`)}>
       <div className="text-xs font-semibold uppercase opacity-80">{label}</div>
       <div className="text-2xl font-bold mt-1">{value}</div>
       {note && <div className="text-[10px] opacity-70 mt-0.5">{note}</div>}

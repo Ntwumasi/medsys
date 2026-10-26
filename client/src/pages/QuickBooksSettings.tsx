@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
 import AppSelect from '../components/ui/AppSelect';
@@ -108,6 +109,7 @@ interface ImportedData {
 }
 
 const QuickBooksSettings: React.FC = () => {
+  useDesignSystemPage();
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [loading, setLoading] = useState(true);
@@ -365,41 +367,41 @@ const QuickBooksSettings: React.FC = () => {
 
   if (loading) {
     return (
-      <AppLayout title="QuickBooks Integration">
+      <AppLayout designSystem title="QuickBooks Integration">
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-ds-accent"></div>
         </div>
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout title="QuickBooks Desktop Integration">
+    <AppLayout designSystem title="QuickBooks Desktop Integration">
       <div className="space-y-6">
         {/* Connection Status Card */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Web Connector Status</h2>
-              <p className="text-sm text-gray-500 mt-1">
+              <h2 className="text-xl font-semibold text-ds-text">Web Connector Status</h2>
+              <p className="text-sm text-ds-text-muted mt-1">
                 QuickBooks Desktop integration via Web Connector
               </p>
             </div>
             <div className="flex items-center gap-3">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                 status?.connected
-                  ? 'bg-success-100 text-success-800'
-                  : 'bg-gray-100 text-gray-600'
+                  ? 'bg-ds-success-soft text-ds-success-text'
+                  : 'bg-ds-subtle text-ds-text-secondary'
               }`}>
                 <span className={`w-2 h-2 rounded-full mr-2 ${
-                  status?.connected ? 'bg-success-500' : 'bg-gray-400'
+                  status?.connected ? 'bg-ds-success' : 'bg-ds-border-control'
                 }`}></span>
                 {status?.connected ? 'Connected' : 'Not Connected'}
               </span>
               {status?.connected && (
                 <button
                   onClick={handleDisconnect}
-                  className="px-3 py-1 text-sm bg-danger-100 text-danger-700 rounded-lg hover:bg-danger-200"
+                  className="min-h-ds-touch px-3 py-1 text-sm bg-ds-critical-soft text-ds-critical-text rounded-lg hover:bg-ds-critical-soft"
                 >
                   Disconnect
                 </button>
@@ -408,7 +410,7 @@ const QuickBooksSettings: React.FC = () => {
           </div>
 
           {status?.lastPollAt && (
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-ds-text-secondary mb-4">
               Last poll: {format(new Date(status.lastPollAt), 'MMM d, yyyy h:mm a')}
             </p>
           )}
@@ -416,51 +418,51 @@ const QuickBooksSettings: React.FC = () => {
           {/* Queue Summary */}
           {status?.queueStatus && (
             <div className="grid grid-cols-5 gap-3 mb-4">
-              <div className="bg-warning-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-warning-700">{status.queueStatus.pending}</div>
-                <div className="text-xs text-warning-600">Pending</div>
+              <div className="bg-ds-warning-soft rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-ds-warning-text">{status.queueStatus.pending}</div>
+                <div className="text-xs text-ds-warning-text">Pending</div>
               </div>
-              <div className="bg-blue-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-blue-700">{status.queueStatus.sent}</div>
-                <div className="text-xs text-blue-600">In Progress</div>
+              <div className="bg-ds-info-soft rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-ds-info-text">{status.queueStatus.sent}</div>
+                <div className="text-xs text-ds-info-text">In Progress</div>
               </div>
-              <div className="bg-success-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-success-700">{status.queueStatus.completed}</div>
-                <div className="text-xs text-success-600">Completed</div>
+              <div className="bg-ds-success-soft rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-ds-success-text">{status.queueStatus.completed}</div>
+                <div className="text-xs text-ds-success-text">Completed</div>
               </div>
-              <div className="bg-danger-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-danger-700">{status.queueStatus.error}</div>
-                <div className="text-xs text-danger-600">Errors</div>
+              <div className="bg-ds-critical-soft rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-ds-critical-text">{status.queueStatus.error}</div>
+                <div className="text-xs text-ds-critical-text">Errors</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3 text-center">
-                <div className="text-2xl font-bold text-gray-700">{status.queueStatus.waiting}</div>
-                <div className="text-xs text-gray-600">Waiting</div>
+              <div className="bg-ds-subtle rounded-lg p-3 text-center">
+                <div className="text-2xl font-bold text-ds-text-secondary">{status.queueStatus.waiting}</div>
+                <div className="text-xs text-ds-text-secondary">Waiting</div>
               </div>
             </div>
           )}
 
           {/* Quick Actions - Push to QuickBooks */}
           <div className="mb-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Push to QuickBooks (MedSys → QB)</h3>
+            <h3 className="text-sm font-medium text-ds-text-secondary mb-2">Push to QuickBooks (MedSys → QB)</h3>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => handleQueueSync('customers')}
                 disabled={syncing !== null}
-                className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-info-soft text-ds-info-text rounded-lg hover:bg-ds-info-soft font-medium disabled:opacity-50"
               >
                 {syncing === 'customers' ? 'Queuing...' : 'Queue Customers'}
               </button>
               <button
                 onClick={() => handleQueueSync('invoices')}
                 disabled={syncing !== null}
-                className="px-4 py-2 bg-success-100 text-success-700 rounded-lg hover:bg-success-200 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-success-soft text-ds-success-text rounded-lg hover:bg-ds-success-soft font-medium disabled:opacity-50"
               >
                 {syncing === 'invoices' ? 'Queuing...' : 'Queue Invoices'}
               </button>
               {status?.queueStatus && status.queueStatus.error > 0 && (
                 <button
                   onClick={handleRetryFailed}
-                  className="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 font-medium"
+                  className="min-h-ds-touch px-4 py-2 bg-ds-warning-soft text-ds-warning-text rounded-lg hover:bg-ds-warning-soft font-medium"
                 >
                   Retry Failed
                 </button>
@@ -470,36 +472,36 @@ const QuickBooksSettings: React.FC = () => {
 
           {/* Import from QuickBooks */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Import from QuickBooks (QB → MedSys)</h3>
-            <p className="text-xs text-gray-500 mb-3">
+            <h3 className="text-sm font-medium text-ds-text-secondary mb-2">Import from QuickBooks (QB → MedSys)</h3>
+            <p className="text-xs text-ds-text-muted mb-3">
               Pull existing data from QuickBooks into MedSys. QuickBooks Desktop must be running.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => handleImport('customers')}
                 disabled={importing !== null}
-                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-subtle text-ds-brand-plum rounded-lg hover:bg-ds-subtle font-medium disabled:opacity-50"
               >
                 {importing === 'customers' ? 'Queuing...' : 'Import Customers → Patients'}
               </button>
               <button
                 onClick={() => handleImport('items')}
                 disabled={importing !== null}
-                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-subtle text-ds-brand-plum rounded-lg hover:bg-ds-subtle font-medium disabled:opacity-50"
               >
                 {importing === 'items' ? 'Queuing...' : 'Import Items → Charge Master'}
               </button>
               <button
                 onClick={() => handleImport('invoices')}
                 disabled={importing !== null}
-                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-subtle text-ds-brand-plum rounded-lg hover:bg-ds-subtle font-medium disabled:opacity-50"
               >
                 {importing === 'invoices' ? 'Queuing...' : 'Import Invoices'}
               </button>
               <button
                 onClick={() => handleImport('all')}
                 disabled={importing !== null}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50"
+                className="min-h-ds-touch px-4 py-2 bg-ds-info text-white dark:text-ds-canvas rounded-lg hover:bg-ds-info/90 font-medium disabled:opacity-50"
               >
                 {importing === 'all' ? 'Queuing...' : 'Import All Data'}
               </button>
@@ -508,15 +510,15 @@ const QuickBooksSettings: React.FC = () => {
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-          <div className="border-b border-gray-200">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border">
+          <div className="border-b border-ds-border">
             <nav className="flex -mb-px">
               <button
                 onClick={() => setActiveTab('setup')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 ${
                   activeTab === 'setup'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-ds-accent text-ds-accent-text'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text'
                 }`}
               >
                 Setup Instructions
@@ -528,8 +530,8 @@ const QuickBooksSettings: React.FC = () => {
                 }}
                 className={`px-6 py-3 text-sm font-medium border-b-2 ${
                   activeTab === 'queue'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-ds-accent text-ds-accent-text'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text'
                 }`}
               >
                 Sync Queue
@@ -541,8 +543,8 @@ const QuickBooksSettings: React.FC = () => {
                 }}
                 className={`px-6 py-3 text-sm font-medium border-b-2 ${
                   activeTab === 'mappings'
-                    ? 'border-primary-500 text-primary-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-ds-accent text-ds-accent-text'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text'
                 }`}
               >
                 Entity Mappings
@@ -554,8 +556,8 @@ const QuickBooksSettings: React.FC = () => {
                 }}
                 className={`px-6 py-3 text-sm font-medium border-b-2 ${
                   activeTab === 'imported'
-                    ? 'border-purple-500 text-purple-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    ? 'border-ds-brand-plum text-ds-brand-plum'
+                    : 'border-transparent text-ds-text-muted hover:text-ds-text'
                 }`}
               >
                 Imported Data
@@ -568,30 +570,30 @@ const QuickBooksSettings: React.FC = () => {
             {activeTab === 'setup' && (
               <div className="space-y-6">
                 {/* Step 1: Download Web Connector */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className="border border-ds-border rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-text mb-2">
                     Step 1: Install QuickBooks Web Connector
                   </h3>
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className="text-sm text-ds-text-secondary mb-3">
                     Download and install Web Connector from Intuit on the Windows Server running QuickBooks Desktop.
                   </p>
                   <a
                     href="https://developer.intuit.com/app/developer/qbdesktop/docs/get-started/get-started-with-quickbooks-web-connector"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary-600 hover:text-primary-800 text-sm font-medium"
+                    className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                   >
                     Download Web Connector from Intuit →
                   </a>
                 </div>
 
                 {/* Step 2: Set Password */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className="border border-ds-border rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-text mb-2">
                     Step 2: Configure Password
                   </h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Set a password for Web Connector authentication. Username: <code className="bg-gray-100 px-1 rounded">{status?.username || 'medsys'}</code>
+                  <p className="text-sm text-ds-text-secondary mb-3">
+                    Set a password for Web Connector authentication. Username: <code className="bg-ds-subtle px-1 rounded">{status?.username || 'medsys'}</code>
                   </p>
                   <div className="flex gap-3 items-center">
                     <input
@@ -599,53 +601,53 @@ const QuickBooksSettings: React.FC = () => {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Enter new password (min 8 chars)"
-                      className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 w-64"
+                      className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring w-64"
                     />
                     <button
                       onClick={handleSetPassword}
-                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover font-medium"
                     >
                       Set Password
                     </button>
                     <button
                       onClick={handleResetPassword}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+                      className="min-h-ds-touch px-4 py-2 bg-ds-subtle text-ds-text-secondary rounded-lg hover:bg-ds-border font-medium"
                     >
                       Generate Random
                     </button>
                   </div>
                   {showPassword && newPassword && (
-                    <div className="mt-3 p-3 bg-warning-50 border border-warning-200 rounded-lg">
-                      <p className="text-sm text-warning-800">
+                    <div className="mt-3 p-3 bg-ds-warning-soft border border-ds-warning-border rounded-lg">
+                      <p className="text-sm text-ds-warning-text">
                         <strong>Save this password!</strong> You'll need it when adding the app to Web Connector:
                       </p>
-                      <code className="block mt-1 text-lg font-mono text-warning-900">{newPassword}</code>
+                      <code className="block mt-1 text-lg font-mono text-ds-warning-text">{newPassword}</code>
                     </div>
                   )}
                 </div>
 
                 {/* Step 3: Download QWC File */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className="border border-ds-border rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-text mb-2">
                     Step 3: Download QWC Configuration File
                   </h3>
-                  <p className="text-sm text-gray-600 mb-3">
+                  <p className="text-sm text-ds-text-secondary mb-3">
                     Download the .qwc file and add it to Web Connector.
                   </p>
                   <button
                     onClick={handleDownloadQWC}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 font-medium"
+                    className="min-h-ds-touch px-4 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover font-medium"
                   >
                     Download medsys.qwc
                   </button>
                 </div>
 
                 {/* Step 4: Add to Web Connector */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className="border border-ds-border rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-text mb-2">
                     Step 4: Add Application to Web Connector
                   </h3>
-                  <ol className="text-sm text-gray-600 list-decimal list-inside space-y-2">
+                  <ol className="text-sm text-ds-text-secondary list-decimal list-inside space-y-2">
                     <li>Open QuickBooks Web Connector on the server</li>
                     <li>File → Add an Application</li>
                     <li>Select the medsys.qwc file you downloaded</li>
@@ -656,26 +658,26 @@ const QuickBooksSettings: React.FC = () => {
                 </div>
 
                 {/* Important Note */}
-                <div className="border border-warning-200 bg-warning-50 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-warning-800 mb-2">
+                <div className="border border-ds-warning-border bg-ds-warning-soft rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-warning-text mb-2">
                     Important: QuickBooks Must Be Open
                   </h3>
-                  <p className="text-sm text-warning-700 mb-3">
+                  <p className="text-sm text-ds-warning-text mb-3">
                     For the Web Connector to work, <strong>QuickBooks Desktop must be running</strong> with your company file open before syncing.
                     Alternatively, you can specify the company file path below so Web Connector can open it automatically.
                   </p>
                 </div>
 
                 {/* Settings */}
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">Settings</h3>
+                <div className="border border-ds-border rounded-lg p-4">
+                  <h3 className="text-lg font-medium text-ds-text mb-3">Settings</h3>
                   <div className="space-y-4">
                     {/* Company File Path */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-ds-text-secondary mb-1">
                         Company File Path (Optional)
                       </label>
-                      <p className="text-xs text-gray-500 mb-2">
+                      <p className="text-xs text-ds-text-muted mb-2">
                         Path to your QuickBooks company file (.qbw) on the server. Example: C:\Users\Public\Documents\Intuit\QuickBooks\Company Files\MyCompany.qbw
                       </p>
                       <div className="flex gap-2">
@@ -684,55 +686,55 @@ const QuickBooksSettings: React.FC = () => {
                           value={status?.companyFilePath || ''}
                           onChange={(e) => handleUpdateSettings('companyFilePath', e.target.value)}
                           placeholder="C:\path\to\company.qbw"
-                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm font-mono"
+                          className="flex-1 px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm font-mono"
                         />
                       </div>
                     </div>
 
-                    <hr className="border-gray-200" />
+                    <hr className="border-ds-border" />
 
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={status?.syncEnabled || false}
                         onChange={(e) => handleUpdateSettings('syncEnabled', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-ds-accent-text rounded focus:ring-ds-focus-ring"
                       />
-                      <span className="text-sm text-gray-700">Sync Enabled</span>
+                      <span className="text-sm text-ds-text-secondary">Sync Enabled</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={status?.autoSyncInvoices || false}
                         onChange={(e) => handleUpdateSettings('autoSyncInvoices', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-ds-accent-text rounded focus:ring-ds-focus-ring"
                       />
-                      <span className="text-sm text-gray-700">Auto-queue new invoices</span>
+                      <span className="text-sm text-ds-text-secondary">Auto-queue new invoices</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={status?.autoSyncPayments || false}
                         onChange={(e) => handleUpdateSettings('autoSyncPayments', e.target.checked)}
-                        className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-ds-accent-text rounded focus:ring-ds-focus-ring"
                       />
-                      <span className="text-sm text-gray-700">Auto-queue new payments</span>
+                      <span className="text-sm text-ds-text-secondary">Auto-queue new payments</span>
                     </label>
 
-                    <hr className="border-gray-200" />
+                    <hr className="border-ds-border" />
 
                     {/* Payer-based billing */}
-                    <div className="bg-success-50 rounded-lg p-4 border border-success-200">
+                    <div className="bg-ds-success-soft rounded-lg p-4 border border-ds-success/30">
                       <label className="flex items-center gap-2 cursor-pointer mb-3">
                         <input
                           type="checkbox"
                           checked={status?.usePayerBasedCustomers ?? false}
                           onChange={(e) => handleUpdateSettings('usePayerBasedCustomers', e.target.checked)}
-                          className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                          className="w-4 h-4 text-ds-accent-text rounded focus:ring-ds-focus-ring"
                         />
-                        <span className="text-sm font-medium text-gray-900">Bill by payer (recommended)</span>
+                        <span className="text-sm font-medium text-ds-text">Bill by payer (recommended)</span>
                       </label>
-                      <p className="text-xs text-gray-600 mb-3">
+                      <p className="text-xs text-ds-text-secondary mb-3">
                         Books each invoice under the <span className="font-medium">payer's</span> existing QuickBooks customer:
                         self-pay patients go under one shared customer, and each insurer / corporate client goes under the
                         customer you already created in QuickBooks. Map the exact QB customer names below so MedSys points at
@@ -743,7 +745,7 @@ const QuickBooksSettings: React.FC = () => {
                         <div className="space-y-4">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                              <label className="block text-xs font-medium text-ds-text-secondary mb-1">
                                 Self-pay customer name (must exist in QuickBooks)
                               </label>
                               <input
@@ -752,11 +754,11 @@ const QuickBooksSettings: React.FC = () => {
                                 onChange={(e) => setStatus(prev => prev ? { ...prev, cashSalesCustomerName: e.target.value } : null)}
                                 onBlur={(e) => handleUpdateSettings('cashSalesCustomerName', e.target.value)}
                                 placeholder="Cash Sales"
-                                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full"
+                                className="px-3 py-1.5 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm w-full"
                               />
                             </div>
                             <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                              <label className="block text-xs font-medium text-ds-text-secondary mb-1">
                                 Invoice line item name (must exist in QuickBooks)
                               </label>
                               <input
@@ -765,54 +767,54 @@ const QuickBooksSettings: React.FC = () => {
                                 onChange={(e) => setStatus(prev => prev ? { ...prev, defaultItemName: e.target.value } : null)}
                                 onBlur={(e) => handleUpdateSettings('defaultItemName', e.target.value)}
                                 placeholder="Medical Services"
-                                className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full"
+                                className="px-3 py-1.5 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm w-full"
                               />
                             </div>
                           </div>
-                          <p className="text-xs text-warning-700 bg-warning-50 border border-warning-200 rounded p-2">
+                          <p className="text-xs text-ds-warning-text bg-ds-warning-soft border border-ds-warning-border rounded p-2">
                             Create a single service item in QuickBooks (Item List) with the exact name above — all invoice lines
                             use it, so if it's missing QuickBooks rejects the invoice.
                           </p>
 
                           {/* Insurance mapping */}
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Insurance providers</h4>
+                            <h4 className="text-sm font-semibold text-ds-text mb-2">Insurance providers</h4>
                             <div className="space-y-1.5">
                               {insuranceMappings.map((m) => (
                                 <div key={`ins-${m.id}`} className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-700 w-1/2 truncate" title={m.name}>{m.name}</span>
+                                  <span className="text-xs text-ds-text-secondary w-1/2 truncate" title={m.name}>{m.name}</span>
                                   <input
                                     type="text"
                                     value={m.quickbooks_customer_name ?? ''}
                                     placeholder={`QB customer for ${m.name}`}
                                     onChange={(e) => setInsuranceMappings(prev => prev.map(x => x.id === m.id ? { ...x, quickbooks_customer_name: e.target.value } : x))}
                                     onBlur={(e) => savePayerMapping('insurance', m.id, e.target.value)}
-                                    className="px-2 py-1 border border-gray-300 rounded text-xs w-1/2 focus:ring-2 focus:ring-primary-500"
+                                    className="px-2 py-1 border border-ds-border-control rounded text-xs w-1/2 focus:ring-2 focus:ring-ds-focus-ring"
                                   />
                                 </div>
                               ))}
-                              {insuranceMappings.length === 0 && <p className="text-xs text-gray-400">No insurance providers.</p>}
+                              {insuranceMappings.length === 0 && <p className="text-xs text-ds-text-muted">No insurance providers.</p>}
                             </div>
                           </div>
 
                           {/* Corporate mapping */}
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Corporate clients</h4>
+                            <h4 className="text-sm font-semibold text-ds-text mb-2">Corporate clients</h4>
                             <div className="space-y-1.5">
                               {corporateMappings.map((m) => (
                                 <div key={`corp-${m.id}`} className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-700 w-1/2 truncate" title={m.name}>{m.name}</span>
+                                  <span className="text-xs text-ds-text-secondary w-1/2 truncate" title={m.name}>{m.name}</span>
                                   <input
                                     type="text"
                                     value={m.quickbooks_customer_name ?? ''}
                                     placeholder={`QB customer for ${m.name}`}
                                     onChange={(e) => setCorporateMappings(prev => prev.map(x => x.id === m.id ? { ...x, quickbooks_customer_name: e.target.value } : x))}
                                     onBlur={(e) => savePayerMapping('corporate', m.id, e.target.value)}
-                                    className="px-2 py-1 border border-gray-300 rounded text-xs w-1/2 focus:ring-2 focus:ring-primary-500"
+                                    className="px-2 py-1 border border-ds-border-control rounded text-xs w-1/2 focus:ring-2 focus:ring-ds-focus-ring"
                                   />
                                 </div>
                               ))}
-                              {corporateMappings.length === 0 && <p className="text-xs text-gray-400">No corporate clients.</p>}
+                              {corporateMappings.length === 0 && <p className="text-xs text-ds-text-muted">No corporate clients.</p>}
                             </div>
                           </div>
 
@@ -820,11 +822,11 @@ const QuickBooksSettings: React.FC = () => {
                             <button
                               onClick={handleRedrive}
                               disabled={redriving}
-                              className="px-3 py-1.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 text-sm disabled:opacity-50"
+                              className="min-h-ds-touch px-3 py-1.5 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover text-sm disabled:opacity-50"
                             >
                               {redriving ? 'Re-queuing…' : 'Re-drive held transactions'}
                             </button>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-ds-text-muted">
                               Retries invoices/payments that failed or are waiting — run after filling in the mappings.
                             </span>
                           </div>
@@ -834,17 +836,17 @@ const QuickBooksSettings: React.FC = () => {
 
                     {/* Cash Sales Customer Mode (legacy — hidden when billing by payer) */}
                     {!(status?.usePayerBasedCustomers ?? false) && (
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <div className="bg-ds-info-soft rounded-lg p-4 border border-ds-info/30">
                       <label className="flex items-center gap-2 cursor-pointer mb-3">
                         <input
                           type="checkbox"
                           checked={status?.useCashSalesCustomer ?? true}
                           onChange={(e) => handleUpdateSettings('useCashSalesCustomer', e.target.checked)}
-                          className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                          className="w-4 h-4 text-ds-accent-text rounded focus:ring-ds-focus-ring"
                         />
-                        <span className="text-sm font-medium text-gray-900">Use "Cash Sales" Customer for All Invoices</span>
+                        <span className="text-sm font-medium text-ds-text">Use "Cash Sales" Customer for All Invoices</span>
                       </label>
-                      <p className="text-xs text-gray-600 mb-3">
+                      <p className="text-xs text-ds-text-secondary mb-3">
                         When enabled, all invoices will be assigned to a single "Cash Sales" customer in QuickBooks
                         instead of creating individual customers for each patient. This keeps your QuickBooks customer
                         list clean while still tracking revenue.
@@ -852,7 +854,7 @@ const QuickBooksSettings: React.FC = () => {
                       {(status?.useCashSalesCustomer ?? true) && (
                         <div className="space-y-2">
                           <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                            <label className="block text-xs font-medium text-ds-text-secondary mb-1">
                               Cash Sales Customer Name (must exist in QuickBooks)
                             </label>
                             <input
@@ -860,15 +862,15 @@ const QuickBooksSettings: React.FC = () => {
                               value={status?.cashSalesCustomerName || 'Cash Sales'}
                               onChange={(e) => handleUpdateSettings('cashSalesCustomerName', e.target.value)}
                               placeholder="Cash Sales"
-                              className="px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-sm w-full max-w-xs"
+                              className="px-3 py-1.5 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring text-sm w-full max-w-xs"
                             />
                           </div>
                           {status?.cashSalesCustomerListId ? (
-                            <p className="text-xs text-success-700">
+                            <p className="text-xs text-ds-success-text">
                               Linked to QB Customer: {status.cashSalesCustomerListId}
                             </p>
                           ) : (
-                            <p className="text-xs text-warning-700">
+                            <p className="text-xs text-ds-warning-text">
                               Not yet linked. Import customers from QuickBooks to find "{status?.cashSalesCustomerName || 'Cash Sales'}".
                             </p>
                           )}
@@ -896,13 +898,13 @@ const QuickBooksSettings: React.FC = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleClearQueue('completed')}
-                      className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                      className="min-h-ds-touch px-3 py-1 text-sm bg-ds-subtle text-ds-text-secondary rounded hover:bg-ds-border"
                     >
                       Clear Completed
                     </button>
                     <button
                       onClick={() => handleClearQueue('error')}
-                      className="px-3 py-1 text-sm bg-danger-100 text-danger-700 rounded hover:bg-danger-200"
+                      className="min-h-ds-touch px-3 py-1 text-sm bg-ds-critical-soft text-ds-critical-text rounded hover:bg-ds-critical-soft"
                     >
                       Clear Errors
                     </button>
@@ -910,45 +912,45 @@ const QuickBooksSettings: React.FC = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
+                  <table className="min-w-full divide-y divide-ds-border">
                     <thead>
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Entity</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operation</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Error</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Entity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Operation</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Created</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Error</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-ds-border">
                       {queueItems.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-4 py-8 text-center text-ds-text-muted">
                             No items in queue
                           </td>
                         </tr>
                       ) : (
                         queueItems.map((item) => (
-                          <tr key={item.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-600 capitalize">{item.entity_type}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{item.medsys_id}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600 capitalize">{item.operation}</td>
+                          <tr key={item.id} className="hover:bg-ds-subtle">
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary capitalize">{item.entity_type}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text">{item.medsys_id}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary capitalize">{item.operation}</td>
                             <td className="px-4 py-3">
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                item.status === 'completed' ? 'bg-success-100 text-success-800' :
-                                item.status === 'error' ? 'bg-danger-100 text-danger-800' :
-                                item.status === 'sent' ? 'bg-blue-100 text-blue-800' :
-                                item.status === 'pending' ? 'bg-warning-100 text-warning-800' :
-                                'bg-gray-100 text-gray-800'
+                                item.status === 'completed' ? 'bg-ds-success-soft text-ds-success-text' :
+                                item.status === 'error' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                item.status === 'sent' ? 'bg-ds-info-soft text-ds-info-text' :
+                                item.status === 'pending' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                'bg-ds-subtle text-ds-text'
                               }`}>
                                 {item.status}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary">
                               {format(new Date(item.created_at), 'MMM d, h:mm a')}
                             </td>
-                            <td className="px-4 py-3 text-sm text-danger-600 max-w-xs truncate">
+                            <td className="px-4 py-3 text-sm text-ds-critical-text max-w-xs truncate">
                               {item.error_message || '-'}
                             </td>
                           </tr>
@@ -975,42 +977,42 @@ const QuickBooksSettings: React.FC = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
+                  <table className="min-w-full divide-y divide-ds-border">
                     <thead>
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">MedSys ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Synced</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Type</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">MedSys ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">QB ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Last Synced</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-ds-border">
                       {mappings.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-4 py-8 text-center text-ds-text-muted">
                             No mappings found
                           </td>
                         </tr>
                       ) : (
                         mappings.map((mapping) => (
-                          <tr key={mapping.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-600 capitalize">{mapping.entity_type}</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{mapping.medsys_id}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600 font-mono text-xs">
+                          <tr key={mapping.id} className="hover:bg-ds-subtle">
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary capitalize">{mapping.entity_type}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text">{mapping.medsys_id}</td>
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary font-mono text-xs">
                               {mapping.quickbooks_id}
                             </td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
+                            <td className="px-4 py-3 text-sm text-ds-text-secondary">
                               {mapping.last_synced_at
                                 ? format(new Date(mapping.last_synced_at), 'MMM d, h:mm a')
                                 : '-'}
                             </td>
                             <td className="px-4 py-3">
                               <span className={`px-2 py-1 text-xs rounded-full ${
-                                mapping.sync_status === 'synced' ? 'bg-success-100 text-success-800' :
-                                mapping.sync_status === 'error' ? 'bg-danger-100 text-danger-800' :
-                                'bg-warning-100 text-warning-800'
+                                mapping.sync_status === 'synced' ? 'bg-ds-success-soft text-ds-success-text' :
+                                mapping.sync_status === 'error' ? 'bg-ds-critical-soft text-ds-critical-text' :
+                                'bg-ds-warning-soft text-ds-warning-text'
                               }`}>
                                 {mapping.sync_status}
                               </span>
@@ -1018,7 +1020,7 @@ const QuickBooksSettings: React.FC = () => {
                             <td className="px-4 py-3 text-center">
                               <button
                                 onClick={() => handleDeleteMapping(mapping.id)}
-                                className="text-danger-600 hover:text-danger-800 text-sm"
+                                className="text-ds-critical-text hover:text-ds-critical-text text-sm"
                               >
                                 Delete
                               </button>
@@ -1038,17 +1040,17 @@ const QuickBooksSettings: React.FC = () => {
                 {/* Summary Cards */}
                 {importedData && (
                   <div className="grid grid-cols-3 gap-4 mb-6">
-                    <div className="bg-purple-50 rounded-lg p-4 text-center">
-                      <div className="text-3xl font-bold text-purple-700">{importedData.summary.patientsCount}</div>
-                      <div className="text-sm text-purple-600">Patients Imported</div>
+                    <div className="bg-ds-subtle rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-ds-brand-plum">{importedData.summary.patientsCount}</div>
+                      <div className="text-sm text-ds-brand-plum">Patients Imported</div>
                     </div>
-                    <div className="bg-indigo-50 rounded-lg p-4 text-center">
-                      <div className="text-3xl font-bold text-indigo-700">{importedData.summary.servicesCount}</div>
-                      <div className="text-sm text-indigo-600">Services Imported</div>
+                    <div className="bg-ds-info-soft rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-ds-info-text">{importedData.summary.servicesCount}</div>
+                      <div className="text-sm text-ds-info-text">Services Imported</div>
                     </div>
-                    <div className="bg-blue-50 rounded-lg p-4 text-center">
-                      <div className="text-3xl font-bold text-blue-700">{importedData.summary.invoicesCount}</div>
-                      <div className="text-sm text-blue-600">Invoices Imported</div>
+                    <div className="bg-ds-info-soft rounded-lg p-4 text-center">
+                      <div className="text-3xl font-bold text-ds-info-text">{importedData.summary.invoicesCount}</div>
+                      <div className="text-sm text-ds-info-text">Invoices Imported</div>
                     </div>
                   </div>
                 )}
@@ -1057,30 +1059,30 @@ const QuickBooksSettings: React.FC = () => {
                 <div className="flex gap-2 mb-4">
                   <button
                     onClick={() => setImportedSubTab('patients')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    className={`min-h-ds-touch px-4 py-2 rounded-lg text-sm font-medium ${
                       importedSubTab === 'patients'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-ds-brand-plum text-white dark:text-ds-canvas'
+                        : 'bg-ds-subtle text-ds-text-secondary hover:bg-ds-border'
                     }`}
                   >
                     Patients ({importedData?.patients.length || 0})
                   </button>
                   <button
                     onClick={() => setImportedSubTab('services')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    className={`min-h-ds-touch px-4 py-2 rounded-lg text-sm font-medium ${
                       importedSubTab === 'services'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-ds-info text-white dark:text-ds-canvas'
+                        : 'bg-ds-subtle text-ds-text-secondary hover:bg-ds-border'
                     }`}
                   >
                     Services ({importedData?.services.length || 0})
                   </button>
                   <button
                     onClick={() => setImportedSubTab('invoices')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                    className={`min-h-ds-touch px-4 py-2 rounded-lg text-sm font-medium ${
                       importedSubTab === 'invoices'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        ? 'bg-ds-info text-white dark:text-ds-canvas'
+                        : 'bg-ds-subtle text-ds-text-secondary hover:bg-ds-border'
                     }`}
                   >
                     Invoices ({importedData?.invoices.length || 0})
@@ -1090,33 +1092,33 @@ const QuickBooksSettings: React.FC = () => {
                 {/* Patients Table */}
                 {importedSubTab === 'patients' && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="min-w-full divide-y divide-ds-border">
                       <thead>
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient #</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient #</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Email</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Phone</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Imported</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody className="divide-y divide-ds-border">
                         {!importedData || importedData.patients.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={6} className="px-4 py-8 text-center text-ds-text-muted">
                               No patients imported from QuickBooks yet
                             </td>
                           </tr>
                         ) : (
                           importedData.patients.map((patient) => (
-                            <tr key={patient.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{patient.patient_number}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{patient.first_name} {patient.last_name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{patient.email || '-'}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">{patient.phone || '-'}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{patient.quickbooks_id}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                            <tr key={patient.id} className="hover:bg-ds-subtle">
+                              <td className="px-4 py-3 text-sm font-medium text-ds-text">{patient.patient_number}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text">{patient.first_name} {patient.last_name}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">{patient.email || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">{patient.phone || '-'}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-muted font-mono text-xs">{patient.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">
                                 {patient.last_synced_at ? format(new Date(patient.last_synced_at), 'MMM d, h:mm a') : '-'}
                               </td>
                             </tr>
@@ -1130,33 +1132,33 @@ const QuickBooksSettings: React.FC = () => {
                 {/* Services Table */}
                 {importedSubTab === 'services' && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="min-w-full divide-y divide-ds-border">
                       <thead>
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Code</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Name</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Category</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Price</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Imported</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody className="divide-y divide-ds-border">
                         {!importedData || importedData.services.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={6} className="px-4 py-8 text-center text-ds-text-muted">
                               No services imported from QuickBooks yet
                             </td>
                           </tr>
                         ) : (
                           importedData.services.map((service) => (
-                            <tr key={service.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{service.service_code}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{service.service_name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600 capitalize">{service.category}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {Number(service.price || 0).toFixed(2)}</td>
-                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{service.quickbooks_id}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                            <tr key={service.id} className="hover:bg-ds-subtle">
+                              <td className="px-4 py-3 text-sm font-medium text-ds-text">{service.service_code}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text">{service.service_name}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary capitalize">{service.category}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text text-right">GHS {Number(service.price || 0).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-muted font-mono text-xs">{service.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">
                                 {service.last_synced_at ? format(new Date(service.last_synced_at), 'MMM d, h:mm a') : '-'}
                               </td>
                             </tr>
@@ -1170,45 +1172,45 @@ const QuickBooksSettings: React.FC = () => {
                 {/* Invoices Table */}
                 {importedSubTab === 'invoices' && (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                    <table className="min-w-full divide-y divide-ds-border">
                       <thead>
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QB ID</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Imported</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Date</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Amount</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">QB ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Imported</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-200">
+                      <tbody className="divide-y divide-ds-border">
                         {!importedData || importedData.invoices.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={7} className="px-4 py-8 text-center text-ds-text-muted">
                               No invoices imported from QuickBooks yet
                             </td>
                           </tr>
                         ) : (
                           importedData.invoices.map((invoice) => (
-                            <tr key={invoice.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-medium text-gray-900">{invoice.invoice_number}</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{invoice.patient_name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                            <tr key={invoice.id} className="hover:bg-ds-subtle">
+                              <td className="px-4 py-3 text-sm font-medium text-ds-text">{invoice.invoice_number}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text">{invoice.patient_name}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">
                                 {invoice.invoice_date ? format(new Date(invoice.invoice_date), 'MMM d, yyyy') : '-'}
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-900 text-right">GHS {Number(invoice.total_amount || 0).toFixed(2)}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text text-right">GHS {Number(invoice.total_amount || 0).toFixed(2)}</td>
                               <td className="px-4 py-3">
                                 <span className={`px-2 py-1 text-xs rounded-full ${
-                                  invoice.status === 'paid' ? 'bg-success-100 text-success-800' :
-                                  invoice.status === 'pending' ? 'bg-warning-100 text-warning-800' :
-                                  'bg-gray-100 text-gray-800'
+                                  invoice.status === 'paid' ? 'bg-ds-success-soft text-ds-success-text' :
+                                  invoice.status === 'pending' ? 'bg-ds-warning-soft text-ds-warning-text' :
+                                  'bg-ds-subtle text-ds-text'
                                 }`}>
                                   {invoice.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-sm text-gray-500 font-mono text-xs">{invoice.quickbooks_id}</td>
-                              <td className="px-4 py-3 text-sm text-gray-600">
+                              <td className="px-4 py-3 text-sm text-ds-text-muted font-mono text-xs">{invoice.quickbooks_id}</td>
+                              <td className="px-4 py-3 text-sm text-ds-text-secondary">
                                 {invoice.last_synced_at ? format(new Date(invoice.last_synced_at), 'MMM d, h:mm a') : '-'}
                               </td>
                             </tr>

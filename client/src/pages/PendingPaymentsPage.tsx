@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 import apiClient from '../api/client';
 import AppLayout from '../components/AppLayout';
+import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
 import PrintableInvoice from '../components/PrintableInvoice';
 import { useNotification } from '../context/NotificationContext';
 import { TableRowSkeleton } from '../components/Skeleton';
@@ -62,6 +63,7 @@ interface InvoicePayerSource {
 }
 
 const PendingPaymentsPage: React.FC = () => {
+  useDesignSystemPage();
   const { showToast } = useNotification();
   const [invoices, setInvoices] = useState<PendingInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -178,36 +180,36 @@ const PendingPaymentsPage: React.FC = () => {
   };
 
   return (
-    <AppLayout title="Pending Payments">
+    <AppLayout designSystem title="Pending Payments">
       <div className="space-y-6">
         {/* Summary Cards */}
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="bg-success-50 rounded-xl p-4 border border-success-200">
-              <h4 className="text-sm font-medium text-success-700">0-30 Days</h4>
-              <p className="text-2xl font-bold text-success-900">{summary.bucket_0_30}</p>
+            <div className="bg-ds-success-soft rounded-ds-card p-4 border border-ds-success/30">
+              <h4 className="text-sm font-medium text-ds-success-text">0-30 Days</h4>
+              <p className="text-2xl font-bold text-ds-success-text">{summary.bucket_0_30}</p>
             </div>
-            <div className="bg-warning-50 rounded-xl p-4 border border-warning-200">
-              <h4 className="text-sm font-medium text-warning-700">31-60 Days</h4>
-              <p className="text-2xl font-bold text-warning-900">{summary.bucket_31_60}</p>
+            <div className="bg-ds-warning-soft rounded-ds-card p-4 border border-ds-warning-border">
+              <h4 className="text-sm font-medium text-ds-warning-text">31-60 Days</h4>
+              <p className="text-2xl font-bold text-ds-warning-text">{summary.bucket_31_60}</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
-              <h4 className="text-sm font-medium text-orange-700">61-90 Days</h4>
-              <p className="text-2xl font-bold text-orange-900">{summary.bucket_61_90}</p>
+            <div className="bg-ds-warning-soft rounded-ds-card p-4 border border-ds-warning-border">
+              <h4 className="text-sm font-medium text-ds-warning-text">61-90 Days</h4>
+              <p className="text-2xl font-bold text-ds-warning-text">{summary.bucket_61_90}</p>
             </div>
-            <div className="bg-danger-50 rounded-xl p-4 border border-danger-200">
-              <h4 className="text-sm font-medium text-danger-700">90+ Days</h4>
-              <p className="text-2xl font-bold text-danger-900">{summary.bucket_90_plus}</p>
+            <div className="bg-ds-critical-soft rounded-ds-card p-4 border border-ds-critical-border">
+              <h4 className="text-sm font-medium text-ds-critical-text">90+ Days</h4>
+              <p className="text-2xl font-bold text-ds-critical-text">{summary.bucket_90_plus}</p>
             </div>
-            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-              <h4 className="text-sm font-medium text-blue-700">Total Outstanding</h4>
-              <p className="text-xl font-bold text-blue-900">GHS {Number(summary.total_balance || 0).toFixed(2)}</p>
+            <div className="bg-ds-info-soft rounded-ds-card p-4 border border-ds-info/30">
+              <h4 className="text-sm font-medium text-ds-info-text">Total Outstanding</h4>
+              <p className="text-xl font-bold text-ds-info-text">GHS {Number(summary.total_balance || 0).toFixed(2)}</p>
             </div>
           </div>
         )}
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-4">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border p-4">
           <div className="flex flex-wrap gap-4 items-center justify-between">
             {/* Time Period Filters */}
             <div className="flex gap-2">
@@ -220,10 +222,10 @@ const PendingPaymentsPage: React.FC = () => {
                 <button
                   key={period.id}
                   onClick={() => setTimePeriod(period.id as 'today' | 'week' | 'month' | 'all')}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  className={`min-h-ds-touch px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                     timePeriod === period.id
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-ds-accent text-ds-on-accent'
+                      : 'bg-ds-subtle text-ds-text-secondary hover:bg-ds-border'
                   }`}
                 >
                   {period.label}
@@ -239,7 +241,7 @@ const PendingPaymentsPage: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 min-w-[200px]"
+                className="px-4 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring min-w-[200px]"
               />
               <AppSelect
                 value={agingFilter}
@@ -248,7 +250,7 @@ const PendingPaymentsPage: React.FC = () => {
               />
               <button
                 onClick={handleSearch}
-                className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                className="min-h-ds-touch px-6 py-2 bg-ds-accent text-ds-on-accent rounded-lg hover:bg-ds-accent-hover transition-colors font-medium"
               >
                 Search
               </button>
@@ -257,21 +259,21 @@ const PendingPaymentsPage: React.FC = () => {
         </div>
 
         {/* Invoices Table */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+        <div className="bg-ds-surface rounded-ds-card shadow-ds-card border border-ds-border overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-ds-border">
+              <thead className="bg-ds-subtle">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Patient</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Days</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Reminders</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Patient</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-ds-text-muted uppercase">Invoice #</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-ds-text-muted uppercase">Balance</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Days</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Reminders</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Contact</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-ds-text-muted uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-ds-surface divide-y divide-ds-border">
                 {loading ? (
                   <>
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -280,45 +282,45 @@ const PendingPaymentsPage: React.FC = () => {
                   </>
                 ) : invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-12 text-center text-ds-text-muted">
                       No pending payments found
                     </td>
                   </tr>
                 ) : (
                   invoices.map((invoice) => (
-                    <tr key={invoice.id} className="hover:bg-gray-50">
+                    <tr key={invoice.id} className="hover:bg-ds-subtle">
                       <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{invoice.patient_name}</div>
-                        <div className="text-sm text-gray-500">{invoice.patient_number}</div>
+                        <div className="text-sm font-medium text-ds-text">{invoice.patient_name}</div>
+                        <div className="text-sm text-ds-text-muted">{invoice.patient_number}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                      <td className="px-6 py-4 text-sm font-medium text-ds-text">
                         {invoice.invoice_number}
                       </td>
-                      <td className="px-6 py-4 text-sm text-right font-bold text-danger-600">
+                      <td className="px-6 py-4 text-sm text-right font-bold text-ds-critical-text">
                         GHS {Number(invoice.balance || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          invoice.days_outstanding > 90 ? 'bg-danger-100 text-danger-800' :
-                          invoice.days_outstanding > 60 ? 'bg-orange-100 text-orange-800' :
-                          invoice.days_outstanding > 30 ? 'bg-warning-100 text-warning-800' :
-                          'bg-success-100 text-success-800'
+                          invoice.days_outstanding > 90 ? 'bg-ds-critical-soft text-ds-critical-text' :
+                          invoice.days_outstanding > 60 ? 'bg-ds-warning-soft text-ds-warning-text' :
+                          invoice.days_outstanding > 30 ? 'bg-ds-warning-soft text-ds-warning-text' :
+                          'bg-ds-success-soft text-ds-success-text'
                         }`}>
                           {invoice.days_outstanding}d
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td className="px-6 py-4 text-center text-sm text-ds-text-muted">
                         {invoice.reminder_count > 0 ? (
-                          <span className="text-primary-600">{invoice.reminder_count} sent</span>
+                          <span className="text-ds-accent-text">{invoice.reminder_count} sent</span>
                         ) : '-'}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex justify-center gap-2">
                           {invoice.patient_phone && (
-                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Phone</span>
+                            <span className="text-xs bg-ds-info-soft text-ds-info-text px-2 py-1 rounded">Phone</span>
                           )}
                           {invoice.patient_email && (
-                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Email</span>
+                            <span className="text-xs bg-ds-subtle text-ds-brand-plum px-2 py-1 rounded">Email</span>
                           )}
                         </div>
                       </td>
@@ -326,14 +328,14 @@ const PendingPaymentsPage: React.FC = () => {
                         <div className="flex justify-center gap-2">
                           <button
                             onClick={() => handleViewInvoice(invoice.id)}
-                            className="text-primary-600 hover:text-primary-900 text-sm font-medium"
+                            className="text-ds-accent-text hover:text-ds-accent-text text-sm font-medium"
                           >
                             View
                           </button>
                           <button
                             onClick={() => handleSendReminder(invoice)}
                             disabled={sendingReminder === invoice.id}
-                            className="text-warning-600 hover:text-warning-900 text-sm font-medium disabled:opacity-50"
+                            className="text-ds-warning-text hover:text-ds-warning-text text-sm font-medium disabled:opacity-50"
                           >
                             {sendingReminder === invoice.id ? 'Sending...' : 'Remind'}
                           </button>

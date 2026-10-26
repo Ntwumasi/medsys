@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import AppLayout from '../components/AppLayout';
 import { useDesignSystemPage } from '../hooks/useDesignSystemPage';
+import { useDsColor } from '../hooks/useDsColor';
 import { Card, Badge, Modal, EmptyState, SkeletonStatCard } from '../components/ui';
 import { useNotification } from '../context/NotificationContext';
 import { useDialog } from '../context/DialogContext';
@@ -378,6 +379,7 @@ const MED_UNIT_OPTIONS = ['Tablet', 'Capsule', 'Bottle', 'Vial', 'Ampoule', 'Tub
 
 const PharmacyDashboard: React.FC = () => {
   useDesignSystemPage();
+  const dsColor = useDsColor();
   const navigate = useNavigate();
   const location = useLocation();
   const { showToast } = useNotification();
@@ -4314,13 +4316,13 @@ const PharmacyDashboard: React.FC = () => {
                         >
                           <defs>
                             <linearGradient id="revFill" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="rgb(var(--ds-success))" stopOpacity={0.35} />
-                              <stop offset="100%" stopColor="rgb(var(--ds-success))" stopOpacity={0.02} />
+                              <stop offset="0%" stopColor={dsColor('success')} stopOpacity={0.35} />
+                              <stop offset="100%" stopColor={dsColor('success')} stopOpacity={0.02} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--ds-border))" vertical={false} />
-                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="rgb(var(--ds-text-muted))" />
-                          <YAxis tick={{ fontSize: 11 }} stroke="rgb(var(--ds-text-muted))" width={70}
+                          <CartesianGrid strokeDasharray="3 3" stroke={dsColor('border')} vertical={false} />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke={dsColor('text-muted')} />
+                          <YAxis tick={{ fontSize: 11 }} stroke={dsColor('text-muted')} width={70}
                                  tickFormatter={(v) => `₵${Number(v).toLocaleString()}`} />
                           <RechartsTooltip
                             formatter={(value: any, name: any) =>
@@ -4329,7 +4331,7 @@ const PharmacyDashboard: React.FC = () => {
                                 : [value, 'Orders']
                             }
                           />
-                          <Area type="monotone" dataKey="revenue" stroke="rgb(var(--ds-success))" strokeWidth={2} fill="url(#revFill)" />
+                          <Area type="monotone" dataKey="revenue" stroke={dsColor('success')} strokeWidth={2} fill="url(#revFill)" />
                         </AreaChart>
                       </ResponsiveContainer>
                     </div>

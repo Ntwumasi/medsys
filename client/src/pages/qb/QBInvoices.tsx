@@ -110,10 +110,10 @@ const QBInvoices: React.FC = () => {
 
   const getSyncStatusBadge = (status: string) => {
     const styles: Record<string, { bg: string; text: string; label: string }> = {
-      synced: { bg: 'bg-success-100', text: 'text-success-700', label: 'Synced' },
-      pending: { bg: 'bg-warning-100', text: 'text-warning-700', label: 'Pending' },
-      error: { bg: 'bg-danger-100', text: 'text-danger-700', label: 'Error' },
-      not_synced: { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Not Synced' },
+      synced: { bg: 'bg-ds-success-soft', text: 'text-ds-success-text', label: 'Synced' },
+      pending: { bg: 'bg-ds-warning-soft', text: 'text-ds-warning-text', label: 'Pending' },
+      error: { bg: 'bg-ds-critical-soft', text: 'text-ds-critical-text', label: 'Error' },
+      not_synced: { bg: 'bg-ds-subtle', text: 'text-ds-text-secondary', label: 'Not Synced' },
     };
     const style = styles[status] || styles.not_synced;
     return (
@@ -125,12 +125,12 @@ const QBInvoices: React.FC = () => {
 
   const getInvoiceStatusBadge = (status: string) => {
     const styles: Record<string, { bg: string; text: string }> = {
-      draft: { bg: 'bg-gray-100', text: 'text-gray-600' },
-      pending: { bg: 'bg-warning-100', text: 'text-warning-700' },
-      paid: { bg: 'bg-success-100', text: 'text-success-700' },
-      partial: { bg: 'bg-primary-100', text: 'text-primary-700' },
-      overdue: { bg: 'bg-danger-100', text: 'text-danger-700' },
-      cancelled: { bg: 'bg-gray-100', text: 'text-gray-600' },
+      draft: { bg: 'bg-ds-subtle', text: 'text-ds-text-secondary' },
+      pending: { bg: 'bg-ds-warning-soft', text: 'text-ds-warning-text' },
+      paid: { bg: 'bg-ds-success-soft', text: 'text-ds-success-text' },
+      partial: { bg: 'bg-ds-accent-soft', text: 'text-ds-accent-text' },
+      overdue: { bg: 'bg-ds-critical-soft', text: 'text-ds-critical-text' },
+      cancelled: { bg: 'bg-ds-subtle', text: 'text-ds-text-secondary' },
     };
     const style = styles[status] || styles.pending;
     return (
@@ -161,19 +161,19 @@ const QBInvoices: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-ds-accent"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-danger-50 border border-danger-200 rounded-lg p-4">
-        <h3 className="font-semibold text-danger-800">Error loading invoices</h3>
-        <p className="text-danger-700 text-sm mt-1">{error}</p>
+      <div className="bg-ds-critical-soft border border-ds-critical-border rounded-lg p-4">
+        <h3 className="font-semibold text-ds-critical-text">Error loading invoices</h3>
+        <p className="text-ds-critical-text text-sm mt-1">{error}</p>
         <button
           onClick={loadInvoices}
-          className="mt-3 px-4 py-2 bg-danger-600 text-white rounded-lg hover:bg-danger-700"
+          className="min-h-ds-touch mt-3 px-4 py-2 bg-ds-critical text-white rounded-lg hover:bg-ds-critical/90"
         >
           Retry
         </button>
@@ -184,17 +184,17 @@ const QBInvoices: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Filters and Search */}
-      <div className="bg-surface rounded-xl shadow-card border border-border p-4">
+      <div className="bg-ds-surface rounded-ds-card shadow-card border border-ds-border p-4">
         <div className="flex flex-wrap gap-4 items-center justify-between">
           <div className="flex gap-2 flex-wrap">
             {(['all', 'unpaid', 'overdue', 'synced', 'not_synced'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                className={`min-h-ds-touch px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
                   filter === f
-                    ? 'bg-primary-100 text-primary-700'
-                    : 'text-text-secondary hover:bg-gray-100'
+                    ? 'bg-ds-accent-soft text-ds-accent-text'
+                    : 'text-ds-text-muted hover:bg-ds-subtle'
                 }`}
               >
                 {f === 'all' ? 'All' : f === 'unpaid' ? 'Unpaid' : f === 'overdue' ? 'Overdue' : f === 'synced' ? 'Synced' : 'Not Synced'}
@@ -202,7 +202,7 @@ const QBInvoices: React.FC = () => {
             ))}
           </div>
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ds-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -210,31 +210,31 @@ const QBInvoices: React.FC = () => {
               placeholder="Search invoices..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="pl-10 pr-4 py-2 border border-ds-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
             />
           </div>
         </div>
       </div>
 
       {/* Invoice List */}
-      <div className="bg-surface rounded-xl shadow-card border border-border overflow-hidden">
+      <div className="bg-ds-surface rounded-ds-card shadow-card border border-ds-border overflow-hidden">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b border-border">
+          <thead className="bg-ds-subtle border-b border-ds-border">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Invoice #</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Patient</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Total</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Paid</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Balance</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">QB Status</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">Actions</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Invoice #</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Patient</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Total</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Paid</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Balance</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">QB Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-ds-text-muted uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {filteredInvoices.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-text-secondary">
+                <td colSpan={8} className="px-4 py-8 text-center text-ds-text-muted">
                   No invoices found
                 </td>
               </tr>
@@ -242,18 +242,18 @@ const QBInvoices: React.FC = () => {
               filteredInvoices.map((invoice) => (
                 <React.Fragment key={invoice.id}>
                   <tr
-                    className={`hover:bg-gray-50 cursor-pointer ${expandedId === invoice.id ? 'bg-primary-50' : ''}`}
+                    className={`hover:bg-ds-subtle cursor-pointer ${expandedId === invoice.id ? 'bg-ds-accent-soft' : ''}`}
                     onClick={() => setExpandedId(expandedId === invoice.id ? null : invoice.id)}
                   >
                     <td className="px-4 py-3">
-                      <p className="font-medium text-text-primary">{invoice.invoice_number}</p>
-                      <p className="text-xs text-text-secondary">{formatDate(invoice.created_at)}</p>
+                      <p className="font-medium text-ds-text">{invoice.invoice_number}</p>
+                      <p className="text-xs text-ds-text-muted">{formatDate(invoice.created_at)}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm text-text-primary">{invoice.patient_name}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-text-primary">{formatCurrency(invoice.total_amount)}</td>
-                    <td className="px-4 py-3 text-sm text-success-600">{formatCurrency(invoice.amount_paid)}</td>
+                    <td className="px-4 py-3 text-sm text-ds-text">{invoice.patient_name}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-ds-text">{formatCurrency(invoice.total_amount)}</td>
+                    <td className="px-4 py-3 text-sm text-ds-success-text">{formatCurrency(invoice.amount_paid)}</td>
                     <td className="px-4 py-3 text-sm font-medium">
-                      <span className={invoice.balance_due > 0 ? 'text-danger-600' : 'text-success-600'}>
+                      <span className={invoice.balance_due > 0 ? 'text-ds-critical-text' : 'text-ds-success-text'}>
                         {formatCurrency(invoice.balance_due)}
                       </span>
                     </td>
@@ -264,7 +264,7 @@ const QBInvoices: React.FC = () => {
                         {invoice.balance_due > 0 && (
                           <button
                             onClick={() => openPaymentModal(invoice)}
-                            className="px-3 py-1 text-sm bg-success-100 text-success-700 rounded hover:bg-success-200"
+                            className="min-h-ds-touch px-3 py-1 text-sm bg-ds-success-soft text-ds-success-text rounded hover:bg-ds-success-soft"
                           >
                             Pay
                           </button>
@@ -273,7 +273,7 @@ const QBInvoices: React.FC = () => {
                           <button
                             onClick={() => handleSyncInvoice(invoice.id)}
                             disabled={syncing === invoice.id}
-                            className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded hover:bg-primary-200 disabled:opacity-50"
+                            className="min-h-ds-touch px-3 py-1 text-sm bg-ds-accent-soft text-ds-accent-text rounded hover:bg-ds-accent-soft disabled:opacity-50"
                           >
                             {syncing === invoice.id ? 'Syncing...' : 'Sync'}
                           </button>
@@ -283,30 +283,30 @@ const QBInvoices: React.FC = () => {
                   </tr>
                   {/* Expanded Details */}
                   {expandedId === invoice.id && (
-                    <tr className="bg-gray-50">
+                    <tr className="bg-ds-subtle">
                       <td colSpan={8} className="px-4 py-4">
                         <div className="space-y-4">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                              <h4 className="text-sm font-medium text-text-secondary mb-2">Invoice Details</h4>
+                              <h4 className="text-sm font-medium text-ds-text-muted mb-2">Invoice Details</h4>
                               <div className="space-y-1 text-sm">
-                                <p><span className="text-text-secondary">Due Date:</span> {invoice.due_date ? formatDate(invoice.due_date) : 'N/A'}</p>
-                                <p><span className="text-text-secondary">Encounter ID:</span> {invoice.encounter_id}</p>
+                                <p><span className="text-ds-text-muted">Due Date:</span> {invoice.due_date ? formatDate(invoice.due_date) : 'N/A'}</p>
+                                <p><span className="text-ds-text-muted">Encounter ID:</span> {invoice.encounter_id}</p>
                               </div>
                             </div>
                             <div>
-                              <h4 className="text-sm font-medium text-text-secondary mb-2">QuickBooks Info</h4>
+                              <h4 className="text-sm font-medium text-ds-text-muted mb-2">QuickBooks Info</h4>
                               <div className="space-y-1 text-sm">
-                                <p><span className="text-text-secondary">QB ID:</span> {invoice.quickbooks_id || 'Not synced'}</p>
-                                <p><span className="text-text-secondary">Last Synced:</span> {invoice.quickbooks_synced_at ? new Date(invoice.quickbooks_synced_at).toLocaleString() : 'Never'}</p>
+                                <p><span className="text-ds-text-muted">QB ID:</span> {invoice.quickbooks_id || 'Not synced'}</p>
+                                <p><span className="text-ds-text-muted">Last Synced:</span> {invoice.quickbooks_synced_at ? new Date(invoice.quickbooks_synced_at).toLocaleString() : 'Never'}</p>
                               </div>
                             </div>
                             <div>
-                              <h4 className="text-sm font-medium text-text-secondary mb-2">Payment Summary</h4>
+                              <h4 className="text-sm font-medium text-ds-text-muted mb-2">Payment Summary</h4>
                               <div className="space-y-1 text-sm">
-                                <p><span className="text-text-secondary">Total:</span> {formatCurrency(invoice.total_amount)}</p>
-                                <p><span className="text-text-secondary">Paid:</span> <span className="text-success-600">{formatCurrency(invoice.amount_paid)}</span></p>
-                                <p><span className="text-text-secondary">Balance:</span> <span className={invoice.balance_due > 0 ? 'text-danger-600 font-medium' : 'text-success-600'}>{formatCurrency(invoice.balance_due)}</span></p>
+                                <p><span className="text-ds-text-muted">Total:</span> {formatCurrency(invoice.total_amount)}</p>
+                                <p><span className="text-ds-text-muted">Paid:</span> <span className="text-ds-success-text">{formatCurrency(invoice.amount_paid)}</span></p>
+                                <p><span className="text-ds-text-muted">Balance:</span> <span className={invoice.balance_due > 0 ? 'text-ds-critical-text font-medium' : 'text-ds-success-text'}>{formatCurrency(invoice.balance_due)}</span></p>
                               </div>
                             </div>
                           </div>
@@ -314,16 +314,16 @@ const QBInvoices: React.FC = () => {
                           {/* Line Items */}
                           {invoice.items && invoice.items.length > 0 && (
                             <div>
-                              <h4 className="text-sm font-medium text-text-secondary mb-2">Line Items</h4>
-                              <div className="bg-white rounded-lg border border-border overflow-hidden">
+                              <h4 className="text-sm font-medium text-ds-text-muted mb-2">Line Items</h4>
+                              <div className="bg-ds-surface rounded-lg border border-ds-border overflow-hidden">
                                 <table className="w-full text-sm">
-                                  <thead className="bg-gray-50">
+                                  <thead className="bg-ds-subtle">
                                     <tr>
-                                      <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary">Code</th>
-                                      <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary">Description</th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary">Qty</th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary">Unit Price</th>
-                                      <th className="px-3 py-2 text-right text-xs font-medium text-text-secondary">Total</th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted">Code</th>
+                                      <th className="px-3 py-2 text-left text-xs font-medium text-ds-text-muted">Description</th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-ds-text-muted">Qty</th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-ds-text-muted">Unit Price</th>
+                                      <th className="px-3 py-2 text-right text-xs font-medium text-ds-text-muted">Total</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-border">
@@ -355,12 +355,12 @@ const QBInvoices: React.FC = () => {
       {/* Payment Modal */}
       {paymentModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-surface rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+          <div className="bg-ds-surface rounded-ds-card shadow-ds-overlay max-w-md w-full mx-4 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-text-primary">Record Payment</h3>
+              <h3 className="text-lg font-semibold text-ds-text">Record Payment</h3>
               <button
                 onClick={() => setPaymentModal(null)}
-                className="text-text-secondary hover:text-text-primary"
+                className="text-ds-text-muted hover:text-text-primary"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -369,22 +369,22 @@ const QBInvoices: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm text-text-secondary">Invoice</p>
+              <div className="bg-ds-subtle rounded-lg p-3">
+                <p className="text-sm text-ds-text-muted">Invoice</p>
                 <p className="font-medium">{paymentModal.invoice_number}</p>
-                <p className="text-sm text-text-secondary mt-1">
-                  Balance Due: <span className="font-medium text-danger-600">{formatCurrency(paymentModal.balance_due)}</span>
+                <p className="text-sm text-ds-text-muted mt-1">
+                  Balance Due: <span className="font-medium text-ds-critical-text">{formatCurrency(paymentModal.balance_due)}</span>
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Amount</label>
+                <label className="block text-sm font-medium text-ds-text-muted mb-1">Amount</label>
                 <input
                   type="number"
                   step="0.01"
                   value={paymentForm.amount}
                   onChange={(e) => setPaymentForm({...paymentForm, amount: parseFloat(e.target.value) || 0})}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
                 />
               </div>
 
@@ -396,38 +396,38 @@ const QBInvoices: React.FC = () => {
               />
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Reference Number</label>
+                <label className="block text-sm font-medium text-ds-text-muted mb-1">Reference Number</label>
                 <input
                   type="text"
                   value={paymentForm.reference_number}
                   onChange={(e) => setPaymentForm({...paymentForm, reference_number: e.target.value})}
                   placeholder="Transaction ID, Cheque #, etc."
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Notes</label>
+                <label className="block text-sm font-medium text-ds-text-muted mb-1">Notes</label>
                 <textarea
                   value={paymentForm.notes}
                   onChange={(e) => setPaymentForm({...paymentForm, notes: e.target.value})}
                   placeholder="Optional notes..."
                   rows={2}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 border border-ds-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
                 />
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setPaymentModal(null)}
-                  className="flex-1 px-4 py-2 border border-border rounded-lg text-text-secondary hover:bg-gray-50"
+                  className="min-h-ds-touch flex-1 px-4 py-2 border border-ds-border rounded-lg text-ds-text-muted hover:bg-ds-subtle"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleRecordPayment}
                   disabled={submittingPayment || paymentForm.amount <= 0}
-                  className="flex-1 px-4 py-2 bg-success-600 text-white rounded-lg hover:bg-success-700 disabled:opacity-50"
+                  className="min-h-ds-touch flex-1 px-4 py-2 bg-ds-success text-white dark:text-ds-canvas rounded-lg hover:bg-ds-success/90 disabled:opacity-50"
                 >
                   {submittingPayment ? 'Recording...' : 'Record Payment'}
                 </button>
