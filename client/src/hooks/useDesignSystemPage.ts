@@ -1,6 +1,5 @@
 import { useLayoutEffect, useState } from 'react';
 import { useColorScheme } from './useColorScheme';
-import '../styles/dsFonts';
 
 /**
  * Call from a screen that has moved to the "Care" design system. While it is
