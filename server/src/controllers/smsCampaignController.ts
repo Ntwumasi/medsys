@@ -11,6 +11,7 @@ import {
 } from '../services/smsService';
 import { buildWhere } from './marketingController';
 import type { ContactFilters } from './marketingController';
+import { optedOutPatientPhonesSql } from './marketingImportController';
 
 /**
  * Marketing bulk SMS.
@@ -19,9 +20,14 @@ import type { ContactFilters } from './marketingController';
  * audience is snapshotted → an admin approves → the campaign is sent in
  * batches through Arkesel, each recipient tracked to delivery.
  *
+ * The audience is patients, imported marketing contacts (people uploaded from
+ * a spreadsheet, see marketingImportController) or both.
+ *
  * Safety rules:
- *  - opted-out patients, merged duplicates and closed records are never in the
- *    audience, and opt-outs are re-checked at the moment of sending;
+ *  - opted-out patients and contacts, merged duplicates and closed records are
+ *    never in the audience, and opt-outs are re-checked at the moment of
+ *    sending. An imported contact whose number belongs to an opted-out patient
+ *    is never messaged;
  *  - real messages only go out from Vercel PRODUCTION with sandbox off.
  *    Everywhere else (staging shares the live patient database) a campaign is
  *    forced into Arkesel sandbox: accepted and logged by Arkesel, never
@@ -77,7 +83,13 @@ const toArkeselTemplate = (message: string): string => message.replace(/\{first_
 const render = (message: string, firstName: string): string =>
   message.replace(/\{first_name\}/g, firstName || 'there');
 
+type Audience = 'patients' | 'imported' | 'both';
+
 interface AudienceFilters {
+  /** who to message; campaigns made before imported contacts existed are 'patients' */
+  audience?: Audience;
+  /** imported contacts: only those from this upload source */
+  source?: string | null;
   since?: string | null;
   gender?: string | null;
   min_age?: number | null;
@@ -89,7 +101,11 @@ const cleanFilters = (raw: any): AudienceFilters => {
     const n = parseInt(String(v ?? ''), 10);
     return Number.isFinite(n) && n >= 0 && n <= 130 ? n : null;
   };
+  const audience: Audience = raw?.audience === 'imported' || raw?.audience === 'both' ? raw.audience : 'patients';
+  const source = typeof raw?.source === 'string' ? raw.source.trim().slice(0, 100) : '';
   return {
+    audience,
+    source: audience !== 'patients' && source ? source : null,
     since: typeof raw?.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.since) ? raw.since : null,
     gender: raw?.gender === 'male' || raw?.gender === 'female' ? raw.gender : null,
     min_age: num(raw?.min_age),
@@ -98,13 +114,50 @@ const cleanFilters = (raw: any): AudienceFilters => {
 };
 
 interface AudienceRow {
-  patient_id: number;
+  patient_id: number | null;
+  contact_id: number | null;
   phone: string;
   first_name: string;
 }
 
-/** Contactable audience for the filters: valid Ghana mobile numbers, one per number. */
+/**
+ * Contactable audience for the filters: valid Ghana mobile numbers, one per
+ * number. Visit/gender/age filters narrow patients only; imported contacts have
+ * none of those details. A number that is both a patient and an imported
+ * contact gets one message, as the patient.
+ */
 const loadAudience = async (filters: AudienceFilters): Promise<{ rows: AudienceRow[]; invalidPhones: number }> => {
+  const seen = new Set<string>();
+  const rows: AudienceRow[] = [];
+  let invalidPhones = 0;
+  if (filters.audience !== 'imported') {
+    invalidPhones += await loadPatientAudience(filters, seen, rows);
+  }
+  if (filters.audience === 'imported' || filters.audience === 'both') {
+    const params: any[] = [];
+    let sourceClause = '';
+    if (filters.source) {
+      params.push(filters.source);
+      sourceClause = `AND c.source = $1`;
+    }
+    const contacts = await pool.query(
+      `SELECT c.id, c.phone, c.first_name
+         FROM marketing_contacts c
+        WHERE c.opted_out = false AND c.phone IS NOT NULL ${sourceClause}
+          AND c.phone NOT IN (${optedOutPatientPhonesSql})
+        ORDER BY c.id`,
+      params
+    );
+    for (const c of contacts.rows) {
+      if (seen.has(c.phone)) continue;
+      seen.add(c.phone);
+      rows.push({ patient_id: null, contact_id: c.id, phone: c.phone, first_name: titleCase(String(c.first_name || '').split(/\s+/)[0]) });
+    }
+  }
+  return { rows, invalidPhones };
+};
+
+const loadPatientAudience = async (filters: AudienceFilters, seen: Set<string>, rows: AudienceRow[]): Promise<number> => {
   const f: ContactFilters = {
     since: filters.since,
     has: 'phone',
@@ -121,8 +174,6 @@ const loadAudience = async (filters: AudienceFilters): Promise<{ rows: AudienceR
       ORDER BY p.id`,
     params
   );
-  const seen = new Set<string>();
-  const rows: AudienceRow[] = [];
   let invalidPhones = 0;
   for (const r of result.rows) {
     const v = validatePhoneNumber(String(r.phone));
@@ -133,9 +184,9 @@ const loadAudience = async (filters: AudienceFilters): Promise<{ rows: AudienceR
     const phone = v.formatted.replace(/^\+/, '');
     if (seen.has(phone)) continue; // family members sharing a phone get one message
     seen.add(phone);
-    rows.push({ patient_id: r.patient_id, phone, first_name: titleCase(String(r.first_name || '').split(/\s+/)[0]) });
+    rows.push({ patient_id: r.patient_id, contact_id: null, phone, first_name: titleCase(String(r.first_name || '').split(/\s+/)[0]) });
   }
-  return { rows, invalidPhones };
+  return invalidPhones;
 };
 
 const validateMessage = (message: unknown): string | null => {
@@ -206,7 +257,7 @@ export const createSmsCampaign = async (req: Request, res: Response): Promise<vo
     }
     const { rows } = await loadAudience(filters);
     if (rows.length === 0) {
-      res.status(400).json({ error: 'No patients match these filters' });
+      res.status(400).json({ error: 'No one matches these filters' });
       return;
     }
     if (rows.length > MAX_AUDIENCE) {
@@ -226,11 +277,11 @@ export const createSmsCampaign = async (req: Request, res: Response): Promise<vo
     for (let i = 0; i < rows.length; i += 1000) {
       const chunk = rows.slice(i, i + 1000);
       await client.query(
-        `INSERT INTO sms_campaign_recipients (campaign_id, patient_id, phone, first_name)
-         SELECT $1, x.patient_id, x.phone, x.first_name
-           FROM UNNEST($2::int[], $3::text[], $4::text[]) AS x(patient_id, phone, first_name)
+        `INSERT INTO sms_campaign_recipients (campaign_id, patient_id, contact_id, phone, first_name)
+         SELECT $1, x.patient_id, x.contact_id, x.phone, x.first_name
+           FROM UNNEST($2::int[], $3::int[], $4::text[], $5::text[]) AS x(patient_id, contact_id, phone, first_name)
          ON CONFLICT (campaign_id, phone) DO NOTHING`,
-        [campaign.id, chunk.map((r) => r.patient_id), chunk.map((r) => r.phone), chunk.map((r) => r.first_name)]
+        [campaign.id, chunk.map((r) => r.patient_id), chunk.map((r) => r.contact_id), chunk.map((r) => r.phone), chunk.map((r) => r.first_name)]
       );
     }
     await client.query('COMMIT');
@@ -279,7 +330,7 @@ export const getSmsCampaign = async (req: Request, res: Response): Promise<void>
       return;
     }
     const recipients = await pool.query(
-      `SELECT r.id, r.patient_id, r.phone, r.first_name, r.status, r.delivery_status, r.error, r.updated_at,
+      `SELECT r.id, r.patient_id, r.contact_id, r.phone, r.first_name, r.status, r.delivery_status, r.error, r.updated_at,
               p.patient_number
          FROM sms_campaign_recipients r
          LEFT JOIN patients p ON p.id = r.patient_id
@@ -419,6 +470,22 @@ export const sendSmsCampaignBatch = async (req: Request, res: Response): Promise
          FROM patients p
         WHERE r.campaign_id = $1 AND r.status = 'pending' AND p.id = r.patient_id
           AND (COALESCE(p.marketing_opt_out, false) = true OR p.merged_into IS NOT NULL)`,
+      [id]
+    );
+    await client.query(
+      `UPDATE sms_campaign_recipients r
+          SET status = 'skipped', error = 'Opted out of marketing', updated_at = NOW()
+        WHERE r.campaign_id = $1 AND r.status = 'pending' AND r.contact_id IS NOT NULL
+          AND (EXISTS (SELECT 1 FROM marketing_contacts c WHERE c.id = r.contact_id AND c.opted_out = true)
+               OR r.phone IN (${optedOutPatientPhonesSql}))`,
+      [id]
+    );
+    // An imported contact removed since the campaign was created (contact_id
+    // set to NULL by the delete) is not messaged.
+    await client.query(
+      `UPDATE sms_campaign_recipients
+          SET status = 'skipped', error = 'Contact removed', updated_at = NOW()
+        WHERE campaign_id = $1 AND status = 'pending' AND patient_id IS NULL AND contact_id IS NULL`,
       [id]
     );
     const claimed = await client.query(
