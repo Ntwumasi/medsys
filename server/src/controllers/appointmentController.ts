@@ -2,6 +2,54 @@ import { Request, Response } from 'express';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
 
+type HomeFields = {
+  location_type: 'clinic' | 'home';
+  visit_address: string | null;
+  visit_gps_address: string | null;
+  visit_landmark: string | null;
+  visit_contact_phone: string | null;
+  nurse_id: number | null;
+};
+
+/**
+ * Where the appointment happens. A home visit needs somewhere to go: an
+ * address or a Ghana GPS code (e.g. GA-123-4567).
+ */
+const homeVisitFields = (body: any): HomeFields | { error: string } => {
+  const text = (v: unknown, max: number) => {
+    const t = typeof v === 'string' ? v.trim().slice(0, max) : '';
+    return t || null;
+  };
+  if (body?.location_type !== 'home') {
+    return { location_type: 'clinic', visit_address: null, visit_gps_address: null, visit_landmark: null, visit_contact_phone: null, nurse_id: null };
+  }
+  const fields: HomeFields = {
+    location_type: 'home',
+    visit_address: text(body.visit_address, 500),
+    visit_gps_address: text(body.visit_gps_address, 100)?.toUpperCase() ?? null,
+    visit_landmark: text(body.visit_landmark, 500),
+    visit_contact_phone: text(body.visit_contact_phone, 30),
+    nurse_id: Number.isInteger(body.nurse_id) && body.nurse_id > 0 ? body.nurse_id : null,
+  };
+  if (!fields.visit_address && !fields.visit_gps_address) {
+    return { error: 'A home visit needs an address or a GPS address' };
+  }
+  return fields;
+};
+
+/** Booking staff confirmed the address with the patient: keep it on the record. */
+const saveAddressToPatient = async (patientId: number, home: HomeFields): Promise<void> => {
+  await pool.query(
+    `UPDATE patients
+        SET address = COALESCE($2, address),
+            gps_address = COALESCE($3, gps_address),
+            landmark = COALESCE($4, landmark),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+    [patientId, home.visit_address, home.visit_gps_address, home.visit_landmark]
+  );
+};
+
 export const createAppointment = async (req: Request, res: Response): Promise<void> => {
   try {
     const authReq = req as any;
@@ -17,8 +65,13 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
       reason,
       notes,
     } = req.body;
+    const home = homeVisitFields(req.body);
+    if ('error' in home) {
+      res.status(400).json({ error: home.error });
+      return;
+    }
 
-    const slotDuration = duration_minutes || 30;
+    const slotDuration = duration_minutes || (home.location_type === 'home' ? 60 : 30);
     const appointmentStart = new Date(appointment_date);
     const appointmentEnd = new Date(appointmentStart.getTime() + slotDuration * 60 * 1000);
 
@@ -58,21 +111,32 @@ export const createAppointment = async (req: Request, res: Response): Promise<vo
     const result = await pool.query(
       `INSERT INTO appointments (
         patient_id, patient_name, provider_id, appointment_date, duration_minutes,
-        appointment_type, reason, notes, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        appointment_type, reason, notes, created_by,
+        location_type, visit_address, visit_gps_address, visit_landmark, visit_contact_phone, nurse_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         patient_id || null,
         patient_name || null,
         provider_id,
         appointment_date,
-        duration_minutes || 30,
-        appointment_type,
+        slotDuration,
+        home.location_type === 'home' ? 'home-visit' : appointment_type,
         reason,
         notes,
         created_by,
+        home.location_type,
+        home.visit_address,
+        home.visit_gps_address,
+        home.visit_landmark,
+        home.visit_contact_phone,
+        home.nurse_id,
       ]
     );
+
+    if (home.location_type === 'home' && patient_id && req.body.save_to_patient === true) {
+      await saveAddressToPatient(patient_id, home);
+    }
 
     res.status(201).json({
       message: 'Appointment created successfully',

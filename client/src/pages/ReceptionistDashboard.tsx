@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import HomeVisitBookingFields, { emptyHomeVisitDraft, homeVisitDraftError, homeVisitPayload } from '../components/HomeVisitBookingFields';
+import type { HomeVisitDraft } from '../components/HomeVisitBookingFields';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
@@ -196,6 +198,9 @@ interface Appointment {
   patient_number?: string;
   patient_phone?: string;
   provider_name?: string;
+  location_type?: 'clinic' | 'home';
+  visit_address?: string | null;
+  visit_gps_address?: string | null;
 }
 
 interface RefillEvent {
@@ -439,6 +444,7 @@ const ReceptionistDashboard: React.FC = () => {
   const [bookingReason, setBookingReason] = useState('');
   const [bookingNotes, setBookingNotes] = useState('');
   const [bookingDuration, setBookingDuration] = useState(30);
+  const [bookingWhere, setBookingWhere] = useState<HomeVisitDraft>(emptyHomeVisitDraft);
   const [savingAppointment, setSavingAppointment] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedRefill, setSelectedRefill] = useState<RefillEvent | null>(null);
@@ -802,7 +808,7 @@ const ReceptionistDashboard: React.FC = () => {
       const doctorName = appt.provider_name ? `Dr. ${appt.provider_name.split(' ').pop()}` : '';
       return {
         id: appt.id,
-        title: `${appt.patient_name || 'Unknown'}${doctorName ? ` - ${doctorName}` : ''}`,
+        title: `${appt.location_type === 'home' ? 'Home visit · ' : ''}${appt.patient_name || 'Unknown'}${doctorName ? ` - ${doctorName}` : ''}`,
         start: startDate,
         end: endDate,
         resource: appt,
@@ -847,6 +853,7 @@ const ReceptionistDashboard: React.FC = () => {
     setBookingReason('');
     setBookingNotes('');
     setBookingDuration(30);
+    setBookingWhere(emptyHomeVisitDraft());
   }, []);
 
   const handleEventSelect = useCallback((event: CalendarEvent) => {
@@ -868,6 +875,11 @@ const ReceptionistDashboard: React.FC = () => {
       showToast('Please enter a patient name', 'warning');
       return;
     }
+    const whereError = homeVisitDraftError(bookingWhere);
+    if (whereError) {
+      showToast(whereError, 'warning');
+      return;
+    }
 
     setSavingAppointment(true);
     try {
@@ -880,6 +892,7 @@ const ReceptionistDashboard: React.FC = () => {
         appointment_type: bookingType,
         reason: bookingReason || bookingClinic,
         notes: bookingNotes,
+        ...homeVisitPayload(bookingWhere),
       });
 
       const newAppointmentId = response.data.appointment?.id;
@@ -909,7 +922,12 @@ const ReceptionistDashboard: React.FC = () => {
         setSchedulingFollowUp(false);
         setFollowUpCheckoutItem(null);
       } else {
-        showToast('Appointment booked successfully', 'success');
+        showToast(
+          bookingWhere.location_type === 'home'
+            ? `Home visit booked for ${patientName}`
+            : `Appointment booked for ${patientName}`,
+          'success'
+        );
       }
 
       // Close modal and reset form first
@@ -921,6 +939,7 @@ const ReceptionistDashboard: React.FC = () => {
       setBookingReason('');
       setBookingNotes('');
       setBookingDoctor(null);
+      setBookingWhere(emptyHomeVisitDraft());
       setSelectedSlot(null);
 
       // Then reload data in background
@@ -3791,7 +3810,15 @@ const ReceptionistDashboard: React.FC = () => {
                   label="Appointment Type"
                 />
 
+                {/* Where: clinic or home visit */}
+                <HomeVisitBookingFields
+                  value={bookingWhere}
+                  onChange={setBookingWhere}
+                  patientId={bookingPatient?.id ?? null}
+                />
+
                 {/* Clinic */}
+                {bookingWhere.location_type === 'clinic' && (
                 <AppSelect
                   value={bookingClinic}
                   onChange={(val) => setBookingClinic(val)}
@@ -3799,6 +3826,7 @@ const ReceptionistDashboard: React.FC = () => {
                   label="Clinic"
                   placeholder="Select a clinic..."
                 />
+                )}
 
                 {/* Doctor (Optional) */}
                 <AppSelect
@@ -3914,6 +3942,15 @@ const ReceptionistDashboard: React.FC = () => {
                   </div>
                 )}
 
+                {selectedAppointment.location_type === 'home' && (
+                  <div>
+                    <p className="text-sm text-ds-text-muted">Home visit</p>
+                    <p className="text-ds-text">
+                      {[selectedAppointment.visit_address, selectedAppointment.visit_gps_address].filter(Boolean).join(' · ') || 'Address on the patient record'}
+                    </p>
+                  </div>
+                )}
+
                 {selectedAppointment.provider_name && (
                   <div>
                     <p className="text-sm text-ds-text-muted">Doctor</p>
@@ -3944,6 +3981,8 @@ const ReceptionistDashboard: React.FC = () => {
                       >
                         Edit
                       </button>
+                      {/* A home visit is started by the doctor at the house, not checked in here. */}
+                      {selectedAppointment.location_type !== 'home' && (
                       <button
                         onClick={() => {
                           handleCheckInFromAppointment(selectedAppointment);
@@ -3953,6 +3992,7 @@ const ReceptionistDashboard: React.FC = () => {
                       >
                         Check In
                       </button>
+                      )}
                       <button
                         onClick={() => handleMarkNoShow(selectedAppointment.id)}
                         className="min-h-ds-touch flex-1 px-4 py-2 bg-ds-warning text-white dark:text-ds-canvas rounded-lg hover:bg-ds-warning/90 transition-colors font-medium"

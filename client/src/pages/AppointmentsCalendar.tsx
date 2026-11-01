@@ -7,6 +7,9 @@ import { useDialog } from '../context/DialogContext';
 import AppLayout from '../components/AppLayout';
 import { Card, Modal, Input, Select, Textarea, Button } from '../components/ui';
 import AppSelect from '../components/ui/AppSelect';
+import { useAuth } from '../context/AuthContext';
+import HomeVisitBookingFields, { emptyHomeVisitDraft, homeVisitDraftError, homeVisitPayload } from '../components/HomeVisitBookingFields';
+import type { HomeVisitDraft } from '../components/HomeVisitBookingFields';
 
 interface Appointment {
   id: number;
@@ -22,6 +25,10 @@ interface Appointment {
   reason: string;
   status: 'scheduled' | 'confirmed' | 'checked_in' | 'completed' | 'cancelled' | 'no_show';
   notes?: string;
+  location_type?: 'clinic' | 'home';
+  visit_address?: string | null;
+  visit_gps_address?: string | null;
+  visit_landmark?: string | null;
 }
 
 interface Doctor {
@@ -41,6 +48,8 @@ interface PatientSearchResult {
 
 const AppointmentsCalendar: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isDoctor = user?.role === 'doctor';
   const { showToast } = useNotification();
   const { confirm: confirmDialog } = useDialog();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -48,7 +57,9 @@ const AppointmentsCalendar: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDoctor, setSelectedDoctor] = useState<string>('all');
+  // A doctor opens on their own calendar; anyone can switch to all doctors.
+  const [selectedDoctor, setSelectedDoctor] = useState<string>(isDoctor && user?.id ? String(user.id) : 'all');
+  const [where, setWhere] = useState<HomeVisitDraft>(emptyHomeVisitDraft);
   const [viewMode, setViewMode] = useState<'month' | 'day'>('month');
 
   // New appointment modal state
@@ -57,7 +68,7 @@ const AppointmentsCalendar: React.FC = () => {
   const [patientSearch, setPatientSearch] = useState('');
   const [newAppointment, setNewAppointment] = useState({
     patient_id: '',
-    provider_id: '',
+    provider_id: isDoctor && user?.id ? String(user.id) : '',
     appointment_date: '',
     appointment_time: '09:00',
     duration_minutes: 30,
@@ -83,8 +94,9 @@ const AppointmentsCalendar: React.FC = () => {
 
   const loadDoctors = async () => {
     try {
-      const res = await apiClient.get('/users?role=doctor');
-      setDoctors(res.data.users || []);
+      // /users is admin/reception only; doctors and nurses read /users/doctors.
+      const res = await apiClient.get('/users/doctors');
+      setDoctors(res.data.doctors || []);
     } catch (error) {
       console.error('Error loading doctors:', error);
     }
@@ -127,6 +139,11 @@ const AppointmentsCalendar: React.FC = () => {
       showToast('Please select a patient and doctor', 'warning');
       return;
     }
+    const whereError = homeVisitDraftError(where);
+    if (whereError) {
+      showToast(whereError, 'warning');
+      return;
+    }
 
     try {
       const appointmentDateTime = `${newAppointment.appointment_date}T${newAppointment.appointment_time}:00`;
@@ -138,13 +155,16 @@ const AppointmentsCalendar: React.FC = () => {
         duration_minutes: newAppointment.duration_minutes,
         appointment_type: newAppointment.appointment_type,
         reason: newAppointment.reason,
+        ...homeVisitPayload(where),
       });
 
-      showToast('Appointment created successfully', 'success');
+      const bookedName = patientSearch.replace(/\s*\(.*\)$/, '') || 'the patient';
+      showToast(where.location_type === 'home' ? `Home visit booked for ${bookedName}` : `Appointment booked for ${bookedName}`, 'success');
       setShowNewAppointment(false);
+      setWhere(emptyHomeVisitDraft());
       setNewAppointment({
         patient_id: '',
-        provider_id: '',
+        provider_id: isDoctor && user?.id ? String(user.id) : '',
         appointment_date: '',
         appointment_time: '09:00',
         duration_minutes: 30,
@@ -155,7 +175,8 @@ const AppointmentsCalendar: React.FC = () => {
       loadAppointments();
     } catch (error) {
       console.error('Error creating appointment:', error);
-      showToast('Failed to create appointment', 'error');
+      const msg = (error as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
+      showToast(msg?.message || msg?.error || 'Failed to create appointment', 'error');
     }
   };
 
@@ -332,7 +353,7 @@ const AppointmentsCalendar: React.FC = () => {
                   className={`text-xs p-1 rounded truncate border ${getStatusColor(apt.status)}`}
                   title={`${format(parseISO(apt.appointment_date), 'h:mm a')} - ${apt.patient_name}`}
                 >
-                  {format(parseISO(apt.appointment_date), 'h:mm a')} {apt.patient_name.split(' ')[0]}
+                  {format(parseISO(apt.appointment_date), 'h:mm a')} {apt.location_type === 'home' ? 'Home · ' : ''}{(apt.patient_name || '').split(' ')[0]}
                 </div>
               ))}
               {dayAppointments.length > 3 && (
@@ -430,6 +451,13 @@ const AppointmentsCalendar: React.FC = () => {
                       <div className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Provider:</span> Dr. {apt.provider_name}
                       </div>
+                      {apt.location_type === 'home' && (
+                        <div className="text-sm text-gray-700 mt-1">
+                          <span className="font-medium">Home visit:</span>{' '}
+                          {[apt.visit_address, apt.visit_gps_address].filter(Boolean).join(' · ') || 'address on the patient record'}
+                          {apt.visit_landmark && <span className="block text-gray-600">{apt.visit_landmark}</span>}
+                        </div>
+                      )}
                       <div className="text-sm text-gray-600 mt-1">
                         <span className="font-medium">Type:</span> {apt.appointment_type}
                         {apt.reason && (
@@ -569,6 +597,12 @@ const AppointmentsCalendar: React.FC = () => {
             options={appointmentTypeOptions}
           />
         </div>
+
+        <HomeVisitBookingFields
+          value={where}
+          onChange={setWhere}
+          patientId={newAppointment.patient_id ? parseInt(newAppointment.patient_id) : null}
+        />
 
         <Textarea
           label="Reason for Visit"

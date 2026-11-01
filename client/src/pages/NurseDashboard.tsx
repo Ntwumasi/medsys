@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import HomeVisitsPanel from '../components/HomeVisitsPanel';
 import { decideVitalsHandoff } from '../utils/vitalsHandoff';
 import { useActiveId } from '../hooks/useActiveId';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -2135,6 +2136,20 @@ const NurseDashboard: React.FC = () => {
         {/* Patients View */}
         {mainView === 'patients' && !showNurseWalkins && (
         <>
+        {/* Home visits this nurse is going on (hidden when there are none) */}
+        <HomeVisitsPanel
+          onOpenEncounter={async (encounterId) => {
+            try {
+              const res = await apiClient.get('/workflow/nurse/patients');
+              const patient = (res.data.patients || []).find((p: AssignedPatient) => p.id === encounterId);
+              await loadAssignedPatients();
+              if (patient) handleSelectPatient(patient);
+              else showToast("The visit is open but isn't in today's list", 'warning');
+            } catch {
+              showToast("Couldn't open the visit — refresh and try again", 'error');
+            }
+          }}
+        />
         {/* Row 1: Three info cards side by side */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
           {/* Notifications */}

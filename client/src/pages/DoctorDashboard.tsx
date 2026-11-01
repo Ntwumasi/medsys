@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
+import HomeVisitsPanel from '../components/HomeVisitsPanel';
+import HomeVisitVitalsForm from '../components/HomeVisitVitalsForm';
 import { useActiveId } from '../hooks/useActiveId';
 import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
@@ -56,6 +58,7 @@ interface RoomEncounter {
   soap_signed_at?: string;
   soap_signed_by?: number;
   self_pay_tier?: number | null;
+  is_home_visit?: boolean;
 }
 
 interface ClinicalNote {
@@ -415,7 +418,7 @@ const DoctorDashboard: React.FC = () => {
     if (selectedEncounter) loadEncounterOrders(selectedEncounter.id);
   }, 30_000, !!selectedEncounter);
 
-  const loadRoomEncounters = async () => {
+  const loadRoomEncounters = async (): Promise<RoomEncounter[]> => {
     try {
       const res = await apiClient.get('/workflow/doctor/rooms');
       // Sort by newest first (highest ID = most recent)
@@ -445,10 +448,12 @@ const DoctorDashboard: React.FC = () => {
           loadSOAPSignStatus(firstPatient.id);
         }
       }
+      return encounters;
     } catch (error: any) {
       console.error('Error loading room encounters:', error);
       const detail = error.response?.data?.detail || error.response?.data?.error || '';
       if (detail) showToast(`Patient list error: ${detail}`, 'error');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1232,8 +1237,9 @@ const DoctorDashboard: React.FC = () => {
   const handleConfirmCompleteEncounter = async () => {
     if (!selectedEncounter) return;
 
+    const homeVisit = !!selectedEncounter.is_home_visit;
     try {
-      showToast('Alerting nurse...', 'info');
+      showToast(homeVisit ? 'Finishing home visit…' : 'Alerting nurse...', 'info');
       const response = await apiClient.post('/workflow/doctor/complete-encounter', {
         encounter_id: selectedEncounter.id,
         follow_up_required: followUpRequired,
@@ -1247,10 +1253,10 @@ const DoctorDashboard: React.FC = () => {
       });
       console.log('Alert nurse response:', response.data);
 
-      const parts: string[] = ['Nurse alerted.'];
-      if (followUpRequired) parts.push(`Follow-up visit marked (${followUpTimeframe}).`);
+      const parts: string[] = [homeVisit ? `Home visit for ${selectedEncounter.patient_name} finished.` : 'Nurse alerted.'];
+      if (followUpRequired) parts.push(homeVisit ? `Follow-up home visit booked (${followUpTimeframe}).` : `Follow-up visit marked (${followUpTimeframe}).`);
       if (reviewRequired) parts.push(`Review call scheduled for ${reviewDate}.`);
-      if (!followUpRequired && !reviewRequired) parts.push('Patient is ready for follow-up care.');
+      if (!homeVisit && !followUpRequired && !reviewRequired) parts.push('Patient is ready for follow-up care.');
       const message = parts.join(' ');
       showToast(message, 'success');
 
@@ -1492,6 +1498,20 @@ const DoctorDashboard: React.FC = () => {
         return null;
       })()}
 
+      {/* Home visits booked for this doctor (hidden when there are none) */}
+      <HomeVisitsPanel
+        onOpenEncounter={async (encounterId) => {
+          const list = await loadRoomEncounters();
+          const enc = list.find((e) => e.id === encounterId);
+          if (enc) {
+            handleSelectEncounter(enc);
+            document.getElementById('selected-encounter-panel')?.scrollIntoView({ behavior: 'smooth' });
+          } else {
+            showToast("The visit is open but isn't in today's list — it was started on another day", 'warning');
+          }
+        }}
+      />
+
       {/* Row 1: Three info cards side by side */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 items-stretch">
           {/* Active Patients */}
@@ -1526,7 +1546,7 @@ const DoctorDashboard: React.FC = () => {
                         const isWithDoctor = enc.status === 'with_doctor';
                         const isWaiting = enc.status === 'ready_for_doctor';
                         const isInRoom = !!enc.room_number && !isWithDoctor && !isWaiting && !isCompleted;
-                        const statusLabel = isWithDoctor ? 'With you' : isWaiting ? 'Waiting' : isInRoom ? 'In room' : isCompleted ? 'Done' : enc.status === 'checked_in' ? 'Checked in' : (enc.status?.replace(/_/g, ' ') || '');
+                        const statusLabel = isCompleted ? 'Done' : enc.is_home_visit ? 'Home visit' : isWithDoctor ? 'With you' : isWaiting ? 'Waiting' : isInRoom ? 'In room' : enc.status === 'checked_in' ? 'Checked in' : (enc.status?.replace(/_/g, ' ') || '');
                         const dotColor = isWithDoctor ? 'bg-ds-accent' : isWaiting ? 'bg-ds-warning animate-pulse' : isInRoom ? 'bg-ds-success' : isCompleted ? 'bg-ds-border-control' : 'bg-ds-border-control';
                         return (
                           <button
@@ -1537,7 +1557,11 @@ const DoctorDashboard: React.FC = () => {
                             <div className="flex items-center gap-2">
                               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dotColor}`} />
                               <span className="text-sm font-semibold text-ds-text truncate">{enc.patient_name}</span>
-                              {enc.room_number && (
+                              {enc.is_home_visit ? (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-ds-accent-soft text-ds-accent-text flex-shrink-0">
+                                  Home
+                                </span>
+                              ) : enc.room_number && (
                                 <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-ds-subtle text-ds-text-secondary flex-shrink-0">
                                   Rm {enc.room_number}
                                 </span>
@@ -2146,6 +2170,17 @@ const DoctorDashboard: React.FC = () => {
                           {selectedEncounter.patient_allergies}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Home visit: the doctor records vitals at the house */}
+                  {selectedEncounter.is_home_visit && selectedEncounter.status !== 'discharged' && selectedEncounter.status !== 'completed' && (
+                    <div className="pt-4 mt-4 border-t border-ds-border">
+                      <HomeVisitVitalsForm
+                        encounterId={selectedEncounter.id}
+                        patientName={selectedEncounter.patient_name}
+                        onSaved={loadRoomEncounters}
+                      />
                     </div>
                   )}
 
@@ -2914,7 +2949,7 @@ const DoctorDashboard: React.FC = () => {
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Alert Nurse
+                        {selectedEncounter.is_home_visit ? 'Finish home visit' : 'Alert Nurse'}
                       </button>
                       <button
                         onClick={handleCancelEncounter}
@@ -4021,7 +4056,7 @@ const DoctorDashboard: React.FC = () => {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-ds-text">Complete Encounter</h3>
+                  <h3 className="text-lg font-bold text-ds-text">{selectedEncounter.is_home_visit ? 'Finish home visit' : 'Complete Encounter'}</h3>
                   <p className="text-sm text-ds-text-secondary">{selectedEncounter.patient_name}</p>
                 </div>
               </div>
@@ -4161,7 +4196,7 @@ const DoctorDashboard: React.FC = () => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                Alert Nurse
+                {selectedEncounter.is_home_visit ? 'Finish visit' : 'Alert Nurse'}
               </button>
             </div>
           </div>

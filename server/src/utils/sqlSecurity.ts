@@ -34,7 +34,8 @@ const ALLOWED_FIELDS: Record<string, string[]> = {
   ],
   appointments: [
     'patient_id', 'patient_name', 'provider_id', 'appointment_date',
-    'duration_minutes', 'appointment_type', 'reason', 'notes', 'status'
+    'duration_minutes', 'appointment_type', 'reason', 'notes', 'status',
+    'location_type', 'visit_address', 'visit_gps_address', 'visit_landmark', 'visit_contact_phone', 'nurse_id'
   ],
   medications: [
     'medication_name', 'dosage', 'frequency', 'route', 'start_date',
