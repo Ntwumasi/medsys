@@ -17,6 +17,7 @@ import { toDsClasses } from '../utils/dsClass';
 import { getApiError } from '../utils/apiError';
 import MarketingContactList from '../components/MarketingContactList';
 import MarketingSmsCampaigns from '../components/MarketingSmsCampaigns';
+import MarketingImportedContacts from '../components/MarketingImportedContacts';
 
 const localizer = dateFnsLocalizer({
   format,
@@ -82,7 +83,7 @@ const MarketingDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  const [view, setView] = useState<'tasks' | 'calendar' | 'contacts' | 'sms'>('tasks');
+  const [view, setView] = useState<'tasks' | 'calendar' | 'contacts' | 'imported' | 'sms'>('tasks');
 
   // Add-task form (shared by the "Add task" button and clicking a calendar day)
   const [showAdd, setShowAdd] = useState(false);
@@ -280,6 +281,7 @@ const MarketingDashboard: React.FC = () => {
             { id: 'tasks' as const, label: 'My Tasks' },
             { id: 'calendar' as const, label: 'Calendar' },
             { id: 'contacts' as const, label: 'Patient Contacts' },
+            { id: 'imported' as const, label: 'Imported Contacts' },
             { id: 'sms' as const, label: 'Bulk SMS' },
           ]).map((t) => (
             <button
@@ -298,6 +300,7 @@ const MarketingDashboard: React.FC = () => {
         </nav>
 
         {view === 'sms' && <MarketingSmsCampaigns />}
+        {view === 'imported' && <MarketingImportedContacts />}
 
         {view === 'contacts' && (
           <div className="space-y-4">

@@ -205,6 +205,13 @@ import {
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import {
+  importMarketingContacts,
+  listMarketingContacts,
+  setMarketingContactOptOut,
+  listMarketingContactImports,
+  removeMarketingContactImport,
+} from '../controllers/marketingImportController';
+import {
   getSmsStatus,
   previewSmsCampaign,
   listSmsCampaigns,
@@ -984,6 +991,12 @@ router.use('/audit', auditRoutes);
 router.get('/marketing/contacts', authenticateToken, authorizeRoles('marketing', 'admin'), getPatientContacts);
 router.get('/marketing/contacts/list', authenticateToken, authorizeRoles('marketing', 'admin'), listPatientContacts);
 router.get('/marketing/contacts/export', authenticateToken, authorizeRoles('marketing', 'admin'), exportPatientContacts);
+// Imported marketing contacts (not patients), uploaded from Excel/CSV.
+router.post('/marketing/imported-contacts/import', authenticateToken, authorizeRoles('marketing', 'admin'), importMarketingContacts);
+router.get('/marketing/imported-contacts', authenticateToken, authorizeRoles('marketing', 'admin'), listMarketingContacts);
+router.put('/marketing/imported-contacts/:id/opt-out', authenticateToken, authorizeRoles('marketing', 'admin'), setMarketingContactOptOut);
+router.get('/marketing/imported-contacts/imports', authenticateToken, authorizeRoles('marketing', 'admin'), listMarketingContactImports);
+router.post('/marketing/imported-contacts/imports/:id/remove', authenticateToken, authorizeRoles('marketing', 'admin'), removeMarketingContactImport);
 // Reception and admin record the opt-out, since they're the ones a patient tells.
 // Marketing bulk SMS. Admin approval is enforced in the controller (marketing
 // can draft and send approved campaigns, only admins approve/reject).

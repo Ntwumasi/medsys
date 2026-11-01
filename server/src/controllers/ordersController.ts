@@ -918,6 +918,52 @@ const stripClientOnlyOrderFields = (data: Record<string, unknown>): void => {
   for (const f of ORDER_FIELDS_NEVER_FROM_CLIENT) delete data[f];
 };
 
+type InventoryMatch = { id: number; selling_price: string; quantity_on_hand: number; pack_size: string; medication_name?: string };
+
+// The first strength in a name ("20mg", "1mg/g", "0.5%"), or NULL.
+const STRENGTH_SQL = (expr: string) => `(regexp_match(lower(${expr}), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))`;
+
+/**
+ * Find the inventory item for a medication typed as free text. Doctors type
+ * "E45 Cream" / "Elocom cream" while inventory holds "E45 CREAM " (trailing
+ * space) and "ELOCOM CREAM 1MG/G 30G", so an exact match missed both and they
+ * were dispensed without stock deduction and billed [PRICE PENDING].
+ *
+ *  1. same name, ignoring case and surrounding/repeated spaces;
+ *  2. otherwise one name contains the other — used only when exactly ONE
+ *     active item matches and the strengths don't conflict (a 20mg order must
+ *     never take the 40mg item's price). Two or more candidates → no match,
+ *     so the line goes to reception as [PRICE PENDING] rather than guessing.
+ */
+export const findInventoryByName = async (
+  client: { query: (sql: string, params: unknown[]) => Promise<{ rows: InventoryMatch[] }> },
+  rawName: string
+): Promise<InventoryMatch | null> => {
+  const name = rawName.replace(/\s+/g, ' ').trim();
+  if (!name) return null;
+  const cols = 'id, selling_price, quantity_on_hand, pack_size, medication_name';
+  const normalized = `regexp_replace(btrim(medication_name), '\\s+', ' ', 'g')`;
+  const exact = await client.query(
+    `SELECT ${cols} FROM pharmacy_inventory
+      WHERE is_active = true AND ${normalized} ILIKE $1
+      ORDER BY id LIMIT 1`,
+    [name.replace(/[\\%_]/g, '\\$&')]
+  );
+  if (exact.rows.length > 0) return exact.rows[0];
+  if (name.length < 4) return null;
+  const loose = await client.query(
+    `SELECT ${cols} FROM pharmacy_inventory
+      WHERE is_active = true
+        AND (POSITION(lower($1) IN lower(${normalized})) > 0 OR POSITION(lower(${normalized}) IN lower($1)) > 0)
+        AND length(${normalized}) >= 4
+        AND (${STRENGTH_SQL('$1')} IS NULL OR ${STRENGTH_SQL('medication_name')} IS NULL
+             OR ${STRENGTH_SQL('$1')} = ${STRENGTH_SQL('medication_name')})
+      LIMIT 2`,
+    [name]
+  );
+  return loose.rows.length === 1 ? loose.rows[0] : null;
+};
+
 export const updateLabOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     await ensureLabVerificationSchema();
@@ -2530,7 +2576,7 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         await client.query('BEGIN');
 
         // Get medication from inventory - prefer inventory_id FK, fallback to name match
-        let inventoryResult: { rows: Array<{ id: number; selling_price: string; quantity_on_hand: number; pack_size: string; medication_name?: string }> } = { rows: [] };
+        let inventoryResult: { rows: InventoryMatch[] } = { rows: [] };
         if (updatedOrder.inventory_id) {
           inventoryResult = await client.query(
             `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
@@ -2547,12 +2593,11 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
             .map((n: unknown) => (n ? String(n).trim() : ''))
             .filter((n: string) => n.length > 0);
           for (const name of nameCandidates) {
-            inventoryResult = await client.query(
-              `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
-               WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
-              [name]
-            );
-            if (inventoryResult.rows.length > 0) break;
+            const found = await findInventoryByName(client, name);
+            if (found) {
+              inventoryResult = { rows: [found] };
+              break;
+            }
           }
         }
 
@@ -2565,29 +2610,8 @@ export const updatePharmacyOrder = async (req: Request, res: Response): Promise<
         if (subName) {
           const linkedName = (inventoryResult.rows[0]?.medication_name || '').trim().toLowerCase();
           if (linkedName !== subName.toLowerCase()) {
-            let subMatch = await client.query(
-              `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
-               WHERE medication_name ILIKE $1 AND is_active = true LIMIT 1`,
-              [subName]
-            );
-            if (subMatch.rows.length === 0) {
-              // Looser contains match, but never across a different strength
-              // (a 20mg substitute must not adopt the 40mg item's price).
-              subMatch = await client.query(
-                `SELECT id, selling_price, quantity_on_hand, pack_size, medication_name FROM pharmacy_inventory
-                 WHERE is_active = true
-                   AND (medication_name ILIKE '%'||$1||'%' OR $1 ILIKE '%'||medication_name||'%')
-                   AND (
-                     (regexp_match(lower($1), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
-                     OR (regexp_match(lower(medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)')) IS NULL
-                     OR (regexp_match(lower($1), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
-                      = (regexp_match(lower(medication_name), '([0-9]+([.][0-9]+)?)[ ]*(mcg|mg|ml|iu|g|%)'))
-                   )
-                 LIMIT 1`,
-                [subName]
-              );
-            }
-            if (subMatch.rows.length > 0) inventoryResult = subMatch;
+            const subMatch = await findInventoryByName(client, subName);
+            if (subMatch) inventoryResult = { rows: [subMatch] };
           }
         }
 

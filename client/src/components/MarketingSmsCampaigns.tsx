@@ -9,7 +9,9 @@ import { branding } from '../config/branding';
 
 /**
  * Bulk SMS for marketing: write a campaign → admin approves → send.
- * Opted-out patients are excluded on the server (and re-checked at send).
+ * The audience is patients, imported contacts (uploaded from a spreadsheet on
+ * the Imported Contacts tab) or both. Opted-out people are excluded on the
+ * server (and re-checked at send).
  * Outside production the server forces Arkesel sandbox, so nothing is
  * delivered or billed there.
  */
@@ -38,7 +40,14 @@ interface Campaign {
   id: number;
   name: string;
   message: string;
-  filters: { since?: string | null; gender?: string | null; min_age?: number | null; max_age?: number | null };
+  filters: {
+    audience?: Audience;
+    source?: string | null;
+    since?: string | null;
+    gender?: string | null;
+    min_age?: number | null;
+    max_age?: number | null;
+  };
   status: 'pending_approval' | 'approved' | 'rejected' | 'sending' | 'sent' | 'cancelled';
   sandbox: boolean;
   recipient_count: number;
@@ -55,8 +64,17 @@ interface Campaign {
   skipped_count: number;
 }
 
+type Audience = 'patients' | 'imported' | 'both';
+
+const AUDIENCE_LABEL: Record<Audience, string> = {
+  patients: 'Patients',
+  imported: 'Imported contacts',
+  both: 'Patients and imported contacts',
+};
+
 interface Recipient {
   id: number;
+  contact_id: number | null;
   phone: string;
   first_name: string | null;
   patient_number: string | null;
@@ -81,7 +99,10 @@ const fmtDate = (s?: string | null): string => {
 };
 
 const describeFilters = (f: Campaign['filters']): string => {
+  const audience: Audience = f?.audience || 'patients';
   const parts: string[] = [];
+  if (audience !== 'patients') parts.push(AUDIENCE_LABEL[audience].toLowerCase());
+  if (f?.source) parts.push(`from “${f.source}”`);
   if (f?.since) parts.push(`visited since ${f.since}`);
   if (f?.gender) parts.push(f.gender === 'male' ? 'men' : 'women');
   if (f?.min_age != null || f?.max_age != null) parts.push(`aged ${f.min_age ?? 0}–${f.max_age ?? '∞'}`);
@@ -103,6 +124,9 @@ const MarketingSmsCampaigns: React.FC = () => {
   // Composer
   const [showCompose, setShowCompose] = useState(false);
   const [name, setName] = useState('');
+  const [audience, setAudience] = useState<Audience>('patients');
+  const [source, setSource] = useState('');
+  const [sources, setSources] = useState<{ source: string; n: number }[]>([]);
   const [message, setMessage] = useState('');
   const [since, setSince] = useState('');
   const [gender, setGender] = useState('');
@@ -140,8 +164,26 @@ const MarketingSmsCampaigns: React.FC = () => {
     load();
   }, [load]);
 
-  const filters = { since: since || null, gender: gender || null, min_age: minAge || null, max_age: maxAge || null };
+  // Visit, sex and age are patient details; imported contacts have none.
+  const patientFilters = audience !== 'imported';
+  const filters = {
+    audience,
+    source: audience !== 'patients' ? source || null : null,
+    since: patientFilters ? since || null : null,
+    gender: patientFilters ? gender || null : null,
+    min_age: patientFilters ? minAge || null : null,
+    max_age: patientFilters ? maxAge || null : null,
+  };
   const filtersKey = JSON.stringify(filters);
+
+  // Upload sources for the imported-contacts filter.
+  useEffect(() => {
+    if (!showCompose) return;
+    apiClient
+      .get('/marketing/imported-contacts', { params: { limit: 1 } })
+      .then((res) => setSources(res.data.sources || []))
+      .catch(() => setSources([]));
+  }, [showCompose]);
 
   // Debounced live preview: audience size, cost, how the message will look.
   useEffect(() => {
@@ -178,6 +220,8 @@ const MarketingSmsCampaigns: React.FC = () => {
 
   const resetCompose = () => {
     setName('');
+    setAudience('patients');
+    setSource('');
     setMessage('');
     setSince('');
     setGender('');
@@ -219,7 +263,7 @@ const MarketingSmsCampaigns: React.FC = () => {
       message: (
         <div className="space-y-2 text-sm">
           <p>
-            <strong>{c.name}</strong> to <strong>{c.recipient_count}</strong> patients ({describeFilters(c.filters)}),
+            <strong>{c.name}</strong> to <strong>{c.recipient_count}</strong> people ({describeFilters(c.filters)}),
             about <strong>{c.recipient_count * c.credits_per_message}</strong> SMS credits.
           </p>
           <p className="whitespace-pre-wrap bg-ds-subtle border rounded p-2">{c.message}</p>
@@ -269,9 +313,9 @@ const MarketingSmsCampaigns: React.FC = () => {
   const send = async (c: Campaign) => {
     const live = status?.live && !c.sandbox;
     const ok = await confirm({
-      title: live ? 'Send to patients now?' : 'Send in sandbox (test) mode?',
+      title: live ? 'Send now?' : 'Send in sandbox (test) mode?',
       message: live
-        ? `${c.pending_count || c.recipient_count} patients will receive this SMS. This can't be undone.`
+        ? `${c.pending_count || c.recipient_count} people will receive this SMS. This can't be undone.`
         : 'Sandbox: Arkesel records the messages but does NOT deliver or charge for them. Use this to test the flow.',
       confirmLabel: live ? 'Send now' : 'Run test send',
       variant: live ? 'warning' : 'default',
@@ -325,7 +369,7 @@ const MarketingSmsCampaigns: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold text-ds-text">Bulk SMS</h2>
           <p className="text-sm text-ds-text-secondary mt-1">
-            Text groups of patients. Patients who opted out are always excluded. Every campaign needs an admin’s approval before it is sent.
+            Text groups of patients or imported contacts. Anyone who opted out is always excluded. Every campaign needs an admin’s approval before it is sent.
           </p>
         </div>
         <button
@@ -399,7 +443,7 @@ const MarketingSmsCampaigns: React.FC = () => {
                       {c.status === 'rejected' && c.rejection_reason && <div className="text-xs text-ds-critical-text mt-1">{c.rejection_reason}</div>}
                     </td>
                     <td className="px-4 py-3">
-                      <div>{c.recipient_count} patients</div>
+                      <div>{c.recipient_count} people</div>
                       <div className="text-xs text-ds-text-muted">{describeFilters(c.filters)}</div>
                     </td>
                     <td className="px-4 py-3 text-xs text-ds-text-secondary">
@@ -455,6 +499,30 @@ const MarketingSmsCampaigns: React.FC = () => {
                 <fieldset className="space-y-3">
                   <legend className="text-sm font-medium text-ds-text-secondary">Who gets it</legend>
                   <div>
+                    <label htmlFor="sms-audience" className="block text-xs text-ds-text-secondary mb-1">Send to</label>
+                    <select id="sms-audience" value={audience} onChange={(e) => setAudience(e.target.value as Audience)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent">
+                      <option value="patients">{AUDIENCE_LABEL.patients}</option>
+                      <option value="imported">{AUDIENCE_LABEL.imported}</option>
+                      <option value="both">{AUDIENCE_LABEL.both}</option>
+                    </select>
+                  </div>
+                  {audience !== 'patients' && (
+                    <div>
+                      <label htmlFor="sms-source" className="block text-xs text-ds-text-secondary mb-1">Imported contacts from</label>
+                      <select id="sms-source" value={source} onChange={(e) => setSource(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent">
+                        <option value="">Every upload</option>
+                        {sources.map((s) => (
+                          <option key={s.source} value={s.source}>{s.source} ({s.n})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {audience === 'both' && (
+                    <p className="text-xs text-ds-text-muted">Visit date, sex and age narrow the patients only. Someone who is both gets one message.</p>
+                  )}
+                  {patientFilters && (
+                  <>
+                  <div>
                     <label htmlFor="sms-since" className="block text-xs text-ds-text-secondary mb-1">Visited since (optional)</label>
                     <input id="sms-since" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="w-full px-3 py-2 border border-ds-border-control rounded-lg focus:ring-2 focus:ring-ds-focus-ring focus:border-transparent" />
                   </div>
@@ -477,6 +545,8 @@ const MarketingSmsCampaigns: React.FC = () => {
                     </div>
                   </div>
                   <p className="text-xs text-ds-text-muted">Age filters leave out patients with no date of birth on file.</p>
+                  </>
+                  )}
                 </fieldset>
               </div>
 
@@ -504,7 +574,7 @@ const MarketingSmsCampaigns: React.FC = () => {
                     <span className="text-ds-text-muted">Counting…</span>
                   ) : preview ? (
                     <>
-                      <div><strong>{preview.recipients}</strong> patients will receive it{preview.invalid_phones > 0 && <span className="text-ds-text-muted"> ({preview.invalid_phones} skipped — invalid number)</span>}</div>
+                      <div><strong>{preview.recipients}</strong> people will receive it{preview.invalid_phones > 0 && <span className="text-ds-text-muted"> ({preview.invalid_phones} skipped — invalid number)</span>}</div>
                       <div>
                         {preview.length} characters → <strong>{preview.parts}</strong> SMS each{preview.unicode && <span className="text-ds-warning-text"> (special characters/emoji make each SMS shorter)</span>}
                       </div>
@@ -555,12 +625,12 @@ const MarketingSmsCampaigns: React.FC = () => {
               <div className="whitespace-pre-wrap bg-ds-subtle border rounded p-3 text-sm">{detail.campaign.message}</div>
               <table className="w-full text-sm">
                 <thead className="text-left text-ds-text-secondary bg-ds-subtle">
-                  <tr><th className="px-3 py-2">Patient</th><th className="px-3 py-2">Phone</th><th className="px-3 py-2">Status</th></tr>
+                  <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Phone</th><th className="px-3 py-2">Status</th></tr>
                 </thead>
                 <tbody className="divide-y divide-ds-border">
                   {detail.recipients.map((r) => (
                     <tr key={r.id}>
-                      <td className="px-3 py-1.5">{r.first_name || '—'} <span className="text-xs text-ds-text-muted">{r.patient_number}</span></td>
+                      <td className="px-3 py-1.5">{r.first_name || '—'} <span className="text-xs text-ds-text-muted">{r.patient_number || (r.contact_id ? 'Imported contact' : '')}</span></td>
                       <td className="px-3 py-1.5 font-mono text-xs">{r.phone}</td>
                       <td className="px-3 py-1.5 text-xs">
                         {r.status}{r.delivery_status ? ` · ${r.delivery_status}` : ''}
