@@ -47,7 +47,8 @@ const VISIT_SELECT = `
 /**
  * GET /home-visits?from=YYYY-MM-DD&to=YYYY-MM-DD&scope=mine|all
  * Doctors and nurses see their own visits (as doctor or as the nurse going
- * along) unless they ask for scope=all; reception and admins see everyone's.
+ * along) unless they ask for scope=all; reception and admins see everyone's,
+ * and super admins always do.
  */
 export const listHomeVisits = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -55,7 +56,8 @@ export const listHomeVisits = async (req: Request, res: Response): Promise<void>
     const from = typeof req.query.from === 'string' && dateRe.test(req.query.from) ? req.query.from : null;
     const to = typeof req.query.to === 'string' && dateRe.test(req.query.to) ? req.query.to : null;
     const clinician = ['doctor', 'nurse'].includes(userRole(req));
-    const mine = req.query.scope === 'mine' || (clinician && req.query.scope !== 'all');
+    // Super admins see every visit, like the doctor's patient list does for them.
+    const mine = !isSuperAdmin(req) && (req.query.scope === 'mine' || (clinician && req.query.scope !== 'all'));
 
     const params: any[] = [];
     const clauses = [`a.location_type = 'home'`, `a.status NOT IN ('cancelled', 'no-show')`];
