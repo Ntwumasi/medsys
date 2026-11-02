@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { dobAndAge } from '../utils/age';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Logo from './Logo';
@@ -471,11 +472,11 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
       try {
         const response = await apiClient.get(`/patients?search=${encodeURIComponent(searchQuery)}&limit=5`);
         const patients = response.data.patients || response.data || [];
-        const results: SearchResult[] = patients.map((p: { id: number; first_name: string; last_name: string; date_of_birth: string; mrn?: string }) => ({
+        const results: SearchResult[] = patients.map((p: { id: number; first_name: string; last_name: string; date_of_birth: string; patient_number?: string; mrn?: string }) => ({
           type: 'patient' as const,
           id: p.id,
           title: `${p.first_name} ${p.last_name}`,
-          subtitle: `DOB: ${new Date(p.date_of_birth).toLocaleDateString()} ${p.mrn ? `| MRN: ${p.mrn}` : ''}`,
+          subtitle: [p.patient_number || p.mrn, dobAndAge(p.date_of_birth)].filter(Boolean).join(' · '),
           path: `/patients/${p.id}`,
         }));
         setSearchResults(results);

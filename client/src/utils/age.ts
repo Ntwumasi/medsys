@@ -56,3 +56,15 @@ export function formatDobWithAge(dob: string | Date | null | undefined, formatFn
   const formatted = formatFn ? formatFn(String(dob), 'MM/dd/yyyy') : String(dob).slice(0, 10);
   return `${formatted} (${age})`;
 }
+
+/**
+ * Patient-lookup label: "DOB 23 Mar 1984 · 42y". Month is spelled out so it
+ * can't be misread as US vs Ghana day/month order. Used in every patient
+ * search list so two people with the same name can be told apart.
+ */
+export function dobAndAge(dob: string | Date | null | undefined): string {
+  const formatted = safeFormatDate(dob, 'd MMM yyyy', '');
+  if (!formatted) return 'DOB not recorded';
+  const age = calculateAge(dob);
+  return age === 'N/A' ? `DOB ${formatted}` : `DOB ${formatted} · ${age}`;
+}

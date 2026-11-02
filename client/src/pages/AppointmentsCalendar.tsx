@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { dobAndAge } from '../utils/age';
 import { useNavigate } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, addMonths, subMonths, isSameMonth, isSameDay, parseISO } from 'date-fns';
 import apiClient from '../api/client';
@@ -44,6 +45,7 @@ interface PatientSearchResult {
   last_name?: string;
   full_name?: string;
   phone?: string;
+  date_of_birth?: string;
 }
 
 const AppointmentsCalendar: React.FC = () => {
@@ -562,7 +564,7 @@ const AppointmentsCalendar: React.FC = () => {
                   className="p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
                 >
                   <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                  <div className="text-sm text-gray-500">{patient.patient_number}</div>
+                  <div className="text-sm text-gray-500">{patient.patient_number} · <span className="font-medium text-gray-700">{dobAndAge(patient.date_of_birth)}</span></div>
                 </div>
               ))}
             </div>

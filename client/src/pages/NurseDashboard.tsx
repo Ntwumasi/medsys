@@ -29,7 +29,7 @@ import { useSmartPolling } from '../hooks/useSmartPolling';
 import DashboardHeader, { StatPill } from '../components/DashboardHeader';
 import InsightCard from '../components/ui/InsightCard';
 import AppSelect from '../components/ui/AppSelect';
-import { calculateAge } from '../utils/age';
+import { calculateAge, dobAndAge } from '../utils/age';
 
 interface ClinicalNote {
   id: number;
@@ -1934,9 +1934,10 @@ const NurseDashboard: React.FC = () => {
                         disabled={creatingNurseWalkin}
                         className="min-h-ds-touch w-full px-4 py-2.5 flex justify-between items-center text-left hover:bg-ds-accent-soft transition-colors disabled:opacity-50"
                       >
-                        <div>
+                        <div className="min-w-0">
                           <span className="font-medium text-ds-text text-sm">{p.first_name} {p.last_name}</span>
                           <span className="text-xs text-ds-text-muted ml-2">{p.patient_number}</span>
+                          <span className="block text-xs font-medium text-ds-text-secondary">{dobAndAge(p.date_of_birth)}</span>
                         </div>
                         <span className="text-xs text-ds-accent-text font-medium">Check in →</span>
                       </button>

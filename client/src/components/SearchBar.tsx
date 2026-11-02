@@ -1,4 +1,5 @@
 import { dsClass } from '../utils/dsClass';
+import { dobAndAge } from '../utils/age';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../api/client';
 import type { SearchResult, SearchPatient, SearchEncounter } from '../types';
@@ -125,7 +126,9 @@ const SearchBar: React.FC<SearchBarProps> = ({
                     <div className={dsClass("font-semibold text-gray-900")}>
                       {patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim()}
                     </div>
-                    <div className={dsClass("text-sm text-gray-600")}>{patient.patient_number}</div>
+                    <div className={dsClass("text-sm text-gray-600")}>
+                      {patient.patient_number} · <span className="font-medium text-gray-800">{dobAndAge(patient.date_of_birth)}</span>
+                    </div>
                     {patient.phone && (
                       <div className={dsClass("text-xs text-gray-500")}>{patient.phone}</div>
                     )}
