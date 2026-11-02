@@ -214,15 +214,16 @@ const AppointmentsCalendar: React.FC = () => {
   };
 
   const renderCalendarHeader = () => (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-4">
-        <h2 className="text-2xl font-bold text-gray-900">
+    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4 mb-6">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
           {format(currentMonth, 'MMMM yyyy')}
         </h2>
         <div className="flex gap-2">
           <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Previous month"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -230,13 +231,14 @@ const AppointmentsCalendar: React.FC = () => {
           </button>
           <button
             onClick={() => setCurrentMonth(new Date())}
-            className="px-3 py-1 text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            className="px-3 min-h-[44px] text-sm font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
           >
             Today
           </button>
           <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            aria-label="Next month"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -245,9 +247,9 @@ const AppointmentsCalendar: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-end gap-3">
         {/* Doctor Filter */}
-        <div className="flex items-center gap-2">
+        <div className="w-full sm:w-64">
           <AppSelect
             label="Doctor"
             value={selectedDoctor}
@@ -260,7 +262,7 @@ const AppointmentsCalendar: React.FC = () => {
         <div className="flex bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setViewMode('month')}
-            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+            className={`px-4 min-h-[40px] text-sm font-medium rounded-md transition-colors ${
               viewMode === 'month' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -268,7 +270,7 @@ const AppointmentsCalendar: React.FC = () => {
           </button>
           <button
             onClick={() => setViewMode('day')}
-            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+            className={`px-4 min-h-[40px] text-sm font-medium rounded-md transition-colors ${
               viewMode === 'day' ? 'bg-white shadow text-blue-600' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -285,7 +287,7 @@ const AppointmentsCalendar: React.FC = () => {
             });
             setShowNewAppointment(true);
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          className="px-4 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 whitespace-nowrap"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -301,8 +303,9 @@ const AppointmentsCalendar: React.FC = () => {
     return (
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.map((day) => (
-          <div key={day} className="p-3 text-center text-sm font-semibold text-gray-600 bg-gray-50">
-            {day}
+          <div key={day} className="p-1 sm:p-3 text-center text-xs sm:text-sm font-semibold text-gray-600 bg-gray-50">
+            <span className="sm:hidden">{day[0]}</span>
+            <span className="hidden sm:inline">{day}</span>
           </div>
         ))}
       </div>
@@ -336,7 +339,7 @@ const AppointmentsCalendar: React.FC = () => {
                 setViewMode('day');
               }
             }}
-            className={`min-h-[120px] p-2 border-r border-b border-gray-200 cursor-pointer transition-colors
+            className={`min-w-0 min-h-[56px] sm:min-h-[90px] lg:min-h-[120px] p-1 sm:p-2 border-r border-b border-gray-200 cursor-pointer transition-colors
               ${!isCurrentMonth ? 'bg-gray-50 text-gray-400' : 'hover:bg-blue-50'}
               ${isSelected ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset' : ''}
             `}
@@ -346,7 +349,14 @@ const AppointmentsCalendar: React.FC = () => {
             }`}>
               {format(day, 'd')}
             </div>
-            <div className="space-y-1">
+            {dayAppointments.length > 0 && (
+              <div className="md:hidden mt-1">
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-blue-600 text-white text-[11px] font-bold">
+                  {dayAppointments.length}
+                </span>
+              </div>
+            )}
+            <div className="hidden md:block space-y-1">
               {dayAppointments.slice(0, 3).map((apt) => (
                 <div
                   key={apt.id}
@@ -380,15 +390,16 @@ const AppointmentsCalendar: React.FC = () => {
     const dayAppointments = getAppointmentsForDate(selectedDate);
 
     return (
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 sm:p-6">
+        <div className="flex items-center justify-between gap-2 mb-6">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 min-w-0">
             {format(selectedDate, 'EEEE, MMMM d, yyyy')}
           </h3>
           <div className="flex gap-2">
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, -1))}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              aria-label="Previous day"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -396,7 +407,8 @@ const AppointmentsCalendar: React.FC = () => {
             </button>
             <button
               onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-              className="p-2 hover:bg-gray-100 rounded-lg"
+              aria-label="Next day"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-gray-100 rounded-lg"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -422,9 +434,9 @@ const AppointmentsCalendar: React.FC = () => {
                   key={apt.id}
                   className={`p-4 rounded-lg border-2 ${getStatusColor(apt.status)}`}
                 >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
                         <span className="text-lg font-bold">
                           {format(parseISO(apt.appointment_date), 'h:mm a')}
                         </span>
@@ -442,7 +454,7 @@ const AppointmentsCalendar: React.FC = () => {
                       >
                         {apt.patient_name}
                       </button>
-                      <div className="text-sm text-gray-600 mt-1">
+                      <div className="text-sm text-gray-600 mt-1 break-words">
                         <span className="font-medium">Patient #:</span> {apt.patient_number}
                         {apt.patient_phone && (
                           <span className="ml-3"><span className="font-medium">Phone:</span> {apt.patient_phone}</span>
@@ -452,13 +464,13 @@ const AppointmentsCalendar: React.FC = () => {
                         <span className="font-medium">Provider:</span> Dr. {apt.provider_name}
                       </div>
                       {apt.location_type === 'home' && (
-                        <div className="text-sm text-gray-700 mt-1">
+                        <div className="text-sm text-gray-700 mt-1 break-words">
                           <span className="font-medium">Home visit:</span>{' '}
                           {[apt.visit_address, apt.visit_gps_address].filter(Boolean).join(' · ') || 'address on the patient record'}
                           {apt.visit_landmark && <span className="block text-gray-600">{apt.visit_landmark}</span>}
                         </div>
                       )}
-                      <div className="text-sm text-gray-600 mt-1">
+                      <div className="text-sm text-gray-600 mt-1 break-words">
                         <span className="font-medium">Type:</span> {apt.appointment_type}
                         {apt.reason && (
                           <span className="ml-3"><span className="font-medium">Reason:</span> {apt.reason}</span>
@@ -468,7 +480,7 @@ const AppointmentsCalendar: React.FC = () => {
                     {apt.status !== 'cancelled' && apt.status !== 'completed' && (
                       <button
                         onClick={() => handleCancelAppointment(apt.id)}
-                        className="px-3 py-1 text-sm text-danger-600 hover:bg-danger-50 rounded border border-danger-300"
+                        className="self-start px-4 min-h-[44px] text-sm text-danger-600 hover:bg-danger-50 rounded border border-danger-300"
                       >
                         Cancel
                       </button>
@@ -566,7 +578,7 @@ const AppointmentsCalendar: React.FC = () => {
           placeholder="Select Doctor"
         />
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Date"
             type="date"
@@ -583,7 +595,7 @@ const AppointmentsCalendar: React.FC = () => {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="Duration"
             value={newAppointment.duration_minutes}
@@ -631,7 +643,7 @@ const AppointmentsCalendar: React.FC = () => {
     <AppLayout title="Appointments Calendar">
       <div className="space-y-6">
         <Card>
-          <div className="p-6">
+          <div className="p-3 sm:p-6">
             {renderCalendarHeader()}
 
             {viewMode === 'month' ? (
