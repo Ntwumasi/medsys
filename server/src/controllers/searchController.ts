@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../database/db';
+import { buildPatientSearch } from '../utils/patientSearch';
 
 // Search patients
 export const searchPatients = async (req: Request, res: Response): Promise<void> => {
@@ -11,7 +12,7 @@ export const searchPatients = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    const searchTerm = `%${q.trim()}%`;
+    const patientSearch = buildPatientSearch(q)!;
 
     const result = await pool.query(
       `SELECT p.*,
@@ -23,15 +24,10 @@ export const searchPatients = async (req: Request, res: Response): Promise<void>
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
        WHERE p.merged_into IS NULL
-         AND (p.patient_number ILIKE $1
-          OR u.first_name ILIKE $1
-          OR u.last_name ILIKE $1
-          OR (u.first_name || ' ' || u.last_name) ILIKE $1
-          OR u.phone ILIKE $1
-          OR u.email ILIKE $1)
+         AND ${patientSearch.clause}
        ORDER BY (p.source = 'carecode'), p.created_at DESC
        LIMIT 20`,
-      [searchTerm]
+      patientSearch.params
     );
 
     res.json({
@@ -125,7 +121,8 @@ export const quickSearch = async (req: Request, res: Response): Promise<void> =>
 
     const searchTerm = `%${q.trim()}%`;
 
-    // Search patients
+    // Search patients (name, patient number, phone or date of birth)
+    const patientSearch = buildPatientSearch(q)!;
     const patientsResult = await pool.query(
       `SELECT p.*,
         u.first_name,
@@ -135,13 +132,11 @@ export const quickSearch = async (req: Request, res: Response): Promise<void> =>
         'patient' as result_type
        FROM patients p
        LEFT JOIN users u ON p.user_id = u.id
-       WHERE p.patient_number ILIKE $1
-          OR u.first_name ILIKE $1
-          OR u.last_name ILIKE $1
-          OR (u.first_name || ' ' || u.last_name) ILIKE $1
+       WHERE p.merged_into IS NULL
+         AND ${patientSearch.clause}
        ORDER BY p.created_at DESC
        LIMIT 5`,
-      [searchTerm]
+      patientSearch.params
     );
 
     // Search encounters

@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import crypto from 'crypto';
 import pool from '../database/db';
 import { buildSafeUpdateClause } from '../utils/sqlSecurity';
+import { buildPatientSearch } from '../utils/patientSearch';
 import { aiService } from '../services/aiService';
 import { nextInvoiceNumber, nextPatientNumber } from '../services/sequences';
 import drugInteractionService from '../services/drugInteractionService';
@@ -320,9 +321,11 @@ export const getPatients = async (req: Request, res: Response): Promise<void> =>
     `;
     const params: any[] = [];
 
-    if (search) {
-      query += ` AND (p.patient_number ILIKE $1 OR u.first_name ILIKE $1 OR u.last_name ILIKE $1)`;
-      params.push(`%${search}%`);
+    // Name (any order), patient number, phone or date of birth.
+    const patientSearch = typeof search === 'string' ? buildPatientSearch(search) : null;
+    if (patientSearch) {
+      query += ` AND ${patientSearch.clause}`;
+      params.push(...patientSearch.params);
     }
 
     // Sort VIP patients to top (platinum > gold > silver > null), then by created_at

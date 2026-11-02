@@ -491,8 +491,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Reception picks a patient to check them in (what the old dashboard search
+  // box did); everyone else opens the patient's record.
+  const searchRole = user?.is_super_admin && activeRole ? activeRole : user?.role;
+  const searchChecksIn = searchRole === 'receptionist';
+
   const handleSearchSelect = (result: SearchResult) => {
-    navigate(result.path);
+    navigate(result.type === 'patient' && searchChecksIn ? `/dashboard?checkin=${result.id}` : result.path);
     setSearchQuery('');
     setSearchOpen(false);
   };
@@ -595,7 +600,8 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
             </svg>
             <input
               type="text"
-              placeholder="Search patients..."
+              placeholder="Search name, date of birth, patient # or phone"
+              aria-label="Search patients by name, date of birth, patient number or phone"
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -620,7 +626,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
                     <li key={`${result.type}-${result.id}`}>
                       <button
                         onClick={() => handleSearchSelect(result)}
-                        className={c("w-full px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3")}
+                        className={c("w-full min-h-[44px] px-4 py-3 text-left hover:bg-primary-50 transition-colors flex items-center gap-3")}
                       >
                         <div className={c(`w-8 h-8 rounded-full flex items-center justify-center ${
                           result.type === 'patient' ? 'bg-primary-100 text-primary-600' : 'bg-secondary-100 text-secondary-600'
@@ -635,10 +641,13 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children, title, breadcrumbs, des
                             </svg>
                           )}
                         </div>
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className={c("text-sm font-medium text-text-primary")}>{result.title}</p>
                           <p className={c("text-xs text-text-secondary")}>{result.subtitle}</p>
                         </div>
+                        {result.type === 'patient' && searchChecksIn && (
+                          <span className={c("text-xs font-medium text-primary-600 whitespace-nowrap")}>Check in →</span>
+                        )}
                       </button>
                     </li>
                   ))}

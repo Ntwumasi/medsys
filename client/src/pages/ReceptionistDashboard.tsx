@@ -12,7 +12,6 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import PrintableInvoice from '../components/PrintableInvoice';
 import UnbilledPayerEncounters from '../components/UnbilledPayerEncounters';
 import PatientStatement from '../components/PatientStatement';
-import SearchBar from '../components/SearchBar';
 import { getApiError } from '../utils/apiError';
 import AppLayout from '../components/AppLayout';
 import { useNotification } from '../context/NotificationContext';
@@ -290,6 +289,34 @@ const ReceptionistDashboard: React.FC = () => {
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightParam]);
+
+  // ?checkin=<patientId> — the header search hands a patient to check-in.
+  // Load them, open check-in, then strip the param so a refresh doesn't redo it.
+  const checkinParam = searchParams.get('checkin');
+  const checkinRequest = useRef(0);
+  useEffect(() => {
+    if (!checkinParam) return;
+    const id = parseInt(checkinParam, 10);
+    const next = new URLSearchParams(searchParams);
+    next.delete('checkin');
+    setSearchParams(next, { replace: true });
+    if (Number.isNaN(id)) return;
+    setSelectedPatient(null);
+    setActiveView('checkin');
+    // Only the latest pick wins (removing the param re-runs this effect, so a
+    // cleanup flag would cancel the load itself).
+    const req = ++checkinRequest.current;
+    apiClient.get(`/patients/${id}`)
+      .then((res) => {
+        if (req !== checkinRequest.current) return;
+        const patient = res.data.patient || res.data;
+        setSelectedPatient(patient);
+        const name = `${patient.first_name || ''} ${patient.last_name || ''}`.trim() || 'Patient';
+        showToast(`${name} selected for check-in`, 'info');
+      })
+      .catch(() => { if (req === checkinRequest.current) showToast('Could not load that patient — search again', 'error'); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkinParam]);
 
   // Auto-clear the flash after a few seconds. Scrolling happens via a ref
   // callback on the card itself (fires when it renders), so we don't depend on
@@ -1773,18 +1800,6 @@ const ReceptionistDashboard: React.FC = () => {
           </>
         )}
       />
-      {/* Search Bar */}
-      <div className="mb-6">
-        <SearchBar
-          onPatientSelect={(patient) => {
-            setActiveView('checkin');
-            setSelectedPatient(patient);
-            const patientName = patient.full_name || `${patient.first_name || ''} ${patient.last_name || ''}`.trim();
-            showToast(`Patient ${patientName} selected for check-in`, 'info');
-          }}
-          placeholder="Search patients..."
-        />
-      </div>
 
       {error && (
           <div className="mb-6 bg-ds-critical-soft border border-ds-critical-border text-ds-critical-text px-4 py-3 rounded-ds-card flex items-start gap-3 shadow-ds-card">
