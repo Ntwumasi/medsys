@@ -45,7 +45,7 @@ const fakeDb = (opts: {
       return { rows: [{ id: 70, encounter_id: params[2], detention_item_id: null, billed_units: 0, bill_detention: true }] };
     }
     if (sql.includes('FROM short_stays WHERE id = $1')) return { rows: opts.stay ? [opts.stay] : [] };
-    if (sql.includes('FROM charge_master WHERE service_code')) return { rows: [{ id: 31, service_name: 'Detention', price: '350' }] };
+    if (sql.includes('FROM charge_master WHERE service_code')) return { rows: [{ id: 31, service_name: 'SHORT STAY', price: '350', category: 'procedure' }] };
     if (sql.includes('COALESCE(SUM(quantity), 0)::int AS qty')) return { rows: [{ qty: opts.otherDetentionQty || 0 }] };
     if (sql.includes('SELECT quantity FROM invoice_items WHERE id = $1')) return { rows: [{ quantity: opts.ownQty ?? 1 }] };
     if (sql.includes('INSERT INTO invoice_items')) return { rows: [{ id: 801 }] };
@@ -86,7 +86,7 @@ describe('admitting to a bed', () => {
     const stay = calls.find((c) => c.sql.includes('INSERT INTO short_stays'))!;
     expect(stay.params).toEqual([1, 55, 321, 'IV fluids, dehydration', 3, 60, 12]);
     const line = calls.find((c) => c.sql.includes('INSERT INTO invoice_items'))!;
-    expect(line.params).toEqual([900, 31, 'Detention', 1, 350, 'payer']);
+    expect(line.params).toEqual([900, 31, 'SHORT STAY', 1, 350, 'procedure', 'payer']);
     expect(calls.some((c) => c.sql.includes('UPDATE short_stay_beds') && c.params.includes(70))).toBe(true);
   });
 

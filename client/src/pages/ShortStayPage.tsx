@@ -68,7 +68,7 @@ const ago = (iso: string | null | undefined) => {
   const d = parseISO(iso);
   return isValid(d) ? formatDistanceToNowStrict(d) : '';
 };
-/** Time in bed: neutral under 12 h, amber 12–24 h, red past 24 h (a second Detention day). */
+/** Time in bed: neutral under 12 h, amber 12–24 h, red past 24 h (a second short stay day). */
 const timeTone = (h: number) =>
   h >= 24 ? 'bg-ds-critical-soft text-ds-critical-text border-ds-critical-border'
   : h >= 12 ? 'bg-ds-warning-soft text-ds-warning-text border-ds-warning-soft'
@@ -396,7 +396,7 @@ const AdmitDialog: React.FC<{ bed: Bed; onClose: () => void; onDone: () => void 
             </select>
           </div>
         </div>
-        <p className="text-xs text-ds-text-muted">Detention is billed on the visit: one day now, plus one for each further started 24 hours at discharge.</p>
+        <p className="text-xs text-ds-text-muted">The SHORT STAY charge is added to the visit bill automatically: one day now, plus one for each further started 24 hours at discharge. Don't add it by hand.</p>
       </div>
     </Modal>
   );
@@ -567,7 +567,7 @@ const DischargeDialog: React.FC<{ stay: Stay; onClose: () => void; onDone: () =>
           <textarea id="ss-fu" rows={2} value={followUp} onChange={(e) => setFollowUp(e.target.value)} className={`${inputClass} resize-none`} />
         </div>
         <p className="text-xs text-ds-text-muted">
-          {hoursLabel(stay.hours_in_bed)} in bed — Detention for {days} day{days > 1 ? 's' : ''} goes on the visit bill.
+          {hoursLabel(stay.hours_in_bed)} in bed — SHORT STAY for {days} day{days > 1 ? 's' : ''} goes on the visit bill automatically.
         </p>
       </div>
     </Modal>

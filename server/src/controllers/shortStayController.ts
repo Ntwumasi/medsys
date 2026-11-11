@@ -13,12 +13,13 @@ import { resolvePrice } from '../services/priceResolutionService';
  * vitals, so critical alerts and the chart keep working), medicines and drips
  * given, notes and handovers, and can move the patient to another bed.
  * Discharge records the condition, a note and follow-up, frees the bed and
- * settles the Detention charge: one CONS-DETENTION unit per started 24 hours
- * (the first billed at admission). Detention a doctor already billed by hand
- * on the visit counts towards it, so nothing is charged twice.
+ * settles the short stay charge: one unit of the nurses' "SHORT STAY" charge
+ * (service code 'NUR- SS', the one already billed by hand on prod) per started
+ * 24 hours, the first at admission. Short stay already added by hand on the
+ * visit counts towards it, so nothing is charged twice.
  */
 
-export const DETENTION_CODE = 'CONS-DETENTION';
+export const DETENTION_CODE = 'NUR- SS';
 export const DETENTION_UNIT_HOURS = 24;
 const ENTRY_KINDS = ['medication', 'fluid', 'note', 'handover'] as const;
 const DISCHARGE_CONDITIONS = ['improved', 'stable', 'referred', 'against_advice', 'deceased', 'other'] as const;
@@ -73,10 +74,14 @@ const billDetention = async (
 ): Promise<number> => {
   if (!stay.bill_detention || !stay.encounter_id) return stay.billed_units;
   const charge = await client.query(
-    `SELECT id, service_name, price FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1`,
+    `SELECT id, BTRIM(service_name) AS service_name, price, category FROM charge_master WHERE service_code = $1 AND is_active = true LIMIT 1`,
     [DETENTION_CODE]
   );
-  if (!charge.rows[0]) return stay.billed_units;
+  if (!charge.rows[0]) {
+    // Never skip quietly: an unbilled stay is lost revenue nobody notices.
+    console.error(`Short stay ${stay.id} NOT billed: no active charge_master row with service_code '${DETENTION_CODE}'`);
+    return stay.billed_units;
+  }
   const invoiceId = await getOrCreateEncounterInvoice(stay.encounter_id, client);
 
   // Detention already on the invoice that isn't this stay's own line (a doctor
@@ -106,8 +111,8 @@ const billDetention = async (
   } else {
     const ins = await client.query(
       `INSERT INTO invoice_items (invoice_id, charge_master_id, description, quantity, unit_price, total_price, category, bill_to)
-       VALUES ($1, $2, $3, $4, $5, $4 * $5, 'consultation', $6) RETURNING id`,
-      [invoiceId, charge.rows[0].id, charge.rows[0].service_name, newOwnQty, unitPrice, billTo]
+       VALUES ($1, $2, $3, $4, $5, $4 * $5, $6, $7) RETURNING id`,
+      [invoiceId, charge.rows[0].id, charge.rows[0].service_name, newOwnQty, unitPrice, charge.rows[0].category || 'procedure', billTo]
     );
     itemId = ins.rows[0].id;
   }
