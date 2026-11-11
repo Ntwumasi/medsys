@@ -44,6 +44,7 @@ const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const NurseFollowUpCalls = lazy(() => import('./pages/NurseFollowUpCalls'));
 const NurseProcurement = lazy(() => import('./pages/NurseProcurement'));
 const NurseQA = lazy(() => import('./pages/NurseQA'));
+const DoctorPatientsPage = lazy(() => import('./pages/DoctorPatientsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const StaffProfilePage = lazy(() => import('./pages/StaffProfilePage'));
 const FeedPage = lazy(() => import('./pages/FeedPage'));
@@ -183,6 +184,7 @@ const AppContent: React.FC = () => {
         <Route path="/nurse/follow-up-calls" element={<ProtectedRoute><NurseFollowUpCalls /></ProtectedRoute>} />
         <Route path="/nurse/procurement" element={<ProtectedRoute><NurseProcurement /></ProtectedRoute>} />
         <Route path="/nurse/qa" element={<ProtectedRoute><NurseQA /></ProtectedRoute>} />
+        <Route path="/patients-by-doctor" element={<ProtectedRoute><ErrorBoundary><DoctorPatientsPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/refills-calendar" element={<ProtectedRoute><RefillsCalendar /></ProtectedRoute>} />
         <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
         <Route path="/receipts" element={<ProtectedRoute><ReceiptsPage /></ProtectedRoute>} />

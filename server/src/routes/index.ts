@@ -205,6 +205,7 @@ import {
   setMarketingOptOut,
 } from '../controllers/marketingController';
 import { listHomeVisits, startHomeVisit, homeVisitOnMyWay } from '../controllers/homeVisitController';
+import { getDoctorPatientsReport } from '../controllers/doctorPatientsReportController';
 import { listDeliveries, getDelivery, createDelivery, updateDelivery, setDeliveryStatus, collectDeliveryPayment } from '../controllers/deliveryController';
 import {
   importMarketingContacts,
@@ -656,6 +657,9 @@ router.post('/appointments/:id/no-show', authenticateToken, authorizeRoles(...AP
 router.get('/home-visits', authenticateToken, authorizeRoles('doctor', 'nurse', 'receptionist', 'admin'), listHomeVisits);
 router.post('/home-visits/:id/start', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), startHomeVisit);
 router.post('/home-visits/:id/on-my-way', authenticateToken, authorizeRoles('doctor', 'nurse', 'admin'), homeVisitOnMyWay);
+
+// Patients by doctor (head nurse's view): who each doctor saw + missed appointments. Read-only.
+router.get('/reports/doctor-patients', authenticateToken, authorizeRoles('nurse', 'admin'), getDoctorPatientsReport);
 
 // Medicine delivery (home care phase 2): the pharmacy runs it; doctors and
 // nurses can see where a patient's medicines are.
