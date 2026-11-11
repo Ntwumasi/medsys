@@ -27,6 +27,7 @@ const PatientList = lazy(() => import('./pages/PatientList'));
 const PatientRegistration = lazy(() => import('./pages/PatientRegistration'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const AppointmentsCalendar = lazy(() => import('./pages/AppointmentsCalendar'));
+const ShortStayPage = lazy(() => import('./pages/ShortStayPage'));
 const PatientRegistrationPage = lazy(() => import('./pages/PatientRegistrationPage'));
 const PatientPortal = lazy(() => import('./pages/PatientPortal'));
 const DuplicatePatients = lazy(() => import('./pages/DuplicatePatients'));
@@ -209,6 +210,7 @@ const AppContent: React.FC = () => {
         <Route path="/patients/:id" element={<ProtectedRoute><PatientDetails /></ProtectedRoute>} />
         <Route path="/register" element={<ProtectedRoute><PatientRegistrationPage /></ProtectedRoute>} />
         <Route path="/appointments" element={<ProtectedRoute><AppointmentsCalendar /></ProtectedRoute>} />
+        <Route path="/short-stay" element={<ProtectedRoute><ShortStayPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><div className="p-8"><h1 className="text-2xl font-bold">Reports (Coming Soon)</h1></div></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/dashboard" />} />

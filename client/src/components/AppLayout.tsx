@@ -148,6 +148,16 @@ const navItems: NavItem[] = [
     roles: ['doctor', 'nurse', 'admin'],
   },
   {
+    label: 'Short Stay',
+    path: '/short-stay',
+    icon: (
+      <svg className={c("w-5 h-5")} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 18v-6a2 2 0 012-2h14a2 2 0 012 2v6M3 18h18M3 18v2m18-2v2M7 10V7a2 2 0 012-2h2a2 2 0 012 2v3" />
+      </svg>
+    ),
+    roles: ['doctor', 'nurse', 'admin'],
+  },
+  {
     label: 'Calls',
     path: '/nurse/follow-up-calls',
     icon: (

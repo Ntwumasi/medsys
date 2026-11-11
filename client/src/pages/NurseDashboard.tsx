@@ -2444,6 +2444,9 @@ const NurseDashboard: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
               </svg>
               <h2 className="text-[11px] font-semibold text-ds-text-muted uppercase tracking-wider">Short Stay Unit</h2>
+              <button onClick={() => navigate('/short-stay')} className="min-h-ds-control inline-flex items-center px-2 text-xs font-semibold text-ds-accent-text hover:underline">
+                Open bed board →
+              </button>
             </div>
             <div className="flex items-center gap-3">
               <span className={`px-2 py-0.5 text-xs font-bold rounded-full tabular-nums ${

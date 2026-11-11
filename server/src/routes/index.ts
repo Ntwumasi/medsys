@@ -286,10 +286,8 @@ import {
   getUpdateStats,
 } from '../controllers/systemUpdatesController';
 import {
-  getShortStayBeds,
-  assignBed,
-  releaseBed,
-  getEncounterShortStayHistory,
+  getShortStayBeds, assignBed, releaseBed, getEncounterShortStayHistory, getShortStayHistory, getShortStay,
+  updateShortStay, addShortStayEntry, transferShortStay, dischargeShortStay, addShortStayBed,
 } from '../controllers/shortStayController';
 import {
   getInventory,
@@ -884,10 +882,20 @@ router.put('/system-updates/:id', authenticateToken, authorizeRoles('admin'), up
 router.delete('/system-updates/:id', authenticateToken, authorizeRoles('admin'), deleteSystemUpdate);
 
 // Short Stay Unit routes
-router.get('/short-stay/beds', authenticateToken, authorizeRoles('doctor', 'nurse'), getShortStayBeds);
-router.post('/short-stay/assign', authenticateToken, authorizeRoles('doctor', 'admin'), assignBed);
-router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles('doctor', 'nurse'), releaseBed);
-router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles('doctor', 'nurse'), getEncounterShortStayHistory);
+// Short Stay Unit: bed board, admission, obs, entries, transfer, discharge.
+// Nurses admit too (the nurse dashboard's "assign" used to 403 for them).
+const SHORT_STAY_STAFF = ['doctor', 'nurse', 'admin'] as const;
+router.get('/short-stay/beds', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStayBeds);
+router.post('/short-stay/beds', authenticateToken, authorizeRoles('admin'), addShortStayBed);
+router.post('/short-stay/assign', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), assignBed);
+router.post('/short-stay/release/:bed_id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), releaseBed);
+router.get('/short-stay/encounter/:encounter_id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getEncounterShortStayHistory);
+router.get('/short-stay/history', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStayHistory);
+router.get('/short-stay/stays/:id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), getShortStay);
+router.put('/short-stay/stays/:id', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), updateShortStay);
+router.post('/short-stay/stays/:id/entries', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), addShortStayEntry);
+router.post('/short-stay/stays/:id/transfer', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), transferShortStay);
+router.post('/short-stay/stays/:id/discharge', authenticateToken, authorizeRoles(...SHORT_STAY_STAFF), dischargeShortStay);
 
 // Pharmacy Inventory routes
 router.get('/inventory', authenticateToken, authorizeRoles('pharmacy', 'pharmacist', 'pharmacy_tech', 'admin'), getInventory);
